@@ -349,12 +349,96 @@ async function executeFunction(indexPath, context) {
     try {
         // Read the function code
         const functionCode = await fs.readFile(indexPath, 'utf8');
+        
+        // Get the package directory for local requires
+        const packageDir = path.dirname(indexPath);
+
+        // Create a custom require function that supports local files
+        const createCustomRequire = (currentDir, originalPackageDir) => {
+            const allowedModules = [
+                'crypto', 'querystring', 'url', 'util', 'path', 'os', 
+                'stream', 'events', 'buffer', 'string_decoder', 'zlib'
+            ];
+            
+            return (moduleName) => {
+                // Handle local requires (starts with ./ or ../)
+                if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
+                    try {
+                        const fullPath = path.resolve(currentDir, moduleName);
+                        
+                        // Security check: ensure the required file is within the original package directory
+                        const normalizedFullPath = path.normalize(fullPath);
+                        const normalizedPackageDir = path.normalize(originalPackageDir);
+                        
+                        if (!normalizedFullPath.startsWith(normalizedPackageDir)) {
+                            throw new Error(`Access denied: Cannot require files outside package directory. Attempted: ${normalizedFullPath}, Package: ${normalizedPackageDir}`);
+                        }
+                        
+                        // Try different file extensions
+                        let filePath = fullPath;
+                        if (!fs.existsSync(filePath)) {
+                            if (fs.existsSync(`${fullPath}.js`)) {
+                                filePath = `${fullPath}.js`;
+                            } else if (fs.existsSync(path.join(fullPath, 'index.js'))) {
+                                filePath = path.join(fullPath, 'index.js');
+                            } else {
+                                throw new Error(`Cannot find module '${moduleName}'. Tried: ${fullPath}, ${fullPath}.js, ${path.join(fullPath, 'index.js')}`);
+                            }
+                        }
+                        
+                        // Read and execute the required file in a new context
+                        const requiredCode = fs.readFileSync(filePath, 'utf8');
+                        const moduleContext = {
+                            module: { exports: {} },
+                            exports: {},
+                            require: createCustomRequire(path.dirname(filePath), originalPackageDir), // Pass both current dir and original package dir
+                            __filename: filePath,
+                            __dirname: path.dirname(filePath)
+                        };
+                        
+                        // Create VM for the required module
+                        const moduleVM = new VM({
+                            timeout: 5000,
+                            sandbox: {
+                                ...moduleContext,
+                                console: context.console,
+                                Buffer,
+                                setTimeout,
+                                setInterval,
+                                clearTimeout,
+                                clearInterval,
+                                process: {
+                                    env: filterProcessEnv()
+                                }
+                            }
+                        });
+                        
+                        // Execute the required module
+                        moduleVM.run(requiredCode);
+                        
+                        // Return module.exports or exports
+                        return moduleContext.module.exports || moduleContext.exports;
+                        
+                    } catch (error) {
+                        throw new Error(`Error requiring '${moduleName}': ${error.message}`);
+                    }
+                }
+                
+                // Handle built-in Node.js modules
+                if (allowedModules.includes(moduleName)) {
+                    return require(moduleName);
+                }
+                
+                // Deny access to other modules for security
+                throw new Error(`Module '${moduleName}' is not allowed in sandbox environment`);
+            };
+        };
 
         // Create a secure VM
         const vm = new VM({
             timeout: 30000, // 30 second timeout
             sandbox: {
-                require: createSecureRequire(),
+                require: createCustomRequire(packageDir, packageDir),
                 console: context.console,
                 Buffer,
                 process: {
@@ -365,7 +449,9 @@ async function executeFunction(indexPath, context) {
                 clearTimeout,
                 clearInterval,
                 module: { exports: {} },
-                exports: {}
+                exports: {},
+                __filename: indexPath,
+                __dirname: packageDir
             }
         });
 
@@ -412,31 +498,40 @@ async function executeFunction(indexPath, context) {
 async function executeUserFunction(userFunction, context) {
     return new Promise(async (resolve) => {
         try {
-            // Check if the function is async by inspecting its constructor
-            const isAsync = userFunction.constructor.name === 'AsyncFunction';
+            // Call the user function
+            const result = userFunction(context.req, context.res);
             
-            let result;
-            if (isAsync) {
-                // For async functions, await the result
-                result = await userFunction(context.req, context.res);
-            } else {
-                // For sync functions, call normally
-                result = userFunction(context.req, context.res);
+            // Check if the result is a promise (async function)
+            if (result && typeof result.then === 'function') {
+                try {
+                    const promiseResult = await result;
+                    
+                    // After promise resolves, check if response has data (set by res.json() calls)
+                    if (context.res.data !== undefined) {
+                        resolve({ 
+                            data: context.res.data, 
+                            statusCode: context.res.statusCode || 200 
+                        });
+                    } else if (promiseResult !== undefined) {
+                        // Promise returned data directly
+                        resolve({ data: promiseResult, statusCode: context.res.statusCode || 200 });
+                    } else {
+                        // No data was set - this might be an error
+                        resolve({ 
+                            error: 'Function did not produce any output', 
+                            statusCode: context.res.statusCode || 500 
+                        });
+                    }
+                } catch (error) {
+                    resolve({ error: error.message, statusCode: 500 });
+                }
             }
-            
-            // For Express-style functions, the result is usually undefined because they use res.json()
-            // Check if response has data (set by res.json() calls)
-            if (context.res.data !== undefined) {
+            // For non-async functions, check response data immediately
+            else if (context.res.data !== undefined) {
                 resolve({ 
                     data: context.res.data, 
                     statusCode: context.res.statusCode || 200 
                 });
-            } 
-            // Handle promises (for cases where sync function returns a promise)
-            else if (result && typeof result.then === 'function') {
-                result
-                    .then(data => resolve({ data, statusCode: context.res.statusCode || 200 }))
-                    .catch(error => resolve({ error: error.message, statusCode: 500 }));
             } else if (result !== undefined) {
                 // Function returned a value directly
                 resolve({ data: result, statusCode: context.res.statusCode || 200 });

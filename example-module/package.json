@@ -1,0 +1,12 @@
+{
+  "name": "example-modular-function",
+  "version": "1.2.0",
+  "description": "Example modular serverless function demonstrating local file requires",
+  "main": "index.js",
+  "keywords": ["serverless", "function", "modular", "invoke", "example"],
+  "author": "Invoke Platform",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
