@@ -15,7 +15,9 @@ import {
   HardDrive,
   Hash,
   User,
-  Trash2
+  Trash2,
+  Code2,
+  Eye
 } from 'lucide-react'
 
 interface FunctionVersion {
@@ -467,6 +469,13 @@ export default function FunctionVersioning() {
                             {!version.is_active ? (
                               <>
                                 <button
+                                  onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}
+                                  className="text-blue-400 hover:text-blue-300 p-1 rounded"
+                                  title="View/Edit code"
+                                >
+                                  <Code2 className="w-4 h-4" />
+                                </button>
+                                <button
                                   onClick={() => handleSwitchVersion(version.id, version.version)}
                                   disabled={switchingVersion === version.id}
                                   className="text-primary-400 hover:text-primary-300 text-sm font-medium disabled:opacity-50"
@@ -487,7 +496,16 @@ export default function FunctionVersioning() {
                                 </button>
                               </>
                             ) : (
-                              <span className="text-gray-500 text-sm">Current</span>
+                              <>
+                                <button
+                                  onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}
+                                  className="text-blue-400 hover:text-blue-300 p-1 rounded"
+                                  title="View/Edit code"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <span className="text-gray-500 text-sm">Current</span>
+                              </>
                             )}
                           </div>
                         </td>

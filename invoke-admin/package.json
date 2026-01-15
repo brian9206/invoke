@@ -11,6 +11,7 @@
     "db:migrate": "node scripts/migrate.js"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
     "adm-zip": "^0.5.16",
     "archiver": "^6.0.2",
     "autoprefixer": "^10.4.16",

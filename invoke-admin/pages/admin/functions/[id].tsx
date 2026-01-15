@@ -18,7 +18,10 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
-  Upload
+  Upload,
+  Code2,
+  ChevronDown,
+  MoreVertical
 } from 'lucide-react'
 
 interface Function {
@@ -32,6 +35,7 @@ interface Function {
   last_executed: string | null
   execution_count: number
   requires_api_key: boolean
+  active_version_id?: string
   api_key?: string
 }
 
@@ -98,6 +102,7 @@ export default function FunctionDetails() {
   const [logsPageSize, setLogsPageSize] = useState(10)
   const [logsFilter, setLogsFilter] = useState<'all' | 'success' | 'error'>('all')
   const [logsLoading, setLogsLoading] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -491,14 +496,6 @@ export default function FunctionDetails() {
               ) : (
                 <>
                   <button
-                    onClick={() => router.push(`/admin/functions/${id}/versioning`)}
-                    className="btn-primary flex items-center"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Versioning
-                  </button>
-
-                  <button
                     onClick={() => setEditing(true)}
                     className="btn-secondary flex items-center"
                   >
@@ -506,12 +503,85 @@ export default function FunctionDetails() {
                     Edit
                   </button>
 
-                  <button
-                    onClick={toggleActiveStatus}
-                    className={functionData.is_active ? 'btn-danger flex items-center' : 'btn-primary flex items-center'}
-                  >
-                    {functionData.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
+                  {/* Actions Dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      className="btn-primary flex items-center h-[40px]"
+                    >
+                      <MoreVertical className="w-4 h-4 mr-2" />
+                      <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${
+                        dropdownOpen ? 'rotate-180' : ''
+                      }`} />
+                    </button>
+
+                    {dropdownOpen && (
+                      <>
+                        {/* Backdrop */}
+                        <div 
+                          className="fixed inset-0 z-10"
+                          onClick={() => setDropdownOpen(false)}
+                        />
+                        
+                        {/* Dropdown Menu */}
+                        <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                // Navigate to code editor for the current active version
+                                if (functionData.active_version_id) {
+                                  router.push(`/admin/functions/${id}/versions/${functionData.active_version_id}/edit`)
+                                }
+                                setDropdownOpen(false)
+                              }}
+                              disabled={!functionData.active_version_id}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center disabled:text-gray-500 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                            >
+                              <Code2 className="w-4 h-4 mr-3" />
+                              View Source
+                            </button>
+                            
+                            <button
+                              onClick={() => {
+                                router.push(`/admin/functions/${id}/versioning`)
+                                setDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center"
+                            >
+                              <Upload className="w-4 h-4 mr-3" />
+                              Versioning
+                            </button>
+                            
+                            <hr className="border-gray-700 my-1" />
+                            
+                            <button
+                              onClick={() => {
+                                toggleActiveStatus()
+                                setDropdownOpen(false)
+                              }}
+                              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-700 flex items-center ${
+                                functionData.is_active 
+                                  ? 'text-red-400 hover:text-red-300' 
+                                  : 'text-green-400 hover:text-green-300'
+                              }`}
+                            >
+                              {functionData.is_active ? (
+                                <>
+                                  <X className="w-4 h-4 mr-3" />
+                                  Deactivate
+                                </>
+                              ) : (
+                                <>
+                                  <Check className="w-4 h-4 mr-3" />
+                                  Activate
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>

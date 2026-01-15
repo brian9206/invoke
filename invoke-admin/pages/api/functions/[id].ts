@@ -53,6 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           f.execution_count,
           f.requires_api_key,
           f.api_key,
+          f.active_version_id,
           fv.version,
           fv.file_size,
           fv.package_path,

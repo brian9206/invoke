@@ -14,7 +14,7 @@ const generateApiKey = () => {
   return result
 }
 
-export default function UploadFunction() {
+export default function CreateFunction() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
@@ -22,6 +22,7 @@ export default function UploadFunction() {
   const [requiresApiKey, setRequiresApiKey] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [creationMode, setCreationMode] = useState<'upload' | 'helloworld'>('upload')
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -37,6 +38,50 @@ export default function UploadFunction() {
     if (selectedFile) {
       setFile(selectedFile)
       setUploadResult(null)
+    }
+  }
+
+  const handleCreateHelloWorld = async () => {
+    if (!name.trim()) {
+      setUploadResult({ success: false, message: 'Function name is required for Hello World creation' })
+      return
+    }
+
+    setUploading(true)
+    setUploadResult(null)
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch('/api/functions/create-hello-world', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          description: description.trim() || 'Hello World function',
+          requiresApiKey,
+          apiKey
+        })
+      })
+
+      const result = await response.json()
+      setUploadResult(result)
+
+      if (result.success) {
+        setTimeout(() => {
+          router.push(`/admin/functions/${result.data.id}`)
+        }, 2000)
+      }
+    } catch (error) {
+      setUploadResult({ success: false, message: 'Network error occurred' })
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -122,82 +167,134 @@ export default function UploadFunction() {
       <Layout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-100">Upload Function</h1>
+            <h1 className="text-3xl font-bold text-gray-100">Create New Function</h1>
             <p className="text-gray-400 mt-2">
-              Deploy a new serverless function to the Invoke platform
+              Upload a function package or create a Hello World function to get started
             </p>
           </div>
 
           <div className="card max-w-2xl">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-              <Upload className="w-5 h-5 mr-2" />
-              Function Package
-            </h2>
-
-            {/* Upload Area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                file ? 'border-primary-500 bg-primary-500/10' : 'border-gray-600 hover:border-gray-500'
-              }`}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              {file ? (
-                <div className="space-y-3">
-                  <FileText className="w-12 h-12 mx-auto text-primary-500" />
-                  <div>
-                    <p className="text-gray-100 font-medium">{file.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setFile(null)}
-                    className="text-gray-400 hover:text-gray-300 text-sm"
-                  >
-                    Remove file
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Upload className="w-12 h-12 mx-auto text-gray-500" />
-                  <div>
-                    <p className="text-gray-100">
-                      Drag and drop your function package here
-                    </p>
-                    <p className="text-gray-400 text-sm">
-                      or click to browse files
-                    </p>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip,.tar.gz"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-secondary"
-                  >
-                    Choose File
-                  </button>
-                </div>
-              )}
+            {/* Creation Mode Selector */}
+            <div className="mb-6">
+              <div className="flex space-x-1 p-1 bg-gray-800 rounded-lg w-fit">
+                <button
+                  onClick={() => setCreationMode('upload')}
+                  className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
+                    creationMode === 'upload'
+                      ? 'bg-primary-600 text-white'
+                      : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  Upload Package
+                </button>
+                <button
+                  onClick={() => setCreationMode('helloworld')}
+                  className={`px-4 py-2 text-sm font-medium rounded transition-colors ${
+                    creationMode === 'helloworld'
+                      ? 'bg-primary-600 text-white'
+                      : 'text-gray-400 hover:text-gray-300'
+                  }`}
+                >
+                  Create From Template
+                </button>
+              </div>
             </div>
+
+            {/* Upload Mode */}
+            {creationMode === 'upload' && (
+              <>
+                <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
+                  <Upload className="w-5 h-5 mr-2" />
+                  Function Package
+                </h2>
+                
+                {/* Upload Area */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    file ? 'border-primary-500 bg-primary-500/10' : 'border-gray-600 hover:border-gray-500'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
+                  {file ? (
+                    <div className="space-y-3">
+                      <FileText className="w-12 h-12 mx-auto text-primary-500" />
+                      <div>
+                        <p className="text-gray-100 font-medium">{file.name}</p>
+                        <p className="text-gray-400 text-sm">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setFile(null)}
+                        className="text-gray-400 hover:text-gray-300 text-sm"
+                      >
+                        Remove file
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Upload className="w-12 h-12 mx-auto text-gray-500" />
+                      <div>
+                        <p className="text-gray-100">
+                          Drag and drop your function package here
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          or click to browse files
+                        </p>
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".zip,.tar.gz"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn-secondary"
+                      >
+                        Choose File
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Hello World Mode */}
+            {creationMode === 'helloworld' && (
+              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center mb-4">
+                  <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center mr-4">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-100">Hello World Function</h3>
+                    <p className="text-gray-400 text-sm">
+                      Create a basic function template with example code
+                    </p>
+                  </div>
+                </div>
+                <p className="text-gray-300 text-sm">
+                  This will create a simple function that returns a "Hello World" message. 
+                  You can edit the code directly in the admin panel after creation.
+                </p>
+              </div>
+            )}
 
             {/* Function Details Form */}
             <div className="space-y-4 mt-6">
               <div>
                 <label htmlFor="functionName" className="block text-sm font-medium text-gray-300 mb-2">
-                  Function Name (optional)
+                  Function Name {creationMode === 'helloworld' ? '' : '(optional)'}
                 </label>
                 <input
                   id="functionName"
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Leave empty to use filename"
+                  placeholder={creationMode === 'helloworld' ? 'Enter function name' : 'Leave empty to use filename'}
                   className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 focus:outline-none"
                 />
               </div>
@@ -270,19 +367,33 @@ export default function UploadFunction() {
               )}
             </div>
 
-            {/* Upload Button */}
+            {/* Action Button */}
             <div className="flex justify-end mt-6">
-              <button
-                onClick={handleUpload}
-                disabled={!file || uploading}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  !file || uploading
-                    ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                    : 'btn-primary'
-                }`}
-              >
-                {uploading ? 'Uploading...' : 'Upload Function'}
-              </button>
+              {creationMode === 'upload' ? (
+                <button
+                  onClick={handleUpload}
+                  disabled={!file || uploading}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                    !file || uploading
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'btn-primary'
+                  }`}
+                >
+                  {uploading ? 'Uploading...' : 'Upload Function'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleCreateHelloWorld}
+                  disabled={!name.trim() || uploading}
+                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                    !name.trim() || uploading
+                      ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                      : 'btn-primary'
+                  }`}
+                >
+                  {uploading ? 'Creating...' : 'Create Function'}
+                </button>
+              )}
             </div>
 
             {/* Result Message */}

@@ -27,7 +27,7 @@ export default function Layout({ children, title = 'Invoke Admin' }: LayoutProps
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
-    { name: 'Upload Function', href: '/admin/upload', icon: Upload, active: router.pathname === '/admin/upload' },
+    { name: 'Create New Function', href: '/admin/upload', icon: Upload, active: router.pathname === '/admin/upload' },
     { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname === '/admin/functions' },
     { name: 'Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
     { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings' },
