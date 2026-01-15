@@ -1,0 +1,505 @@
+import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/router'
+import Layout from '../../../../components/Layout'
+import ProtectedRoute from '../../../../components/ProtectedRoute'
+import { 
+  Upload, 
+  FileText, 
+  AlertCircle, 
+  CheckCircle, 
+  ArrowLeft, 
+  History,
+  Play,
+  Pause,
+  Calendar,
+  HardDrive,
+  Hash,
+  User,
+  Trash2
+} from 'lucide-react'
+
+interface FunctionVersion {
+  id: string
+  version: string
+  file_size: number
+  package_hash: string
+  is_active: boolean
+  created_at: string
+  created_by?: string
+  created_by_name?: string
+}
+
+export default function FunctionVersioning() {
+  const router = useRouter()
+  const { id } = router.query
+  
+  const [functionData, setFunctionData] = useState<any>(null)
+  const [versions, setVersions] = useState<FunctionVersion[]>([])
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [switchingVersion, setSwitchingVersion] = useState<string | null>(null)
+  const [deletingVersion, setDeletingVersion] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (id) {
+      fetchFunctionData()
+      fetchVersions()
+    }
+  }, [id])
+
+  const fetchFunctionData = async () => {
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        setFunctionData(result.data)
+      }
+    } catch (error) {
+      console.error('Error fetching function:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchVersions = async () => {
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/versions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        setVersions(result.data)
+      }
+    } catch (error) {
+      console.error('Error fetching versions:', error)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (selectedFile) {
+      setFile(selectedFile)
+      setUploadResult(null)
+    }
+  }
+
+  const handleUploadNewVersion = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!file) {
+      setUploadResult({ success: false, message: 'Please select a file to upload' })
+      return
+    }
+
+    setUploading(true)
+    setUploadResult(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/versions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setUploadResult({ success: true, message: 'New version uploaded successfully!' })
+        setFile(null)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        // Refresh versions list
+        fetchVersions()
+      } else {
+        setUploadResult({ success: false, message: result.message || 'Upload failed' })
+      }
+    } catch (error) {
+      setUploadResult({ success: false, message: 'Network error occurred' })
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleSwitchVersion = async (versionId: string, version: string) => {
+    setSwitchingVersion(versionId)
+    
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/switch-version`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ versionId })
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setUploadResult({ success: true, message: `Switched to version ${version}` })
+        // Refresh versions list to update active status
+        fetchVersions()
+        fetchFunctionData()
+      } else {
+        setUploadResult({ success: false, message: result.message || 'Version switch failed' })
+      }
+    } catch (error) {
+      setUploadResult({ success: false, message: 'Network error occurred' })
+    } finally {
+      setSwitchingVersion(null)
+    }
+  }
+
+  const handleDeleteVersion = async (versionId: string, versionNumber: number) => {
+    if (!confirm(`Are you sure you want to delete version ${versionNumber}? This action cannot be undone.`)) {
+      return
+    }
+
+    setDeletingVersion(versionId)
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setUploadResult({ success: true, message: `Version ${versionNumber} deleted successfully` })
+        // Refresh versions list
+        fetchVersions()
+      } else {
+        setUploadResult({ success: false, message: result.message || 'Failed to delete version' })
+      }
+    } catch (error) {
+      setUploadResult({ success: false, message: 'Network error occurred' })
+    } finally {
+      setDeletingVersion(null)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    const droppedFile = e.dataTransfer.files[0]
+    if (droppedFile && (droppedFile.name.endsWith('.zip') || droppedFile.name.endsWith('.tar.gz') || droppedFile.name.endsWith('.tgz'))) {
+      setFile(droppedFile)
+      setUploadResult(null)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString()
+  }
+
+  const formatBytes = (bytes: number) => {
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    if (bytes === 0) return '0 Bytes'
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+  }
+
+  if (loading) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-400">Loading function details...</div>
+          </div>
+        </Layout>
+      </ProtectedRoute>
+    )
+  }
+
+  if (!functionData) {
+    return (
+      <ProtectedRoute>
+        <Layout>
+          <div className="flex items-center justify-center h-64">
+            <div className="text-red-400">Function not found</div>
+          </div>
+        </Layout>
+      </ProtectedRoute>
+    )
+  }
+
+  const activeVersion = versions.find(v => v.is_active)
+
+  return (
+    <ProtectedRoute>
+      <Layout>
+        <div className="space-y-6">
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5 text-gray-400" />
+            </button>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-100">Function Versioning</h1>
+              <p className="text-gray-400 mt-2">
+                Manage versions for <span className="text-gray-200 font-medium">{functionData.name}</span>
+                {activeVersion && <span className="ml-2">- Active: v{activeVersion.version}</span>}
+              </p>
+            </div>
+          </div>
+
+          {/* Upload New Version */}
+          <div className="card max-w-2xl">
+            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
+              <Upload className="w-5 h-5 mr-2" />
+              Upload New Version
+            </h2>
+
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                file ? 'border-primary-500 bg-primary-500/10' : 'border-gray-600 hover:border-gray-500'
+              }`}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              {file ? (
+                <div className="space-y-3">
+                  <FileText className="w-12 h-12 mx-auto text-primary-500" />
+                  <div>
+                    <p className="text-gray-100 font-medium">{file.name}</p>
+                    <p className="text-gray-400 text-sm">
+                      {formatBytes(file.size)}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setFile(null)}
+                    className="text-gray-400 hover:text-gray-300 text-sm"
+                  >
+                    Remove file
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Upload className="w-12 h-12 mx-auto text-gray-500" />
+                  <div>
+                    <p className="text-gray-100">
+                      Drag and drop your function package here
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      or click to browse files (.zip, .tar.gz, .tgz)
+                    </p>
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip,.tar.gz,.tgz"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn-secondary"
+                  >
+                    Choose File
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleUploadNewVersion} className="mt-4">
+              <div className="flex space-x-3">
+                <button
+                  type="submit"
+                  disabled={!file || uploading}
+                  className="btn-primary flex items-center disabled:opacity-50"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {uploading ? 'Uploading...' : 'Upload New Version'}
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
+                New version will be uploaded but not activated automatically
+              </p>
+            </form>
+          </div>
+
+          {/* Upload Result */}
+          {uploadResult && (
+            <div className={`card max-w-2xl p-4 ${
+              uploadResult.success 
+                ? 'bg-green-900/50 border border-green-700' 
+                : 'bg-red-900/50 border border-red-700'
+            }`}>
+              <div className="flex items-center">
+                {uploadResult.success ? (
+                  <CheckCircle className="w-5 h-5 text-green-400 mr-2" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                )}
+                <span className={uploadResult.success ? 'text-green-300' : 'text-red-300'}>
+                  {uploadResult.message}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Version History Table */}
+          <div className="card">
+            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
+              <History className="w-5 h-5 mr-2" />
+              Version History
+              <span className="ml-2 text-sm bg-gray-700 px-2 py-1 rounded">
+                {versions.length} versions
+              </span>
+            </h2>
+
+            {versions.length === 0 ? (
+              <div className="text-center py-8">
+                <History className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                <p className="text-gray-400">No versions found</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-3 px-4 text-gray-300">Version</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Size</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Hash</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Created</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Created By</th>
+                      <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {versions
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map((version) => (
+                      <tr key={version.id} className="border-b border-gray-800 hover:bg-gray-800/50">
+                        <td className="py-3 px-4">
+                          <span className="font-medium text-gray-100">v{version.version}</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {version.is_active ? (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-900/50 text-green-400 border border-green-700">
+                              <Play className="w-3 h-3 mr-1" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">
+                              <Pause className="w-3 h-3 mr-1" />
+                              Inactive
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-gray-400">
+                          <div className="flex items-center">
+                            <HardDrive className="w-4 h-4 mr-1" />
+                            {formatBytes(version.file_size)}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-400">
+                          <div className="flex items-center font-mono text-xs">
+                            <Hash className="w-4 h-4 mr-1" />
+                            {version.package_hash.substring(0, 8)}...
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-400">
+                          <div className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            {formatDate(version.created_at)}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-400">
+                          <div className="flex items-center">
+                            <User className="w-4 h-4 mr-1" />
+                            {version.created_by_name || 'Unknown'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2">
+                            {!version.is_active ? (
+                              <>
+                                <button
+                                  onClick={() => handleSwitchVersion(version.id, version.version)}
+                                  disabled={switchingVersion === version.id}
+                                  className="text-primary-400 hover:text-primary-300 text-sm font-medium disabled:opacity-50"
+                                >
+                                  {switchingVersion === version.id ? 'Activating...' : 'Activate'}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteVersion(version.id, version.version)}
+                                  disabled={deletingVersion === version.id}
+                                  className="text-red-400 hover:text-red-300 p-1 rounded disabled:opacity-50"
+                                  title="Delete version"
+                                >
+                                  {deletingVersion === version.id ? (
+                                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Trash2 className="w-4 h-4" />
+                                  )}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="text-gray-500 text-sm">Current</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </Layout>
+    </ProtectedRoute>
+  )
+}

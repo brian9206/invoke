@@ -1,0 +1,9 @@
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "description": "A simple hello world function for testing the Invoke platform",
+  "main": "index.js",
+  "author": "Invoke Platform",
+  "license": "MIT",
+  "keywords": ["hello", "world", "test", "invoke"]
+}

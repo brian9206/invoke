@@ -1,0 +1,29 @@
+{
+  "name": "invoke-cli",
+  "version": "1.0.0",
+  "description": "CLI tool for managing Invoke admin accounts and API keys",
+  "main": "index.js",
+  "bin": {
+    "invoke-cli": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1",
+    "inquirer": "^12.11.1",
+    "pg": "^8.11.3",
+    "table": "^6.8.1"
+  },
+  "keywords": [
+    "invoke",
+    "cli",
+    "admin",
+    "management"
+  ],
+  "author": "Invoke Team",
+  "license": "MIT"
+}

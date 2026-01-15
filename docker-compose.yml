@@ -1,0 +1,130 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: invoke_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: invoke_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MinIO Object Storage (S3-compatible)
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: invoke-minio
+      MINIO_ROOT_PASSWORD: invoke-minio-password-123
+    ports:
+      - "9000:9000"   # MinIO API
+      - "9001:9001"   # MinIO Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Execution Service (can scale horizontally)
+  invoke-execution:
+    build:
+      context: .
+      dockerfile: ./invoke-execution/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=invoke_db
+      - DB_USER=postgres
+      - DB_PASSWORD=invoke_password_123
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=invoke-minio
+      - MINIO_SECRET_KEY=invoke-minio-password-123
+      - MINIO_BUCKET=invoke-packages
+      - CACHE_DIR=/app/cache
+      - RATE_LIMIT=100
+      - EXECUTION_TIMEOUT=30000
+      - CACHE_TTL_DAYS=7
+      - MAX_CACHE_SIZE_GB=10
+    volumes:
+      - execution_cache:/app/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Admin Service
+  invoke-admin:
+    build:
+      context: .
+      dockerfile: ./invoke-admin/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=invoke_db
+      - DB_USER=postgres
+      - DB_PASSWORD=invoke_password_123
+      - JWT_SECRET=your_jwt_secret_change_in_production
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=invoke-minio
+      - MINIO_SECRET_KEY=invoke-minio-password-123
+      - MINIO_BUCKET=invoke-packages
+      - EXECUTION_URL=http://invoke-execution:3001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Load Balancer (optional)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - invoke-admin
+      - invoke-execution
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
+  execution_cache:
+
+networks:
+  default:
+    driver: bridge

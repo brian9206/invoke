@@ -1,0 +1,9 @@
+{
+  "name": "math-calculator",
+  "version": "1.0.0",
+  "description": "A calculator function that performs basic arithmetic operations",
+  "main": "index.js",
+  "author": "Invoke Platform",
+  "license": "MIT",
+  "keywords": ["math", "calculator", "arithmetic", "invoke"]
+}
