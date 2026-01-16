@@ -123,7 +123,7 @@ export default function Functions() {
                 Manage your deployed serverless functions
               </p>
             </div>
-            <a href="/admin/upload" className="btn-primary">
+            <a href="/admin/deploy" className="btn-primary">
               Upload Function
             </a>
           </div>
@@ -137,7 +137,7 @@ export default function Functions() {
               <p className="text-gray-400 mb-6">
                 Upload your first serverless function to get started
               </p>
-              <a href="/admin/upload" className="btn-primary">
+              <a href="/admin/deploy" className="btn-primary">
                 Upload Function
               </a>
             </div>

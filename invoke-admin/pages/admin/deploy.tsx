@@ -14,7 +14,7 @@ const generateApiKey = () => {
   return result
 }
 
-export default function CreateFunction() {
+export default function DeployFunction() {
   const router = useRouter()
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
@@ -56,7 +56,7 @@ export default function CreateFunction() {
         .find(row => row.startsWith('auth-token='))
         ?.split('=')[1]
 
-      const response = await fetch('/api/functions/create-hello-world', {
+      const response = await fetch('/api/functions/create-from-template', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -167,7 +167,7 @@ export default function CreateFunction() {
       <Layout>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-100">Create New Function</h1>
+            <h1 className="text-3xl font-bold text-gray-100">Deploy New Function</h1>
             <p className="text-gray-400 mt-2">
               Upload a function package or create a Hello World function to get started
             </p>

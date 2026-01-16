@@ -140,7 +140,7 @@ export default function UpdateFunction() {
         <div className="space-y-6">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push(`/admin/functions/${id}`)}
               className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-gray-400" />
@@ -244,7 +244,7 @@ export default function UpdateFunction() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.back()}
+                  onClick={() => router.push(`/admin/functions/${id}`)}
                   className="btn-secondary"
                 >
                   Cancel

@@ -13,7 +13,11 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Play
+  Play,
+  Trash2,
+  ChevronDown,
+  MoreVertical,
+  Download
 } from 'lucide-react'
 
 // Dynamically import Monaco Editor to avoid SSR issues
@@ -56,6 +60,8 @@ export default function FunctionCodeEditor() {
   const [renamingFile, setRenamingFile] = useState<FileNode | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [deploying, setDeploying] = useState(false)
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const hasFetchedRef = useRef(false)
   const editorRef = useRef<any>(null)
 
@@ -203,6 +209,41 @@ export default function FunctionCodeEditor() {
     setShowCreateDirModal(false)
   }
 
+  const handleDeleteFile = (fileToDelete: FileNode) => {
+    if (window.confirm(`Are you sure you want to delete "${fileToDelete.name}"?`)) {
+      const deleteFromFiles = (files: FileNode[]): FileNode[] => {
+        return files.filter(file => {
+          if (file.path === fileToDelete.path) {
+            return false // Remove this file
+          } else if (file.type === 'directory' && file.children) {
+            return {
+              ...file,
+              children: deleteFromFiles(file.children)
+            }
+          }
+          return file
+        }).map(file => {
+          if (file.type === 'directory' && file.children) {
+            return {
+              ...file,
+              children: deleteFromFiles(file.children)
+            }
+          }
+          return file
+        })
+      }
+      
+      setFiles(deleteFromFiles(files))
+      setHasChanges(true)
+      
+      // If the deleted file was selected, clear selection
+      if (selectedFile?.path === fileToDelete.path) {
+        setSelectedFile(null)
+        setEditorContent('')
+      }
+    }
+  }
+
   const handleRenameFile = (file: FileNode, newName: string) => {
     if (!newName.trim() || newName === file.name) {
       setRenamingFile(null)
@@ -243,6 +284,10 @@ export default function FunctionCodeEditor() {
 
   const handleDeploy = async () => {
     if (!functionData) return
+
+    if (!confirm('Deploying will create a new version and will immediately switch. Continue?')) {
+        return
+    }
     
     setDeploying(true)
     setSaveResult(null)
@@ -283,6 +328,44 @@ export default function FunctionCodeEditor() {
       setSaveResult({ success: false, message: 'Network error occurred during deployment' })
     } finally {
       setDeploying(false)
+    }
+  }
+
+  const handleDownload = async () => {
+    if (!functionId || !versionId || !functionData) return
+    
+    setDownloading(true)
+    setDropdownOpen(false)
+    
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${functionId}/versions/${versionId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${functionData.functionName || 'function'}-v${functionData.version}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } else {
+        console.error('Failed to download version')
+      }
+    } catch (error) {
+      console.error('Error downloading version:', error)
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -395,6 +478,16 @@ export default function FunctionCodeEditor() {
                 >
                   ✏️
                 </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDeleteFile(file)
+                  }}
+                  className="p-1 text-gray-500 hover:text-red-400 text-xs"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
               </div>
             </>
           )}
@@ -461,24 +554,11 @@ export default function FunctionCodeEditor() {
               {hasChanges && (
                 <span className="text-orange-400 text-sm">Unsaved changes</span>
               )}
-              <button
-                onClick={handleSave}
-                disabled={!hasChanges || saving || deploying}
-                className={`px-3 py-1.5 text-sm rounded font-medium transition-colors ${
-                  !hasChanges || saving || deploying ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-600 hover:bg-gray-500 text-gray-200'
-                }`}
-              >
-                {saving ? (
-                  <Loader2 className="w-3 h-3 mr-1 animate-spin inline" />
-                ) : (
-                  <Save className="w-3 h-3 mr-1 inline" />
-                )}
-                {saving ? 'Creating...' : 'Save as New Version'}
-              </button>
+                            
               <button
                 onClick={handleDeploy}
                 disabled={!hasChanges || saving || deploying}
-                className={`btn-primary flex items-center ${
+                className={`btn-secondary flex items-center ${
                   !hasChanges || saving || deploying ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
@@ -489,6 +569,71 @@ export default function FunctionCodeEditor() {
                 )}
                 {deploying ? 'Deploying...' : 'Deploy Now'}
               </button>
+
+              {/* Actions Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="btn-primary flex items-center h-[40px]"
+                >
+                  <MoreVertical className="w-4 h-4 mr-2" />
+                  <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${
+                    dropdownOpen ? 'rotate-180' : ''
+                  }`} />
+                </button>
+
+                {dropdownOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-10"
+                      onClick={() => setDropdownOpen(false)}
+                    />
+                    
+                    {/* Dropdown Menu */}
+                    <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-20">
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            handleSave()
+                            setDropdownOpen(false)
+                          }}
+                          disabled={!hasChanges || saving || deploying}
+                          className={`w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-700 ${
+                            !hasChanges || saving || deploying 
+                              ? 'text-gray-500 cursor-not-allowed' 
+                              : 'text-gray-300 hover:text-white'
+                          }`}
+                        >
+                          {saving ? (
+                            <Loader2 className="w-4 h-4 mr-3 animate-spin" />
+                          ) : (
+                            <Save className="w-4 h-4 mr-3" />
+                          )}
+                          {saving ? 'Creating...' : 'Save as New Version'}
+                        </button>
+                        
+                        <button
+                          onClick={handleDownload}
+                          disabled={downloading}
+                          className={`w-full text-left px-4 py-2 text-sm flex items-center hover:bg-gray-700 ${
+                            downloading
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : 'text-gray-300 hover:text-white'
+                          }`}
+                        >
+                          {downloading ? (
+                            <Loader2 className="w-4 h-4 mr-3 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4 mr-3" />
+                          )}
+                          {downloading ? 'Downloading...' : 'Download Package'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

@@ -17,7 +17,8 @@ import {
   User,
   Trash2,
   Code2,
-  Eye
+  Eye,
+  Download
 } from 'lucide-react'
 
 interface FunctionVersion {
@@ -41,6 +42,7 @@ export default function FunctionVersioning() {
   const [uploading, setUploading] = useState(false)
   const [switchingVersion, setSwitchingVersion] = useState<string | null>(null)
   const [deletingVersion, setDeletingVersion] = useState<string | null>(null)
+  const [downloadingVersion, setDownloadingVersion] = useState<string | null>(null)
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
   const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -155,6 +157,10 @@ export default function FunctionVersioning() {
   }
 
   const handleSwitchVersion = async (versionId: string, version: string) => {
+    if (!confirm(`Are you sure you want to switch to version ${version}?`)) {
+      return
+    }
+
     setSwitchingVersion(versionId)
     
     try {
@@ -225,6 +231,41 @@ export default function FunctionVersioning() {
     }
   }
 
+  const handleDownloadVersion = async (versionId: string, version: string) => {
+    setDownloadingVersion(versionId)
+    
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/versions/${versionId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${functionData?.name || 'function'}-v${version}.zip`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+      } else {
+        console.error('Failed to download version')
+      }
+    } catch (error) {
+      console.error('Error downloading version:', error)
+    } finally {
+      setDownloadingVersion(null)
+    }
+  }
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
   }
@@ -281,7 +322,7 @@ export default function FunctionVersioning() {
         <div className="space-y-6">
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => router.back()}
+              onClick={() => router.push(`/admin/functions/${id}`)}
               className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-gray-400" />
@@ -390,11 +431,11 @@ export default function FunctionVersioning() {
             </div>
           )}
 
-          {/* Version History Table */}
+          {/* Versions Table */}
           <div className="card">
             <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
               <History className="w-5 h-5 mr-2" />
-              Version History
+              Versions
               <span className="ml-2 text-sm bg-gray-700 px-2 py-1 rounded">
                 {versions.length} versions
               </span>
@@ -476,11 +517,28 @@ export default function FunctionVersioning() {
                                   <Code2 className="w-4 h-4" />
                                 </button>
                                 <button
+                                  onClick={() => handleDownloadVersion(version.id, version.version)}
+                                  disabled={downloadingVersion === version.id}
+                                  className="text-primary-400 hover:text-primary-300 p-1 rounded disabled:opacity-50"
+                                  title="Download package"
+                                >
+                                  {downloadingVersion === version.id ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Download className="w-4 h-4" />
+                                  )}
+                                </button>
+                                <button
                                   onClick={() => handleSwitchVersion(version.id, version.version)}
                                   disabled={switchingVersion === version.id}
                                   className="text-primary-400 hover:text-primary-300 text-sm font-medium disabled:opacity-50"
+                                  title="Switch to this version"
                                 >
-                                  {switchingVersion === version.id ? 'Activating...' : 'Activate'}
+                                  {switchingVersion === version.id ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Play className="w-4 h-4" />
+                                  )}
                                 </button>
                                 <button
                                   onClick={() => handleDeleteVersion(version.id, version.version)}
@@ -502,9 +560,20 @@ export default function FunctionVersioning() {
                                   className="text-blue-400 hover:text-blue-300 p-1 rounded"
                                   title="View/Edit code"
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Code2 className="w-4 h-4" />
                                 </button>
-                                <span className="text-gray-500 text-sm">Current</span>
+                                <button
+                                  onClick={() => handleDownloadVersion(version.id, version.version)}
+                                  disabled={downloadingVersion === version.id}
+                                  className="text-primary-400 hover:text-primary-300 p-1 rounded disabled:opacity-50"
+                                  title="Download package"
+                                >
+                                  {downloadingVersion === version.id ? (
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                  ) : (
+                                    <Download className="w-4 h-4" />
+                                  )}
+                                </button>
                               </>
                             )}
                           </div>

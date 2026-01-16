@@ -21,7 +21,9 @@ import {
   Upload,
   Code2,
   ChevronDown,
-  MoreVertical
+  MoreVertical,
+  Trash2,
+  History
 } from 'lucide-react'
 
 interface Function {
@@ -361,6 +363,33 @@ export default function FunctionDetails() {
     }
   }
 
+  const deleteFunction = async () => {
+    if (!confirm('Are you sure you want to delete this function? This action cannot be undone.')) return
+
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (response.ok) {
+        // Navigate back to functions list after successful deletion
+        router.push('/admin/functions')
+      } else {
+        console.error('Failed to delete function')
+      }
+    } catch (error) {
+      console.error('Error deleting function:', error)
+    }
+  }
+
   const fetchRetentionSettings = async () => {
     setRetentionLoading(true)
     try {
@@ -548,7 +577,7 @@ export default function FunctionDetails() {
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white flex items-center"
                             >
-                              <Upload className="w-4 h-4 mr-3" />
+                              <History className="w-4 h-4 mr-3" />
                               Versioning
                             </button>
                             
@@ -576,6 +605,19 @@ export default function FunctionDetails() {
                                   Activate
                                 </>
                               )}
+                            </button>
+                            
+                            <hr className="border-gray-700 my-1" />
+                            
+                            <button
+                              onClick={() => {
+                                deleteFunction()
+                                setDropdownOpen(false)
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-gray-700 flex items-center"
+                            >
+                              <Trash2 className="w-4 h-4 mr-3" />
+                              Delete Function
                             </button>
                           </div>
                         </div>
