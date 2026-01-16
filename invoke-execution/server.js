@@ -13,6 +13,7 @@ const cache = require('./services/cache');
 // Routes
 const executionRoutes = require('./routes/execution');
 const healthRoutes = require('./routes/health');
+const schedulerRoutes = require('./routes/scheduler');
 
 /**
  * Invoke Execution Service
@@ -94,6 +95,9 @@ class ExecutionServer {
         // Function execution endpoints
         this.app.use('/invoke', executionRoutes);
         
+        // Scheduler endpoints
+        this.app.use('/scheduler', schedulerRoutes);
+        
         // Root endpoint
         this.app.get('/', (req, res) => {
             res.json({
@@ -103,7 +107,8 @@ class ExecutionServer {
                 endpoints: {
                     health: '/health',
                     execute: 'POST /invoke/:functionId',
-                    executeGet: 'GET /invoke/:functionId'
+                    executeGet: 'GET /invoke/:functionId',
+                    triggerScheduled: 'POST /scheduler/trigger-scheduled'
                 },
                 features: {
                     apiKeyAuth: true,

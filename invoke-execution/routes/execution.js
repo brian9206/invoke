@@ -102,13 +102,7 @@ router.post('/:functionId', authenticateApiKey, async (req, res) => {
 
         // Create execution context
         const executionContext = {
-            req: {
-                method: 'POST',
-                body: requestBody,
-                query: queryParams,
-                headers: filterHeaders(headers),
-                params: { functionId }
-            },
+            req: createRequestObject('POST', requestBody, queryParams, filterHeaders(headers), { functionId }, req),
             res: createResponseObject(),
             console: createConsoleObject()
         };
@@ -193,13 +187,7 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
 
         // Create execution context
         const executionContext = {
-            req: {
-                method: 'GET',
-                body: {},
-                query: queryParams,
-                headers: filterHeaders(headers),
-                params: { functionId }
-            },
+            req: createRequestObject('GET', {}, queryParams, filterHeaders(headers), { functionId }, req),
             res: createResponseObject(),
             console: createConsoleObject()
         };
@@ -593,6 +581,86 @@ router.delete('/cache/:functionId', async (req, res) => {
 });
 
 /**
+ * Create a mock request object compatible with Express.js
+ */
+function createRequestObject(method, body, query, headers, params, originalReq) {
+    const url = originalReq.url || '/';
+    const protocol = originalReq.protocol || 'http';
+    const hostname = originalReq.hostname || 'localhost';
+    
+    const request = {
+        method,
+        url,
+        originalUrl: url,
+        path: url.split('?')[0],
+        protocol,
+        hostname,
+        secure: protocol === 'https',
+        ip: originalReq.ip || originalReq.connection?.remoteAddress || '127.0.0.1',
+        ips: originalReq.ips || [],
+        body,
+        query,
+        params,
+        headers,
+        cookies: {}, // Simplified cookies object
+        
+        // Express.js methods
+        get(headerName) {
+            return this.headers[headerName.toLowerCase()];
+        },
+        
+        header(headerName) {
+            return this.get(headerName);
+        },
+        
+        is(type) {
+            const contentType = this.get('content-type') || '';
+            return contentType.includes(type);
+        },
+        
+        accepts(types) {
+            const acceptHeader = this.get('accept') || '*/*';
+            if (typeof types === 'string') {
+                return acceptHeader.includes(types) ? types : false;
+            }
+            if (Array.isArray(types)) {
+                for (const type of types) {
+                    if (acceptHeader.includes(type)) return type;
+                }
+                return false;
+            }
+            return acceptHeader;
+        },
+        
+        acceptsCharsets(charsets) {
+            const acceptCharsetHeader = this.get('accept-charset') || '*';
+            if (typeof charsets === 'string') {
+                return acceptCharsetHeader.includes(charsets) ? charsets : false;
+            }
+            return acceptCharsetHeader;
+        },
+        
+        acceptsEncodings(encodings) {
+            const acceptEncodingHeader = this.get('accept-encoding') || '*';
+            if (typeof encodings === 'string') {
+                return acceptEncodingHeader.includes(encodings) ? encodings : false;
+            }
+            return acceptEncodingHeader;
+        },
+        
+        acceptsLanguages(languages) {
+            const acceptLanguageHeader = this.get('accept-language') || '*';
+            if (typeof languages === 'string') {
+                return acceptLanguageHeader.includes(languages) ? languages : false;
+            }
+            return acceptLanguageHeader;
+        }
+    };
+    
+    return request;
+}
+
+/**
  * Create a mock response object for function context
  */
 function createResponseObject() {
@@ -600,6 +668,7 @@ function createResponseObject() {
         statusCode: 200,
         headers: {},
         data: undefined,
+        locals: {}, // Express.js locals object
         
         status(code) {
             this.statusCode = code;
@@ -627,9 +696,127 @@ function createResponseObject() {
             return this;
         },
         
-        setHeader(name, value) {
-            this.headers[name] = value;
+        sendStatus(statusCode) {
+            this.statusCode = statusCode;
+            this.data = getStatusText(statusCode);
+            this.headers['content-type'] = 'text/plain';
             return this;
+        },
+        
+        setHeader(name, value) {
+            this.headers[name.toLowerCase()] = value;
+            return this;
+        },
+        
+        // Express.js aliases and additional methods
+        set(name, value) {
+            return this.setHeader(name, value);
+        },
+        
+        header(name, value) {
+            return this.setHeader(name, value);
+        },
+        
+        get(name) {
+            return this.headers[name.toLowerCase()];
+        },
+        
+        type(type) {
+            const mimeType = type.includes('/') ? type : getMimeType(type);
+            return this.setHeader('content-type', mimeType);
+        },
+        
+        cookie(name, value, options = {}) {
+            // Simplified cookie setting (serialize cookie string)
+            let cookie = `${name}=${value}`;
+            if (options.maxAge) cookie += `; Max-Age=${options.maxAge}`;
+            if (options.domain) cookie += `; Domain=${options.domain}`;
+            if (options.path) cookie += `; Path=${options.path}`;
+            if (options.secure) cookie += '; Secure';
+            if (options.httpOnly) cookie += '; HttpOnly';
+            if (options.sameSite) cookie += `; SameSite=${options.sameSite}`;
+            
+            const existingCookies = this.get('set-cookie') || [];
+            const cookies = Array.isArray(existingCookies) ? existingCookies : [existingCookies];
+            cookies.push(cookie);
+            this.setHeader('set-cookie', cookies);
+            return this;
+        },
+        
+        clearCookie(name, options = {}) {
+            return this.cookie(name, '', { ...options, expires: new Date(1), maxAge: 0 });
+        },
+        
+        redirect(statusOrUrl, url) {
+            if (typeof statusOrUrl === 'string') {
+                this.statusCode = 302;
+                this.setHeader('location', statusOrUrl);
+            } else {
+                this.statusCode = statusOrUrl || 302;
+                this.setHeader('location', url);
+            }
+            this.data = `Redirecting to ${url || statusOrUrl}`;
+            return this;
+        },
+        
+        location(url) {
+            return this.setHeader('location', url);
+        },
+        
+        vary(field) {
+            const existing = this.get('vary');
+            if (existing) {
+                const fields = existing.split(', ');
+                if (!fields.includes(field)) {
+                    fields.push(field);
+                    this.setHeader('vary', fields.join(', '));
+                }
+            } else {
+                this.setHeader('vary', field);
+            }
+            return this;
+        },
+        
+        append(field, value) {
+            const existing = this.get(field);
+            if (existing) {
+                const values = Array.isArray(existing) ? existing : [existing];
+                values.push(value);
+                this.setHeader(field, values);
+            } else {
+                this.setHeader(field, value);
+            }
+            return this;
+        },
+        
+        attachment(filename) {
+            if (filename) {
+                this.setHeader('content-disposition', `attachment; filename="${filename}"`);
+                this.type(getFileExtension(filename));
+            } else {
+                this.setHeader('content-disposition', 'attachment');
+            }
+            return this;
+        },
+        
+        format(obj) {
+            // Simplified content negotiation
+            const acceptHeader = this.req ? this.req.get('accept') : 'application/json';
+            
+            if (obj.json && acceptHeader.includes('application/json')) {
+                return this.json(typeof obj.json === 'function' ? obj.json() : obj.json);
+            } else if (obj.html && acceptHeader.includes('text/html')) {
+                this.type('html');
+                return this.send(typeof obj.html === 'function' ? obj.html() : obj.html);
+            } else if (obj.text && acceptHeader.includes('text/plain')) {
+                this.type('text');
+                return this.send(typeof obj.text === 'function' ? obj.text() : obj.text);
+            } else if (obj.default) {
+                return typeof obj.default === 'function' ? obj.default() : this.send(obj.default);
+            }
+            
+            this.statusCode = 406; // Not Acceptable
+            return this.send('Not Acceptable');
         },
         
         end(data) {
@@ -641,6 +828,46 @@ function createResponseObject() {
     };
     
     return response;
+}
+
+/**
+ * Helper function to get HTTP status text
+ */
+function getStatusText(statusCode) {
+    const statusTexts = {
+        200: 'OK', 201: 'Created', 204: 'No Content',
+        400: 'Bad Request', 401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found',
+        500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable'
+    };
+    return statusTexts[statusCode] || 'Unknown Status';
+}
+
+/**
+ * Helper function to get MIME type from extension
+ */
+function getMimeType(extension) {
+    const mimeTypes = {
+        'html': 'text/html',
+        'json': 'application/json',
+        'xml': 'application/xml',
+        'txt': 'text/plain',
+        'css': 'text/css',
+        'js': 'application/javascript',
+        'pdf': 'application/pdf',
+        'png': 'image/png',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'gif': 'image/gif',
+        'svg': 'image/svg+xml'
+    };
+    return mimeTypes[extension] || 'application/octet-stream';
+}
+
+/**
+ * Helper function to get file extension
+ */
+function getFileExtension(filename) {
+    return filename.split('.').pop().toLowerCase();
 }
 
 /**

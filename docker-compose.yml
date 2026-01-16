@@ -108,6 +108,29 @@ services:
       timeout: 10s
       retries: 3
 
+  # Dedicated Scheduler Service for triggering scheduled functions
+  invoke-scheduler:
+    build:
+      context: .
+      dockerfile: ./scheduler/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - EXECUTION_SERVICE_URL=http://invoke-execution:3001
+      - SCHEDULER_INTERVAL=60000  # Check every minute (60000ms)
+      - TZ=UTC
+    depends_on:
+      invoke-execution:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
   # Nginx Load Balancer (optional)
   nginx:
     image: nginx:alpine

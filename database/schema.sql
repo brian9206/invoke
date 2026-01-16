@@ -33,7 +33,12 @@ CREATE TABLE functions (
     -- Retention settings for log cleanup
     retention_type VARCHAR(10) CHECK (retention_type IN ('time', 'count', 'none')),
     retention_value INTEGER,
-    retention_enabled BOOLEAN DEFAULT false
+    retention_enabled BOOLEAN DEFAULT false,
+    -- Scheduling settings
+    schedule_enabled BOOLEAN DEFAULT false,
+    schedule_cron VARCHAR(100), -- Cron expression (minute precision)
+    next_execution TIMESTAMP WITH TIME ZONE,
+    last_scheduled_execution TIMESTAMP WITH TIME ZONE
 );
 
 -- Function versions table for versioning system
@@ -91,6 +96,7 @@ CREATE TABLE execution_logs (
 CREATE INDEX idx_functions_name ON functions(name);
 CREATE INDEX idx_functions_is_active ON functions(is_active);
 CREATE INDEX idx_functions_active_version ON functions(active_version_id);
+CREATE INDEX idx_functions_schedule ON functions(schedule_enabled, next_execution) WHERE schedule_enabled = true;
 CREATE INDEX idx_function_versions_function_id ON function_versions(function_id);
 CREATE INDEX idx_function_versions_version ON function_versions(function_id, version);
 CREATE INDEX idx_api_keys_hash ON api_keys(key_hash);

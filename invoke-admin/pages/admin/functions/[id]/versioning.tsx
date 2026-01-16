@@ -284,6 +284,7 @@ export default function FunctionVersioning() {
   }
 
   const formatBytes = (bytes: number) => {
+    if (bytes == null || isNaN(bytes)) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     if (bytes === 0) return '0 Bytes'
     const i = Math.floor(Math.log(bytes) / Math.log(1024))

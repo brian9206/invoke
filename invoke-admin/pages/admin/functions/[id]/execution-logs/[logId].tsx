@@ -98,6 +98,7 @@ export default function ExecutionLogDetails() {
   }
 
   const formatBytes = (bytes: number) => {
+    if (bytes == null || isNaN(bytes)) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     if (bytes === 0) return '0 Bytes'
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
@@ -157,7 +158,7 @@ export default function ExecutionLogDetails() {
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <button
-                onClick={() => router.push(`/admin/functions/${id}`)}
+                onClick={() => router.push(`/admin/functions/${functionId}`)}
                 className="mr-4 p-2 hover:bg-gray-800 rounded-lg transition-colors"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-400" />

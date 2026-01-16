@@ -23,7 +23,8 @@ import {
   ChevronDown,
   MoreVertical,
   Trash2,
-  History
+  History,
+  Timer
 } from 'lucide-react'
 
 interface Function {
@@ -76,7 +77,9 @@ export default function FunctionDetails() {
     requires_api_key: false,
     retention_enabled: false,
     retention_type: 'time',
-    retention_value: 7
+    retention_value: 7,
+    schedule_enabled: false,
+    schedule_cron: ''
   })
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -90,6 +93,16 @@ export default function FunctionDetails() {
   })
   const [retentionLoading, setRetentionLoading] = useState(false)
   const [retentionSaving, setRetentionSaving] = useState(false)
+  
+  // Schedule settings state
+  const [scheduleSettings, setScheduleSettings] = useState({
+    schedule_enabled: false,
+    schedule_cron: '',
+    next_execution: null,
+    last_scheduled_execution: null
+  })
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [scheduleSaving, setScheduleSaving] = useState(false)
   
   // Execution logs pagination state
   const [logsPagination, setLogsPagination] = useState<LogsPaginationInfo>({
@@ -111,6 +124,7 @@ export default function FunctionDetails() {
       fetchFunctionData()
       fetchExecutionLogs()
       fetchRetentionSettings()
+      fetchScheduleSettings()
     }
   }, [id])
 
@@ -137,9 +151,16 @@ export default function FunctionDetails() {
 
       if (result.success) {
         setFunctionData(result.data)
-        // Fetch retention settings and include in editData
+        // Fetch retention settings and schedule settings for editData
         const retentionResponse = await fetch(`/api/functions/${id}/retention`)
         const retentionData = await retentionResponse.json()
+        
+        const scheduleResponse = await fetch(`/api/functions/${id}/schedule`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        const scheduleData = await scheduleResponse.json()
         
         setEditData({
           name: result.data.name,
@@ -147,11 +168,16 @@ export default function FunctionDetails() {
           requires_api_key: result.data.requires_api_key,
           retention_enabled: retentionData.success ? retentionData.data.retention_enabled : false,
           retention_type: retentionData.success ? (retentionData.data.retention_type || 'time') : 'time',
-          retention_value: retentionData.success ? (retentionData.data.retention_value || 7) : 7
+          retention_value: retentionData.success ? (retentionData.data.retention_value || 7) : 7,
+          schedule_enabled: scheduleData.success ? scheduleData.data.schedule_enabled : false,
+          schedule_cron: scheduleData.success ? (scheduleData.data.schedule_cron || '') : ''
         })
         
         if (retentionData.success) {
           setRetentionSettings(retentionData.data)
+        }
+        if (scheduleData.success) {
+          setScheduleSettings(scheduleData.data)
         }
       }
     } catch (error) {
@@ -251,9 +277,36 @@ export default function FunctionDetails() {
         })
       })
 
-      if (functionResponse.ok && retentionResponse.ok) {
+      // Save schedule settings
+      const scheduleResponse = await fetch(`/api/functions/${id}/schedule`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          schedule_enabled: editData.schedule_enabled,
+          schedule_cron: editData.schedule_cron
+        })
+      })
+
+      if (functionResponse.ok && retentionResponse.ok && scheduleResponse.ok) {
         await fetchFunctionData()
         setEditing(false)
+      } else {
+        // Handle specific errors
+        if (!functionResponse.ok) {
+          const functionError = await functionResponse.json()
+          alert('Failed to save function details: ' + (functionError.error || functionError.message || 'Unknown error'))
+        }
+        if (!retentionResponse.ok) {
+          const retentionError = await retentionResponse.json()
+          alert('Failed to save retention settings: ' + (retentionError.error || retentionError.message || 'Unknown error'))
+        }
+        if (!scheduleResponse.ok) {
+          const scheduleError = await scheduleResponse.json()
+          alert('Failed to save schedule settings: ' + (scheduleError.error || scheduleError.message || 'Unknown error'))
+        }
       }
     } catch (error) {
       console.error('Error saving function:', error)
@@ -431,11 +484,71 @@ export default function FunctionDetails() {
     }
   }
 
+  const fetchScheduleSettings = async () => {
+    setScheduleLoading(true)
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/schedule`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        setScheduleSettings(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching schedule settings:', error)
+    } finally {
+      setScheduleLoading(false)
+    }
+  }
+
+  const updateScheduleSettings = async (newSettings: any) => {
+    setScheduleSaving(true)
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/schedule`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(newSettings)
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        await fetchScheduleSettings()
+      } else {
+        const errorMessage = data.error || data.message || 'Unknown error'
+        console.error('Failed to update schedule settings:', errorMessage)
+        alert('Failed to update schedule settings: ' + errorMessage)
+      }
+    } catch (error) {
+      console.error('Error updating schedule settings:', error)
+      alert('Error updating schedule settings')
+    } finally {
+      setScheduleSaving(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString()
   }
 
   const formatBytes = (bytes: number) => {
+    if (bytes == null || isNaN(bytes)) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
     if (bytes === 0) return '0 Bytes'
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
@@ -886,6 +999,83 @@ export default function FunctionDetails() {
                 
                 {retentionSaving && (
                   <div className="text-sm text-blue-400">Saving retention settings...</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Schedule Settings */}
+          <div className="card">
+            <h3 className="text-lg font-semibold text-gray-100 mb-4 flex items-center">
+              <Timer className="w-5 h-5 mr-2" />
+              Schedule
+            </h3>
+            
+            {scheduleLoading ? (
+              <div className="text-gray-400">Loading schedule settings...</div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="scheduleEnabled"
+                    checked={editing ? editData.schedule_enabled : scheduleSettings.schedule_enabled}
+                    onChange={editing ? (e) => {
+                      setEditData(prev => ({
+                        ...prev,
+                        schedule_enabled: e.target.checked
+                      }))
+                    } : undefined}
+                    disabled={!editing}
+                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500 focus:ring-2 disabled:bg-gray-800 disabled:cursor-not-allowed"
+                  />
+                  <label htmlFor="scheduleEnabled" className="ml-3 text-sm font-medium text-gray-300">
+                    Enable Scheduling
+                  </label>
+                </div>
+
+                {(editing ? editData.schedule_enabled : scheduleSettings.schedule_enabled) && (
+                  <div className="space-y-4 pl-6 border-l border-gray-600">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Cron Expression
+                      </label>
+                      <input
+                        type="text"
+                        value={editing ? editData.schedule_cron : (scheduleSettings.schedule_cron || '')}
+                        onChange={editing ? (e) => {
+                          setEditData(prev => ({
+                            ...prev,
+                            schedule_cron: e.target.value
+                          }))
+                        } : undefined}
+                        disabled={!editing}
+                        placeholder="*/5 * * * *"
+                        className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 disabled:bg-gray-700 disabled:text-gray-400 disabled:border-gray-700 disabled:cursor-not-allowed px-3 py-2 font-mono"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Format: minute hour day month weekday (e.g., "*/5 * * * *" runs every 5 minutes)
+                      </p>
+                    </div>
+
+                    {!editing && scheduleSettings.next_execution && (
+                      <div className="text-sm text-gray-400">
+                        <strong>Next execution:</strong> {formatDate(scheduleSettings.next_execution)}
+                      </div>
+                    )}
+
+                    {!editing && scheduleSettings.last_scheduled_execution && (
+                      <div className="text-sm text-gray-400">
+                        <strong>Last scheduled execution:</strong> {formatDate(scheduleSettings.last_scheduled_execution)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {!(editing ? editData.schedule_enabled : scheduleSettings.schedule_enabled) && (
+                  <p className="text-sm text-gray-500 pl-6">
+                    Enable scheduling to run this function automatically at specified intervals
+                  </p>
                 )}
               </div>
             )}
