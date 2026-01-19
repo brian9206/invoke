@@ -39,8 +39,8 @@ services:
       timeout: 20s
       retries: 3
 
-  # Execution Service (can scale horizontally)
-  invoke-execution:
+  # Execution Service
+  execution:
     build:
       context: ./invoke-execution
       dockerfile: Dockerfile
@@ -79,7 +79,7 @@ services:
       retries: 3
 
   # Admin Service
-  invoke-admin:
+  admin:
     build:
       context: ./invoke-admin
       dockerfile: Dockerfile
@@ -113,7 +113,7 @@ services:
       retries: 3
 
   # Scheduler Service
-  invoke-scheduler:
+  scheduler:
     build:
       context: ./invoke-scheduler
       dockerfile: Dockerfile
