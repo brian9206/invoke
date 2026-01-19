@@ -7,13 +7,13 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy package files
-COPY ./invoke-execution/package*.json ./
+COPY package*.json ./
 
 # Install dependencies
 RUN npm install --omit=dev
 
 # Copy source code
-COPY ./invoke-execution .
+COPY . .
 
 # Expose port
 EXPOSE 3001

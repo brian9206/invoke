@@ -1,13 +1,13 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB: invoke_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: invoke_password_123
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -23,9 +23,11 @@ services:
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
+    env_file:
+      - .env
     environment:
-      MINIO_ROOT_USER: invoke-minio
-      MINIO_ROOT_PASSWORD: invoke-minio-password-123
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
       - "9000:9000"   # MinIO API
       - "9001:9001"   # MinIO Console
@@ -40,28 +42,30 @@ services:
   # Execution Service (can scale horizontally)
   invoke-execution:
     build:
-      context: .
-      dockerfile: ./invoke-execution/Dockerfile
+      context: ./invoke-execution
+      dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "${EXECUTION_PORT}:${EXECUTION_PORT}"
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=production
-      - PORT=3001
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=invoke_db
-      - DB_USER=postgres
-      - DB_PASSWORD=invoke_password_123
-      - MINIO_ENDPOINT=minio
-      - MINIO_PORT=9000
-      - MINIO_ACCESS_KEY=invoke-minio
-      - MINIO_SECRET_KEY=invoke-minio-password-123
-      - MINIO_BUCKET=invoke-packages
-      - CACHE_DIR=/app/cache
-      - RATE_LIMIT=100
-      - EXECUTION_TIMEOUT=30000
-      - CACHE_TTL_DAYS=7
-      - MAX_CACHE_SIZE_GB=10
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${EXECUTION_PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - CACHE_DIR=${CACHE_DIR}
+      - RATE_LIMIT=${RATE_LIMIT}
+      - EXECUTION_TIMEOUT=${EXECUTION_TIMEOUT}
+      - CACHE_TTL_DAYS=${CACHE_TTL_DAYS}
+      - MAX_CACHE_SIZE_GB=${MAX_CACHE_SIZE_GB}
     volumes:
       - execution_cache:/app/cache
     depends_on:
@@ -78,25 +82,27 @@ services:
   # Admin Service
   invoke-admin:
     build:
-      context: .
-      dockerfile: ./invoke-admin/Dockerfile
+      context: ./invoke-admin
+      dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${ADMIN_PORT}:${ADMIN_PORT}"
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=invoke_db
-      - DB_USER=postgres
-      - DB_PASSWORD=invoke_password_123
-      - JWT_SECRET=your_jwt_secret_change_in_production
-      - MINIO_ENDPOINT=minio
-      - MINIO_PORT=9000
-      - MINIO_ACCESS_KEY=invoke-minio
-      - MINIO_SECRET_KEY=invoke-minio-password-123
-      - MINIO_BUCKET=invoke-packages
-      - EXECUTION_URL=http://invoke-execution:3001
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${ADMIN_PORT}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=${MINIO_BUCKET}
+      - EXECUTION_URL=${EXECUTION_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,16 +117,18 @@ services:
   # Dedicated Scheduler Service for triggering scheduled functions
   invoke-scheduler:
     build:
-      context: .
-      dockerfile: ./scheduler/Dockerfile
+      context: ./scheduler
+      dockerfile: Dockerfile
     ports:
-      - "3002:3002"
+      - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=production
-      - PORT=3002
-      - EXECUTION_SERVICE_URL=http://invoke-execution:3001
-      - SCHEDULER_INTERVAL=60000  # Check every minute (60000ms)
-      - TZ=UTC
+      - NODE_ENV=${NODE_ENV}
+      - PORT=${SCHEDULER_PORT}
+      - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
+      - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL}
+      - TZ=${TZ}
     depends_on:
       invoke-execution:
         condition: service_healthy
