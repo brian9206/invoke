@@ -6,7 +6,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await database.connect()
 
-    const { id } = req.query
+    const { id } = req.query as { id: string }
 
     if (req.method === 'GET') {
       // Get function retention settings

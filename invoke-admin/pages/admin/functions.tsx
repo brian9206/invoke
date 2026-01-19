@@ -171,7 +171,7 @@ export default function Functions() {
                             {func.name}
                           </h3>
                           <span className="px-2 py-1 text-xs rounded bg-gray-700 text-gray-300">
-                            v{func.active_version || '1'}
+                            v{func.version || '1'}
                           </span>
                           {func.requires_api_key && (
                             <span className="px-2 py-1 text-xs rounded bg-yellow-900/30 text-yellow-400 border border-yellow-800">

@@ -117,9 +117,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const functionData = functionResult.rows[0]
 
         // Get the version to delete
+        const versionStr = Array.isArray(version) ? version[0] : version
         const versionResult = await database.query(
           'SELECT id, version FROM function_versions WHERE function_id = $1 AND version = $2',
-          [functionId, parseInt(version)]
+          [functionId, parseInt(versionStr)]
         )
 
         if (versionResult.rows.length === 0) {
@@ -181,6 +182,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (req.method === 'POST') {
       // Handle file upload for new version
       let uploadedFile: any = null
+      let packagePath: string | null = null
       let decoded: any = null
 
       try {

@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await database.connect()
 
-    const { id } = req.query
+    const { id } = req.query as { id: string }
 
     if (!id || typeof id !== 'string') {
       return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))

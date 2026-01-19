@@ -82,7 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const existingFunction = functionResult.rows[0]
 
     // Handle file upload
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       upload.single('file')(req as any, res as any, (error: any) => {
         if (error) {
           reject(error)

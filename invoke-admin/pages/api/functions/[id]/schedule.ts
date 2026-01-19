@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(401).json({ error: 'Invalid token' })
     }
 
-    const { id } = req.query
+    const { id } = req.query as { id: string }
 
     if (!id) {
       return res.status(400).json({ error: 'Function ID is required' })

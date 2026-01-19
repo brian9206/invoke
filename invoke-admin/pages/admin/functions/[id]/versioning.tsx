@@ -542,7 +542,7 @@ export default function FunctionVersioning() {
                                   )}
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteVersion(version.id, version.version)}
+                                  onClick={() => handleDeleteVersion(version.id, parseInt(version.version))}
                                   disabled={deletingVersion === version.id}
                                   className="text-red-400 hover:text-red-300 p-1 rounded disabled:opacity-50"
                                   title="Delete version"

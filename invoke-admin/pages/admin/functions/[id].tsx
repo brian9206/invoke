@@ -633,7 +633,9 @@ export default function FunctionDetails() {
                         requires_api_key: functionData.requires_api_key,
                         retention_enabled: retentionSettings.retention_enabled,
                         retention_type: retentionSettings.retention_type || 'time',
-                        retention_value: retentionSettings.retention_value || 7
+                        retention_value: retentionSettings.retention_value || 7,
+                        schedule_enabled: scheduleSettings.schedule_enabled,
+                        schedule_cron: scheduleSettings.schedule_cron || ''
                       })
                     }}
                     className="btn-secondary flex items-center"

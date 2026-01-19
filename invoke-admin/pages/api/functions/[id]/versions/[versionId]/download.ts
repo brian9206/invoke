@@ -110,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           await archive.finalize()
           
           // Wait for the output stream to close
-          await new Promise((resolve, reject) => {
+          await new Promise<void>((resolve, reject) => {
             output.on('close', resolve)
             output.on('error', reject)
           })
