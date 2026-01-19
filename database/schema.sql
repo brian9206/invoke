@@ -24,6 +24,7 @@ CREATE TABLE functions (
     description TEXT,
     deployed_by INTEGER REFERENCES users(id),
     requires_api_key BOOLEAN DEFAULT false,
+    api_key VARCHAR(255), -- API key for function access
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -136,17 +137,6 @@ CREATE TRIGGER update_users_updated_at
 CREATE TRIGGER update_functions_updated_at 
     BEFORE UPDATE ON functions 
     FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
-
--- Comments for documentation
-COMMENT ON TABLE function_versions IS 'Stores all versions of function packages, allowing for rollback and version management';
-COMMENT ON COLUMN functions.active_version_id IS 'References the currently active version of this function';
-COMMENT ON COLUMN function_versions.package_path IS 'Path to the package file in MinIO storage';
-COMMENT ON COLUMN execution_logs.console_logs IS 'JSON array of console output from function execution';
-COMMENT ON COLUMN api_keys.key_hash IS 'SHA-256 hash of the actual API key for security';
-
--- Sample data (optional - remove in production)
-INSERT INTO users (username, email, password_hash) VALUES 
-('admin', 'admin@invoke.local', '$2b$10$rQZ4QQz4QQz4QQz4QQz4QO'); -- Password: 'admin123'
 
 -- Insert default global retention settings
 INSERT INTO global_settings (setting_key, setting_value, description) VALUES 
