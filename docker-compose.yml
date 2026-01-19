@@ -131,18 +131,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Nginx Load Balancer (optional)
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "8081:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - invoke-admin
-      - invoke-execution
-    restart: unless-stopped
-
 volumes:
   postgres_data:
   minio_data:
