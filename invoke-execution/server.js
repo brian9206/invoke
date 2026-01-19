@@ -42,7 +42,18 @@ class ExecutionServer {
      */
     setupMiddleware() {
         // Trust proxy - needed for rate limiting behind proxies/load balancers
-        this.app.set('trust proxy', process.env.TRUST_PROXY || 1);
+        let trustProxy = false;
+        if (process.env.TRUST_PROXY === 'true') {
+            trustProxy = true;
+        }
+        else if (isNaN(process.env.TRUST_PROXY) === false) {
+            trustProxy = parseInt(process.env.TRUST_PROXY);
+        }
+        else {
+            trustProxy = process.env.TRUST_PROXY || false;
+        }
+
+        this.app.set('trust proxy', trustProxy);
         
         // Security middleware
         this.app.use(helmet());
