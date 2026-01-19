@@ -45,7 +45,7 @@ services:
       - .env
     environment:
       - PORT=${EXECUTION_PORT}
-      - TRUST_PROXY=1
+      - TRUST_PROXY=true
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
