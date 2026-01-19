@@ -41,6 +41,9 @@ class ExecutionServer {
      * Setup Express middleware
      */
     setupMiddleware() {
+        // Trust proxy - needed for rate limiting behind proxies/load balancers
+        this.app.set('trust proxy', process.env.TRUST_PROXY || 1);
+        
         // Security middleware
         this.app.use(helmet());
         this.app.use(cors({
