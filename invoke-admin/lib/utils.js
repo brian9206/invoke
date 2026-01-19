@@ -145,6 +145,41 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
     }
 }
 
+/**
+ * Get the function base URL from global settings
+ * @returns {Promise<string>} Function base URL
+ */
+async function getFunctionBaseUrl() {
+    try {
+        const database = require('./database');
+        const result = await database.query(
+            'SELECT setting_value FROM global_settings WHERE setting_key = $1',
+            ['function_base_url']
+        );
+        
+        if (result.rows.length > 0) {
+            return result.rows[0].setting_value.replace(/\/+$/, '');
+        }
+        
+        // Fallback to default if not found
+        return 'https://localhost:3001/invoke';
+    } catch (error) {
+        console.error('Failed to get function base URL:', error);
+        // Fallback to default on error
+        return 'https://localhost:3001/invoke';
+    }
+}
+
+/**
+ * Generate a complete function URL
+ * @param {string} functionId - Function ID
+ * @returns {Promise<string>} Complete function URL
+ */
+async function getFunctionUrl(functionId) {
+    const baseUrl = await getFunctionBaseUrl();
+    return `${baseUrl}/${functionId}`;
+}
+
 module.exports = {
     generateApiKey,
     hashApiKey,
@@ -155,5 +190,7 @@ module.exports = {
     formatFileSize,
     sanitizeFilename,
     createResponse,
-    logExecution
+    logExecution,
+    getFunctionBaseUrl,
+    getFunctionUrl
 };

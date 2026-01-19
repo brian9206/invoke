@@ -152,7 +152,8 @@ INSERT INTO users (username, email, password_hash) VALUES
 INSERT INTO global_settings (setting_key, setting_value, description) VALUES 
 ('log_retention_type', 'time', 'Default log retention type: time, count, or none'),
 ('log_retention_value', '7', 'Default log retention value (7 days or 1000 count)'),
-('log_retention_enabled', 'true', 'Whether log retention cleanup is enabled globally');
+('log_retention_enabled', 'true', 'Whether log retention cleanup is enabled globally'),
+('function_base_url', 'https://localhost:3001/invoke', 'Base URL for function invocation endpoints');
 
 -- Grant permissions (adjust as needed for your environment)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO invoke_user;

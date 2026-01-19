@@ -102,7 +102,7 @@ services:
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - MINIO_BUCKET=${MINIO_BUCKET}
-      - EXECUTION_URL=${EXECUTION_URL}
+      - EXECUTION_URL=${EXECUTION_SERVICE_URL}
     depends_on:
       postgres:
         condition: service_healthy

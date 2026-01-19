@@ -25,7 +25,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         COUNT(*) as recent_executions,
         COUNT(*) FILTER (WHERE status_code >= 400) as recent_errors,
         AVG(execution_time_ms)::int as avg_response_time,
-        (COUNT(*) FILTER (WHERE status_code < 400) * 100.0 / COUNT(*))::int as success_rate
+        CASE 
+          WHEN COUNT(*) = 0 THEN 100
+          ELSE (COUNT(*) FILTER (WHERE status_code < 400) * 100.0 / COUNT(*))::int
+        END as success_rate
       FROM execution_logs
       WHERE executed_at > NOW() - INTERVAL '24 hours'
     `)

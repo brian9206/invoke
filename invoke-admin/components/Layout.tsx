@@ -1,5 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
+import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -20,7 +21,7 @@ interface LayoutProps {
   title?: string
 }
 
-export default function Layout({ children, title = 'Invoke Admin' }: LayoutProps) {
+export default function Layout({ children, title }: LayoutProps) {
   const { user, logout } = useAuth()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
@@ -38,7 +39,13 @@ export default function Layout({ children, title = 'Invoke Admin' }: LayoutProps
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <>
+      <Head>
+        {title && <title>{title}</title>}
+        <meta name="description" content="Invoke Admin Panel - Manage serverless functions" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+      <div className="min-h-screen bg-gray-900">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -113,5 +120,6 @@ export default function Layout({ children, title = 'Invoke Admin' }: LayoutProps
         </main>
       </div>
     </div>
+    </>
   )
 }

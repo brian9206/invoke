@@ -114,7 +114,7 @@ export default function Logs() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout>
+        <Layout title="Execution Logs">
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-400">Loading execution logs...</div>
           </div>
@@ -125,7 +125,7 @@ export default function Logs() {
 
   return (
     <ProtectedRoute>
-      <Layout>
+      <Layout title="Execution Logs">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">

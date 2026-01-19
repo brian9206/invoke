@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy } from 'lucide-react'
+import { getFunctionBaseUrl, getFunctionUrl } from '../../lib/frontend-utils'
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -24,6 +25,7 @@ export default function DeployFunction() {
   const [uploading, setUploading] = useState(false)
   const [creationMode, setCreationMode] = useState<'upload' | 'helloworld'>('upload')
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
+  const [functionBaseUrl, setFunctionBaseUrl] = useState('https://localhost:3001/invoke')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Generate API key when API key requirement is enabled
@@ -32,6 +34,11 @@ export default function DeployFunction() {
       setApiKey(generateApiKey())
     }
   }, [requiresApiKey])
+  
+  // Fetch function base URL on component mount
+  useEffect(() => {
+    getFunctionBaseUrl().then(setFunctionBaseUrl)
+  }, [])
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0]
@@ -164,7 +171,7 @@ export default function DeployFunction() {
 
   return (
     <ProtectedRoute>
-      <Layout>
+      <Layout title="Deploy Function">
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-100">Deploy New Function</h1>
@@ -413,7 +420,7 @@ export default function DeployFunction() {
                     {uploadResult.success && uploadResult.data && (
                       <div className="mt-2 text-sm space-y-1">
                         <p><strong>Function ID:</strong> {uploadResult.data.id}</p>
-                        <p><strong>Execution URL:</strong> <code className="bg-gray-800 px-2 py-1 rounded">/invoke/{uploadResult.data.id}</code></p>
+                        <p><strong>Execution URL:</strong> <code className="bg-gray-800 px-2 py-1 rounded">{functionBaseUrl}/{uploadResult.data.id}</code></p>
                         <p className="text-green-300">Your function is now ready to execute!</p>
                       </div>
                     )}
@@ -430,7 +437,7 @@ export default function DeployFunction() {
                 <li>• Must contain an <code className="bg-gray-700 px-1 rounded">index.js</code> file as entry point</li>
                 <li>• Function should export a single function compatible with Express: <code className="bg-gray-700 px-1 rounded">{`(req, res) => {}`}</code></li>
                 <li>• Maximum file size: 50MB</li>
-                <li>• Access your function via <code className="bg-gray-700 px-1 rounded">/invoke/&lt;function-id&gt;</code></li>
+                <li>• Access your function via <code className="bg-gray-700 px-1 rounded">{functionBaseUrl}/&lt;function-id&gt;</code></li>
               </ul>
             </div>
           </div>

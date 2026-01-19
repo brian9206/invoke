@@ -3,11 +3,13 @@ import { useRouter } from 'next/router'
 import Layout from '../../components/Layout'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { Settings } from 'lucide-react'
+import { clearFunctionBaseUrlCache } from '../../lib/frontend-utils'
 
 interface GlobalSettings {
   type: { value: string; description: string }
   value: { value: string; description: string }
   enabled: { value: string; description: string }
+  function_base_url: { value: string; description: string }
 }
 
 interface CleanupResult {
@@ -27,6 +29,7 @@ export default function GlobalSettings() {
   const [retentionType, setRetentionType] = useState('time')
   const [retentionValue, setRetentionValue] = useState('7')
   const [retentionEnabled, setRetentionEnabled] = useState(true)
+  const [functionBaseUrl, setFunctionBaseUrl] = useState('https://localhost:3001/invoke')
 
   useEffect(() => {
     fetchSettings()
@@ -42,6 +45,7 @@ export default function GlobalSettings() {
         setRetentionType(data.data.type.value)
         setRetentionValue(data.data.value.value)
         setRetentionEnabled(data.data.enabled.value === 'true')
+        setFunctionBaseUrl(data.data.function_base_url?.value || 'https://localhost:3001/invoke')
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -65,7 +69,8 @@ export default function GlobalSettings() {
         body: JSON.stringify({
           type: retentionType,
           value: parseInt(retentionValue),
-          enabled: retentionEnabled
+          enabled: retentionEnabled,
+          function_base_url: functionBaseUrl
         })
       })
 
@@ -73,6 +78,7 @@ export default function GlobalSettings() {
       
       if (data.success) {
         setMessage('Settings saved successfully!')
+        clearFunctionBaseUrlCache() // Clear cache so other pages get updated URL
         fetchSettings() // Refresh
       } else {
         setMessage('Failed to save settings: ' + data.message)
@@ -118,7 +124,7 @@ export default function GlobalSettings() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout>
+        <Layout title="Global Settings">
           <div className="flex justify-center items-center h-64">
             <div className="text-lg">Loading global settings...</div>
           </div>
@@ -129,7 +135,7 @@ export default function GlobalSettings() {
 
   return (
     <ProtectedRoute>
-      <Layout>
+      <Layout title="Global Settings">
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-100">Global Settings</h1>
@@ -202,6 +208,30 @@ export default function GlobalSettings() {
                   {retentionType === 'time' && 'Number of days to keep logs'}
                   {retentionType === 'count' && 'Maximum number of logs to keep per function'}
                 </p>
+              </div>
+
+              {/* Function Base URL */}
+              <div className="border-t border-gray-700 pt-6 mt-6">
+                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  Function URL Settings
+                </h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Function Base URL
+                  </label>
+                  <input
+                    type="url"
+                    value={functionBaseUrl}
+                    onChange={(e) => setFunctionBaseUrl(e.target.value)}
+                    placeholder="https://localhost:3001/invoke"
+                    className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 px-3 py-2"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Base URL used for function invocation endpoints. Function URLs will be displayed as <code className="bg-gray-700 px-1 rounded">{functionBaseUrl}/&lt;function-id&gt;</code>
+                  </p>
+                </div>
               </div>
 
               {/* Submit Button */}

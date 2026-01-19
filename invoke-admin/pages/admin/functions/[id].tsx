@@ -26,6 +26,7 @@ import {
   History,
   Timer
 } from 'lucide-react'
+import { getFunctionUrl } from '../../../lib/frontend-utils'
 
 interface Function {
   id: string
@@ -69,6 +70,7 @@ export default function FunctionDetails() {
   
   const [functionData, setFunctionData] = useState<Function | null>(null)
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
+  const [functionUrl, setFunctionUrl] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [editData, setEditData] = useState({ 
@@ -116,6 +118,13 @@ export default function FunctionDetails() {
   const [logsCurrentPage, setLogsCurrentPage] = useState(1)
   const [logsPageSize, setLogsPageSize] = useState(10)
   const [logsFilter, setLogsFilter] = useState<'all' | 'success' | 'error'>('all')
+  
+  // Get function URL dynamically
+  useEffect(() => {
+    if (functionData?.id) {
+      getFunctionUrl(functionData.id).then(setFunctionUrl)
+    }
+  }, [functionData?.id])
   const [logsLoading, setLogsLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -579,11 +588,9 @@ export default function FunctionDetails() {
     )
   }
 
-  const functionUrl = `${process.env.EXECUTION_URL}/invoke/${functionData.id}`
-
   return (
     <ProtectedRoute>
-      <Layout>
+      <Layout title={`${functionData?.name || 'Function'}`}>
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">

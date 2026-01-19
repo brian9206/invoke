@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Layout from '../../components/Layout'
 import ProtectedRoute from '../../components/ProtectedRoute'
 import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
+import { getFunctionUrl } from '../../lib/frontend-utils'
 
 interface Function {
   id: string
@@ -20,6 +21,7 @@ interface Function {
 export default function Functions() {
   const [functions, setFunctions] = useState<Function[]>([])
   const [loading, setLoading] = useState(true)
+  const [functionUrls, setFunctionUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
     fetchFunctions()
@@ -32,6 +34,13 @@ export default function Functions() {
       
       if (result.success) {
         setFunctions(result.data)
+        
+        // Generate URLs for all functions
+        const urls: Record<string, string> = {}
+        for (const func of result.data) {
+          urls[func.id] = await getFunctionUrl(func.id)
+        }
+        setFunctionUrls(urls)
       }
     } catch (error) {
       console.error('Error fetching functions:', error)
@@ -103,7 +112,7 @@ export default function Functions() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout>
+        <Layout title="Functions">
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-400">Loading functions...</div>
           </div>
@@ -114,7 +123,7 @@ export default function Functions() {
 
   return (
     <ProtectedRoute>
-      <Layout>
+      <Layout title="Functions">
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -207,7 +216,7 @@ export default function Functions() {
                       </button>
                       
                       <a
-                        href={`${process.env.EXECUTION_URL}/invoke/${func.id}`}
+                        href={functionUrls[func.id] || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"

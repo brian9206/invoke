@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/router'
+import Head from 'next/head'
 import { useAuth } from '../contexts/AuthContext'
 import { Rocket, Lock, User } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -31,8 +32,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-      <div className="max-w-md w-full space-y-8">
+    <>
+      <Head>
+        <title>Welcome to Invoke Admin</title>
+        <meta name="description" content="Sign in to Invoke Admin Panel" />
+      </Head>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
+        <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="flex justify-center">
             <Rocket className="w-16 h-16 text-primary-500" />
@@ -104,6 +110,7 @@ export default function Login() {
           <p>Need an admin account? Contact your system administrator.</p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   )
 }
