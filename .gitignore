@@ -108,9 +108,6 @@ Thumbs.db
 *.swo
 *~
 
-# Docker
-.dockerignore
-
 # MinIO data (if running locally)
 minio-data/
 

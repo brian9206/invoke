@@ -15,6 +15,10 @@ RUN npm install --omit=dev
 # Copy source code and shared modules
 COPY . .
 
+# Copy invoke-cli into /cli directory and install dependencies
+COPY ../invoke-cli /cli
+RUN cd /cli && npm install --omit=dev
+
 # Build Next.js application
 RUN npm run build
 
