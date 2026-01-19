@@ -117,13 +117,9 @@ async function executeScheduledFunction(functionData) {
     await database.query(`
       UPDATE functions 
       SET execution_count = execution_count + 1,
-          last_executed = $2,
-          avg_execution_time = CASE 
-            WHEN execution_count = 0 THEN $3
-            ELSE ((avg_execution_time * execution_count) + $3) / (execution_count + 1)
-          END
+          last_executed = $2
       WHERE id = $1
-    `, [functionData.id, new Date(), executionTime])
+    `, [functionData.id, new Date()])
 
     console.log(`✓ Scheduled function ${functionData.name} executed successfully in ${executionTime}ms`)
     
