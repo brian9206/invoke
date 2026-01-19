@@ -12,9 +12,6 @@ COPY ./invoke-execution/package*.json ./
 # Install dependencies
 RUN npm install --omit=dev
 
-# Copy shared modules from parent directory
-COPY ./shared ./shared
-
 # Copy source code
 COPY ./invoke-execution .
 

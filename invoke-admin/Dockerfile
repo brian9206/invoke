@@ -12,9 +12,6 @@ COPY ./invoke-admin/package*.json ./
 # Install dependencies
 RUN npm install --omit=dev
 
-# Copy shared modules from parent directory
-COPY ./shared ./shared
-
 # Copy source code and shared modules
 COPY ./invoke-admin .
 
