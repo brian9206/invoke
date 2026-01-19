@@ -7,16 +7,16 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY ./invoke-admin/package*.json ./
 
 # Install dependencies
 RUN npm install --omit=dev
 
 # Copy source code and shared modules
-COPY . .
+COPY ./invoke-admin .
 
 # Copy invoke-cli into /cli directory and install dependencies
-COPY ../invoke-cli /cli
+COPY ./invoke-cli /cli
 RUN cd /cli && npm install --omit=dev
 
 # Build Next.js application

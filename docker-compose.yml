@@ -76,8 +76,8 @@ services:
   # Admin Service
   admin:
     build:
-      context: ./invoke-admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./invoke-admin/Dockerfile
     ports:
       - "${ADMIN_PORT}:${ADMIN_PORT}"
     env_file:
