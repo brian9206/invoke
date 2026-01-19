@@ -1,5 +1,6 @@
 // API endpoints for managing function environment variables
 import { NextApiRequest, NextApiResponse } from 'next';
+import jwt from 'jsonwebtoken';
 import db from '../../../../lib/database';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -9,6 +10,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({
             success: false,
             message: 'Function ID is required'
+        });
+    }
+
+    // Validate JWT token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+            success: false,
+            message: 'Authorization header required'
+        });
+    }
+
+    const token = authHeader.substring(7);
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+    
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+    } catch (error) {
+        return res.status(401).json({
+            success: false,
+            message: 'Invalid or expired token'
         });
     }
 
