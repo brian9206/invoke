@@ -1,5 +1,5 @@
 # Admin Service Dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
@@ -26,4 +26,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3000/ || exit 1
 
 # Start the service
+ENV NODE_ENV=production
 CMD ["npm", "start"]

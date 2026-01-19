@@ -1,5 +1,5 @@
 # Scheduler Service Dockerfile
-FROM node:18-alpine
+FROM node:24-alpine
 
 WORKDIR /app
 
@@ -19,9 +19,7 @@ COPY scheduler.js ./
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# Set timezone
-ENV TZ=UTC
-
 EXPOSE 3002
 
+ENV NODE_ENV=production
 ENTRYPOINT ["./entrypoint.sh"]
