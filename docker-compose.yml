@@ -8,8 +8,6 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -28,9 +26,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-    ports:
-      - "9000:9000"   # MinIO API
-      - "9001:9001"   # MinIO Console
     volumes:
       - minio_data:/data
     healthcheck:
@@ -73,7 +68,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${EXECUTION_PORT}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -107,7 +102,7 @@ services:
       minio:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${ADMIN_PORT}/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,21 +112,19 @@ services:
     build:
       context: ./invoke-scheduler
       dockerfile: Dockerfile
-    ports:
-      - "${SCHEDULER_PORT}:${SCHEDULER_PORT}"
     env_file:
       - .env
     environment:
-      - PORT=${SCHEDULER_PORT}
+      - PORT=8080
       - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
       - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL}
       - TZ=${TZ}
     depends_on:
-      invoke-execution:
+      execution:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 60s
       timeout: 10s
       retries: 3
