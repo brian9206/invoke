@@ -93,6 +93,18 @@ CREATE TABLE execution_logs (
     executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Function environment variables table
+CREATE TABLE function_environment_variables (
+    id SERIAL PRIMARY KEY,
+    function_id UUID NOT NULL REFERENCES functions(id) ON DELETE CASCADE,
+    variable_name VARCHAR(255) NOT NULL,
+    variable_value TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(function_id, variable_name)
+);
+
 -- Indexes for better performance
 CREATE INDEX idx_functions_name ON functions(name);
 CREATE INDEX idx_functions_is_active ON functions(is_active);
@@ -106,6 +118,8 @@ CREATE INDEX idx_execution_logs_function_id ON execution_logs(function_id);
 CREATE INDEX idx_execution_logs_executed_at ON execution_logs(executed_at);
 CREATE INDEX idx_execution_logs_status ON execution_logs(status_code);
 CREATE INDEX idx_execution_logs_execution_time ON execution_logs(execution_time_ms);
+CREATE INDEX idx_function_env_vars_function_id ON function_environment_variables(function_id);
+CREATE INDEX idx_function_env_vars_name ON function_environment_variables(function_id, variable_name);
 
 -- Global settings table for application configuration
 CREATE TABLE global_settings (
@@ -136,6 +150,10 @@ CREATE TRIGGER update_users_updated_at
 
 CREATE TRIGGER update_functions_updated_at 
     BEFORE UPDATE ON functions 
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
+CREATE TRIGGER update_function_env_vars_updated_at 
+    BEFORE UPDATE ON function_environment_variables 
     FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
 -- Insert default global retention settings

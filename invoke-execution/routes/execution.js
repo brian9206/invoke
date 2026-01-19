@@ -108,7 +108,7 @@ router.post('/:functionId', authenticateApiKey, async (req, res) => {
         };
 
         // Execute the function
-        const result = await executeFunction(packageInfo.indexPath, executionContext);
+        const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
 
         // Log execution
         const executionTime = Date.now() - startTime;
@@ -193,7 +193,7 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
         };
 
         // Execute the function
-        const result = await executeFunction(packageInfo.indexPath, executionContext);
+        const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
 
         // Log execution
         const executionTime = Date.now() - startTime;
@@ -328,13 +328,42 @@ async function fetchFunctionMetadata(functionId) {
 }
 
 /**
+ * Fetch environment variables for a function
+ * @param {string} functionId - Function ID
+ * @returns {Object} Environment variables as key-value pairs
+ */
+async function fetchEnvironmentVariables(functionId) {
+    try {
+        const result = await db.query(`
+            SELECT variable_name, variable_value 
+            FROM function_environment_variables 
+            WHERE function_id = $1
+        `, [functionId]);
+        
+        const envVars = {};
+        result.rows.forEach(row => {
+            envVars[row.variable_name] = row.variable_value;
+        });
+        
+        return envVars;
+    } catch (error) {
+        console.error('Error fetching environment variables:', error);
+        return {};
+    }
+}
+
+/**
  * Execute function in secure VM environment
  * @param {string} indexPath - Path to function's index.js
  * @param {Object} context - Execution context
+ * @param {string} functionId - Function ID for environment variables
  * @returns {Object} Execution result
  */
-async function executeFunction(indexPath, context) {
+async function executeFunction(indexPath, context, functionId) {
     try {
+        // Fetch environment variables for this function
+        const customEnvVars = await fetchEnvironmentVariables(functionId);
+        
         // Read the function code
         const functionCode = await fs.readFile(indexPath, 'utf8');
         
@@ -396,7 +425,7 @@ async function executeFunction(indexPath, context) {
                                 clearTimeout,
                                 clearInterval,
                                 process: {
-                                    env: filterProcessEnv()
+                                    env: customEnvVars
                                 }
                             }
                         });
@@ -430,7 +459,7 @@ async function executeFunction(indexPath, context) {
                 console: context.console,
                 Buffer,
                 process: {
-                    env: filterProcessEnv()
+                    env: customEnvVars
                 },
                 setTimeout,
                 setInterval,
@@ -924,15 +953,6 @@ function filterHeaders(headers) {
     delete filtered['authorization'];
     delete filtered['cookie'];
     return filtered;
-}
-
-/**
- * Filter process.env to only include safe variables
- */
-function filterProcessEnv() {
-    return {
-        NODE_ENV: process.env.NODE_ENV || 'production'
-    };
 }
 
 /**

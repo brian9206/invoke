@@ -24,7 +24,10 @@ import {
   MoreVertical,
   Trash2,
   History,
-  Timer
+  Timer,
+  Settings,
+  Plus,
+  Minus
 } from 'lucide-react'
 import { getFunctionUrl } from '../../../lib/frontend-utils'
 
@@ -62,6 +65,15 @@ interface LogsPaginationInfo {
   limit: number
   hasNextPage: boolean
   hasPrevPage: boolean
+}
+
+interface EnvironmentVariable {
+  id?: number
+  variable_name: string
+  variable_value: string
+  description?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export default function FunctionDetails() {
@@ -119,6 +131,13 @@ export default function FunctionDetails() {
   const [logsPageSize, setLogsPageSize] = useState(10)
   const [logsFilter, setLogsFilter] = useState<'all' | 'success' | 'error'>('all')
   
+  // Environment Variables state
+  const [environmentVariables, setEnvironmentVariables] = useState<EnvironmentVariable[]>([])
+  const [envVarsLoading, setEnvVarsLoading] = useState(false)
+  const [envVarsSaving, setEnvVarsSaving] = useState(false)
+  const [editingEnvVars, setEditingEnvVars] = useState(false)
+  const [tempEnvVars, setTempEnvVars] = useState<EnvironmentVariable[]>([])
+  
   // Get function URL dynamically
   useEffect(() => {
     if (functionData?.id) {
@@ -134,6 +153,7 @@ export default function FunctionDetails() {
       fetchExecutionLogs()
       fetchRetentionSettings()
       fetchScheduleSettings()
+      fetchEnvironmentVariables()
     }
   }, [id])
 
@@ -550,6 +570,85 @@ export default function FunctionDetails() {
     } finally {
       setScheduleSaving(false)
     }
+  }
+
+  const fetchEnvironmentVariables = async () => {
+    setEnvVarsLoading(true)
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/environment-variables`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      const data = await response.json()
+      
+      if (data.success) {
+        setEnvironmentVariables(data.data)
+        setTempEnvVars(data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching environment variables:', error)
+    } finally {
+      setEnvVarsLoading(false)
+    }
+  }
+
+  const saveEnvironmentVariables = async () => {
+    setEnvVarsSaving(true)
+    try {
+      const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('auth-token='))
+        ?.split('=')[1]
+
+      const response = await fetch(`/api/functions/${id}/environment-variables`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ variables: tempEnvVars })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        await fetchEnvironmentVariables()
+        setEditingEnvVars(false)
+      } else {
+        const errorMessage = data.error || data.message || 'Unknown error'
+        console.error('Failed to save environment variables:', errorMessage)
+        alert('Failed to save environment variables: ' + errorMessage)
+      }
+    } catch (error) {
+      console.error('Error saving environment variables:', error)
+      alert('Error saving environment variables')
+    } finally {
+      setEnvVarsSaving(false)
+    }
+  }
+
+  const addEnvironmentVariable = () => {
+    setTempEnvVars(prev => [...prev, {
+      variable_name: '',
+      variable_value: '',
+      description: ''
+    }])
+  }
+
+  const removeEnvironmentVariable = (index: number) => {
+    setTempEnvVars(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const updateEnvironmentVariable = (index: number, field: keyof EnvironmentVariable, value: string) => {
+    setTempEnvVars(prev => prev.map((envVar, i) => 
+      i === index ? { ...envVar, [field]: value } : envVar
+    ))
   }
 
   const formatDate = (dateString: string) => {
@@ -1008,6 +1107,147 @@ export default function FunctionDetails() {
                 
                 {retentionSaving && (
                   <div className="text-sm text-blue-400">Saving retention settings...</div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Environment Variables */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-100 flex items-center">
+                <Settings className="w-5 h-5 mr-2" />
+                Environment Variables
+              </h3>
+              {!editingEnvVars && (
+                <button
+                  onClick={() => {
+                    setEditingEnvVars(true)
+                    setTempEnvVars([...environmentVariables])
+                  }}
+                  className="btn-secondary flex items-center text-sm"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </button>
+              )}
+            </div>
+            
+            {envVarsLoading ? (
+              <div className="text-center py-4">
+                <div className="text-gray-400">Loading environment variables...</div>
+              </div>
+            ) : editingEnvVars ? (
+              <div className="space-y-4">
+                {tempEnvVars.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-600 rounded-lg">
+                    <Settings className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400">No environment variables defined</p>
+                    <p className="text-gray-500 text-sm">Add environment variables for your function</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {tempEnvVars.map((envVar, index) => (
+                      <div key={index} className="flex gap-3 items-start p-3 bg-gray-800 rounded-lg border border-gray-700">
+                        <div className="flex-1 flex gap-2 items-center">
+                          <input
+                            type="text"
+                            placeholder="VARIABLE_NAME"
+                            value={envVar.variable_name}
+                            onChange={(e) => updateEnvironmentVariable(index, 'variable_name', e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
+                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm font-mono text-gray-100"
+                          />
+                          =
+                          <input
+                            type="text"
+                            placeholder="Variable value"
+                            value={envVar.variable_value}
+                            onChange={(e) => updateEnvironmentVariable(index, 'variable_value', e.target.value)}
+                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100"
+                          />
+                          ||
+                          <input
+                            type="text"
+                            placeholder="Description (optional)"
+                            value={envVar.description || ''}
+                            onChange={(e) => updateEnvironmentVariable(index, 'description', e.target.value)}
+                            className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100"
+                          />
+                          
+                          <button
+                            onClick={() => removeEnvironmentVariable(index)}
+                            className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded transition-colors"
+                            title="Remove variable"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={addEnvironmentVariable}
+                    className="btn-secondary flex items-center text-sm"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Variable
+                  </button>
+                  <button
+                    onClick={saveEnvironmentVariables}
+                    disabled={envVarsSaving}
+                    className="btn-primary flex items-center text-sm"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    {envVarsSaving ? 'Saving...' : 'Save Variables'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditingEnvVars(false)
+                      setTempEnvVars([...environmentVariables])
+                    }}
+                    className="btn-secondary flex items-center text-sm"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </button>
+                </div>
+                
+                <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-3 mt-4">
+                  <p className="text-blue-300 text-sm">
+                    <strong>Note:</strong> Environment variables will be available in your function as <code className="text-blue-200 bg-blue-900/50 px-1 rounded">process.env.VARIABLE_NAME</code>
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {environmentVariables.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-gray-700 rounded-lg">
+                    <Settings className="w-12 h-12 mx-auto text-gray-600 mb-4" />
+                    <p className="text-gray-400">No environment variables defined</p>
+                    <p className="text-gray-500 text-sm">Environment variables provide configuration to your functions</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left py-2 px-3 text-gray-300 font-mono">Variable Name</th>
+                          <th className="text-left py-2 px-3 text-gray-300">Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {environmentVariables.map((envVar, index) => (
+                          <tr key={envVar.id || index} className="border-b border-gray-800">
+                            <td className="py-2 px-3 text-blue-300 font-mono">{envVar.variable_name}</td>
+                            <td className="py-2 px-3 text-gray-400">{envVar.description || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

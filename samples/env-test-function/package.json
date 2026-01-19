@@ -1,0 +1,8 @@
+{
+  "name": "env-test-function",
+  "version": "1.0.0",
+  "description": "Test function to demonstrate environment variables functionality",
+  "main": "index.js",
+  "author": "Invoke Platform",
+  "license": "MIT"
+}
