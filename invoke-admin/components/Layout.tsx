@@ -41,7 +41,7 @@ export default function Layout({ children, title }: LayoutProps) {
   return (
     <>
       <Head>
-        {title && <title>{title}</title>}
+        {title && <title>{title} - Invoke Admin</title>}
         <meta name="description" content="Invoke Admin Panel - Manage serverless functions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
