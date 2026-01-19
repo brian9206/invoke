@@ -117,7 +117,7 @@ router.post('/:functionId', authenticateApiKey, async (req, res) => {
         const requestInfo = {
             requestSize: JSON.stringify(requestBody).length,
             responseSize: JSON.stringify(result.data || {}).length,
-            clientIp: req.ip || req.connection.remoteAddress,
+            clientIp: req.ip,
             userAgent: req.headers['user-agent'],
             consoleOutput: executionContext.console.getLogs(),
             requestHeaders: req.headers,
@@ -202,7 +202,7 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
         const requestInfo = {
             requestSize: JSON.stringify(queryParams).length,
             responseSize: JSON.stringify(result.data || {}).length,
-            clientIp: req.ip || req.connection.remoteAddress,
+            clientIp: req.ip,
             userAgent: req.headers['user-agent'],
             consoleOutput: executionContext.console.getLogs(),
             requestHeaders: req.headers,
@@ -625,7 +625,7 @@ function createRequestObject(method, body, query, headers, params, originalReq) 
         protocol,
         hostname,
         secure: protocol === 'https',
-        ip: originalReq.ip || originalReq.connection?.remoteAddress || '127.0.0.1',
+        ip: originalReq.ip,
         ips: originalReq.ips || [],
         body,
         query,
