@@ -1303,7 +1303,8 @@ export default function FunctionDetails() {
                         className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 disabled:bg-gray-700 disabled:text-gray-400 disabled:border-gray-700 disabled:cursor-not-allowed px-3 py-2 font-mono"
                       />
                       <p className="mt-1 text-xs text-gray-500">
-                        Format: minute hour day month weekday (e.g., "*/5 * * * *" runs every 5 minutes)
+                        Format: minute hour day month weekday<br/>
+                        Examples: "*/5 * * * *" (every 5 min), "0 * * * *" (hourly), "0 9 * * *" (daily at 9 AM)
                       </p>
                     </div>
 

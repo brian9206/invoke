@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
 import { Pool } from 'pg'
+import { CronJob } from 'cron'
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -13,51 +14,15 @@ const pool = new Pool({
 // Utility function to calculate next execution time based on cron expression
 function calculateNextExecution(cronExpression: string): Date | null {
   try {
-    // Simple cron parser for minute-level expressions (e.g., "*/5 * * * *" for every 5 minutes)
-    const parts = cronExpression.trim().split(' ')
-    if (parts.length !== 5) return null
-
-    const [minute, hour, day, month, weekday] = parts
-    const now = new Date()
-    const next = new Date(now)
+    // Use cron library for accurate parsing
+    const job = new CronJob(cronExpression, function() {})
+    const next = job.nextDate().toJSDate() // Convert to JavaScript Date object
     
-    // Reset seconds and milliseconds
-    next.setSeconds(0, 0)
-    
-    // Handle minute patterns
-    if (minute === '*') {
-      // Every minute - next minute
-      next.setMinutes(next.getMinutes() + 1)
-    } else if (minute.startsWith('*/')) {
-      // Every N minutes
-      const interval = parseInt(minute.slice(2))
-      const nextMinute = Math.ceil(now.getMinutes() / interval) * interval
-      next.setMinutes(nextMinute)
-      if (nextMinute <= now.getMinutes()) {
-        next.setHours(next.getHours() + 1)
-        next.setMinutes(0)
-      }
-    } else if (!isNaN(parseInt(minute))) {
-      // Specific minute
-      const targetMinute = parseInt(minute)
-      next.setMinutes(targetMinute)
-      if (targetMinute <= now.getMinutes()) {
-        next.setHours(next.getHours() + 1)
-      }
-    }
-    
-    // Handle hour patterns (simplified)
-    if (hour !== '*' && !isNaN(parseInt(hour))) {
-      const targetHour = parseInt(hour)
-      next.setHours(targetHour)
-      if (targetHour < now.getHours() || (targetHour === now.getHours() && next.getMinutes() <= now.getMinutes())) {
-        next.setDate(next.getDate() + 1)
-      }
-    }
-    
+    console.log(`Admin UI: Cron expression "${cronExpression}" next execution: ${next.toString()}`)
     return next
+    
   } catch (error) {
-    console.error('Error calculating next execution:', error)
+    console.error(`Admin UI: Error parsing cron expression "${cronExpression}":`, error.message)
     return null
   }
 }

@@ -17,6 +17,7 @@
     "autoprefixer": "^10.4.16",
     "axios": "^1.6.2",
     "bcryptjs": "^3.0.3",
+    "cron": "^4.4.0",
     "form-data": "^4.0.0",
     "fs-extra": "^11.2.0",
     "js-cookie": "^3.0.5",
