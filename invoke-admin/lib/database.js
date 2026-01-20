@@ -46,6 +46,11 @@ class Database {
      */
     async query(text, params = []) {
         try {
+            // Auto-connect if not already connected
+            if (!this.pool) {
+                await this.connect();
+            }
+            
             const result = await this.pool.query(text, params);
             return result;
         } catch (error) {
@@ -59,12 +64,20 @@ class Database {
      * @param {Function} callback - Transaction callback
      */
     async transaction(callback) {
+        // Auto-connect if not already connected
+        if (!this.pool) {
+            await this.connect();
+        }
+        
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
             const result = await callback(client);
             await client.query('COMMIT');
             return result;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
         } finally {
             client.release();
         }

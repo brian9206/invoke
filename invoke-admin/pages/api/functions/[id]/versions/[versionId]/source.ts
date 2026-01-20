@@ -3,9 +3,9 @@ import fs from 'fs-extra'
 import path from 'path'
 import AdmZip from 'adm-zip'
 import tar from 'tar'
-const database = require('../../../../../../lib/database')
-const minioService = require('../../../../../../lib/minio')
-const { createResponse } = require('../../../../../../lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
+const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id: functionId, versionId } = req.query
@@ -25,9 +25,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     // Get version details
     const versionResult = await database.query(`
-      SELECT fv.*, f.name as function_name
+      SELECT fv.*, f.name as function_name, f.project_id, p.name as project_name
       FROM function_versions fv
       JOIN functions f ON fv.function_id = f.id
+      LEFT JOIN projects p ON f.project_id = p.id
       WHERE fv.id = $1 AND fv.function_id = $2
     `, [versionId, functionId])
 
@@ -123,6 +124,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         versionId,
         version: versionData.version,
         functionName: versionData.function_name,
+        project_id: versionData.project_id,
+        project_name: versionData.project_name,
         files
       }, 'Source code retrieved successfully'))
 

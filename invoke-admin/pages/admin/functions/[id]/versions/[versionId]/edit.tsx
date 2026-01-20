@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { 
   ArrowLeft, 
   Save, 
@@ -38,12 +39,16 @@ interface FunctionData {
   versionId: string
   version: number
   functionName: string
+  project_id: string
+  project_name: string
   files: FileNode[]
 }
 
 export default function FunctionCodeEditor() {
   const router = useRouter()
   const { id: functionId, versionId } = router.query
+  const { lockProject, unlockProject } = useProject()
+  const hasLockedProject = useRef(false)
   
   const [functionData, setFunctionData] = useState<FunctionData | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
@@ -71,6 +76,26 @@ export default function FunctionCodeEditor() {
       fetchSourceCode()
     }
   }, [functionId, versionId])
+
+  // Lock project when function data loads
+  useEffect(() => {
+    if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
+      hasLockedProject.current = true
+      lockProject({
+        id: functionData.project_id,
+        name: functionData.project_name,
+        description: '',
+        role: 'locked'
+      })
+    }
+    
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false
+        unlockProject()
+      }
+    }
+  }, [functionData?.project_id, functionData?.project_name])
 
   const fetchSourceCode = async () => {
     if (hasFetchedRef.current) return // Prevent multiple calls

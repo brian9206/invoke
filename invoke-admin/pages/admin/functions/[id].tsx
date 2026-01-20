@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { 
   Package, 
   Edit, 
@@ -44,6 +45,8 @@ interface Function {
   requires_api_key: boolean
   active_version_id?: string
   api_key?: string
+  project_id: string
+  project_name: string
 }
 
 interface ExecutionLog {
@@ -79,6 +82,8 @@ interface EnvironmentVariable {
 export default function FunctionDetails() {
   const router = useRouter()
   const { id } = router.query
+  const { lockProject, unlockProject } = useProject()
+  const hasLockedProject = useRef(false)
   
   const [functionData, setFunctionData] = useState<Function | null>(null)
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
@@ -138,6 +143,27 @@ export default function FunctionDetails() {
   const [editingEnvVars, setEditingEnvVars] = useState(false)
   const [tempEnvVars, setTempEnvVars] = useState<EnvironmentVariable[]>([])
   
+  // Lock project when function data loads
+  useEffect(() => {
+    if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
+      hasLockedProject.current = true
+      lockProject({
+        id: functionData.project_id,
+        name: functionData.project_name,
+        description: '',
+        role: 'locked' // Special role to indicate it's locked
+      })
+    }
+    
+    // Cleanup: unlock project when leaving this page
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false
+        unlockProject()
+      }
+    }
+  }, [functionData?.project_id, functionData?.project_name])
+
   // Get function URL dynamically
   useEffect(() => {
     if (functionData?.id) {

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
-const { createResponse } = require('./utils')
-const database = require('./database')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 interface AuthenticatedRequest extends NextApiRequest {
   user?: {
@@ -131,3 +131,73 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
 }
 
 export type { AuthenticatedRequest }
+
+// Project access control helpers
+export async function getUserProjectRole(userId: number, projectId: string): Promise<string | null> {
+  try {
+    const result = await database.query(
+      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2',
+      [userId, projectId]
+    )
+    return result.rows.length > 0 ? result.rows[0].role : null
+  } catch (error) {
+    console.error('Error checking user project role:', error)
+    return null
+  }
+}
+
+export async function getUserProjects(userId: number): Promise<any[]> {
+  try {
+    const result = await database.query(`
+      SELECT p.id, p.name, p.description, pm.role
+      FROM projects p
+      JOIN project_memberships pm ON p.id = pm.project_id
+      WHERE pm.user_id = $1 AND p.is_active = true
+      ORDER BY p.name
+    `, [userId])
+    return result.rows
+  } catch (error) {
+    console.error('Error getting user projects:', error)
+    return []
+  }
+}
+
+export function hasProjectAccess(role: string, requiredLevel: 'viewer' | 'editor' | 'owner'): boolean {
+  const roleHierarchy = { viewer: 0, editor: 1, owner: 2 }
+  return roleHierarchy[role as keyof typeof roleHierarchy] >= roleHierarchy[requiredLevel]
+}
+
+// Project-scoped middleware for function operations
+export function withProjectAccess(requiredRole: 'viewer' | 'editor' | 'owner' = 'viewer') {
+  return function (handler: NextApiHandler) {
+    return withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
+      // Admin users bypass project restrictions
+      if (req.user?.isAdmin) {
+        return handler(req, res)
+      }
+
+      const { projectId } = req.query || req.body
+      
+      if (!projectId) {
+        return res.status(400).json(createResponse(false, null, 'Project ID is required', 400))
+      }
+
+      const userRole = await getUserProjectRole(req.user!.id, projectId as string)
+      
+      if (!userRole) {
+        return res.status(403).json(createResponse(false, null, 'Access denied: not a member of this project', 403))
+      }
+
+      if (!hasProjectAccess(userRole, requiredRole)) {
+        return res.status(403).json(createResponse(false, null, `Access denied: ${requiredRole} role required`, 403))
+      }
+
+      return handler(req, res)
+    })
+  }
+}
+
+// Admin-only middleware (simplified alias)
+export function adminRequired(handler: NextApiHandler) {
+  return withAuth(handler, { adminRequired: true })
+}

@@ -1,24 +1,41 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../lib/utils')
-const database = require('../../lib/database')
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: any) {
   // Parse pagination parameters
   const page = parseInt(req.query.page as string) || 1
   const limit = parseInt(req.query.limit as string) || 20
   const status = req.query.status as string || 'all'
+  const projectId = req.query.projectId as string
   const offset = (page - 1) * limit
 
-  // Build WHERE clause based on status filter
-  let whereClause = ''
-  let queryParams = []
-  
-  if (status === 'success') {
-    whereClause = 'WHERE el.status_code >= 200 AND el.status_code < 300'
-  } else if (status === 'error') {
-    whereClause = 'WHERE el.status_code >= 400'
+  // Verify project access
+  if (projectId && projectId !== 'system') {
+    const userProjects = await getUserProjects(req.user!.id)
+    const hasAccess = req.user?.isAdmin || userProjects.some(p => p.id === projectId)
+    if (!hasAccess) {
+      return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+    }
   }
-  // 'all' status means no WHERE clause (show all)
+
+  // Build WHERE clause based on status filter and project filter
+  let whereClause = ''
+  let queryParams: any[] = []
+  let paramIndex = 1
+  // Add project filter (skip if system)
+  if (projectId && projectId !== 'system') {
+    whereClause = 'WHERE f.project_id = $' + paramIndex
+    queryParams.push(projectId)
+    paramIndex++
+  }
+  
+  // Add status filter
+  if (status === 'success') {
+    whereClause += (whereClause ? ' AND' : 'WHERE') + ` el.status_code >= 200 AND el.status_code < 300`
+  } else if (status === 'error') {
+    whereClause += (whereClause ? ' AND' : 'WHERE') + ` el.status_code >= 400`
+  }
 
   // Get total count for pagination (with filter)
   const countResult = await database.query(`
@@ -26,11 +43,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
     FROM execution_logs el
     LEFT JOIN functions f ON el.function_id = f.id
     ${whereClause}
-  `)
+  `, queryParams)
   const totalCount = parseInt(countResult.rows[0].total)
   const totalPages = Math.ceil(totalCount / limit)
 
   // Get execution logs with function names (paginated and filtered)
+  const paginationParams = [...queryParams, limit, offset]
   const result = await database.query(`
     SELECT 
       el.*,
@@ -39,8 +57,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
     LEFT JOIN functions f ON el.function_id = f.id
     ${whereClause}
     ORDER BY el.executed_at DESC
-    LIMIT $1 OFFSET $2
-  `, [limit, offset])
+    LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
+  `, paginationParams)
 
   const paginationData = {
     logs: result.rows,

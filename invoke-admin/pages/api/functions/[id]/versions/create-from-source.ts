@@ -4,9 +4,9 @@ import path from 'path'
 import tar from 'tar'
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
-const database = require('../../../../../lib/database')
-const minioService = require('../../../../../lib/minio')
-const { createResponse } = require('../../../../../lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
+const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const userId = req.user!.id

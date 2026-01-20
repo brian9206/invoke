@@ -6,7 +6,7 @@ import path from 'path'
 import tar from 'tar'
 import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
-const { createResponse } = require('../../../../../../lib/utils')
+const { createResponse } = require('@/lib/utils')
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { 
   Activity, 
@@ -32,6 +33,7 @@ interface RecentActivity {
 }
 
 export default function Dashboard() {
+  const { activeProject, loading: projectLoading } = useProject()
   const [stats, setStats] = useState<Stats>({
     totalFunctions: 0,
     activeFunctions: 0,
@@ -44,14 +46,18 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    if (!projectLoading && activeProject) {
+      fetchDashboardData()
+    }
+  }, [activeProject, projectLoading])
 
   const fetchDashboardData = async () => {
+    if (!activeProject) return
+    
     try {
       const [statsResponse, activityResponse] = await Promise.all([
-        authenticatedFetch('/api/dashboard/stats'),
-        authenticatedFetch('/api/dashboard/recent-activity')
+        authenticatedFetch(`/api/dashboard/stats?projectId=${activeProject.id}`),
+        authenticatedFetch(`/api/dashboard/recent-activity?projectId=${activeProject.id}`)
       ])
 
       if (statsResponse.ok) {
@@ -115,12 +121,14 @@ export default function Dashboard() {
     }
   ]
 
-  if (loading) {
+  if (projectLoading || loading || !activeProject) {
     return (
       <ProtectedRoute>
         <Layout title="Dashboard">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500"></div>
+            <div className="text-gray-400">
+              {projectLoading ? 'Loading projects...' : !activeProject ? 'No project selected' : 'Loading dashboard...'}
+            </div>
           </div>
         </Layout>
       </ProtectedRoute>

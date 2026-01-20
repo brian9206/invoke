@@ -4,9 +4,9 @@ import path from 'path'
 import fs from 'fs-extra'
 import tar from 'tar'
 
-const { createResponse } = require('../../../../lib/utils')
-const database = require('../../../../lib/database')
-const minioService = require('../../../../lib/minio')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
 
 // Configure multer for file uploads
 const upload = multer({

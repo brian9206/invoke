@@ -2,12 +2,15 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 
 export default function UpdateFunction() {
   const router = useRouter()
   const { id } = router.query
+  const { lockProject, unlockProject } = useProject()
+  const hasLockedProject = useRef(false)
   
   const [functionData, setFunctionData] = useState<any>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -21,6 +24,26 @@ export default function UpdateFunction() {
       fetchFunctionData()
     }
   }, [id])
+
+  // Lock project when function data loads
+  useEffect(() => {
+    if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
+      hasLockedProject.current = true
+      lockProject({
+        id: functionData.project_id,
+        name: functionData.project_name,
+        description: '',
+        role: 'locked'
+      })
+    }
+    
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false
+        unlockProject()
+      }
+    }
+  }, [functionData?.project_id, functionData?.project_name])
 
   const fetchFunctionData = async () => {
     try {

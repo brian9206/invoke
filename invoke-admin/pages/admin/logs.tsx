@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { Activity, AlertCircle, Filter, Globe, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 
@@ -37,6 +38,7 @@ interface LogsResponse {
 
 export default function Logs() {
   const router = useRouter()
+  const { activeProject, loading: projectLoading } = useProject()
   const [logs, setLogs] = useState<ExecutionLog[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all')
@@ -52,13 +54,17 @@ export default function Logs() {
   const [pageSize, setPageSize] = useState(20)
 
   useEffect(() => {
-    fetchLogs()
-  }, [currentPage, pageSize, filter])
+    if (!projectLoading && activeProject) {
+      fetchLogs()
+    }
+  }, [currentPage, pageSize, filter, activeProject, projectLoading])
 
   const fetchLogs = async (page = currentPage, limit = pageSize, statusFilter = filter) => {
+    if (!activeProject) return
+    
     setLoading(true)
     try {
-      const response = await authenticatedFetch(`/api/logs?page=${page}&limit=${limit}&status=${statusFilter}`)
+      const response = await authenticatedFetch(`/api/logs?page=${page}&limit=${limit}&status=${statusFilter}&projectId=${activeProject.id}`)
       const result = await response.json()
       
       if (result.success && result.data) {
@@ -112,12 +118,14 @@ export default function Logs() {
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  if (loading) {
+  if (projectLoading || loading || !activeProject) {
     return (
       <ProtectedRoute>
         <Layout title="Execution Logs">
           <div className="flex justify-center items-center h-64">
-            <div className="text-gray-400">Loading execution logs...</div>
+            <div className="text-gray-400">
+              {projectLoading ? 'Loading projects...' : !activeProject ? 'No project selected' : 'Loading execution logs...'}
+            </div>
           </div>
         </Layout>
       </ProtectedRoute>

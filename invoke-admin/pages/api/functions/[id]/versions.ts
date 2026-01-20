@@ -4,9 +4,9 @@ import multer from 'multer'
 import fs from 'fs-extra'
 import crypto from 'crypto'
 import path from 'path'
-const { createResponse } = require('../../../../lib/utils')
-const database = require('../../../../lib/database')
-const minioService = require('../../../../lib/minio')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
 
 // Configure multer for file uploads
 const upload = multer({

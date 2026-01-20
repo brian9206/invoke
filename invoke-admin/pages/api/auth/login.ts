@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
-const { hashPassword, verifyPassword, createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
+const { hashPassword, verifyPassword, createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -34,6 +34,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     
     if (!isValidPassword) {
       return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
+    }
+
+
+    // If not admin, check project membership
+    if (!user.is_admin) {
+      // Import getUserProjects dynamically to avoid circular dependency
+      const { getUserProjects } = require('@/lib/middleware')
+      const userProjects = await getUserProjects(user.id)
+      if (!userProjects || userProjects.length === 0) {
+        return res.status(403).json(createResponse(false, null, 'Access denied: You are not a member of any project. Please contact your system administrator.', 403))
+      }
     }
 
     // Update last login

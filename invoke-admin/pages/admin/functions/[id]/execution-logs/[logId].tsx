@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { useProject } from '@/contexts/ProjectContext'
 import { 
   ArrowLeft, 
   Activity,
@@ -24,6 +25,8 @@ interface ExecutionLogDetail {
   function_id: string
   function_name: string
   function_version: string
+  project_id: string
+  project_name: string
   status_code: number
   execution_time_ms: number
   request_size: number
@@ -48,6 +51,8 @@ interface ExecutionLogDetail {
 export default function ExecutionLogDetails() {
   const router = useRouter()
   const { id: functionId, logId } = router.query
+  const { lockProject, unlockProject } = useProject()
+  const hasLockedProject = useRef(false)
   
   const [logDetail, setLogDetail] = useState<ExecutionLogDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -61,6 +66,26 @@ export default function ExecutionLogDetails() {
       fetchLogDetail()
     }
   }, [logId])
+
+  // Lock project when log detail loads
+  useEffect(() => {
+    if (logDetail?.project_id && logDetail?.project_name && !hasLockedProject.current) {
+      hasLockedProject.current = true
+      lockProject({
+        id: logDetail.project_id,
+        name: logDetail.project_name,
+        description: '',
+        role: 'locked'
+      })
+    }
+    
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false
+        unlockProject()
+      }
+    }
+  }, [logDetail?.project_id, logDetail?.project_name])
 
   const fetchLogDetail = async () => {
     setLoading(true)

@@ -8,9 +8,9 @@ import path from 'path'
 import tar from 'tar'
 import archiver from 'archiver'
 import { v4 as uuidv4 } from 'uuid'
-const { createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
-const minioService = require('../../../lib/minio')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
 
 // Configure multer for file uploads
 const upload = multer({
@@ -80,7 +80,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     const description = (req.body.description || '').trim() || 'Uploaded function package'
     const requiresApiKey = req.body.requiresApiKey === 'true'
     const apiKey = requiresApiKey ? req.body.apiKey : null
-
+    const projectId = req.body.projectId || null
     // Check if function already exists by name - reject duplicates for new uploads
     const existingResult = await database.query(
       'SELECT id, name FROM functions WHERE name = $1',
@@ -135,11 +135,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     // Insert new function (without version-specific columns)
     const functionResult = await database.query(`
       INSERT INTO functions (
-        id, name, description, deployed_by, requires_api_key, api_key, is_active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, name
     `, [
-      functionId, functionName, description, userId, requiresApiKey, apiKey, true
+      functionId, functionName, description, userId, requiresApiKey, apiKey, true, projectId
     ])
 
     // Create first version record

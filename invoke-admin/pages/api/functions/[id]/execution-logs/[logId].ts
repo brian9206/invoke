@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../../../../lib/utils')
-const database = require('../../../../../lib/database')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
@@ -21,9 +21,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             SELECT 
                 el.*,
                 f.name as function_name,
+                f.project_id,
+                p.name as project_name,
                 fv.version as function_version
             FROM execution_logs el
             JOIN functions f ON el.function_id = f.id
+            LEFT JOIN projects p ON f.project_id = p.id
             LEFT JOIN function_versions fv ON f.active_version_id = fv.id
             WHERE el.id = $1 AND el.function_id = $2
         `, [logId, functionId])

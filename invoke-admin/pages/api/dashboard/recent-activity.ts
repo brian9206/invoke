@@ -1,10 +1,28 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
+    const projectId = req.query.projectId as string
+    
+    // Verify project access
+    if (projectId && projectId !== 'system') {
+      const userProjects = await getUserProjects(req.user!.id)
+      const hasAccess = req.user?.isAdmin || userProjects.some(p => p.id === projectId)
+      if (!hasAccess) {
+        return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+      }
+    }
+    // Build WHERE clause for project filter
+    let whereClause = ''
+    let queryParams: any[] = []
+    if (projectId && projectId !== 'system') {
+      whereClause = 'AND f.project_id = $1'
+      queryParams = [projectId]
+    }
+    
     // Get recent execution activity
     const result = await database.query(`
       SELECT 
@@ -21,9 +39,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       FROM execution_logs el
       JOIN functions f ON el.function_id = f.id
       WHERE el.executed_at > NOW() - INTERVAL '1 hour'
+      ${whereClause}
       ORDER BY el.executed_at DESC
       LIMIT 10
-    `)
+    `, queryParams)
 
     const recentActivity = result.rows.map(row => ({
       id: row.id.toString(),

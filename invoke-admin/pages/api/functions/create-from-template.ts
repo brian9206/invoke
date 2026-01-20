@@ -6,9 +6,9 @@ import path from 'path'
 import tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
-const minioService = require('../../../lib/minio')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
 
 // Hello World function template
 const helloWorldTemplate = `module.exports = async (req, res) => {
@@ -62,7 +62,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       await minioService.initialize()
     }
 
-    const { name, description, requiresApiKey, apiKey } = req.body
+    const { name, description, requiresApiKey, apiKey, projectId } = req.body
 
     if (!name || !name.trim()) {
       return res.status(400).json(createResponse(false, null, 'Function name is required', 400))
@@ -147,9 +147,9 @@ Returns a JSON object with a greeting message.
 
       // Create function record first (without active_version_id)
       const insertResult = await database.query(
-        `INSERT INTO functions (id, name, description, deployed_by, requires_api_key, api_key, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *`,
-        [functionId, functionName, functionDescription, userId, requiresApiKey || false, apiKey || null]
+        `INSERT INTO functions (id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id)
+         VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING *`,
+        [functionId, functionName, functionDescription, userId, requiresApiKey || false, apiKey || null, projectId || null]
       )
 
       // Generate a separate version ID

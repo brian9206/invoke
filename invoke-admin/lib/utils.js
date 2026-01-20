@@ -113,7 +113,7 @@ function createResponse(success, data = null, message = '', statusCode = 200) {
  * @param {Object} requestInfo - Additional request information
  */
 async function logExecution(functionId, executionTime, statusCode, error = null, requestInfo = {}) {
-    const database = require('./database');
+    const database = require('@/lib/database');
     
     try {
         await database.query(`
@@ -151,7 +151,7 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
  */
 async function getFunctionBaseUrl() {
     try {
-        const database = require('./database');
+        const database = require('@/lib/database');
         const result = await database.query(
             'SELECT setting_value FROM global_settings WHERE setting_key = $1',
             ['function_base_url']

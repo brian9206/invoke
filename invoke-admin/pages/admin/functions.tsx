@@ -4,6 +4,8 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
+import { useAuth } from '@/contexts/AuthContext'
+import { useProject } from '@/contexts/ProjectContext'
 
 interface Function {
   id: string
@@ -16,20 +18,36 @@ interface Function {
   last_executed: string | null
   execution_count: number
   requires_api_key: boolean
+  project_name: string
+  user_role?: string
 }
 
 export default function Functions() {
+  const { user } = useAuth()
+  const { activeProject } = useProject()
   const [functions, setFunctions] = useState<Function[]>([])
   const [loading, setLoading] = useState(true)
   const [functionUrls, setFunctionUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    fetchFunctions()
-  }, [])
+    // Always fetch functions when user changes or active project changes
+    if (user && activeProject) {
+      fetchFunctions()
+    } else {
+      setFunctions([])
+      setLoading(false)
+    }
+  }, [activeProject, user])
 
   const fetchFunctions = async () => {
     try {
-      const response = await authenticatedFetch('/api/functions')
+      let url = '/api/functions'
+      // Always add project filter since we always have a project selected
+      if (activeProject) {
+        url += `?projectId=${activeProject.id}`
+      }
+      
+      const response = await authenticatedFetch(url)
       const result = await response.json()
       
       if (result.success) {
@@ -118,12 +136,24 @@ export default function Functions() {
                 Manage your deployed serverless functions
               </p>
             </div>
-            <Link href="/admin/deploy" className="btn-primary">
-              Deploy Function
-            </Link>
+            <div className="flex items-center space-x-4">
+              <Link href="/admin/deploy" className="btn-primary">
+                Deploy Function
+              </Link>
+            </div>
           </div>
 
-          {functions.length === 0 ? (
+          {!activeProject ? (
+            <div className="card text-center py-12">
+              <Package className="w-16 h-16 mx-auto text-gray-500 mb-4" />
+              <h2 className="text-xl font-semibold text-gray-300 mb-2">
+                Loading Project
+              </h2>
+              <p className="text-gray-400 mb-6">
+                Please wait while we load your project
+              </p>
+            </div>
+          ) : functions.length === 0 ? (
             <div className="card text-center py-12">
               <Package className="w-16 h-16 mx-auto text-gray-500 mb-4" />
               <h2 className="text-xl font-semibold text-gray-300 mb-2">

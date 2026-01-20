@@ -1,10 +1,27 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
+    const projectId = req.query.projectId as string
+    
+    // Verify project access
+    if (projectId && projectId !== 'system') {
+      const userProjects = await getUserProjects(req.user!.id)
+      const hasAccess = req.user?.isAdmin || userProjects.some(p => p.id === projectId)
+      if (!hasAccess) {
+        return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+      }
+    }
+    // Build WHERE clause for project filter
+    let whereClause = ''
+    let queryParams: any[] = []
+    if (projectId && projectId !== 'system') {
+      whereClause = 'WHERE project_id = $1'
+      queryParams = [projectId]
+    }
 
     // Get function statistics
     const functionStats = await database.query(`
@@ -13,7 +30,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         COUNT(*) FILTER (WHERE is_active = true) as active_functions,
         SUM(execution_count) as total_executions
       FROM functions
-    `)
+      ${whereClause}
+    `, queryParams)
 
     // Get recent execution statistics
     const executionStats = await database.query(`
@@ -22,12 +40,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         COUNT(*) FILTER (WHERE status_code >= 400) as recent_errors,
         AVG(execution_time_ms)::int as avg_response_time,
         CASE 
-          WHEN COUNT(*) = 0 THEN 100
-          ELSE (COUNT(*) FILTER (WHERE status_code < 400) * 100.0 / COUNT(*))::int
+          WHEN COUNT(*) = 0 THEN 100.0
+          ELSE ROUND((COUNT(*) FILTER (WHERE status_code < 400) * 100.0 / COUNT(*)), 1)
         END as success_rate
-      FROM execution_logs
-      WHERE executed_at > NOW() - INTERVAL '24 hours'
-    `)
+      FROM execution_logs el
+      JOIN functions f ON el.function_id = f.id
+      ${whereClause ? whereClause.replace('project_id', 'f.project_id') : ''}
+      ${whereClause ? 'AND' : 'WHERE'} el.executed_at > NOW() - INTERVAL '24 hours'
+    `, queryParams)
 
     const functionStatsData = functionStats.rows[0]
     const executionStatsData = executionStats.rows[0]

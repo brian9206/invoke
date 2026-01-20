@@ -4,6 +4,8 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy } from 'lucide-react'
 import { getFunctionBaseUrl, getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
+import { useAuth } from '@/contexts/AuthContext'
+import { useProject } from '@/contexts/ProjectContext'
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -17,6 +19,8 @@ const generateApiKey = () => {
 
 export default function DeployFunction() {
   const router = useRouter()
+  const { user } = useAuth()
+  const { activeProject } = useProject()
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -57,18 +61,25 @@ export default function DeployFunction() {
     setUploading(true)
     setUploadResult(null)
 
+    const requestBody: any = {
+      name: name.trim(),
+      description: description.trim() || 'Hello World function',
+      requiresApiKey,
+      apiKey
+    }
+
+    // Add project assignment if a project is selected (for both admin and regular users)
+    if (activeProject) {
+      requestBody.projectId = activeProject.id
+    }
+
     try {
       const response = await authenticatedFetch('/api/functions/create-from-template', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || 'Hello World function',
-          requiresApiKey,
-          apiKey
-        })
+        body: JSON.stringify(requestBody)
       })
 
       const result = await response.json()
@@ -99,6 +110,10 @@ export default function DeployFunction() {
     formData.append('requiresApiKey', requiresApiKey.toString())
     if (requiresApiKey && apiKey) {
       formData.append('apiKey', apiKey)
+    }
+    // Add project assignment if a project is selected (for both admin and regular users)
+    if (activeProject) {
+      formData.append('projectId', activeProject.id)
     }
 
     try {
@@ -165,7 +180,24 @@ export default function DeployFunction() {
             </p>
           </div>
 
-          <div className="card max-w-2xl">
+          {/* Project Selection Check - for all users */}
+          {!activeProject && (
+            <div className="card">
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 mx-auto text-yellow-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-100 mb-2">
+                  Loading Project
+                </h3>
+                <p className="text-gray-400">
+                  Please wait while we load your project data.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Show deployment form when project is loaded */}
+          {activeProject && (
+            <div className="card max-w-2xl">
             {/* Creation Mode Selector */}
             <div className="mb-6">
               <div className="flex space-x-1 p-1 bg-gray-800 rounded-lg w-fit">
@@ -425,7 +457,8 @@ export default function DeployFunction() {
                 <li>• Access your function via <code className="bg-gray-700 px-1 rounded">{functionBaseUrl}/&lt;function-id&gt;</code></li>
               </ul>
             </div>
-          </div>
+            </div>
+          )}
         </div>
       </Layout>
     </ProtectedRoute>

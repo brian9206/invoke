@@ -1,6 +1,6 @@
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('../../../lib/utils')
-const database = require('../../../lib/database')
+const { createResponse } = require('@/lib/utils')
+const database = require('@/lib/database')
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -29,21 +29,24 @@ async function handler(req: AuthenticatedRequest, res: any) {
         f.name,
         f.description,
         f.is_active,
-          f.created_at,
-          f.last_executed,
-          f.execution_count,
-          f.requires_api_key,
-          f.api_key,
-          f.active_version_id,
-          fv.version,
-          fv.file_size,
-          fv.package_path,
-          fv.package_hash,
-          fv.created_at as version_created_at
-        FROM functions f
-        LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-        WHERE f.id = $1
-      `, [id])
+        f.created_at,
+        f.last_executed,
+        f.execution_count,
+        f.requires_api_key,
+        f.api_key,
+        f.active_version_id,
+        f.project_id,
+        p.name as project_name,
+        fv.version,
+        fv.file_size,
+        fv.package_path,
+        fv.package_hash,
+        fv.created_at as version_created_at
+      FROM functions f
+      LEFT JOIN function_versions fv ON f.active_version_id = fv.id
+      LEFT JOIN projects p ON f.project_id = p.id
+      WHERE f.id = $1
+    `, [id])
 
       if (result.rows.length === 0) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -142,7 +145,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
 
       // Clean up MinIO files for each version
-      const minioService = require('../../../lib/minio')
+      const minioService = require('@/lib/minio')
       let deletedPackages = 0
       
       try {
