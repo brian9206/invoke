@@ -138,8 +138,8 @@ class ExecutionServer {
      * Setup error handling middleware
      */
     setupErrorHandling() {
-        // 404 handler
-        this.app.use('*', (req, res) => {
+        // 404 handler - use pathless middleware to avoid path-to-regexp '*' parsing issues
+        this.app.use((req, res) => {
             res.status(404).json({
                 success: false,
                 message: 'Endpoint not found',

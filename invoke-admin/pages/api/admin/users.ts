@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired } from '@/lib/middleware';
 const database = require('@/lib/database');
-import bcrypt from 'bcrypt';
+const bcrypt = require('bcrypt');
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   switch (req.method) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type JSX } from 'react';
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Layout from '@/components/Layout'

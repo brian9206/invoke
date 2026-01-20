@@ -11,10 +11,32 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    is_admin BOOLEAN DEFAULT true,
+    is_admin BOOLEAN DEFAULT false,  -- Changed default to false for regular users
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     last_login TIMESTAMP WITH TIME ZONE
+);
+
+-- Projects table for organizing functions
+CREATE TABLE projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_by INTEGER REFERENCES users(id),
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Project memberships table for user-project relationships with roles
+CREATE TABLE project_memberships (
+    id SERIAL PRIMARY KEY,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'editor', 'viewer')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_by INTEGER REFERENCES users(id),
+    UNIQUE(project_id, user_id)
 );
 
 -- Functions table for deployed packages metadata
@@ -22,6 +44,7 @@ CREATE TABLE functions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     description TEXT,
+    project_id UUID REFERENCES projects(id) ON DELETE CASCADE,  -- Link to project
     deployed_by INTEGER REFERENCES users(id),
     requires_api_key BOOLEAN DEFAULT false,
     api_key VARCHAR(255), -- API key for function access
@@ -109,6 +132,7 @@ CREATE TABLE function_environment_variables (
 CREATE INDEX idx_functions_name ON functions(name);
 CREATE INDEX idx_functions_is_active ON functions(is_active);
 CREATE INDEX idx_functions_active_version ON functions(active_version_id);
+CREATE INDEX idx_functions_project_id ON functions(project_id);
 CREATE INDEX idx_functions_schedule ON functions(schedule_enabled, next_execution) WHERE schedule_enabled = true;
 CREATE INDEX idx_function_versions_function_id ON function_versions(function_id);
 CREATE INDEX idx_function_versions_version ON function_versions(function_id, version);
@@ -120,6 +144,11 @@ CREATE INDEX idx_execution_logs_status ON execution_logs(status_code);
 CREATE INDEX idx_execution_logs_execution_time ON execution_logs(execution_time_ms);
 CREATE INDEX idx_function_env_vars_function_id ON function_environment_variables(function_id);
 CREATE INDEX idx_function_env_vars_name ON function_environment_variables(function_id, variable_name);
+CREATE INDEX idx_projects_name ON projects(name);
+CREATE INDEX idx_projects_is_active ON projects(is_active);
+CREATE INDEX idx_project_memberships_project_id ON project_memberships(project_id);
+CREATE INDEX idx_project_memberships_user_id ON project_memberships(user_id);
+CREATE INDEX idx_project_memberships_role ON project_memberships(role);
 
 -- Global settings table for application configuration
 CREATE TABLE global_settings (
@@ -148,6 +177,10 @@ CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users 
     FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 
+CREATE TRIGGER update_projects_updated_at 
+    BEFORE UPDATE ON projects 
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 CREATE TRIGGER update_functions_updated_at 
     BEFORE UPDATE ON functions 
     FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
@@ -162,6 +195,10 @@ INSERT INTO global_settings (setting_key, setting_value, description) VALUES
 ('log_retention_value', '7', 'Default log retention value (7 days or 1000 count)'),
 ('log_retention_enabled', 'true', 'Whether log retention cleanup is enabled globally'),
 ('function_base_url', 'https://localhost:3001/invoke', 'Base URL for function invocation endpoints');
+
+-- Create default project for migration purposes
+INSERT INTO projects (id, name, description, created_by, created_at) VALUES 
+('00000000-0000-0000-0000-000000000000', 'Default Project', 'Default project for existing functions during migration', NULL, NOW());
 
 -- Grant permissions (adjust as needed for your environment)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO invoke_user;
