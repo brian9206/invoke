@@ -1,7 +1,7 @@
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import fs from 'fs-extra'
 import path from 'path'
-import tar from 'tar'
+import * as tar from 'tar'
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 const database = require('@/lib/database')
@@ -56,7 +56,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       // Create tar.gz archive
       const tgzPath = path.join(tempBaseDir, `${newVersionId}.tgz`)
-      await tar.c(
+      await tar.create(
         {
           gzip: true,
           file: tgzPath,

@@ -17,12 +17,12 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const success = await login(username, password)
+      const {success, message} = await login(username, password)
       if (success) {
         toast.success('Welcome to Invoke Admin!')
         router.push('/admin')
       } else {
-        toast.error('Invalid credentials')
+        toast.error(message)
       }
     } catch (error) {
       toast.error('Login failed')

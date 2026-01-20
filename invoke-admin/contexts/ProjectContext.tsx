@@ -50,7 +50,12 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       let projects = [];
       if (response.ok) {
         const data = await response.json();
-        projects = user.isAdmin ? data.projects : data;
+        if (user.isAdmin) {
+          projects = data?.projects || [];
+        } else {
+          // `/api/my-projects` may return either an array or an object containing `projects`.
+          projects = Array.isArray(data) ? data : (data?.projects || []);
+        }
         // For admins, add System project at the top
         if (user.isAdmin) {
           projects = [systemProject, ...(projects || [])];

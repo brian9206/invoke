@@ -2,7 +2,7 @@ import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs-extra'
-import tar from 'tar'
+import * as tar from 'tar'
 
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')

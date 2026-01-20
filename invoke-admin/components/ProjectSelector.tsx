@@ -32,11 +32,12 @@ export default function ProjectSelector({ selectedProjectId, onProjectChange, cl
 
       if (response.ok) {
         const data = await response.json();
-        setProjects(data.projects || []);
-        
+        const projectsList = Array.isArray(data) ? data : (data?.projects || []);
+        setProjects(projectsList);
+
         // Auto-select first project if none selected
-        if (!selectedProjectId && data.projects.length > 0) {
-          onProjectChange(data.projects[0].id);
+        if (!selectedProjectId && projectsList.length > 0) {
+          onProjectChange(projectsList[0].id);
         }
       } else {
         console.error('Failed to load projects');

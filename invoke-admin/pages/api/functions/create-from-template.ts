@@ -3,9 +3,9 @@ export const runtime = 'nodejs';
 import { NextApiRequest, NextApiResponse } from 'next'
 import fs from 'fs-extra'
 import path from 'path'
-import tar from 'tar'
+import * as tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess, withProjectAccess } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 const minioService = require('@/lib/minio')
@@ -64,6 +64,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     const { name, description, requiresApiKey, apiKey, projectId } = req.body
 
+    // Permission check is handled by middleware wrapper below when projectId is provided.
+
     if (!name || !name.trim()) {
       return res.status(400).json(createResponse(false, null, 'Function name is required', 400))
     }
@@ -117,7 +119,7 @@ Returns a JSON object with a greeting message.
 
       // Create tar.gz archive
       const tgzPath = path.join(tempBaseDir, `${functionId}.tgz`)
-      await tar.c(
+      await tar.create(
         {
           gzip: true,
           file: tgzPath,
@@ -199,4 +201,15 @@ Returns a JSON object with a greeting message.
   }
 }
 
-export default withAuthAndMethods(['POST'])(handler)
+// Export an adapter that applies project access middleware when a projectId is provided in the request.
+const authWrapped = withAuthAndMethods(['POST'])(handler as any)
+const ownerGuarded = withAuthAndMethods(['POST'])(withProjectAccess('owner')(handler as any) as any)
+
+export default async function adapter(req: any, res: any) {
+  // Read projectId from body if possible (middleware wrappers will re-parse body as needed)
+  const projectId = req.body?.projectId || req.query?.projectId || null
+  if (projectId) {
+    return ownerGuarded(req, res)
+  }
+  return authWrapped(req, res)
+}

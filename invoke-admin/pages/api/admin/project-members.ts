@@ -58,8 +58,8 @@ async function addProjectMember(req: AuthenticatedRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Project ID and User ID are required' });
   }
 
-  if (!['owner', 'editor', 'viewer'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be owner, editor, or viewer' });
+  if (!['owner', 'viewer'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be owner or viewer' });
   }
 
   try {
@@ -117,8 +117,8 @@ async function updateMemberRole(req: AuthenticatedRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Membership ID and role are required' });
   }
 
-  if (!['owner', 'editor', 'viewer'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be owner, editor, or viewer' });
+  if (!['owner', 'viewer'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be owner or viewer' });
   }
 
   try {

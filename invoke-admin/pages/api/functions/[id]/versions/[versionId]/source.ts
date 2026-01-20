@@ -1,8 +1,8 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess } from '@/lib/middleware'
 import fs from 'fs-extra'
 import path from 'path'
 import AdmZip from 'adm-zip'
-import tar from 'tar'
+import * as tar from 'tar'
 const database = require('@/lib/database')
 const minioService = require('@/lib/minio')
 const { createResponse } = require('@/lib/utils')
@@ -37,6 +37,14 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     const versionData = versionResult.rows[0]
+    // Verify project membership for non-admins
+    if (!req.user?.isAdmin) {
+      const role = await getUserProjectRole(req.user!.id, versionData.project_id)
+      const hasAccess = role && hasProjectAccess(role, 'viewer')
+      if (!hasAccess) {
+        return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+      }
+    }
     
     // Check if object_key exists, if not use package_path as fallback, or construct it
     let objectKey = versionData.object_key

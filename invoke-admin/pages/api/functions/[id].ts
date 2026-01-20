@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 
@@ -53,6 +53,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
 
       const functionData = result.rows[0]
+      // Verify project membership for non-admins
+      if (!req.user?.isAdmin) {
+        const projectId = functionData.project_id
+        if (projectId) {
+          const role = await getUserProjectRole(req.user!.id, projectId)
+          if (!role || !hasProjectAccess(role, 'viewer')) {
+            return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+          }
+        }
+      }
       return res.status(200).json(createResponse(true, functionData, 'Function details retrieved', 200))
 
     } else if (req.method === 'PATCH') {
@@ -117,6 +127,19 @@ async function handler(req: AuthenticatedRequest, res: any) {
         WHERE id = $${paramCount}
         RETURNING *
       `
+
+      // Verify project membership (owner required) before applying updates
+      const fn = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
+      if (fn.rows.length === 0) {
+        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+      }
+      if (!req.user?.isAdmin) {
+        const projectId = fn.rows[0].project_id
+        const role = await getUserProjectRole(req.user!.id, projectId)
+        if (!role || !hasProjectAccess(role, 'owner')) {
+          return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to update function', 403))
+        }
+      }
 
       const updateResult = await database.query(updateQuery, updateValues)
 

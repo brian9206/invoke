@@ -9,9 +9,14 @@ interface User {
   isAdmin: boolean
 }
 
+interface LoginResult {
+  success: boolean,
+  message: string
+}
+
 interface AuthContextType {
   user: User | null
-  login: (username: string, password: string) => Promise<boolean>
+  login: (username: string, password: string) => Promise<LoginResult>
   logout: () => void
   loading: boolean
 }
@@ -55,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string): Promise<LoginResult> => {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -72,13 +77,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('auth-token', result.data.token)
         }
         setUser(result.data.user)
-        return true
+        return { success: true, message: 'Login successful' }
       }
 
-      return false
+      return { success: false, message: result.message || 'Login failed' }
     } catch (error) {
       console.error('Login failed:', error)
-      return false
+      return { success: false, message: 'Login failed due to an error' }
     }
   }
 

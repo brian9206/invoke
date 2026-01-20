@@ -35,11 +35,14 @@ export default function Layout({ children, title }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
     { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
-    { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects') },
-    { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users' },
+    { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
+    { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
     { name: 'Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
-    { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings' },
+    { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings', adminOnly: true },
   ]
+
+  // Helper to check admin status (used when filtering nav items)
+  const reqUserIsAdmin = () => !!user?.isAdmin
 
   // Pages where project selector should be hidden
   const hideProjectSelector = ['/admin/projects', '/admin/users', '/admin/global-settings'].includes(router.pathname)
@@ -193,17 +196,19 @@ export default function Layout({ children, title }: LayoutProps) {
         </div>
 
         <nav className="mt-2">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`sidebar-link ${item.active ? 'active' : ''}`}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.name}
-            </Link>
-          ))}
+          {navigation
+            .filter(item => !item.adminOnly || reqUserIsAdmin())
+            .map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`sidebar-link ${item.active ? 'active' : ''}`}
+                onClick={() => setSidebarOpen(false)}
+              >
+                <item.icon className="w-5 h-5 mr-3" />
+                {item.name}
+              </Link>
+            ))}
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-700">

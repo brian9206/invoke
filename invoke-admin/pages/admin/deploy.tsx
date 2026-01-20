@@ -173,6 +173,16 @@ export default function DeployFunction() {
     <ProtectedRoute>
       <Layout title="Deploy Function">
         <div className="space-y-6">
+          {/* Permission check: viewers cannot deploy */}
+          {activeProject && !user?.isAdmin && activeProject.role === 'viewer' && (
+            <div className="card">
+              <div className="text-center py-8">
+                <AlertCircle className="w-12 h-12 mx-auto text-yellow-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-100 mb-2">Insufficient Permissions</h3>
+                <p className="text-gray-400">Your current project role does not allow deploying functions. Contact a project owner to deploy functions.</p>
+              </div>
+            </div>
+          )}
           <div>
             <h1 className="text-3xl font-bold text-gray-100">Deploy New Function</h1>
             <p className="text-gray-400 mt-2">

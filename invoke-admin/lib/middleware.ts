@@ -162,13 +162,13 @@ export async function getUserProjects(userId: number): Promise<any[]> {
   }
 }
 
-export function hasProjectAccess(role: string, requiredLevel: 'viewer' | 'editor' | 'owner'): boolean {
-  const roleHierarchy = { viewer: 0, editor: 1, owner: 2 }
+export function hasProjectAccess(role: string, requiredLevel: 'viewer' | 'owner'): boolean {
+  const roleHierarchy = { viewer: 0, owner: 1 }
   return roleHierarchy[role as keyof typeof roleHierarchy] >= roleHierarchy[requiredLevel]
 }
 
 // Project-scoped middleware for function operations
-export function withProjectAccess(requiredRole: 'viewer' | 'editor' | 'owner' = 'viewer') {
+export function withProjectAccess(requiredRole: 'viewer' | 'owner' = 'viewer') {
   return function (handler: NextApiHandler) {
     return withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
       // Admin users bypass project restrictions
@@ -176,7 +176,7 @@ export function withProjectAccess(requiredRole: 'viewer' | 'editor' | 'owner' = 
         return handler(req, res)
       }
 
-      const { projectId } = req.query || req.body
+      const projectId = req.query?.projectId || req.body?.projectId
       
       if (!projectId) {
         return res.status(400).json(createResponse(false, null, 'Project ID is required', 400))

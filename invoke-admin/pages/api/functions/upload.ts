@@ -1,16 +1,17 @@
 export const runtime = 'nodejs';
 
 import { NextApiRequest, NextApiResponse } from 'next'
-import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
+import { AuthenticatedRequest, withAuthAndMethods, withProjectAccess } from '@/lib/middleware'
 import multer from 'multer'
 import fs from 'fs-extra'
 import path from 'path'
-import tar from 'tar'
+import * as tar from 'tar'
 import archiver from 'archiver'
 import { v4 as uuidv4 } from 'uuid'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 const minioService = require('@/lib/minio')
+import runMiddleware from '@/lib/multer'
 
 // Configure multer for file uploads
 const upload = multer({
@@ -40,36 +41,18 @@ export const config = {
   },
 }
 
-export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+// Handler logic separated so we can apply middleware wrappers below.
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
   }
 
   let uploadedFile: any = null
-  let userId: number
 
   try {
     await database.connect()
 
-    // Authenticate user using our middleware
-    const authResult = await authenticate(req)
-    if (!authResult.success) {
-      return res.status(401).json(createResponse(false, null, authResult.error || 'Authentication failed', 401))
-    }
-
-    userId = authResult.user!.id
-
-    // Handle multipart form data
-    await new Promise<void>((resolve, reject) => {
-      upload.single('function')(req as any, res as any, (err) => {
-        if (err) {
-          reject(err)
-        } else {
-          resolve()
-        }
-      })
-    })
-
+    // At this point multer has already parsed the multipart form and populated req.body and req.file
     uploadedFile = (req as any).file
     if (!uploadedFile) {
       return res.status(400).json(createResponse(false, null, 'No file uploaded', 400))
@@ -81,6 +64,9 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     const requiresApiKey = req.body.requiresApiKey === 'true'
     const apiKey = requiresApiKey ? req.body.apiKey : null
     const projectId = req.body.projectId || null
+
+    // Note: Project access is enforced by the `withProjectAccess('owner')` middleware
+    // which will run after multer has parsed the request and before this handler executes.
     // Check if function already exists by name - reject duplicates for new uploads
     const existingResult = await database.query(
       'SELECT id, name FROM functions WHERE name = $1',
@@ -139,7 +125,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, name
     `, [
-      functionId, functionName, description, userId, requiresApiKey, apiKey, true, projectId
+      functionId, functionName, description, req.user!.id, requiresApiKey, apiKey, true, projectId
     ])
 
     // Create first version record
@@ -159,7 +145,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       uploadResult.objectName, // Use the actual MinIO object path
       uploadResult.size,
       uploadResult.hash,
-      userId
+      req.user!.id
     ])
     console.log(`✅ Version record created with ID: ${versionResult.rows[0].id}`)
 
@@ -209,4 +195,21 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     const errorMessage = error.message || 'Upload failed'
     return res.status(500).json(createResponse(false, null, 'Upload failed: ' + errorMessage, 500))
   }
+}
+
+// Wrap handler with project access middleware (owner required). We also ensure
+// multer runs first to populate `req.body` and `req.file` before middleware checks.
+const guarded = withAuthAndMethods(['POST'])(withProjectAccess('owner')(handler as any) as any)
+
+export default async function adapter(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    // Run multer to parse the multipart form. Using runMiddleware ensures it returns a promise.
+    await runMiddleware(upload.single('function'))(req, res)
+  } catch (err: any) {
+    console.error('Multer parse error:', err)
+    return res.status(400).json(createResponse(false, null, 'Failed to parse multipart form: ' + (err.message || err), 400))
+  }
+
+  // Now that req.body and req.file are populated, call the guarded handler
+  return guarded(req as any, res as any)
 }

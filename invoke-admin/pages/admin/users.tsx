@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
+import { Edit, Trash2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 
@@ -206,15 +207,17 @@ export default function UsersPage() {
                     <div className="flex items-center space-x-2 ml-4">
                       <button
                         onClick={() => openEditModal(user)}
-                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors" title="Edit User"
+                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors"
+                        title="Edit User"
                       >
-                        ✏️
+                        <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user)}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors" title="Delete User"
+                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
+                        title="Delete User"
                       >
-                        🗑️
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -302,13 +305,13 @@ export default function UsersPage() {
 
         {/* Edit User Modal */}
         {editingUser && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
+          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="mt-0">
+                <h3 className="text-lg font-medium text-gray-100 mb-4">Edit User</h3>
                 <form onSubmit={handleUpdateUser}>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       Username
                     </label>
                     <input
@@ -316,11 +319,11 @@ export default function UsersPage() {
                       required
                       value={formData.username}
                       onChange={(e) => setFormData({...formData, username: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       Email
                     </label>
                     <input
@@ -328,18 +331,18 @@ export default function UsersPage() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     />
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       New Password (leave blank to keep current)
                     </label>
                     <input
                       type="password"
                       value={formData.password}
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     />
                   </div>
                   <div className="mb-4">
@@ -350,20 +353,20 @@ export default function UsersPage() {
                         onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
                         className="mr-2"
                       />
-                      <span className="text-sm font-medium text-gray-700">Admin User</span>
+                      <span className="text-sm font-medium text-gray-200">Admin User</span>
                     </label>
                   </div>
                   <div className="flex justify-end space-x-3">
                     <button
                       type="button"
                       onClick={closeModals}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                      className="btn-secondary"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                      className="btn-primary"
                     >
                       Update User
                     </button>

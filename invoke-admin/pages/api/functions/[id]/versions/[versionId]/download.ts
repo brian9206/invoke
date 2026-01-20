@@ -3,7 +3,7 @@ import { Pool } from 'pg'
 import { Client as MinIOClient } from 'minio'
 import fs from 'fs-extra'
 import path from 'path'
-import tar from 'tar'
+import * as tar from 'tar'
 import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
 const { createResponse } = require('@/lib/utils')

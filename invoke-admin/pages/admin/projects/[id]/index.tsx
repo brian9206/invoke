@@ -125,11 +125,11 @@ export default function ProjectDetailPage() {
             </Link>
             <div className="flex-1">
               <div className="flex items-center">
-                <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+                <h1 className="text-3xl font-bold text-gray-100">{project.name}</h1>
                 <span className={`ml-3 px-3 py-1 text-sm font-semibold rounded-full ${
                   project.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
+                    ? 'bg-green-900/30 text-green-400 border border-green-800' 
+                    : 'bg-red-900/30 text-red-400 border border-red-800'
                 }`}>
                   {project.is_active ? 'Active' : 'Inactive'}
                 </span>
@@ -154,18 +154,18 @@ export default function ProjectDetailPage() {
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="card overflow-hidden">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <Users className="h-6 w-6 text-blue-600" />
+                    <Users className="h-6 w-6 text-blue-400" />
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
+                      <dt className="text-sm font-medium text-gray-400 truncate">
                         Total Members
                       </dt>
-                      <dd className="text-lg font-medium text-gray-900">
+                      <dd className="text-lg font-medium text-gray-100">
                         {stats?.memberCount || 0}
                       </dd>
                     </dl>
@@ -174,27 +174,27 @@ export default function ProjectDetailPage() {
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="card overflow-hidden">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <Package className="h-6 w-6 text-green-600" />
+                    <Package className="h-6 w-6 text-green-400" />
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Total Functions
-                      </dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {stats?.functionCount || 0}
-                      </dd>
+                      <dt className="text-sm font-medium text-gray-400 truncate">
+                          Total Functions
+                        </dt>
+                        <dd className="text-lg font-medium text-gray-100">
+                          {stats?.functionCount || 0}
+                        </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="card overflow-hidden">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -202,19 +202,19 @@ export default function ProjectDetailPage() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Created
-                      </dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {new Date(project.created_at).toLocaleDateString()}
-                      </dd>
+                      <dt className="text-sm font-medium text-gray-400 truncate">
+                          Created
+                        </dt>
+                        <dd className="text-lg font-medium text-gray-100">
+                          {new Date(project.created_at).toLocaleDateString()}
+                        </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <div className="card overflow-hidden">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -222,12 +222,12 @@ export default function ProjectDetailPage() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Status
-                      </dt>
-                      <dd className="text-lg font-medium text-gray-900">
-                        {project.is_active ? 'Active' : 'Inactive'}
-                      </dd>
+                      <dt className="text-sm font-medium text-gray-400 truncate">
+                          Status
+                        </dt>
+                        <dd className="text-lg font-medium text-gray-100">
+                          {project.is_active ? 'Active' : 'Inactive'}
+                        </dd>
                     </dl>
                   </div>
                 </div>
@@ -238,13 +238,13 @@ export default function ProjectDetailPage() {
           {/* Recent Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Recent Members */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="card">
+              <div className="px-6 py-4 border-b border-gray-700">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">Recent Members</h3>
+                  <h3 className="text-lg font-medium text-gray-100">Recent Members</h3>
                   <Link
                     href={`/admin/projects/${project.id}/members`}
-                    className="text-blue-600 hover:text-blue-700 text-sm"
+                    className="text-blue-400 hover:text-blue-300 text-sm"
                   >
                     View All
                   </Link>
@@ -277,13 +277,13 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* Recent Functions */}
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-6 py-4 border-b border-gray-200">
+            <div className="card">
+              <div className="px-6 py-4 border-b border-gray-700">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium text-gray-900">Recent Functions</h3>
+                    <h3 className="text-lg font-medium text-gray-100">Recent Functions</h3>
                   <Link
                     href={`/admin/functions?projectId=${project.id}`}
-                    className="text-blue-600 hover:text-blue-700 text-sm"
+                    className="text-blue-400 hover:text-blue-300 text-sm"
                   >
                     View All
                   </Link>
@@ -295,15 +295,15 @@ export default function ProjectDetailPage() {
                     {stats.recentFunctions.map((func) => (
                       <div key={func.id} className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{func.name}</p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-sm font-medium text-gray-100">{func.name}</p>
+                          <p className="text-xs text-gray-400">
                             Created {new Date(func.created_at).toLocaleDateString()}
                           </p>
                         </div>
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           func.is_active 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-green-900/30 text-green-400 border border-green-800' 
+                            : 'bg-red-900/30 text-red-400 border border-red-800'
                         }`}>
                           {func.is_active ? 'Active' : 'Inactive'}
                         </span>

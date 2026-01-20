@@ -190,8 +190,6 @@ export default function ProjectMembersPage() {
     switch (role) {
       case 'owner':
         return <Crown className="w-4 h-4 text-yellow-500" />;
-      case 'editor':
-        return <Edit className="w-4 h-4 text-blue-500" />;
       default:
         return null;
     }
@@ -201,8 +199,6 @@ export default function ProjectMembersPage() {
     switch (role) {
       case 'owner':
         return 'bg-yellow-900/30 text-yellow-400 border border-yellow-800';
-      case 'editor':
-        return 'bg-blue-900/30 text-blue-400 border border-blue-800';
       default:
         return 'bg-gray-700 text-gray-300 border border-gray-600';
     }
@@ -252,8 +248,8 @@ export default function ProjectMembersPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900">Project Members</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-3xl font-bold text-gray-100">Project Members</h1>
+              <p className="text-gray-400 mt-1">
                 Manage members for "{project.name}"
               </p>
             </div>
@@ -267,81 +263,81 @@ export default function ProjectMembersPage() {
           </div>
 
           {members.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg shadow">
+            <div className="card text-center py-12">
               <UserPlus className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No members yet</h3>
-              <p className="text-gray-500 mb-6">Add users to this project to get started</p>
+              <h3 className="text-lg font-medium text-gray-100 mb-2">No members yet</h3>
+              <p className="text-gray-400 mb-6">Add users to this project to get started</p>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+                className="btn-primary"
               >
                 Add First Member
               </button>
             </div>
           ) : (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {members.map((member) => (
-                  <li key={member.id} className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center">
-                          <h3 className="text-lg font-medium text-gray-900">
-                            {member.username}
-                          </h3>
-                          <div className="ml-3 flex items-center">
-                            {getRoleIcon(member.role)}
-                            <span className={`ml-1 px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(member.role)}`}>
-                              {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="mt-1 text-sm text-gray-600">{member.email}</p>
-                        <div className="mt-2 flex items-center text-sm text-gray-500">
-                          <span>
-                            Added {new Date(member.created_at).toLocaleDateString()}
-                            {member.added_by && ` by ${member.added_by}`}
+            <div className="space-y-4">
+              {members.map((member) => (
+                <div key={member.id} className="card">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center">
+                        <h3 className="text-lg font-medium text-gray-100">
+                          {member.username}
+                        </h3>
+                        <div className="ml-3 flex items-center">
+                          {getRoleIcon(member.role)}
+                          <span className={`ml-1 px-2 py-1 text-xs font-semibold rounded-full ${getRoleColor(member.role)}`}>
+                            {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                           </span>
                         </div>
                       </div>
-                      <div className="ml-4 flex space-x-2">
-                        <button
-                          onClick={() => openEditModal(member)}
-                          className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 text-sm rounded"
-                        >
-                          Change Role
-                        </button>
-                        <button
-                          onClick={() => handleRemoveMember(member)}
-                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 text-sm rounded"
-                        >
-                          Remove
-                        </button>
+                      <p className="mt-1 text-sm text-gray-400">{member.email}</p>
+                      <div className="mt-2 flex items-center text-sm text-gray-400">
+                        <span>
+                          Added {new Date(member.created_at).toLocaleDateString()}
+                          {member.added_by && ` by ${member.added_by}`}
+                        </span>
                       </div>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                    <div className="ml-4 flex items-center space-x-2">
+                      <button
+                        onClick={() => openEditModal(member)}
+                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors"
+                        title="Change Role"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveMember(member)}
+                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
+                        title="Remove Member"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         {/* Add Member Modal */}
         {showAddModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Add Member</h3>
+          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="mt-0">
+                <h3 className="text-lg font-medium text-gray-100 mb-4">Add Member</h3>
                 <form onSubmit={handleAddMember}>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       Select User
                     </label>
                     <select
                       required
                       value={selectedUserId}
                       onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     >
                       <option value="">Choose a user...</option>
                       {nonMemberUsers.map((user) => (
@@ -352,20 +348,19 @@ export default function ProjectMembersPage() {
                       ))}
                     </select>
                     {nonMemberUsers.length === 0 && (
-                      <p className="text-sm text-gray-500 mt-1">All users are already members</p>
+                      <p className="text-sm text-gray-400 mt-1">All users are already members</p>
                     )}
                   </div>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       Role
                     </label>
                     <select
                       value={selectedRole}
                       onChange={(e) => setSelectedRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     >
                       <option value="viewer">Viewer (read-only)</option>
-                      <option value="editor">Editor (can edit functions)</option>
                       <option value="owner">Owner (full access)</option>
                     </select>
                   </div>
@@ -373,14 +368,14 @@ export default function ProjectMembersPage() {
                     <button
                       type="button"
                       onClick={closeModals}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                      className="btn-secondary"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={!selectedUserId || nonMemberUsers.length === 0}
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                      className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Add Member
                     </button>
@@ -393,24 +388,23 @@ export default function ProjectMembersPage() {
 
         {/* Edit Role Modal */}
         {editingMember && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
+          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
+              <div className="mt-0">
+                <h3 className="text-lg font-medium text-gray-100 mb-4">
                   Change Role for {editingMember.username}
                 </h3>
                 <form onSubmit={handleUpdateRole}>
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="form-label">
                       Role
                     </label>
                     <select
                       value={selectedRole}
                       onChange={(e) => setSelectedRole(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="form-input"
                     >
                       <option value="viewer">Viewer (read-only)</option>
-                      <option value="editor">Editor (can edit functions)</option>
                       <option value="owner">Owner (full access)</option>
                     </select>
                   </div>
@@ -418,13 +412,13 @@ export default function ProjectMembersPage() {
                     <button
                       type="button"
                       onClick={closeModals}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                      className="btn-secondary"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                      className="btn-primary"
                     >
                       Update Role
                     </button>
