@@ -104,9 +104,6 @@ export default function ProjectSelector({ selectedProjectId, onProjectChange, cl
                     <FolderOpen className="w-4 h-4 mr-2 text-gray-400" />
                     <div>
                       <span className="text-white">{project.name}</span>
-                      {project.description && (
-                        <p className="text-xs text-gray-400 truncate">{project.description}</p>
-                      )}
                     </div>
                   </div>
                   <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded-full">

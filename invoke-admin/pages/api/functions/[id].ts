@@ -149,48 +149,21 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       return res.status(200).json(createResponse(true, updateResult.rows[0], 'Function updated successfully', 200))
 
+
     } else if (req.method === 'DELETE') {
-      // Delete function
-      // First get all versions to clean up MinIO files BEFORE database deletion
-      const versionsResult = await database.query(
-        'SELECT version FROM function_versions WHERE function_id = $1',
-        [id]
-      )
+      // Use centralized delete helper to remove MinIO packages and DB rows
+      const { deleteFunction } = require('@/lib/delete-utils')
 
-      // Delete function from database (this will cascade delete versions due to foreign key)
-      const deleteResult = await database.query(
-        'DELETE FROM functions WHERE id = $1 RETURNING *',
-        [id]
-      )
-
-      if (deleteResult.rows.length === 0) {
-        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
-      }
-
-      // Clean up MinIO files for each version
-      const minioService = require('@/lib/minio')
-      let deletedPackages = 0
-      
       try {
-        for (const versionRow of versionsResult.rows) {
-          try {
-            await minioService.deletePackage(id, versionRow.version)
-            deletedPackages++
-          } catch (minioError) {
-            console.error(`Error deleting MinIO package for version ${versionRow.version}:`, minioError)
-            // Continue with other versions even if one fails
-          }
+        const deletedPackages = await deleteFunction(id)
+        return res.status(200).json(createResponse(true, null, `Function and ${deletedPackages} associated files deleted successfully`, 200))
+      } catch (err) {
+        if (err.message === 'Function not found') {
+          return res.status(404).json(createResponse(false, null, 'Function not found', 404))
         }
-        console.log(`✓ Cleaned up ${deletedPackages}/${versionsResult.rows.length} MinIO packages for function ${id}`)
-      } catch (error) {
-        console.error('Error during MinIO cleanup:', error)
-        // Continue even if MinIO cleanup fails
+        console.error('Error deleting function:', err)
+        return res.status(500).json(createResponse(false, null, 'Failed to delete function', 500))
       }
-
-      // Note: Cache invalidation across distributed execution nodes will happen
-      // naturally when they try to access the deleted function and get a 404 from database/MinIO
-
-      return res.status(200).json(createResponse(true, null, `Function and ${deletedPackages} associated files deleted successfully`, 200))
 
     } else {
       return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))

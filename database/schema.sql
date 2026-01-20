@@ -33,7 +33,7 @@ CREATE TABLE project_memberships (
     id SERIAL PRIMARY KEY,
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'editor', 'viewer')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'viewer')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by INTEGER REFERENCES users(id),
     UNIQUE(project_id, user_id)
@@ -198,7 +198,7 @@ INSERT INTO global_settings (setting_key, setting_value, description) VALUES
 
 -- Create default project for migration purposes
 INSERT INTO projects (id, name, description, created_by, created_at) VALUES 
-('00000000-0000-0000-0000-000000000000', 'Default Project', 'Default project for existing functions during migration', NULL, NOW());
+('00000000-0000-0000-0000-000000000000', 'Default Project', 'Your first default project', NULL, NOW());
 
 -- Grant permissions (adjust as needed for your environment)
 -- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO invoke_user;

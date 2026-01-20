@@ -137,11 +137,6 @@ export default function Layout({ children, title }: LayoutProps) {
                     <div className="text-sm font-medium text-white truncate">
                       {activeProject ? activeProject.name : 'Select Project'}
                     </div>
-                    {activeProject && activeProject.role && activeProject.role !== 'locked' && activeProject.id !== 'system' && (
-                      <div className="text-xs text-gray-400 truncate">
-                        Role: {activeProject.role}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform flex-shrink-0 ${
@@ -179,11 +174,6 @@ export default function Layout({ children, title }: LayoutProps) {
                             <div className="text-sm font-medium text-white truncate">
                               {project.name}
                             </div>
-                            {project.role && project.id !== 'system' && (
-                              <div className="text-xs text-gray-500 truncate">
-                                Role: {project.role}
-                              </div>
-                            )}
                           </div>
                         </div>
                       </button>

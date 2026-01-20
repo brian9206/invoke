@@ -126,16 +126,25 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    // Check if project has functions
+    // Get all functions for the project
     const functionsResult = await database.query(
-      'SELECT COUNT(*) as count FROM functions WHERE project_id = $1',
+      'SELECT id FROM functions WHERE project_id = $1',
       [id]
     );
 
-    if (parseInt(functionsResult.rows[0].count) > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete project that contains functions. Please move or delete functions first.' 
-      });
+    const { deleteFunction } = require('@/lib/delete-utils')
+    let totalDeletedPackages = 0
+
+    // Delete each function using centralized helper (removes MinIO packages and DB rows)
+    for (const fnRow of functionsResult.rows) {
+      const functionId = fnRow.id
+      try {
+        const deleted = await deleteFunction(functionId)
+        totalDeletedPackages += deleted || 0
+      } catch (err) {
+        console.error(`Failed to delete function ${functionId}:`, err)
+        // continue deleting other functions/projects even if one fails
+      }
     }
 
     // Delete project (memberships will cascade)
@@ -148,7 +157,7 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    res.json({ success: true, message: 'Project deleted successfully' });
+    res.json({ success: true, message: `Project deleted successfully (removed ${functionsResult.rows.length} functions and ${totalDeletedPackages} MinIO packages)` });
   } catch (error) {
     console.error('Error deleting project:', error);
     res.status(500).json({ error: 'Failed to delete project' });

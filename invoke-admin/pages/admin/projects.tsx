@@ -4,6 +4,7 @@ import { Users, Edit, Trash2 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
+import { useProject } from '@/contexts/ProjectContext';
 
 interface Project {
   id: string;
@@ -23,6 +24,7 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '' });
   const router = useRouter();
+  const { refreshProjects } = useProject();
 
   useEffect(() => {
     loadProjects();
@@ -57,6 +59,7 @@ export default function ProjectsPage() {
       if (response.ok) {
         setShowCreateModal(false);
         setFormData({ name: '', description: '' });
+        await refreshProjects();
         loadProjects();
       } else {
         const data = await response.json();
@@ -86,6 +89,7 @@ export default function ProjectsPage() {
       if (response.ok) {
         setEditingProject(null);
         setFormData({ name: '', description: '' });
+        await refreshProjects();
         loadProjects();
       } else {
         const data = await response.json();
@@ -109,6 +113,7 @@ export default function ProjectsPage() {
       });
 
       if (response.ok) {
+        await refreshProjects();
         loadProjects();
       } else {
         const data = await response.json();

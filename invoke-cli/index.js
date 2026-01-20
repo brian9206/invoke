@@ -358,7 +358,6 @@ program
           message: 'Select role:',
           choices: [
             { name: 'Owner (full access)', value: 'owner' },
-            { name: 'Editor (can edit functions)', value: 'editor' },
             { name: 'Viewer (read-only access)', value: 'viewer' }
           ]
         }
