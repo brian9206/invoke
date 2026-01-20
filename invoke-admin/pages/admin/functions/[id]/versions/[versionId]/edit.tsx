@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
-import Layout from '../../../../../../components/Layout'
-import ProtectedRoute from '../../../../../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   ArrowLeft, 
   Save, 
@@ -19,6 +19,7 @@ import {
   MoreVertical,
   Download
 } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
@@ -76,16 +77,7 @@ export default function FunctionCodeEditor() {
     
     try {
       hasFetchedRef.current = true
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${functionId}/versions/${versionId}/source`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`)
       
       const result = await response.json()
       
@@ -293,17 +285,11 @@ export default function FunctionCodeEditor() {
     setSaveResult(null)
     
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
       // Create new version and set it as active
-      const response = await fetch(`/api/functions/${functionId}/versions/create-from-source`, {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
           files,
@@ -338,16 +324,7 @@ export default function FunctionCodeEditor() {
     setDropdownOpen(false)
     
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${functionId}/versions/${versionId}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/download`)
 
       if (response.ok) {
         const blob = await response.blob()
@@ -376,16 +353,10 @@ export default function FunctionCodeEditor() {
     setSaveResult(null)
     
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${functionId}/versions/create-from-source`, {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ files })
       })

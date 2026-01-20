@@ -1,9 +1,8 @@
-import { NextApiRequest, NextApiResponse } from 'next'
+import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs-extra'
 import tar from 'tar'
-import jwt from 'jsonwebtoken'
 
 const { createResponse } = require('../../../../lib/utils')
 const database = require('../../../../lib/database')
@@ -36,7 +35,7 @@ export const config = {
   },
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
   }
@@ -52,22 +51,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
     }
 
-    // Extract and verify JWT token
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authorization header required', 401))
+    // Authenticate user using our middleware
+    const authResult = await authenticate(req)
+    if (!authResult.success) {
+      return res.status(401).json(createResponse(false, null, authResult.error || 'Authentication failed', 401))
     }
 
-    const token = authHeader.substring(7)
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-    
-    let userId: string
-    try {
-      const decoded: any = jwt.verify(token, JWT_SECRET)
-      userId = decoded.userId
-    } catch (error) {
-      return res.status(401).json(createResponse(false, null, 'Invalid token', 401))
-    }
+    const userId = authResult.user!.id
 
     // Check if function exists
     const functionResult = await database.query(

@@ -2,7 +2,7 @@ import React from 'react'
 import Link from 'next/link'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   Menu,
   X,
@@ -28,8 +28,7 @@ export default function Layout({ children, title }: LayoutProps) {
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
-    { name: 'Deploy New Function', href: '/admin/deploy', icon: Upload, active: router.pathname === '/admin/deploy' },
-    { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname === '/admin/functions' },
+    { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
     { name: 'Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
     { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings' },
   ]

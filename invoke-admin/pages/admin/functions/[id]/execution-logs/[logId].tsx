@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../../../../components/Layout'
-import ProtectedRoute from '../../../../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   ArrowLeft, 
   Activity,
@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 interface ExecutionLogDetail {
   id: number
@@ -64,12 +65,7 @@ export default function ExecutionLogDetails() {
   const fetchLogDetail = async () => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/functions/${functionId}/execution-logs/${logId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${functionId}/execution-logs/${logId}`)
 
       const data = await response.json()
       if (data.success) {

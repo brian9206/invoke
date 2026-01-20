@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import Layout from '../../components/Layout'
-import ProtectedRoute from '../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
-import { getFunctionUrl } from '../../lib/frontend-utils'
+import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 
 interface Function {
   id: string
@@ -29,7 +29,7 @@ export default function Functions() {
 
   const fetchFunctions = async () => {
     try {
-      const response = await fetch('/api/functions')
+      const response = await authenticatedFetch('/api/functions')
       const result = await response.json()
       
       if (result.success) {
@@ -51,16 +51,10 @@ export default function Functions() {
 
   const toggleFunction = async (id: string, isActive: boolean) => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
+      const response = await authenticatedFetch(`/api/functions/${id}`, {
         method: 'PATCH',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ is_active: !isActive }),
       })
@@ -77,16 +71,8 @@ export default function Functions() {
     if (!confirm('Are you sure you want to delete this function?')) return
 
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await authenticatedFetch(`/api/functions/${id}`, {
+        method: 'DELETE'
       })
 
       if (response.ok) {
@@ -132,9 +118,9 @@ export default function Functions() {
                 Manage your deployed serverless functions
               </p>
             </div>
-            <a href="/admin/deploy" className="btn-primary">
+            <Link href="/admin/deploy" className="btn-primary">
               Deploy Function
-            </a>
+            </Link>
           </div>
 
           {functions.length === 0 ? (
@@ -146,9 +132,9 @@ export default function Functions() {
               <p className="text-gray-400 mb-6">
                 Deploy your first serverless function to get started
               </p>
-              <a href="/admin/deploy" className="btn-primary">
+              <Link href="/admin/deploy" className="btn-primary">
                 Deploy Function
-              </a>
+              </Link>
             </div>
           ) : (
             <div className="grid gap-6">

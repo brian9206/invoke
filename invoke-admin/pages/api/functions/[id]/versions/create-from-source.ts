@@ -1,5 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import fs from 'fs-extra'
 import path from 'path'
 import tar from 'tar'
@@ -9,31 +8,16 @@ const database = require('../../../../../lib/database')
 const minioService = require('../../../../../lib/minio')
 const { createResponse } = require('../../../../../lib/utils')
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
+async function handler(req: AuthenticatedRequest, res: any) {
+  const userId = req.user!.id
+  const { id: functionId } = req.query
+  const { files, setActive = false } = req.body
+
+  if (!functionId || !files || !Array.isArray(files)) {
+    return res.status(400).json(createResponse(false, null, 'Function ID and files array are required', 400))
   }
 
   try {
-    // Authenticate user
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authentication required', 401))
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
-    const userId = decoded.userId
-
-    const { id: functionId } = req.query
-    const { files, setActive = false } = req.body
-
-    if (!functionId || !files || !Array.isArray(files)) {
-      return res.status(400).json(createResponse(false, null, 'Function ID and files array are required', 400))
-    }
-
-    await database.connect()
-    
     // Initialize MinIO service
     if (!minioService.initialized) {
       await minioService.initialize()
@@ -134,14 +118,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     console.error('Error saving source code:', error)
-    
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json(createResponse(false, null, 'Invalid authentication token', 401))
-    }
-    
     return res.status(500).json(createResponse(false, null, 'Failed to save source code', 500))
   }
 }
+
+export default withAuthAndMethods(['POST'])(handler)
 
 async function writeFilesToDirectory(files: any[], baseDir: string): Promise<void> {
   for (const file of files) {

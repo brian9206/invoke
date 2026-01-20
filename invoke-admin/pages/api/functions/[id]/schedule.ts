@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { Pool } from 'pg'
 import { CronJob } from 'cron'
 
@@ -27,18 +27,8 @@ function calculateNextExecution(cronExpression: string): Date | null {
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' })
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
-    if (!decoded) {
-      return res.status(401).json({ error: 'Invalid token' })
-    }
-
     const { id } = req.query as { id: string }
 
     if (!id) {
@@ -114,3 +104,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+export default withAuthAndMethods(['GET', 'PUT'])(handler)

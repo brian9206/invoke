@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../../components/Layout'
-import ProtectedRoute from '../../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   Package, 
   Edit, 
@@ -29,7 +29,7 @@ import {
   Plus,
   Minus
 } from 'lucide-react'
-import { getFunctionUrl } from '../../../lib/frontend-utils'
+import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 
 interface Function {
   id: string
@@ -166,29 +166,16 @@ export default function FunctionDetails() {
 
   const fetchFunctionData = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}`)
       const result = await response.json()
 
       if (result.success) {
         setFunctionData(result.data)
         // Fetch retention settings and schedule settings for editData
-        const retentionResponse = await fetch(`/api/functions/${id}/retention`)
+        const retentionResponse = await authenticatedFetch(`/api/functions/${id}/retention`)
         const retentionData = await retentionResponse.json()
         
-        const scheduleResponse = await fetch(`/api/functions/${id}/schedule`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
+        const scheduleResponse = await authenticatedFetch(`/api/functions/${id}/schedule`)
         const scheduleData = await scheduleResponse.json()
         
         setEditData({
@@ -219,16 +206,7 @@ export default function FunctionDetails() {
   const fetchExecutionLogs = async (page = logsCurrentPage, limit = logsPageSize, statusFilter = logsFilter) => {
     setLogsLoading(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/logs?page=${page}&limit=${limit}&status=${statusFilter}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}/logs?page=${page}&limit=${limit}&status=${statusFilter}`)
       const result = await response.json()
 
       if (result.success && result.data) {
@@ -274,17 +252,11 @@ export default function FunctionDetails() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
       // Save function details
-      const functionResponse = await fetch(`/api/functions/${id}`, {
+      const functionResponse = await authenticatedFetch(`/api/functions/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: editData.name,
@@ -294,7 +266,7 @@ export default function FunctionDetails() {
       })
 
       // Save retention settings
-      const retentionResponse = await fetch(`/api/functions/${id}/retention`, {
+      const retentionResponse = await authenticatedFetch(`/api/functions/${id}/retention`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -307,11 +279,10 @@ export default function FunctionDetails() {
       })
 
       // Save schedule settings
-      const scheduleResponse = await fetch(`/api/functions/${id}/schedule`, {
+      const scheduleResponse = await authenticatedFetch(`/api/functions/${id}/schedule`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           schedule_enabled: editData.schedule_enabled,
@@ -357,16 +328,8 @@ export default function FunctionDetails() {
   const regenerateApiKey = async () => {
     setRegeneratingKey(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/regenerate-key`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await authenticatedFetch(`/api/functions/${id}/regenerate-key`, {
+        method: 'POST'
       })
 
       if (response.ok) {
@@ -381,21 +344,10 @@ export default function FunctionDetails() {
 
   const toggleApiKeyRequirement = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      if (!token) {
-        console.error('No auth token found')
-        return
-      }
-
-      const response = await fetch(`/api/functions/${id}`, {
+      const response = await authenticatedFetch(`/api/functions/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
           requires_api_key: !functionData?.requires_api_key 
@@ -414,21 +366,10 @@ export default function FunctionDetails() {
 
   const toggleActiveStatus = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      if (!token) {
-        console.error('No auth token found')
-        return
-      }
-
-      const response = await fetch(`/api/functions/${id}`, {
+      const response = await authenticatedFetch(`/api/functions/${id}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
           is_active: !functionData?.is_active 
@@ -449,16 +390,8 @@ export default function FunctionDetails() {
     if (!confirm('Are you sure you want to delete this function? This action cannot be undone.')) return
 
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await authenticatedFetch(`/api/functions/${id}`, {
+        method: 'DELETE'
       })
 
       if (response.ok) {
@@ -475,7 +408,7 @@ export default function FunctionDetails() {
   const fetchRetentionSettings = async () => {
     setRetentionLoading(true)
     try {
-      const response = await fetch(`/api/functions/${id}/retention`)
+      const response = await authenticatedFetch(`/api/functions/${id}/retention`)
       const data = await response.json()
       
       if (data.success) {
@@ -491,7 +424,7 @@ export default function FunctionDetails() {
   const updateRetentionSettings = async (newSettings: any) => {
     setRetentionSaving(true)
     try {
-      const response = await fetch(`/api/functions/${id}/retention`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/retention`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -516,16 +449,7 @@ export default function FunctionDetails() {
   const fetchScheduleSettings = async () => {
     setScheduleLoading(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/schedule`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}/schedule`)
       const data = await response.json()
       
       if (data.success) {
@@ -541,16 +465,10 @@ export default function FunctionDetails() {
   const updateScheduleSettings = async (newSettings: any) => {
     setScheduleSaving(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/schedule`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/schedule`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(newSettings)
       })
@@ -575,16 +493,7 @@ export default function FunctionDetails() {
   const fetchEnvironmentVariables = async () => {
     setEnvVarsLoading(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/environment-variables`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}/environment-variables`)
       const data = await response.json()
       
       if (data.success) {
@@ -601,16 +510,10 @@ export default function FunctionDetails() {
   const saveEnvironmentVariables = async () => {
     setEnvVarsSaving(true)
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/environment-variables`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/environment-variables`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ variables: tempEnvVars })
       })

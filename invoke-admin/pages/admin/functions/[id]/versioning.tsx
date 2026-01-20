@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../../../components/Layout'
-import ProtectedRoute from '../../../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   Upload, 
   FileText, 
@@ -20,6 +20,7 @@ import {
   Eye,
   Download
 } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 interface FunctionVersion {
   id: string
@@ -56,16 +57,7 @@ export default function FunctionVersioning() {
 
   const fetchFunctionData = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}`)
       const result = await response.json()
 
       if (result.success) {
@@ -80,16 +72,7 @@ export default function FunctionVersioning() {
 
   const fetchVersions = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/versions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}/versions`)
       const result = await response.json()
 
       if (result.success) {
@@ -123,16 +106,8 @@ export default function FunctionVersioning() {
     formData.append('file', file)
 
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/versions`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/versions`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: formData,
       })
 
@@ -164,16 +139,10 @@ export default function FunctionVersioning() {
     setSwitchingVersion(versionId)
     
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/switch-version`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/switch-version`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ versionId })
       })
@@ -203,16 +172,8 @@ export default function FunctionVersioning() {
     setDeletingVersion(versionId)
 
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
+      const response = await authenticatedFetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
+        method: 'DELETE'
       })
 
       const result = await response.json()
@@ -235,16 +196,7 @@ export default function FunctionVersioning() {
     setDownloadingVersion(versionId)
     
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/versions/${versionId}/download`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}/versions/${versionId}/download`)
 
       if (response.ok) {
         const blob = await response.blob()

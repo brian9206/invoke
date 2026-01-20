@@ -1,47 +1,15 @@
 // API endpoints for managing function environment variables
 import { NextApiRequest, NextApiResponse } from 'next';
-import jwt from 'jsonwebtoken';
-import db from '../../../../lib/database';
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware';
+import db from '@/lib/database';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { id: functionId } = req.query;
 
     if (!functionId || typeof functionId !== 'string') {
         return res.status(400).json({
             success: false,
             message: 'Function ID is required'
-        });
-    }
-
-    // Validate JWT token
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({
-            success: false,
-            message: 'Authorization header required'
-        });
-    }
-
-    const token = authHeader.substring(7);
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-    
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
-    } catch (error) {
-        return res.status(401).json({
-            success: false,
-            message: 'Invalid or expired token'
-        });
-    }
-
-    // Ensure database connection is initialized
-    try {
-        await db.connect();
-    } catch (error) {
-        console.error('Database connection failed:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Database connection failed'
         });
     }
 
@@ -290,3 +258,5 @@ async function handleDeleteEnvironmentVariable(req: NextApiRequest, res: NextApi
         });
     }
 }
+
+export default withAuthAndMethods(['GET', 'PUT', 'POST', 'DELETE'])(handler);

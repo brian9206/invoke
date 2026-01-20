@@ -1,46 +1,25 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('../../../../lib/utils')
 const database = require('../../../../lib/database')
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  try {
+  const { id } = req.query as { id: string }
+
+  if (!id || typeof id !== 'string') {
+    return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
   }
 
-  try {
-    await database.connect()
+  // Verify function exists
+  const functionResult = await database.query(
+    'SELECT id FROM functions WHERE id = $1',
+    [id]
+  )
 
-    const { id } = req.query as { id: string }
-
-    if (!id || typeof id !== 'string') {
-      return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
-    }
-
-    // Extract and verify JWT token
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authorization header required', 401))
-    }
-
-    const token = authHeader.substring(7)
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-    
-    try {
-      jwt.verify(token, JWT_SECRET)
-    } catch (error) {
-      return res.status(401).json(createResponse(false, null, 'Invalid or expired token', 401))
-    }
-
-    // Verify function exists
-    const functionResult = await database.query(
-      'SELECT id FROM functions WHERE id = $1',
-      [id]
-    )
-
-    if (functionResult.rows.length === 0) {
-      return res.status(404).json(createResponse(false, null, 'Function not found', 404))
-    }
+  if (functionResult.rows.length === 0) {
+    return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+  }
 
     // Get execution logs for the function
     const page = parseInt(req.query.page as string) || 1
@@ -102,3 +81,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
   }
 }
+
+export default withAuthAndMethods(['GET'])(handler)

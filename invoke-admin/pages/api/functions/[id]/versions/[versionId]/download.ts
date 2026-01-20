@@ -1,5 +1,4 @@
-import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { Pool } from 'pg'
 import { Client as MinIOClient } from 'minio'
 import fs from 'fs-extra'
@@ -7,6 +6,7 @@ import path from 'path'
 import tar from 'tar'
 import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
+const { createResponse } = require('../../../../../../lib/utils')
 
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
@@ -24,28 +24,14 @@ const minioClient = new MinIOClient({
   secretKey: process.env.MINIO_SECRET_KEY || 'invoke-minio-password-123',
 })
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' })
+async function handler(req: AuthenticatedRequest, res: any) {
+  const { id: functionId, versionId } = req.query
+
+  if (!functionId || !versionId) {
+    return res.status(400).json(createResponse(false, null, 'Function ID and version ID are required', 400))
   }
 
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' })
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
-    if (!decoded) {
-      return res.status(401).json({ error: 'Invalid token' })
-    }
-
-    const { id: functionId, versionId } = req.query
-
-    if (!functionId || !versionId) {
-      return res.status(400).json({ error: 'Function ID and version ID are required' })
-    }
-
     // Get version info from database
     const client = await pool.connect()
     try {
@@ -153,6 +139,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error) {
     console.error('Download version error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    res.status(500).json(createResponse(false, null, 'Internal server error', 500))
   }
 }
+
+export default withAuthAndMethods(['GET'])(handler)

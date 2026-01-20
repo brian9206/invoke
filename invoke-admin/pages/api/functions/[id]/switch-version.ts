@@ -1,30 +1,9 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const database = require('../../../../lib/database')
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST'])
-    return res.status(405).json({ 
-      success: false, 
-      message: `Method ${req.method} not allowed` 
-    })
-  }
-
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' })
-    }
-
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-    let decoded
-    try {
-      decoded = jwt.verify(token, JWT_SECRET) as any
-    } catch (error) {
-      return res.status(401).json({ success: false, message: 'Invalid token' })
-    }
-
     const { id: functionId } = req.query
     const { versionId } = req.body
 
@@ -36,7 +15,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Verify that the version exists and belongs to the function
-    await database.connect()
     const versionResult = await database.query(
       'SELECT id, version FROM function_versions WHERE id = $1 AND function_id = $2',
       [versionId, functionId]
@@ -58,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     )
 
     // Log the version switch
-    console.log(`Function ${functionId} switched to version ${version.version} by user ${decoded.id}`)
+    console.log(`Function ${functionId} switched to version ${version.version} by user ${req.user!.id}`)
 
     return res.status(200).json({
       success: true,
@@ -78,3 +56,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   }
 }
+
+export default withAuthAndMethods(['POST'])(handler)

@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import multer from 'multer'
 import fs from 'fs-extra'
 import path from 'path'
@@ -40,7 +40,7 @@ export const config = {
   },
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
   }
@@ -51,15 +51,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await database.connect()
 
-    // Get authenticated user ID
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authentication required', 401))
+    // Authenticate user using our middleware
+    const authResult = await authenticate(req)
+    if (!authResult.success) {
+      return res.status(401).json(createResponse(false, null, authResult.error || 'Authentication failed', 401))
     }
 
-    const token = authHeader.substring(7)
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
-    userId = decoded.userId
+    userId = authResult.user!.id
 
     // Handle multipart form data
     await new Promise<void>((resolve, reject) => {

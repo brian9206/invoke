@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../../../components/Layout'
-import ProtectedRoute from '../../../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 export default function UpdateFunction() {
   const router = useRouter()
@@ -23,16 +24,7 @@ export default function UpdateFunction() {
 
   const fetchFunctionData = async () => {
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch(`/api/functions/${id}`)
       const result = await response.json()
 
       if (result.success) {
@@ -68,17 +60,8 @@ export default function UpdateFunction() {
     formData.append('file', file)
 
     try {
-      // Get auth token from cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch(`/api/functions/${id}/update`, {
+      const response = await authenticatedFetch(`/api/functions/${id}/update`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: formData,
       })
 

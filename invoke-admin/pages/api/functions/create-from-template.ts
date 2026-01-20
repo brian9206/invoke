@@ -1,11 +1,11 @@
 export const runtime = 'nodejs';
 
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
 import fs from 'fs-extra'
 import path from 'path'
 import tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('../../../lib/utils')
 const database = require('../../../lib/database')
 const minioService = require('../../../lib/minio')
@@ -53,30 +53,14 @@ const packageJsonTemplate = {
   "license": "MIT"
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
-  }
-
-  let userId: number
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  const userId = req.user!.id
 
   try {
-    await database.connect()
-    
     // Initialize MinIO service
     if (!minioService.initialized) {
       await minioService.initialize()
     }
-
-    // Get authenticated user ID
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authentication required', 401))
-    }
-
-    const token = authHeader.substring(7)
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
-    userId = decoded.userId
 
     const { name, description, requiresApiKey, apiKey } = req.body
 
@@ -211,10 +195,8 @@ Returns a JSON object with a greeting message.
   } catch (error) {
     console.error('Error creating Hello World function:', error)
     
-    if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json(createResponse(false, null, 'Invalid authentication token', 401))
-    }
-    
     return res.status(500).json(createResponse(false, null, 'Failed to create function', 500))
   }
 }
+
+export default withAuthAndMethods(['POST'])(handler)

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../components/Layout'
-import ProtectedRoute from '../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy } from 'lucide-react'
-import { getFunctionBaseUrl, getFunctionUrl } from '../../lib/frontend-utils'
+import { getFunctionBaseUrl, getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -58,16 +58,10 @@ export default function DeployFunction() {
     setUploadResult(null)
 
     try {
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch('/api/functions/create-from-template', {
+      const response = await authenticatedFetch('/api/functions/create-from-template', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name: name.trim(),
@@ -108,17 +102,8 @@ export default function DeployFunction() {
     }
 
     try {
-      // Get auth token from cookies
-      const token = document.cookie
-        .split('; ')
-        .find(row => row.startsWith('auth-token='))
-        ?.split('=')[1]
-
-      const response = await fetch('/api/functions/upload', {
+      const response = await authenticatedFetch('/api/functions/upload', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: formData,
       })
 

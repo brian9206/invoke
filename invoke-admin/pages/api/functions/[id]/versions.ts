@@ -1,9 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import multer from 'multer'
 import fs from 'fs-extra'
 import crypto from 'crypto'
 import path from 'path'
+const { createResponse } = require('../../../../lib/utils')
 const database = require('../../../../lib/database')
 const minioService = require('../../../../lib/minio')
 
@@ -35,26 +36,25 @@ export const config = {
   },
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  if (!['GET', 'POST', 'DELETE'].includes(req.method || '')) {
+    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
+  }
+
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '')
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No token provided' })
+    await database.connect()
+
+    // Authenticate user using our middleware
+    const authResult = await authenticate(req)
+    if (!authResult.success) {
+      return res.status(401).json(createResponse(false, null, authResult.error || 'Authentication failed', 401))
     }
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-    let decoded
-    try {
-      decoded = jwt.verify(token, JWT_SECRET) as any
-    } catch (error) {
-      return res.status(401).json({ success: false, message: 'Invalid token' })
-    }
-
+    const userId = authResult.user!.id
     const { id: functionId } = req.query
 
     if (req.method === 'GET') {
       // List all versions for a function
-      await database.connect()
       const result = await database.query(`
         SELECT 
           fv.id,
@@ -72,72 +72,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ORDER BY fv.created_at DESC
       `, [functionId])
 
-      return res.status(200).json({ 
-        success: true, 
-        data: result.rows 
-      })
+      return res.status(200).json(createResponse(true, result.rows, 'Versions retrieved successfully'))
 
     } else if (req.method === 'DELETE') {
       // Handle version deletion (only inactive versions)
-      try {
-        const { version } = req.query
-        
-        if (!version) {
-          return res.status(400).json({
-            success: false,
-            message: 'Version number is required'
-          })
-        }
+      const { version } = req.query
+      
+      if (!version) {
+        return res.status(400).json(createResponse(false, null, 'Version number is required', 400))
+      }
 
-        // Verify JWT token
-        const authHeader = req.headers.authorization
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return res.status(401).json({ success: false, message: 'Authorization header required' })
-        }
+      // Check if function exists and get active version
+      const functionResult = await database.query(
+        'SELECT id, name, active_version_id FROM functions WHERE id = $1',
+        [functionId]
+      )
 
-        const token = authHeader.substring(7)
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
-        
-        // Connect to database
-        await database.connect()
+      if (functionResult.rows.length === 0) {
+        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+      }
 
-        // Check if function exists and get active version
-        const functionResult = await database.query(
-          'SELECT id, name, active_version_id FROM functions WHERE id = $1',
-          [functionId]
-        )
+      const functionData = functionResult.rows[0]
 
-        if (functionResult.rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: 'Function not found'
-          })
-        }
-
-        const functionData = functionResult.rows[0]
-
-        // Get the version to delete
-        const versionStr = Array.isArray(version) ? version[0] : version
-        const versionResult = await database.query(
-          'SELECT id, version FROM function_versions WHERE function_id = $1 AND version = $2',
-          [functionId, parseInt(versionStr)]
+      // Get the version to delete
+      const versionStr = Array.isArray(version) ? version[0] : version
+      const versionResult = await database.query(
+        'SELECT id, version FROM function_versions WHERE function_id = $1 AND version = $2',
+        [functionId, parseInt(versionStr)]
         )
 
         if (versionResult.rows.length === 0) {
-          return res.status(404).json({
-            success: false,
-            message: `Version ${version} not found`
-          })
+          return res.status(404).json(createResponse(false, null, `Version ${version} not found`, 404))
         }
 
         const versionData = versionResult.rows[0]
 
         // Check if this version is currently active
         if (functionData.active_version_id === versionData.id) {
-          return res.status(400).json({
-            success: false,
-            message: 'Cannot delete the active version. Switch to a different version first.'
-          })
+          return res.status(400).json(createResponse(false, null, 'Cannot delete the active version. Switch to a different version first.', 400))
         }
 
         // Delete the version record
@@ -155,46 +127,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Continue even if MinIO deletion fails
         }
 
-        // Note: Cache invalidation across distributed execution nodes will happen
-        // naturally when they try to access the deleted package and get a 404 from MinIO
-
-        res.status(200).json({
-          success: true,
-          message: `Version ${version} deleted successfully`
-        })
-
-      } catch (error) {
-        console.error('Error deleting version:', error)
-        
-        if (error.name === 'JsonWebTokenError') {
-          return res.status(401).json({
-            success: false,
-            message: 'Invalid token'
-          })
-        }
-        
-        res.status(500).json({
-          success: false,
-          message: error.message || 'Failed to delete version'
-        })
-      }
+        return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))
 
     } else if (req.method === 'POST') {
       // Handle file upload for new version
       let uploadedFile: any = null
       let packagePath: string | null = null
-      let decoded: any = null
 
       try {
-        // Verify JWT token first
-        const authHeader = req.headers.authorization
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-          return res.status(401).json({ success: false, message: 'Authorization header required' })
-        }
-
-        const token = authHeader.substring(7)
-        decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
-        
         // Use multer to handle file upload
         await new Promise<void>((resolve, reject) => {
           upload.single('file')(req as any, res as any, (err: any) => {
@@ -208,14 +148,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
 
         if (!uploadedFile) {
-          return res.status(400).json({
-            success: false,
-            message: 'No file provided'
-          })
+          return res.status(400).json(createResponse(false, null, 'No file provided', 400))
         }
-
-        // Connect to database
-        await database.connect()
 
         // Check if function exists
         const functionResult = await database.query(
@@ -325,21 +259,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           `packages/${functionId}/${nextVersion}.tgz`, // Consistent MinIO path
           require('fs-extra').statSync(packagePath).size, // Use processed file size
           hash,
-          decoded.id
+          userId
         ])
 
         // Clean up uploaded file
         await fs.remove(packagePath)
 
-        res.status(201).json({
-          success: true,
-          message: `Version ${nextVersion} uploaded successfully`,
-          data: {
-            id: newVersionResult.rows[0].id,
-            version: newVersionResult.rows[0].version,
-            functionId: functionId
-          }
-        })
+        res.status(201).json(createResponse(true, {
+          id: newVersionResult.rows[0].id,
+          version: newVersionResult.rows[0].version,
+          functionId: functionId
+        }, `Version ${nextVersion} uploaded successfully`))
 
       } catch (error) {
         console.error('Error creating new version:', error)
@@ -360,25 +290,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           })
         }
 
-        res.status(500).json({
-          success: false,
-          message: 'Internal server error'
-        })
+        res.status(500).json(createResponse(false, null, 'Internal server error', 500))
       }
-
-    } else {
-      res.setHeader('Allow', ['GET', 'POST'])
-      return res.status(405).json({ 
-        success: false, 
-        message: `Method ${req.method} not allowed` 
-      })
     }
 
   } catch (error) {
     console.error('Error in versions API:', error)
-    return res.status(500).json({ 
-      success: false, 
-      message: 'Internal server error' 
-    })
+    return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
   }
 }

@@ -1,15 +1,10 @@
 import { NextApiRequest, NextApiResponse } from 'next'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('../../../../../lib/utils')
 const database = require('../../../../../lib/database')
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'GET') {
-        return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
-    }
-
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
-        await database.connect()
-
         const { id: functionId, logId } = req.query
         // Verify function exists
         const functionResult = await database.query(
@@ -68,3 +63,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         res.status(500).json(createResponse(false, null, 'Internal server error'))
     }
 }
+
+export default withAuthAndMethods(['GET'])(handler)

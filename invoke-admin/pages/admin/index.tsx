@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import Layout from '../../components/Layout'
-import ProtectedRoute from '../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 import { 
   Activity, 
   Package, 
@@ -49,8 +50,8 @@ export default function Dashboard() {
   const fetchDashboardData = async () => {
     try {
       const [statsResponse, activityResponse] = await Promise.all([
-        fetch('/api/dashboard/stats'),
-        fetch('/api/dashboard/recent-activity')
+        authenticatedFetch('/api/dashboard/stats'),
+        authenticatedFetch('/api/dashboard/recent-activity')
       ])
 
       if (statsResponse.ok) {

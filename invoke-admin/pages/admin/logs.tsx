@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
-import Layout from '../../components/Layout'
-import ProtectedRoute from '../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Activity, AlertCircle, Filter, Globe, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 interface ExecutionLog {
   id: number
@@ -57,7 +58,7 @@ export default function Logs() {
   const fetchLogs = async (page = currentPage, limit = pageSize, statusFilter = filter) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/logs?page=${page}&limit=${limit}&status=${statusFilter}`)
+      const response = await authenticatedFetch(`/api/logs?page=${page}&limit=${limit}&status=${statusFilter}`)
       const result = await response.json()
       
       if (result.success && result.data) {

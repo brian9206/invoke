@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import jwt from 'jsonwebtoken'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('../../../../lib/utils')
 const database = require('../../../../lib/database')
 
@@ -13,33 +13,12 @@ const generateApiKey = () => {
   return result
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
-  }
-
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    await database.connect()
-
     const { id } = req.query as { id: string }
 
     if (!id || typeof id !== 'string') {
       return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
-    }
-
-    // Extract and verify JWT token
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Authorization header required', 401))
-    }
-
-    const token = authHeader.substring(7)
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-    
-    try {
-      jwt.verify(token, JWT_SECRET)
-    } catch (error) {
-      return res.status(401).json(createResponse(false, null, 'Invalid or expired token', 401))
     }
 
     // Verify function exists and requires API key
@@ -77,3 +56,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
   }
 }
+
+export default withAuthAndMethods(['POST'])(handler)

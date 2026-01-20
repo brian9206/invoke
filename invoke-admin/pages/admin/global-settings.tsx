@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Layout from '../../components/Layout'
-import ProtectedRoute from '../../components/ProtectedRoute'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { Settings } from 'lucide-react'
-import { clearFunctionBaseUrlCache } from '../../lib/frontend-utils'
+import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
 
 interface GlobalSettings {
   type: { value: string; description: string }
@@ -37,7 +37,7 @@ export default function GlobalSettings() {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch('/api/admin/global-settings')
+      const response = await authenticatedFetch('/api/admin/global-settings')
       const data = await response.json()
       
       if (data.success) {
@@ -61,7 +61,7 @@ export default function GlobalSettings() {
     setMessage('')
 
     try {
-      const response = await fetch('/api/admin/global-settings', {
+      const response = await authenticatedFetch('/api/admin/global-settings', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +97,7 @@ export default function GlobalSettings() {
     setCleanupResult(null)
 
     try {
-      const response = await fetch('/api/admin/cleanup-logs', {
+      const response = await authenticatedFetch('/api/admin/cleanup-logs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

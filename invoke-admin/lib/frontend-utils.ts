@@ -6,6 +6,34 @@ let cachedFunctionBaseUrl: string | null = null;
 let fetchPromise: Promise<string> | null = null;
 
 /**
+ * Make an authenticated API request
+ * @param url - The API endpoint URL
+ * @param options - Fetch options
+ * @returns Promise<Response>
+ */
+export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
+  
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  // Don't set Content-Type for FormData - let browser set it with boundary
+  const isFormData = options.body instanceof FormData;
+  
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...options.headers,
+  };
+
+  return fetch(url, {
+    ...options,
+    headers,
+  });
+}
+
+/**
  * Get the function base URL from global settings (with caching)
  * @returns {Promise<string>} Function base URL
  */
@@ -23,7 +51,7 @@ export async function getFunctionBaseUrl(): Promise<string> {
   // Create new fetch promise
   fetchPromise = (async () => {
     try {
-      const response = await fetch('/api/admin/global-settings');
+      const response = await authenticatedFetch('/api/admin/global-settings');
       const data = await response.json();
       
       if (data.success && data.data.function_base_url) {

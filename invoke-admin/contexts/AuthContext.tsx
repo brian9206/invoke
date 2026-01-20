@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Cookies from 'js-cookie'
+import { authenticatedFetch } from '@/lib/frontend-utils'
 
 interface User {
   id: number
@@ -29,27 +29,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const token = Cookies.get('auth-token')
+      const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
       if (!token) {
         setLoading(false)
         return
       }
 
-      const response = await fetch('/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+      const response = await authenticatedFetch('/api/auth/me')
 
       if (response.ok) {
         const userData = await response.json()
         setUser(userData.data)
       } else {
-        Cookies.remove('auth-token')
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth-token')
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error)
-      Cookies.remove('auth-token')
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('auth-token')
+      }
     } finally {
       setLoading(false)
     }
@@ -68,11 +68,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await response.json()
 
       if (response.ok && result.success) {
-        Cookies.set('auth-token', result.data.token, { 
-          expires: 7, // 7 days
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'strict'
-        })
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('auth-token', result.data.token)
+        }
         setUser(result.data.user)
         return true
       }
@@ -85,7 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const logout = () => {
-    Cookies.remove('auth-token')
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth-token')
+    }
     setUser(null)
     router.push('/login')
   }
