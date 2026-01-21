@@ -169,6 +169,23 @@ class ExecutionServer {
      */
     async start() {
         try {
+            // Set up global unhandled rejection handler to prevent service crashes
+            process.on('unhandledRejection', (reason, promise) => {
+                console.error('⚠️ Global unhandled rejection caught:', reason instanceof Error ? reason.message : String(reason));
+                if (reason instanceof Error) {
+                    console.error('Stack:', reason.stack);
+                }
+                // Don't exit - let the service continue running
+            });
+            
+            // Set up global uncaught exception handler
+            process.on('uncaughtException', (error) => {
+                console.error('❌ Global uncaught exception caught:', error.message);
+                console.error('Stack:', error.stack);
+                // Exit on uncaught exceptions as they're more severe than unhandled rejections
+                process.exit(1);
+            });
+            
             // Validate required environment variables
             validateEnvironment(['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'MINIO_ENDPOINT', 'MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY']);
             

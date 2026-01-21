@@ -278,9 +278,9 @@ export default function Logs() {
                             <div className="flex items-center text-red-400">
                               <AlertCircle className="w-4 h-4 mr-1" />
                               <span className="text-xs" title={log.error_message}>
-                                {log.error_message.length > 30 
-                                  ? `${log.error_message.substring(0, 30)}...`
-                                  : log.error_message
+                                {(log.error_message.split('\n').find(str => str.trim()) ?? log.error_message).length > 30 
+                                  ? `${(log.error_message.split('\n').find(str => str.trim()) ?? log.error_message).substring(0, 30)}...`
+                                  : (log.error_message.split('\n').find(str => str.trim()) ?? log.error_message)
                                 }
                               </span>
                             </div>

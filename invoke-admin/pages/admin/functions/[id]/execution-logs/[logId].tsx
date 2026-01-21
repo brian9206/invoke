@@ -337,14 +337,11 @@ export default function ExecutionLogDetails() {
               <div className="p-6">
                 <div className="bg-black rounded p-4 font-mono text-sm space-y-1 max-h-96 overflow-y-auto">
                   {logDetail.console_logs.map((log, index) => (
-                    <div key={index} className={`${formatLogLevel(log.level)} flex items-start`}>
-                      <span className="text-gray-500 mr-3">
+                    <div key={index} className={`${formatLogLevel(log.level)} flex gap-3`}>
+                      <span className="text-gray-500 whitespace-nowrap">
                         [{new Date(log.timestamp).toLocaleTimeString()}]
                       </span>
-                      <span className="uppercase text-xs mr-3 font-bold">
-                        {log.level}
-                      </span>
-                      <span className="flex-1 break-words">{log.message}</span>
+                      <span className="flex-1 break-words whitespace-pre-wrap break-all">{log.message}</span>
                     </div>
                   ))}
                 </div>
@@ -368,7 +365,7 @@ export default function ExecutionLogDetails() {
                     <AlertCircle className="w-5 h-5 text-red-400 mr-3 mt-0.5" />
                     <div>
                       <p className="text-red-400 font-medium">Error Message</p>
-                      <p className="text-red-300 mt-1">{logDetail.error_message}</p>
+                      <p className="text-red-300 mt-1"><pre>{logDetail.error_message}</pre></p>
                     </div>
                   </div>
                 </div>

@@ -91,91 +91,10 @@ async function authenticateApiKey(req, res, next) {
 }
 
 /**
- * POST /invoke/:functionId
- * Execute a function with POST data
- */
-router.post('/:functionId', authenticateApiKey, async (req, res) => {
-    const startTime = Date.now();
-    let tempDir = null;
-
-    try {
-        const { functionId } = req.params;
-        const { body: requestBody, query: queryParams, headers } = req;
-
-        // Get function package (with caching)
-        const packageInfo = await getFunctionPackage(functionId);
-        tempDir = packageInfo.tempDir;
-
-        // Create execution context
-        const executionContext = createExecutionContext('POST', requestBody, queryParams, filterHeaders(headers), { functionId }, req);
-
-        // Execute the function
-        const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
-
-        // Log execution
-        const executionTime = Date.now() - startTime;
-        const statusCode = result.statusCode || 200;
-        
-        const requestInfo = {
-            requestSize: JSON.stringify(requestBody).length,
-            responseSize: JSON.stringify(result.data || {}).length,
-            clientIp: req.ip,
-            userAgent: req.headers['user-agent'],
-            consoleOutput: executionContext.console.getLogs(),
-            requestHeaders: req.headers,
-            responseHeaders: executionContext.res.headers,
-            requestMethod: req.method,
-            requestUrl: req.url,
-            requestBody: JSON.stringify(requestBody),
-            responseBody: JSON.stringify(result.data || {})
-        };
-        
-        await logExecution(functionId, executionTime, statusCode, result.error, requestInfo);
-
-        // Send response - return only function data on success
-        if (result.error) {
-            const responseData = {
-                success: false,
-                data: result.data,
-                message: result.message || 'Execution failed',
-                executionTime,
-                console: executionContext.console.getLogs()
-            };
-            res.status(statusCode).json(responseData);
-        } else {
-            // Set headers from user function
-            if (executionContext.res.headers) {
-                Object.entries(executionContext.res.headers).forEach(([key, value]) => {
-                    res.setHeader(key, value);
-                });
-            }
-            
-            // Send response with appropriate content-type
-            const contentType = executionContext.res.headers && executionContext.res.headers['content-type'];
-            if (contentType && !contentType.includes('application/json')) {
-                res.status(statusCode).send(result.data);
-            } else {
-                res.status(statusCode).json(result.data);
-            }
-        }
-
-    } catch (error) {
-        const executionTime = Date.now() - startTime;
-        console.error('POST execution error:', error);
-        
-        await logExecution(req.params.functionId, executionTime, 500, error.message);
-        
-        res.status(500).json(createResponse(false, null, 'Execution failed: ' + error.message, 500));
-    } finally {
-        // Don't cleanup cached directories - let cache service manage them
-    }
-});
-
-/**
  * GET /invoke/:functionId
  * Execute a function with GET parameters
  */
-router.get('/:functionId', authenticateApiKey, async (req, res) => {
+router.all('/:functionId', authenticateApiKey, async (req, res) => {
     const startTime = Date.now();
     let tempDir = null;
 
@@ -188,7 +107,7 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
         tempDir = packageInfo.tempDir;
 
         // Create execution context
-        const executionContext = createExecutionContext('GET', {}, queryParams, filterHeaders(headers), { functionId }, req);
+        const executionContext = createExecutionContext(req.method, {}, queryParams, filterHeaders(headers), { functionId }, req);
 
         // Execute the function
         const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
@@ -218,9 +137,7 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
             const responseData = {
                 success: false,
                 data: result.data,
-                message: result.message || 'Execution failed',
-                executionTime,
-                console: executionContext.console.getLogs()
+                message: result.message || 'Execution failed'
             };
             res.status(statusCode).json(responseData);
         } else {
@@ -246,11 +163,12 @@ router.get('/:functionId', authenticateApiKey, async (req, res) => {
         
         await logExecution(req.params.functionId, executionTime, 500, error.message);
         
-        res.status(500).json(createResponse(false, null, 'Execution failed: ' + error.message, 500));
+        res.status(500).json(createResponse(false, null, 'Execution failed', 500));
     } finally {
         // Don't cleanup cached directories - let cache service manage them
     }
 });
+
 
 /**
  * GET /cache/stats
