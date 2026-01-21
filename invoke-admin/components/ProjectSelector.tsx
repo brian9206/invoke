@@ -1,119 +1,128 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { ChevronDown, FolderOpen } from 'lucide-react';
-import { authenticatedFetch } from '@/lib/frontend-utils';
+import { ChevronDown, Folder, Server } from 'lucide-react';
 
 interface Project {
   id: string;
   name: string;
   description: string;
-  role: string;
+  role?: string;
+}
+
+interface User {
+  isAdmin: boolean;
 }
 
 interface ProjectSelectorProps {
-  selectedProjectId?: string;
-  onProjectChange: (projectId: string) => void;
-  className?: string;
+  activeProject: Project | null;
+  userProjects: Project[];
+  loading: boolean;
+  isProjectLocked: boolean;
+  user: User;
+  onProjectChange: (project: Project) => void;
 }
 
-export default function ProjectSelector({ selectedProjectId, onProjectChange, className = '' }: ProjectSelectorProps) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showDropdown, setShowDropdown] = useState(false);
+export default function ProjectSelector({
+  activeProject,
+  userProjects,
+  loading,
+  isProjectLocked,
+  user,
+  onProjectChange,
+}: ProjectSelectorProps) {
   const router = useRouter();
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
-    try {
-      const response = await authenticatedFetch('/api/my-projects');
-
-      if (response.ok) {
-        const data = await response.json();
-        const projectsList = Array.isArray(data) ? data : (data?.projects || []);
-        setProjects(projectsList);
-
-        // Auto-select first project if none selected
-        if (!selectedProjectId && projectsList.length > 0) {
-          onProjectChange(projectsList[0].id);
-        }
-      } else {
-        console.error('Failed to load projects');
+  const handleProjectSelect = (project: Project) => {
+    // Only show confirmation if locked and switching to a different project
+    if (isProjectLocked && activeProject?.id !== project.id) {
+      const confirmed = confirm('You have unsaved changes. Switch project and return to dashboard?');
+      if (confirmed) {
+        onProjectChange(project);
+        setProjectDropdownOpen(false);
+        router.push('/admin');
       }
-    } catch (error) {
-      console.error('Error loading projects:', error);
-    } finally {
-      setLoading(false);
+      // If cancelled, dropdown stays open
+      return;
     }
-  };
 
-  const selectedProject = projects.find(p => p.id === selectedProjectId);
+    // Not locked, proceed directly
+    onProjectChange(project);
+    setProjectDropdownOpen(false);
+  };
 
   if (loading) {
     return (
-      <div className={`animate-pulse bg-gray-700 rounded-md h-10 w-48 ${className}`} />
+      <div className="animate-pulse">
+        <div className="h-10 bg-gray-700 rounded"></div>
+      </div>
     );
   }
 
-  if (projects.length === 0) {
+  if (userProjects.length === 0) {
     return (
-      <div className={`text-gray-400 text-sm ${className}`}>
-        No projects available
+      <div className="text-sm text-gray-400 text-center py-2">
+        {user.isAdmin ? 'No projects found' : 'No projects assigned'}
       </div>
     );
   }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className="relative">
       <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center justify-between w-full px-4 py-2 text-left bg-gray-700 hover:bg-gray-600 text-white rounded-md transition-colors"
+        onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
+        className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-colors min-w-0"
       >
-        <div className="flex items-center">
-          <FolderOpen className="w-4 h-4 mr-2" />
-          <span className="truncate">
-            {selectedProject ? selectedProject.name : 'Select Project'}
-          </span>
-          {selectedProject && (
-            <span className="ml-2 px-2 py-1 text-xs bg-blue-600 text-white rounded-full">
-              {selectedProject.role}
-            </span>
+        <div className="flex items-center space-x-3 min-w-0 flex-1">
+          {activeProject?.id === 'system' ? (
+            <Server className="w-4 h-4 text-primary-400 flex-shrink-0" />
+          ) : (
+            <Folder className="w-4 h-4 text-primary-400 flex-shrink-0" />
           )}
+          <div className="text-left min-w-0 flex-1">
+            <div className="text-sm font-medium text-white truncate">
+              {activeProject ? activeProject.name : 'Select Project'}
+            </div>
+          </div>
         </div>
-        <ChevronDown className={`w-4 h-4 transform transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform flex-shrink-0 ${
+          projectDropdownOpen ? 'rotate-180' : ''
+        }`} />
       </button>
 
-      {showDropdown && (
-        <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg">
-          <div className="py-1">
-            {projects.map((project) => (
+      {projectDropdownOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setProjectDropdownOpen(false)}
+          />
+          {/* Dropdown */}
+          <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
+            {userProjects.map((project) => (
               <button
                 key={project.id}
-                onClick={() => {
-                  onProjectChange(project.id);
-                  setShowDropdown(false);
-                }}
-                className={`w-full px-4 py-2 text-left hover:bg-gray-700 transition-colors ${
-                  selectedProjectId === project.id ? 'bg-gray-700' : ''
+                onClick={() => handleProjectSelect(project)}
+                className={`w-full px-4 py-3 text-left hover:bg-gray-600 transition-colors flex items-center min-w-0 ${
+                  activeProject?.id === project.id ? 'bg-gray-600' : ''
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <FolderOpen className="w-4 h-4 mr-2 text-gray-400" />
-                    <div>
-                      <span className="text-white">{project.name}</span>
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  {project.id === 'system' ? (
+                    <Server className="w-4 h-4 text-primary-400 flex-shrink-0" />
+                  ) : (
+                    <Folder className="w-4 h-4 text-primary-400 flex-shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-white truncate">
+                      {project.name}
                     </div>
                   </div>
-                  <span className="text-xs px-2 py-1 bg-blue-600 text-white rounded-full">
-                    {project.role}
-                  </span>
                 </div>
               </button>
             ))}
           </div>
-        </div>
+        </>
       )}
     </div>
   );

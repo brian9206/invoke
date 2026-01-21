@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { Settings } from 'lucide-react'
 import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
+import { useProject } from '@/contexts/ProjectContext'
 
 interface GlobalSettings {
   type: { value: string; description: string }
@@ -18,6 +19,8 @@ interface CleanupResult {
 }
 
 export default function GlobalSettings() {
+  const { lockProject, unlockProject, userProjects } = useProject()
+  const hasLockedProject = useRef(false)
   const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -34,6 +37,23 @@ export default function GlobalSettings() {
   useEffect(() => {
     fetchSettings()
   }, [])
+
+  // Lock project to System when on this page
+  useEffect(() => {
+    const systemProject = userProjects.find(p => p.id === 'system')
+    
+    if (systemProject && !hasLockedProject.current) {
+      hasLockedProject.current = true
+      lockProject(systemProject)
+    }
+
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false
+        unlockProject()
+      }
+    }
+  }, [userProjects])
 
   const fetchSettings = async () => {
     try {

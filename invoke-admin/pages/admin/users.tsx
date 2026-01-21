@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import { Edit, Trash2 } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
+import { useProject } from '@/contexts/ProjectContext';
 
 interface User {
   id: number;
@@ -27,10 +28,29 @@ export default function UsersPage() {
     is_admin: false
   });
   const router = useRouter();
+  const { lockProject, unlockProject, userProjects } = useProject();
+  const hasLockedProject = useRef(false);
 
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Lock project to System when on this page
+  useEffect(() => {
+    const systemProject = userProjects.find(p => p.id === 'system');
+    
+    if (systemProject && !hasLockedProject.current) {
+      hasLockedProject.current = true;
+      lockProject(systemProject);
+    }
+
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false;
+        unlockProject();
+      }
+    };
+  }, [userProjects]);
 
   const loadUsers = async () => {
     try {

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useAuth } from '@/contexts/AuthContext';
+import router from 'next/dist/shared/lib/router/router';
 
 interface Project {
   id: string;
@@ -18,6 +19,7 @@ interface ProjectContextType {
   lockProject: (project: Project) => void;
   unlockProject: () => void;
   refreshProjects: () => Promise<void>;
+  requestProjectChange?: (project: Project | null) => Promise<boolean>;
 }
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
@@ -132,9 +134,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
 
   // Override setActiveProject to respect locking
   const handleSetActiveProject = useCallback((project: Project | null) => {
-    if (isProjectLocked) {
-      return // Don't allow project changes when locked
-    }
+    // When not locked we simply set the active project
     setActiveProject(project)
     if (project) {
       localStorage.setItem('activeProjectId', project.id)
@@ -142,6 +142,34 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('activeProjectId')
     }
   }, [isProjectLocked])
+
+  // Request a project change even when locked. If the project is locked and the
+  // user attempts to switch to a different project, prompt with `confirm` to
+  // warn about unsaved changes. If they confirm, unlock and perform the change.
+  const requestProjectChange = useCallback(async (project: Project | null): Promise<boolean> => {
+    // If there is no change, resolve false
+    const currentId = (isProjectLocked && lockedProject) ? lockedProject.id : (activeProject ? activeProject.id : null)
+    const newId = project ? project.id : null
+    if (currentId === newId) return false
+
+    if (isProjectLocked) {
+      const proceed = confirm('There are unsaved changes. Do you want to switch projects and discard them?')
+      if (!proceed) return false
+      // User confirmed: unlock and change
+      setIsProjectLocked(false)
+      setLockedProject(null)
+      setActiveProject(project)
+      if (project) localStorage.setItem('activeProjectId', project.id)
+      else localStorage.removeItem('activeProjectId')
+      return true
+    }
+
+    // Not locked: just set
+    setActiveProject(project)
+    if (project) localStorage.setItem('activeProjectId', project.id)
+    else localStorage.removeItem('activeProjectId')
+    return true
+  }, [isProjectLocked, lockedProject, activeProject])
 
   return (
     <ProjectContext.Provider value={{
@@ -152,7 +180,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       isProjectLocked,
       lockProject,
       unlockProject,
-      refreshProjects
+      refreshProjects,
+      requestProjectChange
     }}>
       {children}
     </ProjectContext.Provider>

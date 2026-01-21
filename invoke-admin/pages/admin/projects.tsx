@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { Users, Edit, Trash2 } from 'lucide-react';
 import Layout from '@/components/Layout';
@@ -24,11 +24,29 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '' });
   const router = useRouter();
-  const { refreshProjects } = useProject();
+  const { refreshProjects, lockProject, unlockProject, userProjects } = useProject();
+  const hasLockedProject = useRef(false);
 
   useEffect(() => {
     loadProjects();
   }, []);
+
+  // Lock project to System when on this page
+  useEffect(() => {
+    const systemProject = userProjects.find(p => p.id === 'system');
+    
+    if (systemProject && !hasLockedProject.current) {
+      hasLockedProject.current = true;
+      lockProject(systemProject);
+    }
+
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false;
+        unlockProject();
+      }
+    };
+  }, [userProjects]);
 
   const loadProjects = async () => {
     try {
