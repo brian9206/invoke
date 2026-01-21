@@ -33,23 +33,24 @@ async function executeScheduledFunction(functionData) {
     console.log(`Executing scheduled function: ${functionData.name} (ID: ${functionData.id})`)
 
     // Get function package
-    const { indexPath, fromCache } = await getFunctionPackage(functionData.id)
+    const { indexPath, tempDir, fromCache } = await getFunctionPackage(functionData.id)
     
     // Create execution context using shared service
-    const context = await createExecutionContext({
-      method: 'POST',
-      body: {},
-      query: {},
-      headers: { 'x-scheduled-execution': 'true' },
-      params: {},
-      originalReq: { 
+    const context = createExecutionContext(
+      'POST',
+      {},
+      {},
+      { 'x-scheduled-execution': 'true' },
+      {},
+      { 
         url: '/scheduled',
         protocol: 'http',
         hostname: 'localhost',
         ip: '127.0.0.1',
         ips: []
-      }
-    })
+      },
+      tempDir
+    )
 
     // Execute the function using shared service
     const result = await executeFunction(indexPath, context, functionData.id)

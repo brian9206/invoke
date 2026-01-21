@@ -106,8 +106,8 @@ router.all('/:functionId', authenticateApiKey, async (req, res) => {
         const packageInfo = await getFunctionPackage(functionId);
         tempDir = packageInfo.tempDir;
 
-        // Create execution context
-        const executionContext = createExecutionContext(req.method, {}, queryParams, filterHeaders(headers), { functionId }, req);
+        // Create execution context with packageDir for sanitized console logging
+        const executionContext = createExecutionContext(req.method, {}, queryParams, filterHeaders(headers), { functionId }, req, packageInfo.tempDir);
 
         // Execute the function
         const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);

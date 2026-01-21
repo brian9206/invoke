@@ -79,9 +79,14 @@ function realToVirtual(realPath, packageDir) {
  */
 function sanitizeErrorMessage(error, packageDir) {
     const normalizedPackage = path.normalize(packageDir);
-    error.message = error.message.replace(new RegExp(normalizedPackage, 'g'), '/');
+    // Replace the package directory with /
+    error.message = error.message.replace(new RegExp(normalizedPackage.replace(/\\/g, '\\\\'), 'g'), '/');
     // Also handle forward slash versions
     error.message = error.message.replace(new RegExp(normalizedPackage.replace(/\\/g, '/'), 'g'), '/');
+    // Replace any remaining backslashes with forward slashes (for Windows paths)
+    error.message = error.message.replace(/\\/g, '/');
+    // Clean up double slashes
+    error.message = error.message.replace(/\/+/g, '/');
     return error;
 }
 
@@ -96,23 +101,95 @@ function sanitizeStackTrace(stack, packageDir) {
         return stack;
     }
     
-    let sanitized = stack;
+    const lines = stack.split('\n');
+    const normalizedPackageDir = path.normalize(packageDir);
+    const userFrames = [];
+    const internalFrames = [];
     
-    // First, replace user's package directory with virtual root
-    const normalizedPackage = path.normalize(packageDir);
-    sanitized = sanitized.replace(new RegExp(normalizedPackage.replace(/\\/g, '\\\\'), 'g'), '/');
-    // Also handle forward slash versions
-    sanitized = sanitized.replace(new RegExp(normalizedPackage.replace(/\\/g, '/'), 'g'), '/');
+    // Process each line
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Skip the first line if it's the error name/message (e.g., "Error" or "Error: message")
+        // Since the error message is added separately in the calling code
+        if (i === 0 && (line.startsWith('Error') || line.startsWith('TypeError') || 
+            line.startsWith('ReferenceError') || line.startsWith('SyntaxError') ||
+            line.startsWith('RangeError') || line.includes('Error:'))) {
+            continue;
+        }
+        
+        // Stack frame pattern: "    at <function> (<file>:<line>:<col>)" or "    at <file>:<line>:<col>"
+        // Also handle async frames: "    at async <function> (<file>:<line>:<col>)"
+        const frameMatch = line.match(/^\s*at\s+(?:async\s+)?(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/);
+        
+        if (!frameMatch) {
+            // Not a stack frame line, skip it
+            continue;
+        }
+        
+        const functionName = frameMatch[1] || '';
+        const filePath = frameMatch[2];
+        const lineNum = frameMatch[3];
+        const colNum = frameMatch[4];
+        
+        // Patterns to identify internal frames that should be filtered
+        const isInternalFrame = 
+            filePath.includes('node_modules\\vm2') ||
+            filePath.includes('node_modules/vm2') ||
+            filePath.includes('bridge.js') ||
+            filePath.includes('node:internal') ||
+            filePath.includes('internal/') ||
+            filePath === 'internal/process/task_queues.js' ||
+            filePath === 'internal/timers' ||
+            functionName.includes('Promise') ||
+            functionName === 'new Promise' ||
+            line.includes('invoke-execution');
+        
+        // Check if this is a VM2 vm.js reference (user code executed in VM2 sandbox)
+        if (filePath === 'vm.js') {
+            // This is user code executed in VM2, replace with index.js
+            const virtualFile = '/index.js';
+            const formattedFrame = functionName 
+                ? `    at ${functionName} (${virtualFile}:${lineNum}:${colNum})`
+                : `    at ${virtualFile}:${lineNum}:${colNum}`;
+            userFrames.push(formattedFrame);
+            continue;
+        }
+        
+        // Normalize the file path for comparison
+        const normalizedFilePath = path.normalize(filePath);
+        
+        // Check if this is user code (within packageDir)
+        if (normalizedFilePath.startsWith(normalizedPackageDir)) {
+            // Convert to virtual path (e.g., /index.js, /utils.js, /config/settings.js)
+            const virtualPath = realToVirtual(normalizedFilePath, packageDir);
+            const formattedFrame = functionName 
+                ? `    at ${functionName} (${virtualPath}:${lineNum}:${colNum})`
+                : `    at ${virtualPath}:${lineNum}:${colNum}`;
+            userFrames.push(formattedFrame);
+        } else if (!isInternalFrame) {
+            // This is not user code and not explicitly internal, sanitize the path
+            const sanitizedPath = '<internal>';
+            const formattedFrame = functionName 
+                ? `    at ${functionName} (${sanitizedPath})`
+                : `    at ${sanitizedPath}`;
+            internalFrames.push(formattedFrame);
+        }
+        // Skip explicitly internal frames
+    }
     
-    // Then, strip all remaining absolute paths to prevent information leakage
-    // Remove Windows absolute paths with line numbers: C:\path\to\file.js:123:45
-    sanitized = sanitized.replace(/[A-Z]:\\[^\s)]+\.(js|ts|json|mjs|cjs)(:\d+:\d+)?/g, '<internal>');
-    // Remove any remaining Windows paths: C:\path\to\file
-    sanitized = sanitized.replace(/[A-Z]:\\[^\s)]+/g, '<internal>');
-    // Remove Unix absolute paths: /path/to/file.js (but not single / or virtual paths)
-    sanitized = sanitized.replace(/\/(?:[^\/\s)]+\/)+[^\s)]+\.(js|ts|json|mjs|cjs)(:\d+:\d+)?/g, '<internal>');
+    // Build the final stack trace
+    let result = '';
     
-    return sanitized;
+    if (userFrames.length > 0) {
+        // Show all user code frames
+        result = userFrames.join('\n');
+    } else if (internalFrames.length > 0) {
+        // No user frames found, show at least one sanitized internal frame
+        result = internalFrames[0];
+    }
+    
+    return result;
 }
 
 /**
@@ -209,6 +286,7 @@ function createFsProxy(packageDir) {
                 return fs.readFileSync(realPath, encoding);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -221,6 +299,7 @@ function createFsProxy(packageDir) {
                 return fs.readdirSync(realPath, options);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -233,6 +312,7 @@ function createFsProxy(packageDir) {
                 return fs.statSync(realPath);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -254,6 +334,7 @@ function createFsProxy(packageDir) {
                 return fs.accessSync(realPath, mode);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -367,6 +448,7 @@ function createFsPromisesProxy(packageDir) {
                 return await fs.promises.readFile(realPath, encoding);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -379,6 +461,7 @@ function createFsPromisesProxy(packageDir) {
                 return await fs.promises.readdir(realPath, options);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -391,6 +474,7 @@ function createFsPromisesProxy(packageDir) {
                 return await fs.promises.stat(realPath);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -403,6 +487,7 @@ function createFsPromisesProxy(packageDir) {
                 return await fs.promises.access(realPath, mode);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -452,6 +537,7 @@ function createPathProxy(packageDir) {
                 return realToVirtual(realResult, packageDir);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -468,6 +554,7 @@ function createPathProxy(packageDir) {
                 return realToVirtual(realResult, packageDir);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -481,6 +568,7 @@ function createPathProxy(packageDir) {
                 return realToVirtual(realResult, packageDir);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -494,6 +582,7 @@ function createPathProxy(packageDir) {
                 return realToVirtual(realResult, packageDir);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -506,6 +595,7 @@ function createPathProxy(packageDir) {
                 return nativePath.basename(realPath, ext);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -521,6 +611,7 @@ function createPathProxy(packageDir) {
                 return result ? '/' + result : '/';
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -538,6 +629,7 @@ function createPathProxy(packageDir) {
                 return nativePath.extname(realPath);
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -552,6 +644,7 @@ function createPathProxy(packageDir) {
                 return parsed;
             } catch (error) {
                 if (error instanceof Error) {
+                    error = sanitizeErrorMessage(error, packageDir);
                     error.stack = sanitizeStackTrace(error.stack, packageDir);
                 }
                 throw error;
@@ -1034,15 +1127,22 @@ async function fetchEnvironmentVariables(functionId) {
 
 /**
  * Create a secure console object that captures logs
+ * @param {string} packageDir - Optional package directory for sanitizing error stack traces
  */
-function createConsoleObject() {
+function createConsoleObject(packageDir = null) {
     const logs = [];
     
     const formatArgs = (...args) => {
         return args.map(arg => {
             // Handle Error objects specially
             if (arg instanceof Error) {
-                return arg.stack || arg.message || String(arg);
+                let errorOutput = arg.message || String(arg);
+                if (arg.stack) {
+                    // Sanitize stack trace if packageDir is provided
+                    const stack = packageDir ? sanitizeStackTrace(arg.stack, packageDir) : arg.stack;
+                    errorOutput += '\n' + stack;
+                }
+                return errorOutput;
             }
             
             if (typeof arg === 'object' && arg !== null) {
@@ -1465,29 +1565,8 @@ async function executeFunction(indexPath, context, functionId) {
             }
         });
 
-        // Wrap the function code to handle different export patterns
-        const wrappedCode = `
-            (function() {
-                ${functionCode}
-                
-                // Handle different export patterns
-                let exportedFunction;
-                if (typeof module !== 'undefined' && module.exports) {
-                    exportedFunction = module.exports;
-                } else if (typeof exports !== 'undefined') {
-                    exportedFunction = exports.handler || exports.default || exports;
-                }
-                
-                if (typeof exportedFunction === 'function') {
-                    return exportedFunction;
-                } else {
-                    throw new Error('Function must export a function');
-                }
-            })();
-        `;
-
         // Execute the code and get the function
-        const userFunction = vm.run(wrappedCode);
+        const userFunction = vm.run(functionCode);
 
         // Execute the user function with additional error boundary
         let result;
@@ -1525,11 +1604,11 @@ async function executeFunction(indexPath, context, functionId) {
  * @param {Object} originalReq - Original request object
  * @returns {Object} Execution context with req, res, console
  */
-function createExecutionContext(method = 'POST', body = {}, query = {}, headers = {}, params = {}, originalReq = {}) {
+function createExecutionContext(method = 'POST', body = {}, query = {}, headers = {}, params = {}, originalReq = {}, packageDir = null) {
     return {
         req: createRequestObject(method, body, query, headers, params, originalReq),
         res: createResponseObject(),
-        console: createConsoleObject()
+        console: createConsoleObject(packageDir)
     };
 }
 
