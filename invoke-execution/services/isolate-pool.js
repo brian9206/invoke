@@ -1,4 +1,6 @@
 const ivm = require('isolated-vm');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * IsolatePool - Manages a pool of reusable V8 isolates
@@ -13,13 +15,19 @@ class IsolatePool {
         this.idleTimeout = parseInt(process.env.ISOLATE_IDLE_TIMEOUT_MS || '300000', 10); // 5 minutes
         
         // Pool state
-        this.isolates = []; // { isolate, status: 'idle'|'in-use'|'corrupted', lastUsed: timestamp }
+        this.isolates = []; // { isolate, compiledScript, status: 'idle'|'in-use', lastUsed: timestamp }
         this.totalCreated = 0;
         this.totalDisposed = 0;
         this.warmupComplete = false;
         
-        // Bootstrap code (compiled per-context, not pre-compiled)
-        this.bootstrapCode = null;
+        // Load bootstrap code from vm-bootstrap.js on initialization
+        this.bootstrapCode = '';
+        fs.readdirSync(path.join(__dirname, 'vm-bootstrap'))
+            .filter(file => file.endsWith('.js'))
+            .sort((a, b) => a.localeCompare(b))
+            .forEach(file => {
+                this.bootstrapCode += fs.readFileSync(path.join(__dirname, 'vm-bootstrap', file), 'utf8') + '\n';
+            });
         
         // Cleanup interval
         this.cleanupInterval = null;
@@ -65,8 +73,12 @@ class IsolatePool {
         try {
             const isolate = new ivm.Isolate({ memoryLimit: this.memoryLimit });
             
+            // Pre-compile bootstrap script for this isolate
+            const compiledScript = await isolate.compileScript(this.bootstrapCode);
+            
             this.isolates.push({
                 isolate,
+                compiledScript,
                 status: 'idle',
                 lastUsed: Date.now()
             });
@@ -76,6 +88,7 @@ class IsolatePool {
             return isolate;
         } catch (error) {
             console.error('[IsolatePool] Error creating isolate:', error);
+            // Isolate marked as unhealthy by not adding to pool
             throw error;
         }
     }
@@ -111,7 +124,7 @@ class IsolatePool {
         // Create a fresh context for this execution
         const context = await poolEntry.isolate.createContext();
         
-        return { isolate: poolEntry.isolate, context };
+        return { isolate: poolEntry.isolate, context, compiledScript: poolEntry.compiledScript };
     }
     
     /**

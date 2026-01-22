@@ -3,7 +3,6 @@ const path = require('path');
 const db = require('./database');
 const cache = require('./cache');
 const ExecutionContext = require('./execution-context');
-const ModuleLoader = require('./module-loader');
 const { getInstance: getIsolatePool } = require('./isolate-pool');
 
 /**
@@ -77,7 +76,8 @@ class ExecutionEngine {
                 packageDir,
                 functionId,
                 packageHash,
-                envVars
+                envVars,
+                acquired.compiledScript
             );
             
             // Bootstrap environment
@@ -211,11 +211,9 @@ class ExecutionEngine {
      */
     getMetrics() {
         const isolatePoolMetrics = this.isolatePool ? this.isolatePool.getMetrics() : null;
-        const moduleCacheStats = ModuleLoader.getCacheStats();
         
         return {
-            isolatePool: isolatePoolMetrics,
-            moduleCache: moduleCacheStats
+            isolatePool: isolatePoolMetrics
         };
     }
     
@@ -283,7 +281,7 @@ async function fetchEnvironmentVariables(functionId) {
         
         const envVars = {};
         result.rows.forEach(row => {
-            envVars[row.variable_name] = row.variable_value;
+            envVars[row.variable_name.toString()] = row.variable_value.toString();
         });
         
         return envVars;

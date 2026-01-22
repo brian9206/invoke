@@ -1,13 +1,21 @@
 const ivm = require('isolated-vm');
 
 /**
- * FSBridge - Exposes sandbox-fs VFS API to isolated-vm
+ * VFSBridge - Exposes sandbox-fs VFS API to isolated-vm
  * Wraps all fs methods as ivm.Reference functions
  */
-class FSBridge {
+class VFSBridge {
     constructor(vfs) {
         this.vfs = vfs;
         this.fs = vfs.createNodeFSModule();
+    }
+    
+    /**
+     * Get the complete fs module with all methods as References
+     * This is the main method to expose fs to the VM
+     */
+    getFSModule() {
+        return this.createFSModule();
     }
     
     /**
@@ -343,6 +351,29 @@ class FSBridge {
             mode: stats.mode
         };
     }
+    
+    /**
+     * Create path module object with all methods as References
+     */
+    getPathModule() {
+        const vfsPath = this.vfs.createNodePathModule();
+        
+        return {
+            sep: new ivm.Reference(() => vfsPath.sep),
+            delimiter: new ivm.Reference(() => vfsPath.delimiter),
+            
+            normalize: new ivm.Reference((p) => vfsPath.normalize(p)),
+            join: new ivm.Reference((...args) => vfsPath.join(...args)),
+            resolve: new ivm.Reference((...args) => vfsPath.resolve(...args)),
+            dirname: new ivm.Reference((p) => vfsPath.dirname(p)),
+            basename: new ivm.Reference((p, ext) => vfsPath.basename(p, ext)),
+            extname: new ivm.Reference((p) => vfsPath.extname(p)),
+            isAbsolute: new ivm.Reference((p) => vfsPath.isAbsolute(p)),
+            relative: new ivm.Reference((from, to) => vfsPath.relative(from, to)),
+            parse: new ivm.Reference((p) => vfsPath.parse(p)),
+            format: new ivm.Reference((obj) => vfsPath.format(obj))
+        };
+    }
 }
 
-module.exports = FSBridge;
+module.exports = VFSBridge;
