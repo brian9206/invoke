@@ -78,7 +78,6 @@ dist
 
 # Gatsby files
 .cache/
-public
 
 # Storybook build outputs
 .out
@@ -118,3 +117,6 @@ minio-data/
 # Backup files
 *.backup
 *.bak
+
+# Sample zip files
+/samples/**/*.zip

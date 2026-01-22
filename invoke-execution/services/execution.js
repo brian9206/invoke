@@ -1,1073 +1,241 @@
-const { VM } = require('vm2');
 const fs = require('fs-extra');
 const path = require('path');
 const db = require('./database');
 const cache = require('./cache');
+const ExecutionContext = require('./execution-context');
+const ModuleLoader = require('./module-loader');
+const { getInstance: getIsolatePool } = require('./isolate-pool');
 
 /**
- * Shared Function Execution Service
- * Provides unified execution logic for both regular HTTP calls and scheduled functions
+ * ExecutionEngine - Singleton class managing function execution with isolated-vm
+ * Orchestrates isolate pool, VFS, module loading, and execution
  */
-
-/**
- * Convert a virtual path to a real filesystem path
- * @param {string} virtualPath - Virtual path (absolute or relative)
- * @param {string} packageDir - Real package directory
- * @returns {string} Real filesystem path
- * @throws {Error} If path escapes package directory
- */
-function virtualToReal(virtualPath, packageDir) {
-    // Normalize the virtual path (convert to absolute)
-    let targetPath;
-    if (virtualPath.startsWith('/')) {
-        // Absolute virtual path
-        targetPath = path.join(packageDir, virtualPath.slice(1));
-    } else {
-        // Relative virtual path
-        targetPath = path.resolve(packageDir, virtualPath);
+class ExecutionEngine {
+    constructor() {
+        this.isolatePool = null;
+        this.initialized = false;
+        
+        // Configuration
+        this.functionTimeout = parseInt(process.env.FUNCTION_TIMEOUT_MS || '30000', 10);
     }
-    
-    // Normalize and check boundaries
-    const normalizedTarget = path.normalize(targetPath);
-    const normalizedPackage = path.normalize(packageDir);
-    
-    // Security check: ensure we stay within package directory
-    if (!normalizedTarget.startsWith(normalizedPackage)) {
-        throw new Error(`Access denied: Path escapes package directory`);
-    }
-    
-    return normalizedTarget;
-}
-
-/**
- * Convert a real filesystem path to a virtual path
- * @param {string} realPath - Real filesystem path
- * @param {string} packageDir - Real package directory
- * @returns {string} Virtual path rooted at /
- */
-function realToVirtual(realPath, packageDir) {
-    const normalizedReal = path.normalize(realPath);
-    const normalizedPackage = path.normalize(packageDir);
-    
-    // If path equals package directory, return /
-    if (normalizedReal === normalizedPackage) {
-        return '/';
-    }
-    
-    // Strip package directory prefix and add leading /
-    let virtualPath = normalizedReal;
-    if (normalizedReal.startsWith(normalizedPackage)) {
-        virtualPath = normalizedReal.slice(normalizedPackage.length);
-    }
-    
-    // Ensure forward slashes
-    virtualPath = virtualPath.replace(/\\/g, '/');
-    
-    // Ensure leading /
-    if (!virtualPath.startsWith('/')) {
-        virtualPath = '/' + virtualPath;
-    }
-    
-    return virtualPath;
-}
-
-/**
- * Sanitize error messages to hide real paths
- * @param {Error} error - Error object
- * @param {string} packageDir - Real package directory
- * @returns {Error} Error with sanitized message
- */
-function sanitizeErrorMessage(error, packageDir) {
-    const normalizedPackage = path.normalize(packageDir);
-    // Replace the package directory with /
-    error.message = error.message.replace(new RegExp(normalizedPackage.replace(/\\/g, '\\\\'), 'g'), '/');
-    // Also handle forward slash versions
-    error.message = error.message.replace(new RegExp(normalizedPackage.replace(/\\/g, '/'), 'g'), '/');
-    // Replace any remaining backslashes with forward slashes (for Windows paths)
-    error.message = error.message.replace(/\\/g, '/');
-    // Clean up double slashes
-    error.message = error.message.replace(/\/+/g, '/');
-    return error;
-}
-
-/**
- * Sanitize stack trace to hide real paths
- * @param {string} stack - Stack trace string
- * @param {string} packageDir - Real package directory
- * @returns {string} Sanitized stack trace
- */
-function sanitizeStackTrace(stack, packageDir) {
-    if (!stack || typeof stack !== 'string') {
-        return stack;
-    }
-    
-    const lines = stack.split('\n');
-    const normalizedPackageDir = path.normalize(packageDir);
-    const userFrames = [];
-    const internalFrames = [];
-    
-    // Process each line
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        
-        // Skip the first line if it's the error name/message (e.g., "Error" or "Error: message")
-        // Since the error message is added separately in the calling code
-        if (i === 0 && (line.startsWith('Error') || line.startsWith('TypeError') || 
-            line.startsWith('ReferenceError') || line.startsWith('SyntaxError') ||
-            line.startsWith('RangeError') || line.includes('Error:'))) {
-            continue;
-        }
-        
-        // Stack frame pattern: "    at <function> (<file>:<line>:<col>)" or "    at <file>:<line>:<col>"
-        // Also handle async frames: "    at async <function> (<file>:<line>:<col>)"
-        const frameMatch = line.match(/^\s*at\s+(?:async\s+)?(?:(.+?)\s+\()?(.+?):(\d+):(\d+)\)?/);
-        
-        if (!frameMatch) {
-            // Not a stack frame line, skip it
-            continue;
-        }
-        
-        const functionName = frameMatch[1] || '';
-        const filePath = frameMatch[2];
-        const lineNum = frameMatch[3];
-        const colNum = frameMatch[4];
-        
-        // Patterns to identify internal frames that should be filtered
-        const isInternalFrame = 
-            filePath.includes('node_modules\\vm2') ||
-            filePath.includes('node_modules/vm2') ||
-            filePath.includes('bridge.js') ||
-            filePath.includes('node:internal') ||
-            filePath.includes('internal/') ||
-            filePath === 'internal/process/task_queues.js' ||
-            filePath === 'internal/timers' ||
-            functionName.includes('Promise') ||
-            functionName === 'new Promise' ||
-            line.includes('invoke-execution');
-        
-        // Check if this is a VM2 vm.js reference (user code executed in VM2 sandbox)
-        if (filePath === 'vm.js') {
-            // This is user code executed in VM2, replace with index.js
-            const virtualFile = '/index.js';
-            const formattedFrame = functionName 
-                ? `    at ${functionName} (${virtualFile}:${lineNum}:${colNum})`
-                : `    at ${virtualFile}:${lineNum}:${colNum}`;
-            userFrames.push(formattedFrame);
-            continue;
-        }
-        
-        // Normalize the file path for comparison
-        const normalizedFilePath = path.normalize(filePath);
-        
-        // Check if this is user code (within packageDir)
-        if (normalizedFilePath.startsWith(normalizedPackageDir)) {
-            // Convert to virtual path (e.g., /index.js, /utils.js, /config/settings.js)
-            const virtualPath = realToVirtual(normalizedFilePath, packageDir);
-            const formattedFrame = functionName 
-                ? `    at ${functionName} (${virtualPath}:${lineNum}:${colNum})`
-                : `    at ${virtualPath}:${lineNum}:${colNum}`;
-            userFrames.push(formattedFrame);
-        } else if (!isInternalFrame) {
-            // This is not user code and not explicitly internal, sanitize the path
-            const sanitizedPath = '<internal>';
-            const formattedFrame = functionName 
-                ? `    at ${functionName} (${sanitizedPath})`
-                : `    at ${sanitizedPath}`;
-            internalFrames.push(formattedFrame);
-        }
-        // Skip explicitly internal frames
-    }
-    
-    // Build the final stack trace
-    let result = '';
-    
-    if (userFrames.length > 0) {
-        // Show all user code frames
-        result = userFrames.join('\n');
-    } else if (internalFrames.length > 0) {
-        // No user frames found, show at least one sanitized internal frame
-        result = internalFrames[0];
-    }
-    
-    return result;
-}
-
-/**
- * Create a wrapped Error constructor that sanitizes stack traces
- * @param {string} packageDir - Real package directory
- * @returns {Function} Wrapped Error constructor
- */
-function createErrorConstructor(packageDir) {
-    // Wrap the native Error constructor
-    const WrappedError = function(message) {
-        const error = new Error(message);
-        
-        // Define a getter for the stack property that sanitizes on access
-        const originalStack = error.stack;
-        Object.defineProperty(error, 'stack', {
-            get() {
-                return sanitizeStackTrace(originalStack, packageDir);
-            },
-            set(value) {
-                // Allow setting but sanitize when getting
-                Object.defineProperty(error, 'stack', {
-                    get() {
-                        return sanitizeStackTrace(value, packageDir);
-                    },
-                    set(newValue) {
-                        this._customStack = newValue;
-                    },
-                    configurable: true,
-                    enumerable: false
-                });
-            },
-            configurable: true,
-            enumerable: false
-        });
-        
-        return error;
-    };
-    
-    // Copy static methods
-    WrappedError.captureStackTrace = function(targetObject, constructorOpt) {
-        const originalStack = Error.captureStackTrace.call(Error, targetObject, constructorOpt);
-        
-        // Define getter for sanitized stack on the target object
-        const stackValue = targetObject.stack;
-        Object.defineProperty(targetObject, 'stack', {
-            get() {
-                return sanitizeStackTrace(stackValue, packageDir);
-            },
-            set(value) {
-                Object.defineProperty(targetObject, 'stack', {
-                    get() {
-                        return sanitizeStackTrace(value, packageDir);
-                    },
-                    set(newValue) {
-                        this._customStack = newValue;
-                    },
-                    configurable: true,
-                    enumerable: false
-                });
-            },
-            configurable: true,
-            enumerable: false
-        });
-        
-        return originalStack;
-    };
-    
-    WrappedError.stackTraceLimit = Error.stackTraceLimit;
-    
-    return WrappedError;
-}
-
-/**
- * Create a virtualized fs module proxy
- * @param {string} packageDir - Real package directory
- * @returns {Object} Virtualized fs object
- */
-function createFsProxy(packageDir) {
-    const blockedOperations = [
-        'writeFile', 'writeFileSync', 'appendFile', 'appendFileSync',
-        'unlink', 'unlinkSync', 'mkdir', 'mkdirSync', 'rmdir', 'rmdirSync',
-        'rm', 'rmSync', 'chmod', 'chmodSync', 'chown', 'chownSync',
-        'symlink', 'symlinkSync', 'link', 'linkSync',
-        'readlink', 'readlinkSync', 'lstat', 'lstatSync',
-        'truncate', 'truncateSync', 'ftruncate', 'ftruncateSync',
-        'copyFile', 'copyFileSync', 'rename', 'renameSync'
-    ];
-    
-    const proxy = {
-        // Synchronous read operations
-        readFileSync(filePath, encoding = 'utf8') {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return fs.readFileSync(realPath, encoding);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        readdirSync(dirPath, options) {
-            try {
-                const realPath = virtualToReal(dirPath, packageDir);
-                return fs.readdirSync(realPath, options);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        statSync(filePath) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return fs.statSync(realPath);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        existsSync(filePath) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return fs.existsSync(realPath);
-            } catch {
-                return false;
-            }
-        },
-        
-        accessSync(filePath, mode) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return fs.accessSync(realPath, mode);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        // Asynchronous read operations with callback
-        readFile(filePath, encodingOrCallback, callback) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                const actualCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
-                const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
-                
-                fs.readFile(realPath, encoding, (err, data) => {
-                    if (err) {
-                        err = sanitizeErrorMessage(err, packageDir);
-                    }
-                    actualCallback(err, data);
-                });
-            } catch (err) {
-                const wrappedCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
-                wrappedCallback(sanitizeErrorMessage(err, packageDir));
-            }
-        },
-        
-        readdir(dirPath, optionsOrCallback, callback) {
-            try {
-                const realPath = virtualToReal(dirPath, packageDir);
-                const actualCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-                const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : undefined;
-                
-                fs.readdir(realPath, options, (err, files) => {
-                    if (err) {
-                        err = sanitizeErrorMessage(err, packageDir);
-                    }
-                    actualCallback(err, files);
-                });
-            } catch (err) {
-                const wrappedCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-                wrappedCallback(sanitizeErrorMessage(err, packageDir));
-            }
-        },
-        
-        stat(filePath, callback) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                fs.stat(realPath, (err, stats) => {
-                    if (err) {
-                        err = sanitizeErrorMessage(err, packageDir);
-                    }
-                    callback(err, stats);
-                });
-            } catch (err) {
-                callback(sanitizeErrorMessage(err, packageDir));
-            }
-        },
-        
-        access(filePath, modeOrCallback, callback) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                const actualCallback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
-                const mode = typeof modeOrCallback === 'number' ? modeOrCallback : undefined;
-                
-                fs.access(realPath, mode, (err) => {
-                    if (err) {
-                        err = sanitizeErrorMessage(err, packageDir);
-                    }
-                    actualCallback(err);
-                });
-            } catch (err) {
-                const wrappedCallback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
-                wrappedCallback(sanitizeErrorMessage(err, packageDir));
-            }
-        },
-        
-        // Promise-based operations
-        promises: null // Will be set after proxy creation
-    };
-    
-    // Block write/modify operations
-    blockedOperations.forEach(op => {
-        proxy[op] = function() {
-            const error = new Error('EACCES: permission denied');
-            error.code = 'EACCES';
-            error.errno = -13;
-            error.syscall = op;
-            throw error;
-        };
-    });
-    
-    return proxy;
-}
-
-/**
- * Create a virtualized fs/promises module proxy
- * @param {string} packageDir - Real package directory
- * @returns {Object} Virtualized fs/promises object
- */
-function createFsPromisesProxy(packageDir) {
-    const blockedOperations = [
-        'writeFile', 'appendFile', 'unlink', 'mkdir', 'rmdir',
-        'rm', 'chmod', 'chown', 'symlink', 'link',
-        'readlink', 'lstat', 'truncate', 'ftruncate',
-        'copyFile', 'rename'
-    ];
-    
-    const proxy = {
-        async readFile(filePath, encoding = 'utf8') {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return await fs.promises.readFile(realPath, encoding);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        async readdir(dirPath, options) {
-            try {
-                const realPath = virtualToReal(dirPath, packageDir);
-                return await fs.promises.readdir(realPath, options);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        async stat(filePath) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return await fs.promises.stat(realPath);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        async access(filePath, mode) {
-            try {
-                const realPath = virtualToReal(filePath, packageDir);
-                return await fs.promises.access(realPath, mode);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        }
-    };
-    
-    // Block write/modify operations
-    blockedOperations.forEach(op => {
-        proxy[op] = async function() {
-            const error = new Error('EACCES: permission denied');
-            error.code = 'EACCES';
-            error.errno = -13;
-            error.syscall = op;
-            throw error;
-        };
-    });
-    
-    return proxy;
-}
-
-/**
- * Create a virtualized path module proxy
- * @param {string} packageDir - Real package directory
- * @returns {Object} Virtualized path object
- */
-function createPathProxy(packageDir) {
-    const nativePath = require('path');
-    
-    // Helper to convert real paths to virtual in results
-    const toVirtual = (p) => {
-        if (typeof p === 'string') {
-            return realToVirtual(p, packageDir);
-        }
-        return p;
-    };
-    
-    const proxy = {
-        resolve(...args) {
-            try {
-                // Resolve virtual path arguments to real, then convert back to virtual
-                const realArgs = args.map(arg => {
-                    if (typeof arg !== 'string') return arg;
-                    return virtualToReal(arg, packageDir);
-                });
-                const realResult = nativePath.resolve(...realArgs);
-                return realToVirtual(realResult, packageDir);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        join(...args) {
-            try {
-                const realArgs = args.map(arg => {
-                    if (typeof arg !== 'string') return arg;
-                    return virtualToReal(arg, packageDir);
-                });
-                const realResult = nativePath.join(...realArgs);
-                return realToVirtual(realResult, packageDir);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        normalize(p) {
-            try {
-                const realPath = virtualToReal(p, packageDir);
-                const realResult = nativePath.normalize(realPath);
-                return realToVirtual(realResult, packageDir);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        dirname(p) {
-            try {
-                const realPath = virtualToReal(p, packageDir);
-                const realResult = nativePath.dirname(realPath);
-                return realToVirtual(realResult, packageDir);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        basename(p, ext) {
-            try {
-                const realPath = virtualToReal(p, packageDir);
-                return nativePath.basename(realPath, ext);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        relative(from, to) {
-            try {
-                const realFrom = virtualToReal(from, packageDir);
-                const realTo = virtualToReal(to, packageDir);
-                const result = nativePath.relative(realFrom, realTo);
-                // Prefix with / if the result is not empty and not already starting with /
-                return result ? '/' + result : '/';
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        isAbsolute(p) {
-            // In virtual filesystem, paths starting with / are absolute
-            return typeof p === 'string' && p.startsWith('/');
-        },
-        
-        extname(p) {
-            try {
-                const realPath = virtualToReal(p, packageDir);
-                return nativePath.extname(realPath);
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        parse(p) {
-            try {
-                const virtualPath = realToVirtual(virtualToReal(p, packageDir), packageDir);
-                // Parse the virtual path
-                const parsed = nativePath.posix.parse(virtualPath);
-                return parsed;
-            } catch (error) {
-                if (error instanceof Error) {
-                    error = sanitizeErrorMessage(error, packageDir);
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
-                }
-                throw error;
-            }
-        },
-        
-        format(pathObj) {
-            // Format using POSIX (forward slashes)
-            return nativePath.posix.format(pathObj);
-        },
-        
-        // Properties
-        sep: '/',
-        delimiter: ':',
-        
-        // POSIX-style path methods
-        posix: null, // Will be set below
-        win32: null  // Will be set below
-    };
-    
-    // Set up posix and win32 objects to also use virtual paths
-    proxy.posix = { ...proxy };
-    proxy.win32 = { ...proxy };
-    
-    return proxy;
-}
-
-/**
- * Create a virtualized os module proxy
- * @returns {Object} Virtualized os object
- */
-function createOsProxy() {
-    const nativeOs = require('os');
-    
-    return {
-        tmpdir() {
-            return '/';
-        },
-        
-        homedir() {
-            return '/';
-        },
-        
-        setPriority(...args) {
-            const error = new Error('EACCES: operation not permitted');
-            error.code = 'EACCES';
-            error.errno = -13;
-            error.syscall = 'setPriority';
-            throw error;
-        },
-        
-        getPriority(...args) {
-            const error = new Error('EACCES: operation not permitted');
-            error.code = 'EACCES';
-            error.errno = -13;
-            error.syscall = 'getPriority';
-            throw error;
-        },
-        
-        // Safe methods - pass through to native
-        platform: () => nativeOs.platform(),
-        arch: () => nativeOs.arch(),
-        cpus: () => nativeOs.cpus(),
-        totalmem: () => nativeOs.totalmem(),
-        freemem: () => nativeOs.freemem(),
-        uptime: () => nativeOs.uptime(),
-        type: () => nativeOs.type(),
-        release: () => nativeOs.release(),
-        endianness: () => nativeOs.endianness(),
-        loadavg: () => nativeOs.loadavg(),
-        hostname: () => nativeOs.hostname(),
-        networkInterfaces: () => nativeOs.networkInterfaces(),
-        EOL: nativeOs.EOL
-    };
-}
-
-/**
- * Check if an IP address is in a private/internal range
- * @param {string} ip - IP address to check
- * @returns {boolean} True if IP is private/internal
- */
-function isPrivateIP(ip) {
-    // Handle IPv4
-    if (ip.includes('.')) {
-        const parts = ip.split('.');
-        if (parts.length !== 4) return false;
-        const octets = parts.map(p => parseInt(p, 10));
-        
-        if (isNaN(octets[0]) || isNaN(octets[1]) || isNaN(octets[2]) || isNaN(octets[3])) {
-            return false;
-        }
-        
-        // 127.0.0.0/8 (loopback)
-        if (octets[0] === 127) return true;
-        
-        // 10.0.0.0/8 (private)
-        if (octets[0] === 10) return true;
-        
-        // 172.16.0.0/12 (private)
-        if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
-        
-        // 192.168.0.0/16 (private)
-        if (octets[0] === 192 && octets[1] === 168) return true;
-        
-        // 169.254.0.0/16 (link-local)
-        if (octets[0] === 169 && octets[1] === 254) return true;
-        
-        // 0.0.0.0/8 (current network)
-        if (octets[0] === 0) return true;
-        
-        // 255.255.255.255 (broadcast)
-        if (octets[0] === 255 && octets[1] === 255 && octets[2] === 255 && octets[3] === 255) return true;
-    }
-    
-    // Handle IPv6
-    if (ip.includes(':')) {
-        const normalizedIp = ip.toLowerCase();
-        
-        // ::1 (loopback)
-        if (normalizedIp === '::1') return true;
-        
-        // fc00::/7 (unique local addresses)
-        if (normalizedIp.startsWith('fc') || normalizedIp.startsWith('fd')) return true;
-        
-        // fe80::/10 (link-local)
-        if (normalizedIp.startsWith('fe80:')) return true;
-        
-        // ::ffff:127.0.0.0/104 (IPv4 loopback mapped)
-        if (normalizedIp.startsWith('::ffff:127.')) return true;
-        
-        // ::ffff:10.0.0.0/100 (IPv4 private mapped)
-        if (normalizedIp.startsWith('::ffff:10.')) return true;
-        
-        // ::ffff:172.16.0.0/108 (IPv4 private mapped)
-        if (normalizedIp.startsWith('::ffff:172.')) {
-            const ipv4Part = normalizedIp.slice(7);
-            const parts = ipv4Part.split('.');
-            if (parts.length === 4) {
-                const octet = parseInt(parts[0], 10);
-                if (octet === 172) {
-                    const octet2 = parseInt(parts[1], 10);
-                    if (octet2 >= 16 && octet2 <= 31) return true;
-                }
-            }
-        }
-        
-        // ::ffff:192.168.0.0/112 (IPv4 private mapped)
-        if (normalizedIp.startsWith('::ffff:192.168.')) return true;
-        
-        // :: (all zeros / any address)
-        if (normalizedIp === '::') return true;
-    }
-    
-    return false;
-}
-
-/**
- * Check if an IP address is localhost
- * @param {string} ip - IP address to check
- * @returns {boolean} True if IP is localhost
- */
-function isLocalhostIP(ip) {
-    return ip === '127.0.0.1' || ip === '::1' || ip === 'localhost';
-}
-
-/**
- * Check if an IP address is blocked (private or localhost)
- * @param {string} ip - IP address to check
- * @returns {boolean} True if IP should be blocked
- */
-function isBlockedIP(ip) {
-    return isPrivateIP(ip) || isLocalhostIP(ip);
-}
-
-/**
- * Validate hostname by DNS resolution and IP check
- * @param {string} hostname - Hostname to validate
- * @returns {Promise<boolean>} True if hostname resolves to allowed external IP
- * @throws {Error} If hostname is blocked or DNS resolution fails
- */
-async function validateHostname(hostname) {
-    // Check if hostname is an IP literal
-    if (isBlockedIP(hostname)) {
-        throw new Error('Access to internal networks is not allowed');
-    }
-    
-    try {
-        const dns = require('dns').promises;
-        
-        // Set timeout for DNS resolution
-        const resolutionPromise = dns.lookup(hostname, { all: true });
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('DNS resolution timeout')), 5000)
-        );
-        
-        const addresses = await Promise.race([resolutionPromise, timeoutPromise]);
-        
-        // Check all resolved addresses
-        if (Array.isArray(addresses)) {
-            for (const addr of addresses) {
-                if (isBlockedIP(addr.address)) {
-                    throw new Error('Access to internal networks is not allowed');
-                }
-            }
-        } else if (isBlockedIP(addresses.address)) {
-            throw new Error('Access to internal networks is not allowed');
-        }
-        
-        return true;
-    } catch (error) {
-        // Re-throw with clearer message if it's our block
-        if (error.message === 'Access to internal networks is not allowed') {
-            throw error;
-        }
-        // For DNS errors, provide a generic message
-        throw new Error(`Failed to resolve hostname: ${error.message}`);
-    }
-}
-
-/**
- * Create a secure fetch proxy with network access controls
- * @param {string} packageDir - Real package directory for error sanitization
- * @returns {Function} Secure fetch function
- */
-function createSecureFetchProxy(packageDir) {
-    const nativeFetch = global.fetch;
-    
-    if (!nativeFetch) {
-        throw new Error('fetch is not available in this Node.js version. Requires Node 18+');
-    }
-    
-    const MAX_REDIRECTS = 20;
     
     /**
-     * Follow redirects manually with validation
+     * Initialize the execution engine
      */
-    async function fetchWithRedirects(url, options, redirectCount = 0) {
-        // Validate hostname before making request
-        const urlObj = new URL(url);
-        const hostname = urlObj.hostname;
-        
-        await validateHostname(hostname);
-        
-        // Make the request
-        const response = await nativeFetch(url, options);
-        
-        // Handle redirects if redirect mode is 'follow'
-        const redirectMode = options?.redirect || 'follow';
-        
-        if (redirectMode === 'follow' && response.status >= 300 && response.status < 400) {
-            // Check redirect limit
-            if (redirectCount >= MAX_REDIRECTS) {
-                throw new Error('Maximum redirect limit reached');
-            }
-            
-            const locationHeader = response.headers.get('location');
-            if (!locationHeader) {
-                // No location header, return as-is
-                return response;
-            }
-            
-            // Resolve relative URLs
-            let redirectUrl;
-            try {
-                // If location is absolute, use it directly
-                if (locationHeader.startsWith('http://') || locationHeader.startsWith('https://')) {
-                    redirectUrl = locationHeader;
-                } else {
-                    // Resolve relative to current URL
-                    redirectUrl = new URL(locationHeader, url).href;
-                }
-            } catch (error) {
-                throw new Error(`Invalid redirect URL: ${error.message}`);
-            }
-            
-            // Validate the redirect target hostname
-            const redirectUrlObj = new URL(redirectUrl);
-            const redirectHostname = redirectUrlObj.hostname;
-            
-            await validateHostname(redirectHostname);
-            
-            // Determine method for redirect (follow HTTP redirect semantics)
-            let redirectMethod = options?.method || 'GET';
-            let redirectBody = options?.body;
-            
-            // 303 always uses GET
-            if (response.status === 303) {
-                redirectMethod = 'GET';
-                redirectBody = undefined;
-            }
-            // 301/302 typically change to GET, but spec allows preserving method
-            else if ((response.status === 301 || response.status === 302) && redirectMethod === 'POST') {
-                redirectMethod = 'GET';
-                redirectBody = undefined;
-            }
-            // 307/308 preserve method and body
-            
-            // Follow the redirect
-            const redirectOptions = {
-                ...options,
-                method: redirectMethod,
-                body: redirectBody,
-                redirect: 'manual' // Prevent automatic following to use our validation
-            };
-            
-            return fetchWithRedirects(redirectUrl, redirectOptions, redirectCount + 1);
+    async initialize() {
+        if (this.initialized) {
+            return;
         }
         
-        return response;
+        console.log('[ExecutionEngine] Initializing...');
+        
+        // Get isolate pool instance
+        this.isolatePool = getIsolatePool();
+        
+        // Initialize pool (triggers async warm-up)
+        await this.isolatePool.initialize();
+        
+        this.initialized = true;
+        console.log('[ExecutionEngine] Initialization complete');
     }
     
-    // Return the secure fetch function
-    return async function secureFetch(resource, options) {
+    /**
+     * Execute a function
+     * @param {string} indexPath - Path to function's index.js
+     * @param {Object} context - Execution context with req, res, console
+     * @param {string} functionId - Function ID
+     * @returns {Object} Execution result
+     */
+    async executeFunction(indexPath, context, functionId) {
+        // Ensure initialized
+        if (!this.initialized) {
+            await this.initialize();
+        }
+        
+        const packageDir = path.dirname(indexPath);
+        let isolate = null;
+        let ivmContext = null;
+        let executionContext = null;
+        
         try {
-            // Handle both string URLs and Request objects
-            let url;
-            let fetchOptions = options || {};
+            // Fetch function metadata (includes package_hash)
+            const metadata = await fetchFunctionMetadata(functionId);
+            const packageHash = metadata.package_hash;
             
-            if (typeof resource === 'string') {
-                url = resource;
-            } else if (resource instanceof URL) {
-                url = resource.href;
-            } else if (typeof resource === 'object' && resource.url) {
-                // Request object
-                url = resource.url;
-                // Copy properties from Request if not in options
-                if (!options) {
-                    fetchOptions = {
-                        method: resource.method,
-                        headers: resource.headers,
-                        body: resource.body,
-                        redirect: resource.redirect
-                    };
-                }
-            } else {
-                throw new Error('Invalid fetch resource');
-            }
+            // Fetch environment variables
+            const envVars = await fetchEnvironmentVariables(functionId);
             
-            // Validate URL
-            let urlObj;
-            try {
-                urlObj = new URL(url);
-            } catch (error) {
-                throw new Error(`Invalid URL: ${error.message}`);
-            }
+            // Acquire isolate from pool
+            const acquired = await this.isolatePool.acquire();
+            isolate = acquired.isolate;
+            ivmContext = acquired.context;
             
-            // Force redirect to 'manual' and handle it ourselves for validation
-            const originalRedirect = fetchOptions.redirect || 'follow';
-            const finalOptions = {
-                ...fetchOptions,
-                redirect: 'manual'
+            // Create execution context
+            executionContext = new ExecutionContext(
+                isolate,
+                ivmContext,
+                packageDir,
+                functionId,
+                packageHash,
+                envVars
+            );
+            
+            // Bootstrap environment
+            await executionContext.bootstrap();
+            
+            // Setup request and response
+            const reqData = {
+                method: context.req.method,
+                url: context.req.url,
+                originalUrl: context.req.originalUrl,
+                path: context.req.path,
+                protocol: context.req.protocol,
+                hostname: context.req.hostname,
+                secure: context.req.secure,
+                ip: context.req.ip,
+                ips: context.req.ips,
+                body: context.req.body,
+                query: context.req.query,
+                params: context.req.params,
+                headers: context.req.headers
             };
             
-            // Use custom redirect handling if redirect mode is 'follow'
-            if (originalRedirect === 'follow') {
-                return await fetchWithRedirects(url, finalOptions, 0);
-            } else if (originalRedirect === 'error') {
-                // For 'error' mode, validate and let fetch handle it
-                await validateHostname(urlObj.hostname);
-                const response = await nativeFetch(url, { ...finalOptions, redirect: 'error' });
-                return response;
-            } else if (originalRedirect === 'manual') {
-                // For 'manual' mode, just validate and make request
-                await validateHostname(urlObj.hostname);
-                const response = await nativeFetch(url, finalOptions);
-                return response;
-            } else {
-                throw new Error(`Invalid redirect option: ${originalRedirect}`);
-            }
-        } catch (error) {
-            // Ensure errors are proper Error objects and sanitize stacks
-            if (error instanceof Error) {
-                if (packageDir) {
-                    error.stack = sanitizeStackTrace(error.stack, packageDir);
+            await executionContext.setupRequest(reqData);
+            await executionContext.setupResponse();
+            
+            // Load user function from /index.js
+            const virtualIndexPath = '/index.js';
+            const vfs = executionContext.vfs;
+            const vfsFs = vfs.createNodeFSModule();
+            const userCode = vfsFs.readFileSync(virtualIndexPath, 'utf8');
+            
+            // Execute user code and invoke the exported function
+            // The code runs in a context where require, fs, path, req, res are already available
+            const executeCode = `
+(async function() {
+    // Set up module pattern
+    const module = { exports: {} };
+    const exports = module.exports;
+    const __filename = '/index.js';
+    const __dirname = '/';
+    
+    // Execute user code
+    ${userCode}
+    
+    // Validate exports is a function
+    if (typeof module.exports !== 'function') {
+        throw new Error('Module must export a function. Expected: module.exports = function(req, res) {...}');
+    }
+    
+    // Invoke the function with req and res (handle both sync and async)
+    const result = module.exports(req, res);
+    if (result && typeof result.then === 'function') {
+        await result;
+    }
+    
+    return undefined;
+})();
+`;
+            
+            // Compile and execute
+            const executeScript = await isolate.compileScript(executeCode, { filename: '/index.js' });
+            
+            // Run with timeout (handle promise)
+            try {
+                await executeScript.run(ivmContext, { timeout: this.functionTimeout, promise: true });
+            } catch (error) {
+                // Check if timeout error
+                if (error.message && error.message.includes('Script execution timed out')) {
+                    // Mark isolate as corrupted
+                    this.isolatePool.release(isolate, false);
+                    isolate = null; // Prevent double release
+                    
+                    throw new Error(`Function execution timeout (${this.functionTimeout}ms)`);
                 }
                 throw error;
             }
-            throw new Error(String(error));
-        }
-    };
-}
-
-/**
- * Get function package with caching
- * @param {string} functionId - Function ID
- * @returns {Object} Package information
- */
-async function getFunctionPackage(functionId) {
-    try {
-        // Get function metadata from database first
-        const functionData = await fetchFunctionMetadata(functionId);
-        
-        // Check cache with hash verification
-        const cacheResult = await cache.checkCache(functionId, functionData.package_hash, functionData.version);
-        
-        if (cacheResult.cached && cacheResult.valid) {
-            await cache.updateAccessStats(functionId);
+            
+            // Extract response and logs
+            const response = executionContext.getResponse();
+            const logs = executionContext.getLogs();
+            
+            // Release isolate back to pool (healthy)
+            this.isolatePool.release(isolate, true);
+            isolate = null;
+            
+            // Cleanup execution context
+            executionContext.cleanup();
+            
+            // Return result
             return {
-                tempDir: cacheResult.extractedPath,
-                indexPath: path.join(cacheResult.extractedPath, 'index.js'),
-                fromCache: true
+                data: response.data,
+                statusCode: response.statusCode,
+                headers: response.headers,
+                logs: logs
+            };
+            
+        } catch (error) {
+            console.error('[ExecutionEngine] Execution error:', error);
+            
+            // Release isolate if still held
+            if (isolate) {
+                // Check if error indicates corruption
+                const isCorrupted = 
+                    error.message && (
+                        error.message.includes('timeout') ||
+                        error.message.includes('out of memory') ||
+                        error.message.includes('memory limit')
+                    );
+                
+                this.isolatePool.release(isolate, !isCorrupted);
+            }
+            
+            // Cleanup execution context
+            if (executionContext) {
+                executionContext.cleanup();
+            }
+            
+            // Return error result
+            const errorMessage = error.message || String(error);
+            const errorStack = error.stack || '';
+            
+            return {
+                error: errorMessage + (errorStack ? '\n' + errorStack : ''),
+                statusCode: 500
             };
         }
-        
-        console.log(`Downloading package for function ${functionId}`);
-        
-        // Download and cache package with package_path from function_versions table
-        const extractedPath = await cache.cachePackageFromPath(functionId, functionData.version, functionData.package_hash, functionData.file_size || 0, functionData.package_path);
+    }
+    
+    /**
+     * Get metrics
+     */
+    getMetrics() {
+        const isolatePoolMetrics = this.isolatePool ? this.isolatePool.getMetrics() : null;
+        const moduleCacheStats = ModuleLoader.getCacheStats();
         
         return {
-            tempDir: extractedPath,
-            indexPath: path.join(extractedPath, 'index.js'),
-            fromCache: false
+            isolatePool: isolatePoolMetrics,
+            moduleCache: moduleCacheStats
         };
+    }
+    
+    /**
+     * Shutdown the execution engine
+     */
+    async shutdown() {
+        console.log('[ExecutionEngine] Shutting down...');
         
-    } catch (error) {
-        console.error('Error getting function package:', error.message);
-        if (error.message.includes('not found')) {
-            throw new Error('Function not found');
+        if (this.isolatePool) {
+            await this.isolatePool.shutdown();
         }
-        throw new Error(`Failed to get function: ${error.message}`);
+        
+        this.initialized = false;
+        console.log('[ExecutionEngine] Shutdown complete');
     }
 }
+
+// Create singleton instance
+const executionEngine = new ExecutionEngine();
 
 /**
  * Fetch function metadata from database
@@ -1126,21 +294,72 @@ async function fetchEnvironmentVariables(functionId) {
 }
 
 /**
+ * Get function package with caching
+ * @param {string} functionId - Function ID
+ * @returns {Object} Package information
+ */
+async function getFunctionPackage(functionId) {
+    // Acquire lock to prevent concurrent cache operations
+    const releaseLock = await cache.acquireLock(functionId);
+    
+    try {
+        // Get function metadata from database first
+        const functionData = await fetchFunctionMetadata(functionId);
+        
+        // Check cache with hash verification
+        const cacheResult = await cache.checkCache(functionId, functionData.package_hash, functionData.version);
+        
+        if (cacheResult.cached && cacheResult.valid) {
+            await cache.updateAccessStats(functionId);
+            return {
+                tempDir: cacheResult.extractedPath,
+                indexPath: path.join(cacheResult.extractedPath, 'index.js'),
+                fromCache: true
+            };
+        }
+        
+        // If cache exists but is invalid, remove it before downloading
+        if (cacheResult.cached && !cacheResult.valid) {
+            console.log(`🧹 Removing invalid cache for ${functionId}`);
+            await cache.removeFromCache(functionId);
+        }
+        
+        console.log(`Downloading package for function ${functionId}`);
+        
+        // Download and cache package with package_path from function_versions table
+        // Note: cachePackageFromPath will NOT acquire its own lock since we already have it
+        const extractedPath = await cache.cachePackageFromPathNoLock(functionId, functionData.version, functionData.package_hash, functionData.file_size || 0, functionData.package_path);
+        
+        return {
+            tempDir: extractedPath,
+            indexPath: path.join(extractedPath, 'index.js'),
+            fromCache: false
+        };
+        
+    } catch (error) {
+        console.error('Error getting function package:', error.message);
+        if (error.message.includes('not found')) {
+            throw new Error('Function not found');
+        }
+        throw new Error(`Failed to get function: ${error.message}`);
+    } finally {
+        releaseLock();
+    }
+}
+
+/**
  * Create a secure console object that captures logs
- * @param {string} packageDir - Optional package directory for sanitizing error stack traces
+ * @param {string} packageDir - Optional package directory (not used in new implementation)
  */
 function createConsoleObject(packageDir = null) {
     const logs = [];
     
     const formatArgs = (...args) => {
         return args.map(arg => {
-            // Handle Error objects specially
             if (arg instanceof Error) {
                 let errorOutput = arg.message || String(arg);
                 if (arg.stack) {
-                    // Sanitize stack trace if packageDir is provided
-                    const stack = packageDir ? sanitizeStackTrace(arg.stack, packageDir) : arg.stack;
-                    errorOutput += '\n' + stack;
+                    errorOutput += '\n' + arg.stack;
                 }
                 return errorOutput;
             }
@@ -1149,7 +368,6 @@ function createConsoleObject(packageDir = null) {
                 try {
                     return JSON.stringify(arg);
                 } catch (error) {
-                    // Handle circular references or other JSON.stringify errors
                     return '[object Object]';
                 }
             }
@@ -1170,7 +388,12 @@ function createConsoleObject(packageDir = null) {
  * Create a mock request object compatible with Express.js
  */
 function createRequestObject(method = 'POST', body = {}, query = {}, headers = {}, params = {}, originalReq = {}) {
-    const url = originalReq.url || '/';
+    let url = originalReq.params && originalReq.params[1] ? originalReq.params[1] : '/';
+    
+    if (originalReq.path && !originalReq.path.endsWith('/') && url === '/') {
+        url = '';
+    }
+    
     const protocol = originalReq.protocol || 'http';
     const hostname = originalReq.hostname || 'localhost';
     
@@ -1182,13 +405,12 @@ function createRequestObject(method = 'POST', body = {}, query = {}, headers = {
         protocol,
         hostname,
         secure: protocol === 'https',
-        ip: originalReq.ip || originalReq.connection?.remoteAddress || '127.0.0.1',
+        ip: originalReq.ip || (originalReq.connection && originalReq.connection.remoteAddress) || '127.0.0.1',
         ips: originalReq.ips || [],
         body,
         query,
         params,
         headers,
-        //cookies: {}, // Simplified cookies object
         
         // Express.js methods
         get(headerName) {
@@ -1257,6 +479,16 @@ function createResponseObject() {
             return this;
         },
         
+        sendFile(filePath, options = {}) {
+            // Note: This is a stub for backward compatibility
+            // Actual sendFile implementation is in ExecutionContext
+            throw new Error('sendFile not supported in this context');
+        },
+        
+        set(name, value) {
+            return this.setHeader(name, value);
+        },
+        
         setHeader(name, value) {
             this.headers[name.toLowerCase()] = value;
             return this;
@@ -1278,324 +510,7 @@ function createResponseObject() {
 }
 
 /**
- * Execute user function with proper context
- */
-async function executeUserFunction(userFunction, context, packageDir) {
-    return new Promise(async (resolve) => {
-        let unhandledRejectionHandler = null;
-        let isResolved = false;
-        
-        try {
-            // Install per-execution unhandled rejection handler
-            unhandledRejectionHandler = (reason, promise) => {
-                if (!isResolved) {
-                    const errorMessage = (reason instanceof Error ? reason.message : String(reason)) + 
-                        (reason instanceof Error && reason.stack ? '\n' + sanitizeStackTrace(reason.stack, packageDir) : '');
-                    isResolved = true;
-                    resolve({
-                        error: `Unhandled promise rejection: ${errorMessage}`,
-                        statusCode: 500
-                    });
-                }
-            };
-            process.on('unhandledRejection', unhandledRejectionHandler);
-            
-            // Set timeout for execution
-            const timeout = setTimeout(() => {
-                if (!isResolved) {
-                    isResolved = true;
-                    resolve({
-                        error: 'Function execution timeout (30s)',
-                        statusCode: 504
-                    });
-                }
-            }, 30000);
-
-            // Wrap user function call in try-catch to catch synchronous errors
-            let result;
-            try {
-                result = await userFunction(context.req, context.res);
-            } catch (error) {
-                clearTimeout(timeout);
-                if (unhandledRejectionHandler) {
-                    process.off('unhandledRejection', unhandledRejectionHandler);
-                }
-                const errorMessage = (error instanceof Error ? error.message : String(error)) + 
-                    (error instanceof Error && error.stack ? '\n' + sanitizeStackTrace(error.stack, packageDir) : '');
-                isResolved = true;
-                resolve({ error: errorMessage, statusCode: 500 });
-                return;
-            }
-            
-            clearTimeout(timeout);
-            
-            // Check if the result is a promise (async function)
-            if (result && typeof result.then === 'function') {
-                try {
-                    const promiseResult = await result;
-                    
-                    if (unhandledRejectionHandler) {
-                        process.off('unhandledRejection', unhandledRejectionHandler);
-                    }
-                    
-                    if (isResolved) return;
-                    isResolved = true;
-                    
-                    if (context.res.data !== undefined) {
-                        resolve({ 
-                            data: context.res.data, 
-                            statusCode: context.res.statusCode || 200 
-                        });
-                    } else if (promiseResult !== undefined) {
-                        resolve({ data: promiseResult, statusCode: context.res.statusCode || 200 });
-                    } else {
-                        resolve({ 
-                            error: 'Function did not produce any output', 
-                            statusCode: 500
-                        });
-                    }
-                } catch (error) {
-                    if (unhandledRejectionHandler) {
-                        process.off('unhandledRejection', unhandledRejectionHandler);
-                    }
-                    
-                    if (isResolved) return;
-                    isResolved = true;
-                    
-                    const errorMessage = (error instanceof Error ? error.message : String(error)) + 
-                        (error instanceof Error && error.stack ? '\n' + sanitizeStackTrace(error.stack, packageDir) : '');
-                    resolve({ error: errorMessage, statusCode: 500 });
-                }
-            }
-            // For non-async functions
-            else {
-                if (unhandledRejectionHandler) {
-                    process.off('unhandledRejection', unhandledRejectionHandler);
-                }
-                
-                if (isResolved) return;
-                isResolved = true;
-                
-                if (context.res.data !== undefined) {
-                    resolve({ 
-                        data: context.res.data, 
-                        statusCode: context.res.statusCode || 200 
-                    });
-                } else if (result !== undefined) {
-                    resolve({ data: result, statusCode: context.res.statusCode || 200 });
-                } else {
-                    resolve({ 
-                        error: 'Function did not produce any output', 
-                        statusCode: 500
-                    });
-                }
-            }
-            
-        } catch (error) {
-            if (unhandledRejectionHandler) {
-                process.off('unhandledRejection', unhandledRejectionHandler);
-            }
-            
-            if (isResolved) return;
-            isResolved = true;
-            
-            const errorMessage = (error instanceof Error ? error.message : String(error)) + 
-                (error instanceof Error && error.stack ? '\n' + sanitizeStackTrace(error.stack, packageDir) : '');
-            resolve({
-                error: errorMessage,
-                statusCode: 500
-            });
-        }
-    });
-}
-
-/**
- * Execute function in secure VM environment
- * @param {string} indexPath - Path to function's index.js
- * @param {Object} context - Execution context with req, res, console
- * @param {string} functionId - Function ID for environment variables
- * @returns {Object} Execution result
- */
-async function executeFunction(indexPath, context, functionId) {
-    // Get the package directory for local requires (outside try block so catch can access it)
-    const packageDir = path.dirname(indexPath);
-    
-    try {
-        // Fetch environment variables for this function
-        const customEnvVars = await fetchEnvironmentVariables(functionId);
-        
-        // Read the function code
-        const functionCode = await fs.readFile(indexPath, 'utf8');
-
-        // Create a custom require function that supports local files
-        const createCustomRequire = (currentDir, originalPackageDir) => {
-            const allowedModules = [
-                'crypto', 'querystring', 'url', 'util',
-                'stream', 'events', 'buffer', 'string_decoder', 'zlib'
-            ];
-            
-            return (moduleName) => {
-                // Strip node: prefix if present
-                let cleanModuleName = moduleName.startsWith('node:') ? moduleName.slice(5) : moduleName;
-                
-                // Handle special virtualized modules
-                if (cleanModuleName === 'fs') {
-                    const fsProxy = createFsProxy(originalPackageDir);
-                    fsProxy.promises = createFsPromisesProxy(originalPackageDir);
-                    return fsProxy;
-                }
-                
-                if (cleanModuleName === 'fs/promises') {
-                    return createFsPromisesProxy(originalPackageDir);
-                }
-                
-                if (cleanModuleName === 'path') {
-                    return createPathProxy(originalPackageDir);
-                }
-                
-                if (cleanModuleName === 'os') {
-                    return createOsProxy();
-                }
-                
-                // Handle local requires (starts with ./ or ../)
-                if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
-                    try {
-                        const fullPath = path.resolve(currentDir, moduleName);
-                        
-                        // Security check: ensure the required file is within the original package directory
-                        const normalizedFullPath = path.normalize(fullPath);
-                        const normalizedPackageDir = path.normalize(originalPackageDir);
-                        
-                        if (!normalizedFullPath.startsWith(normalizedPackageDir)) {
-                            throw new Error(`Access denied: Cannot require files outside package directory`);
-                        }
-                        
-                        // Try different file extensions
-                        let filePath = fullPath;
-                        if (!fs.existsSync(filePath)) {
-                            if (fs.existsSync(`${fullPath}.js`)) {
-                                filePath = `${fullPath}.js`;
-                            } else if (fs.existsSync(path.join(fullPath, 'index.js'))) {
-                                filePath = path.join(fullPath, 'index.js');
-                            } else {
-                                throw new Error(`Cannot find module '${moduleName}'`);
-                            }
-                        }
-                        
-                        // Read and execute the required file
-                        const requiredCode = fs.readFileSync(filePath, 'utf8');
-                        const virtualFilePath = realToVirtual(filePath, originalPackageDir);
-                        const virtualDirPath = realToVirtual(path.dirname(filePath), originalPackageDir);
-                        
-                        const moduleContext = {
-                            module: { exports: {} },
-                            exports: {},
-                            require: createCustomRequire(path.dirname(filePath), originalPackageDir),
-                            __filename: virtualFilePath,
-                            __dirname: virtualDirPath
-                        };
-                        
-                        // Create VM for the required module
-                        const moduleVM = new VM({
-                            timeout: 5000,
-                            sandbox: {
-                                ...moduleContext,
-                                console: context.console,
-                                Buffer,
-                                Error: createErrorConstructor(originalPackageDir),
-                                TypeError: createErrorConstructor(originalPackageDir),
-                                ReferenceError: createErrorConstructor(originalPackageDir),
-                                SyntaxError: createErrorConstructor(originalPackageDir),
-                                RangeError: createErrorConstructor(originalPackageDir),
-                                URIError: createErrorConstructor(originalPackageDir),
-                                EvalError: createErrorConstructor(originalPackageDir),
-                                setTimeout,
-                                setInterval,
-                                clearTimeout,
-                                clearInterval,
-                                process: {
-                                    env: customEnvVars
-                                }
-                            }
-                        });
-                        
-                        moduleVM.run(requiredCode);
-                        return moduleContext.module.exports || moduleContext.exports;
-                        
-                    } catch (error) {
-                        throw new Error(`Error requiring '${moduleName}': ${error.message}`);
-                    }
-                }
-                
-                // Handle built-in Node.js modules
-                if (allowedModules.includes(moduleName)) {
-                    return require(moduleName);
-                }
-                
-                throw new Error(`Module '${moduleName}' is not allowed in sandbox environment`);
-            };
-        };
-
-        // Create a secure VM
-        const vm = new VM({
-            timeout: 30000, // 30 second timeout
-            sandbox: {
-                require: createCustomRequire(packageDir, packageDir),
-                console: context.console,
-                Buffer,
-                Error: createErrorConstructor(packageDir),
-                TypeError: createErrorConstructor(packageDir),
-                ReferenceError: createErrorConstructor(packageDir),
-                SyntaxError: createErrorConstructor(packageDir),
-                RangeError: createErrorConstructor(packageDir),
-                URIError: createErrorConstructor(packageDir),
-                EvalError: createErrorConstructor(packageDir),
-                fetch: createSecureFetchProxy(packageDir),
-                process: {
-                    env: customEnvVars
-                },
-                setTimeout,
-                setInterval,
-                clearTimeout,
-                clearInterval,
-                module: { exports: {} },
-                exports: {},
-                __filename: realToVirtual(indexPath, packageDir),
-                __dirname: realToVirtual(packageDir, packageDir)
-            }
-        });
-
-        // Execute the code and get the function
-        const userFunction = vm.run(functionCode);
-
-        // Execute the user function with additional error boundary
-        let result;
-        try {
-            result = await executeUserFunction(userFunction, context, packageDir);
-            // Add a small delay to allow any pending promises to settle
-            await new Promise(resolve => setImmediate(resolve));
-        } catch (executionError) {
-            const errorMessage = (executionError instanceof Error ? executionError.message : String(executionError)) + 
-                (executionError instanceof Error && executionError.stack ? '\n' + sanitizeStackTrace(executionError.stack, packageDir) : '');
-            result = {
-                error: errorMessage,
-                statusCode: 500
-            };
-        }
-        
-        return result;
-
-    } catch (error) {
-        const errorMessage = error.message + (error.stack ? '\n' + sanitizeStackTrace(error.stack, packageDir) : '');
-        return {
-            error: errorMessage,
-            statusCode: 500
-        };
-    }
-}
-
-/**
- * Create execution context for function execution
+ * Create execution context for function execution (backward compatibility)
  * @param {string} method - HTTP method
  * @param {Object} body - Request body
  * @param {Object} query - Query parameters  
@@ -1612,13 +527,17 @@ function createExecutionContext(method = 'POST', body = {}, query = {}, headers 
     };
 }
 
+// Export main execution function and helpers
 module.exports = {
-    executeFunction,
+    executeFunction: (...args) => executionEngine.executeFunction(...args),
     createExecutionContext,
     fetchEnvironmentVariables,
     createConsoleObject,
     createRequestObject,
     createResponseObject,
     getFunctionPackage,
-    fetchFunctionMetadata
+    fetchFunctionMetadata,
+    getMetrics: () => executionEngine.getMetrics(),
+    shutdown: () => executionEngine.shutdown(),
+    initialize: () => executionEngine.initialize()
 };

@@ -1,5 +1,4 @@
 const express = require('express');
-const { VM } = require('vm2');
 const fs = require('fs-extra');
 const path = require('path');
 const { logExecution } = require('../services/utils');
@@ -19,7 +18,14 @@ const router = express.Router();
  */
 async function authenticateApiKey(req, res, next) {
     try {
-        const { functionId } = req.params;
+        const functionId = req.params.functionId || req.params[0];
+
+        if (!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(functionId)) {
+            return res.status(404).json({
+                success: false,
+                message: 'Function not found'
+            });
+        }
         
         // Get API key from Authorization header (Bearer token) or query parameter
         let apiKey = null;
@@ -94,12 +100,12 @@ async function authenticateApiKey(req, res, next) {
  * GET /invoke/:functionId
  * Execute a function with GET parameters
  */
-router.all('/:functionId', authenticateApiKey, async (req, res) => {
+router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
     const startTime = Date.now();
     let tempDir = null;
 
     try {
-        const { functionId } = req.params;
+        const functionId = req.params[0];
         const { query: queryParams, headers } = req;
 
         // Get function package (with caching)
@@ -121,9 +127,9 @@ router.all('/:functionId', authenticateApiKey, async (req, res) => {
             responseSize: JSON.stringify(result.data || {}).length,
             clientIp: req.ip,
             userAgent: req.headers['user-agent'],
-            consoleOutput: executionContext.console.getLogs(),
+            consoleOutput: result.logs || [],
             requestHeaders: req.headers,
-            responseHeaders: executionContext.res.headers,
+            responseHeaders: result.headers || {},
             requestMethod: req.method,
             requestUrl: req.url,
             requestBody: JSON.stringify(queryParams),
@@ -142,14 +148,14 @@ router.all('/:functionId', authenticateApiKey, async (req, res) => {
             res.status(statusCode).json(responseData);
         } else {
             // Set headers from user function
-            if (executionContext.res.headers) {
-                Object.entries(executionContext.res.headers).forEach(([key, value]) => {
+            if (result.headers) {
+                Object.entries(result.headers).forEach(([key, value]) => {
                     res.setHeader(key, value);
                 });
             }
             
             // Send response with appropriate content-type
-            const contentType = executionContext.res.headers && executionContext.res.headers['content-type'];
+            const contentType = result.headers && result.headers['content-type'];
             if (contentType && !contentType.includes('application/json')) {
                 res.status(statusCode).send(result.data);
             } else {

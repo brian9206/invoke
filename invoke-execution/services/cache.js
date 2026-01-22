@@ -12,6 +12,7 @@ class CacheService {
     this.maxCacheSizeGB = parseInt(process.env.MAX_CACHE_SIZE_GB) || 10
     this.cacheTTLDays = parseInt(process.env.CACHE_TTL_DAYS) || 7
     this.initialized = false
+    this.cacheLocks = new Map() // Map<functionId, {promise, resolve}>
 
     if (!fs.pathExistsSync(this.cacheDir)) {
       fs.mkdirpSync(this.cacheDir)
@@ -19,6 +20,37 @@ class CacheService {
     }
   }
 
+  /**
+   * Acquire a lock for a function ID
+   * @param {string} functionId - Function ID
+   * @returns {Promise<Function>} Resolves with release function when lock is acquired
+   */
+  async acquireLock(functionId) {
+    // Check if lock exists
+    const existingLock = this.cacheLocks.get(functionId)
+    
+    if (existingLock) {
+      // Wait for existing lock to be released
+      await existingLock.promise
+      // After wait completes, try again (recursive)
+      return this.acquireLock(functionId)
+    }
+    
+    // Create new lock
+    let releaseLock
+    const lockPromise = new Promise(resolve => {
+      releaseLock = resolve
+    })
+    
+    this.cacheLocks.set(functionId, { promise: lockPromise, resolve: releaseLock })
+    
+    // Return release function
+    return () => {
+      this.cacheLocks.delete(functionId)
+      releaseLock()
+    }
+  }
+  
   /**
    * Initialize cache directory
    */
@@ -84,18 +116,26 @@ class CacheService {
   /**
    * Get cached package path
    * @param {string} functionId - Function ID
+   * @param {string} version - Version number (optional for backward compatibility)
    * @returns {string} Path to cached package
    */
-  getCachedPackagePath(functionId) {
+  getCachedPackagePath(functionId, version = null) {
+    if (version) {
+      return path.join(this.cacheDir, 'packages', `${functionId}-v${version}.tgz`)
+    }
     return path.join(this.cacheDir, 'packages', `${functionId}.tgz`)
   }
 
   /**
    * Get extracted package path
    * @param {string} functionId - Function ID
+   * @param {string} version - Version number (optional for backward compatibility)
    * @returns {string} Path to extracted package
    */
-  getExtractedPackagePath(functionId) {
+  getExtractedPackagePath(functionId, version = null) {
+    if (version) {
+      return path.join(this.cacheDir, 'packages', `${functionId}-v${version}`)
+    }
     return path.join(this.cacheDir, 'packages', functionId)
   }
 
@@ -109,8 +149,8 @@ class CacheService {
   async checkCache(functionId, expectedHash, version) {
     await this.initialize()
     
-    const cachedPath = this.getCachedPackagePath(functionId)
-    const extractedPath = this.getExtractedPackagePath(functionId)
+    const cachedPath = this.getCachedPackagePath(functionId, version)
+    const extractedPath = this.getExtractedPackagePath(functionId, version)
     const metadata = await this.getCacheMetadata(functionId)
     
     const cachedExists = await fs.pathExists(cachedPath)
@@ -126,13 +166,14 @@ class CacheService {
       return { cached: false, valid: false }
     }
 
-    // Verify hash if expectedHash is provided
-    if (expectedHash) {
+    // If we have metadata, validate against the hash stored in metadata (not database)
+    // This prevents removing cache when database hash is out of sync
+    if (metadata && metadata.hash) {
       try {
         const actualHash = await minioService.computeFileHash(cachedPath)
-        const valid = actualHash === expectedHash
+        const valid = actualHash === metadata.hash // Compare with cached hash, not DB hash
         
-        if (valid && metadata) {
+        if (valid) {
           // Update last accessed time
           await this.saveCacheMetadata(functionId, {
             ...metadata,
@@ -142,21 +183,17 @@ class CacheService {
           return { cached: true, valid: true, extractedPath }
         }
         
-        // Hash mismatch - remove invalid cache
-        if (!valid) {
-          console.log(`🧹 Hash mismatch for ${functionId}, cleaning cache...`)
-          await this.removeFromCache(functionId)
-        }
-        
-        return { cached: true, valid, extractedPath: valid ? extractedPath : undefined }
+        // File was modified on disk - cache is corrupted
+        console.log(`⚠️ Cache corruption detected for ${functionId}: file hash doesn't match metadata`)
+        return { cached: true, valid: false }
       } catch (error) {
         console.error(`Error verifying cache for ${functionId}:`, error)
         return { cached: true, valid: false }
       }
-    } else {
-      // No hash provided, assume valid if files exist
-      return { cached: true, valid: true, extractedPath }
     }
+    
+    // No metadata - assume valid if files exist (legacy behavior)
+    return { cached: true, valid: true, extractedPath }
   }
 
   /**
@@ -170,12 +207,22 @@ class CacheService {
   async cachePackage(functionId, version, hash, size) {
     await this.initialize()
     
-    console.log(`📦 Caching package ${functionId} version ${version}...`)
-    
-    const cachedPath = this.getCachedPackagePath(functionId)
-    const extractedPath = this.getExtractedPackagePath(functionId)
+    // Acquire lock to prevent concurrent cache operations
+    const releaseLock = await this.acquireLock(functionId)
     
     try {
+      // Double-check cache after acquiring lock
+      const cacheCheck = await this.checkCache(functionId, hash, version)
+      if (cacheCheck.cached && cacheCheck.valid) {
+        console.log(`✅ Package ${functionId} already cached by another request`)
+        return cacheCheck.extractedPath
+      }
+      
+      console.log(`📦 Caching package ${functionId} version ${version}...`)
+      
+      const cachedPath = this.getCachedPackagePath(functionId, version)
+      const extractedPath = this.getExtractedPackagePath(functionId, version)
+      
       // Download from MinIO
       await minioService.downloadPackage(functionId, version, cachedPath)
       
@@ -206,6 +253,78 @@ class CacheService {
       // Clean up on failure
       await this.removeFromCache(functionId)
       throw error
+    } finally {
+      // Always release lock
+      releaseLock()
+    }
+  }
+
+  /**
+   * Cache package from specific MinIO path WITHOUT acquiring lock (for versioning system)
+   * Should only be called when caller has already acquired the lock
+   * @param {string} functionId - Function ID
+   * @param {string} version - Package version
+   * @param {string} hash - Package hash
+   * @param {number} size - Package size
+   * @param {string} packagePath - MinIO path to package
+   * @returns {Promise<string>} Path to extracted package
+   */
+  async cachePackageFromPathNoLock(functionId, version, hash, size, packagePath) {
+    await this.initialize()
+    
+    console.log(`📦 Caching package ${functionId} version ${version} from path ${packagePath}...`)
+    
+    const cachedPath = this.getCachedPackagePath(functionId, version)
+    const extractedPath = this.getExtractedPackagePath(functionId, version)
+    
+    try {
+      // Download from MinIO using specific path
+      await minioService.downloadPackageFromPath(packagePath, cachedPath)
+      
+      // Compute actual hash of downloaded file
+      const actualHash = await minioService.computeFileHash(cachedPath)
+      
+      // Warn if hash doesn't match expected (database might be out of sync)
+      if (hash && actualHash !== hash) {
+        console.log(`⚠️  Hash mismatch for ${functionId}: expected ${hash}, got ${actualHash}`)
+        console.log(`   Using actual hash ${actualHash} for cache validation`)
+      }
+      
+      // Extract package
+      await fs.remove(extractedPath) // Remove existing if any
+      await fs.ensureDir(extractedPath)
+      
+      const tar = require('tar')
+      await tar.extract({
+        file: cachedPath,
+        cwd: extractedPath
+      })
+      
+      // Save metadata with ACTUAL hash (not expected hash)
+      await this.saveCacheMetadata(functionId, {
+        version,
+        hash: actualHash, // Use actual hash, not expected
+        size,
+        packagePath,
+        cachedAt: new Date().toISOString(),
+        lastAccessed: new Date().toISOString(),
+        accessCount: 1
+      })
+      
+      console.log(`✅ Package ${functionId} cached successfully from ${packagePath}`)
+      return extractedPath
+    } catch (error) {
+      console.error(`❌ Failed to cache package ${functionId} from path ${packagePath}:`, error)
+      // Clean up on failure
+      await this.removeFromCache(functionId)
+      
+      // If the error is "Not Found", it likely means the package was deleted
+      if (error.message.includes('Not Found') || error.code === 'NotFound') {
+        console.log(`🧹 Package ${functionId} no longer exists in storage, clearing cache`)
+        throw new Error('Package not found in storage (may have been deleted)')
+      }
+      
+      throw error
     }
   }
 
@@ -221,12 +340,22 @@ class CacheService {
   async cachePackageFromPath(functionId, version, hash, size, packagePath) {
     await this.initialize()
     
-    console.log(`📦 Caching package ${functionId} version ${version} from path ${packagePath}...`)
-    
-    const cachedPath = this.getCachedPackagePath(functionId)
-    const extractedPath = this.getExtractedPackagePath(functionId)
+    // Acquire lock to prevent concurrent cache operations
+    const releaseLock = await this.acquireLock(functionId)
     
     try {
+      // Double-check cache after acquiring lock (another request might have cached it)
+      const cacheCheck = await this.checkCache(functionId, hash, version)
+      if (cacheCheck.cached && cacheCheck.valid) {
+        console.log(`✅ Package ${functionId} already cached by another request`)
+        return cacheCheck.extractedPath
+      }
+      
+      console.log(`📦 Caching package ${functionId} version ${version} from path ${packagePath}...`)
+      
+      const cachedPath = this.getCachedPackagePath(functionId)
+      const extractedPath = this.getExtractedPackagePath(functionId)
+      
       // Download from MinIO using specific path
       await minioService.downloadPackageFromPath(packagePath, cachedPath)
       

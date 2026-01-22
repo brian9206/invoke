@@ -9,11 +9,13 @@ require('dotenv').config();
 const { validateEnvironment } = require('./services/utils');
 const database = require('./services/database');
 const cache = require('./services/cache');
+const { initialize: initializeExecutionEngine, shutdown: shutdownExecutionEngine } = require('./services/execution');
 
 // Routes
 const executionRoutes = require('./routes/execution');
 const healthRoutes = require('./routes/health');
 const schedulerRoutes = require('./routes/scheduler');
+const metricsRoutes = require('./routes/metrics');
 
 /**
  * Invoke Execution Service
@@ -106,6 +108,9 @@ class ExecutionServer {
         // Health check endpoint
         this.app.use('/health', healthRoutes);
         
+        // Metrics endpoint
+        this.app.use('/metrics', metricsRoutes);
+        
         // Function execution endpoints
         this.app.use('/invoke', executionRoutes);
         
@@ -120,6 +125,7 @@ class ExecutionServer {
                 status: 'running',
                 endpoints: {
                     health: '/health',
+                    metrics: '/metrics',
                     execute: 'POST /invoke/:functionId',
                     executeGet: 'GET /invoke/:functionId',
                     triggerScheduled: 'POST /scheduler/trigger-scheduled'
@@ -195,6 +201,11 @@ class ExecutionServer {
             // Initialize cache service
             await cache.initialize();
             
+            // Initialize execution engine (triggers async isolate pool warm-up)
+            console.log('🚀 Initializing execution engine...');
+            await initializeExecutionEngine();
+            console.log('✅ Execution engine initialized');
+            
             // Start HTTP server
             this.server = this.app.listen(this.port, () => {
                 console.log(`⚡ Invoke Execution Service running on port ${this.port}`);
@@ -202,6 +213,10 @@ class ExecutionServer {
                 console.log(`💾 Cache Directory: ${process.env.CACHE_DIR || '/tmp/invoke-cache'}`);
                 console.log(`🔒 API Key Authentication: ${process.env.REQUIRE_API_KEY === 'true' ? 'Required' : 'Optional'}`);
                 console.log(`🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`);
+                console.log(`🏊 Isolate Pool: ${process.env.ISOLATE_POOL_SIZE || 5} base, ${process.env.ISOLATE_MAX_POOL_SIZE || 20} max`);
+                console.log(`💾 Memory Limit: ${process.env.ISOLATE_MEMORY_LIMIT_MB || 128}MB per isolate`);
+                console.log(`⏱️ Function Timeout: ${process.env.FUNCTION_TIMEOUT_MS || 30000}ms`);
+                console.log(`📦 Module Cache: ${process.env.ENABLE_MODULE_CACHE === 'false' ? 'Disabled' : 'Enabled'} (max ${process.env.MODULE_CACHE_MAX_SIZE || 1000})`);
             });
 
             // Handle graceful shutdown
@@ -222,11 +237,17 @@ class ExecutionServer {
         
         if (this.server) {
             this.server.close(() => {
-                console.log('⚡ Execution Service stopped');
+                console.log('⚡ HTTP server stopped');
             });
         }
         
+        // Shutdown execution engine (waits 30s for active executions)
+        console.log('🛑 Shutting down execution engine...');
+        await shutdownExecutionEngine();
+        console.log('✅ Execution engine stopped');
+        
         await database.close();
+        console.log('👋 Execution Service shutdown complete');
         process.exit(0);
     }
 }
