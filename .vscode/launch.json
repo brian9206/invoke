@@ -1,0 +1,106 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Invoke Admin (Next.js)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/invoke-admin",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "port": 9229,
+      "env": {
+        "NODE_ENV": "development",
+        "MINIO_ENDPOINT": "localhost",
+        "MINIO_PORT": "9000",
+        "MINIO_ACCESS_KEY": "invoke-minio",
+        "MINIO_SECRET_KEY": "invoke-minio-password-123",
+        "MINIO_BUCKET": "invoke-packages"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "serverReadyAction": {
+        "pattern": "ready - started server on .+, url: (https?://.+)",
+        "uriFormat": "%s",
+        "action": "debugWithChrome"
+      }
+    },
+    {
+      "name": "Debug Invoke Execution Service",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/invoke-execution/server.js",
+      "cwd": "${workspaceFolder}/invoke-execution",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3001",
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "invoke_db",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": "invoke_password_123",
+        "MINIO_ENDPOINT": "localhost",
+        "MINIO_PORT": "9000",
+        "MINIO_ACCESS_KEY": "invoke-minio",
+        "MINIO_SECRET_KEY": "invoke-minio-password-123",
+        "MINIO_BUCKET": "invoke-packages"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "restart": true
+    },
+    {
+      "name": "Attach to Invoke Admin",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}/invoke-admin",
+      "remoteRoot": "${workspaceFolder}/invoke-admin",
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ]
+    },
+    {
+      "name": "Attach to Invoke Execution",
+      "type": "node",
+      "request": "attach",
+      "port": 9230,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}/invoke-execution",
+      "remoteRoot": "${workspaceFolder}/invoke-execution",
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ]
+    },
+    {
+      "name": "Debug Both Services",
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Program",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}/scripts/debug-all.js"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All Services",
+      "configurations": [
+        "Debug Invoke Admin (Next.js)",
+        "Debug Invoke Execution Service"
+      ]
+    }
+  ]
+}
