@@ -15,7 +15,7 @@ class ExecutionContext {
         this.packageDir = packageDir;
         this.functionId = functionId;
         this.packageHash = packageHash;
-        this.envVars = envVars;
+        this.envVars = this._sanitizeEnvVars(envVars);
         this.compiledScript = compiledScript;
         
         // Create VFS instance
@@ -31,6 +31,14 @@ class ExecutionContext {
             headers: {},
             data: undefined
         };
+    }
+
+    _sanitizeEnvVars(input) {
+        const sanitized = {};
+        for (const [key, value] of Object.entries(input)) {
+            sanitized[String(key)] = String(value);
+        }
+        return sanitized;
     }
     
     /**
@@ -117,9 +125,9 @@ class ExecutionContext {
      * Must run after pre-compiled script since it overwrites process object
      */
     async _setupProcess() {
-        await this.context.global.set('_envVars', { env: this.envVars }, { copy: true });
-        await this.context.global.set('_arch', process.arch);
-        await this.context.global.set('_node_version', process.version);
+        await this.context.global.set('_envVars', this.envVars, { copy: true });
+        await this.context.global.set('_arch', process.arch, { copy: true });
+        await this.context.global.set('_node_version', process.version, { copy: true });
         await this.context.global.set('_node_versions', process.versions, { copy: true });
     }
 
