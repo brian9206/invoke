@@ -120,3 +120,4 @@ minio-data/
 
 # Sample zip files
 /samples/**/*.zip
+invoke-admin/package-lock.json
