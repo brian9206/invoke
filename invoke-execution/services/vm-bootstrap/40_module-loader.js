@@ -58,6 +58,116 @@
             }
         }
         
+        // Special handling for crypto module to restore chaining API
+        if (moduleName === 'crypto') {
+            const originalCreateHash = module.createHash;
+            module.createHash = function(algorithm) {
+                const hashId = originalCreateHash(algorithm);
+                return {
+                    update: function(data) {
+                        globalThis._crypto__hashUpdate.applySync(undefined, [hashId, data]);
+                        return this;
+                    },
+                    digest: function(encoding) {
+                        return globalThis._crypto__hashDigest.applySync(undefined, [hashId, encoding]);
+                    }
+                };
+            };
+            
+            const originalCreateHmac = module.createHmac;
+            module.createHmac = function(algorithm, key) {
+                const hmacId = originalCreateHmac(algorithm, key);
+                return {
+                    update: function(data) {
+                        globalThis._crypto__hmacUpdate.applySync(undefined, [hmacId, data]);
+                        return this;
+                    },
+                    digest: function(encoding) {
+                        return globalThis._crypto__hmacDigest.applySync(undefined, [hmacId, encoding]);
+                    }
+                };
+            };
+        }
+        
+        // Special handling for url module - URLSearchParams
+        if (moduleName === 'url') {
+            const originalURLSearchParams = module.URLSearchParams;
+            module.URLSearchParams = function(init) {
+                const paramsId = originalURLSearchParams(init);
+                return {
+                    append: function(name, value) {
+                        globalThis._url__urlSearchParams_append.applySync(undefined, [paramsId, name, value]);
+                    },
+                    delete: function(name) {
+                        globalThis._url__urlSearchParams_delete.applySync(undefined, [paramsId, name]);
+                    },
+                    get: function(name) {
+                        return globalThis._url__urlSearchParams_get.applySync(undefined, [paramsId, name]);
+                    },
+                    getAll: function(name) {
+                        return globalThis._url__urlSearchParams_getAll.applySync(undefined, [paramsId, name]);
+                    },
+                    has: function(name) {
+                        return globalThis._url__urlSearchParams_has.applySync(undefined, [paramsId, name]);
+                    },
+                    set: function(name, value) {
+                        globalThis._url__urlSearchParams_set.applySync(undefined, [paramsId, name, value]);
+                    },
+                    toString: function() {
+                        return globalThis._url__urlSearchParams_toString.applySync(undefined, [paramsId]);
+                    }
+                };
+            };
+        }
+        
+        // Special handling for events module - EventEmitter
+        if (moduleName === 'events') {
+            const originalEventEmitter = module.EventEmitter;
+            module.EventEmitter = function() {
+                const emitterId = originalEventEmitter();
+                return {
+                    on: function(event, listener) {
+                        globalThis._events__eventEmitter_on.applySync(undefined, [emitterId, event, listener]);
+                        return this;
+                    },
+                    once: function(event, listener) {
+                        globalThis._events__eventEmitter_once.applySync(undefined, [emitterId, event, listener]);
+                        return this;
+                    },
+                    emit: function(event, ...args) {
+                        return globalThis._events__eventEmitter_emit.applySync(undefined, [emitterId, event, ...args]);
+                    },
+                    removeListener: function(event, listener) {
+                        globalThis._events__eventEmitter_removeListener.applySync(undefined, [emitterId, event, listener]);
+                        return this;
+                    },
+                    removeAllListeners: function(event) {
+                        globalThis._events__eventEmitter_removeAllListeners.applySync(undefined, [emitterId, event]);
+                        return this;
+                    },
+                    listenerCount: function(event) {
+                        return globalThis._events__eventEmitter_listenerCount.applySync(undefined, [emitterId, event]);
+                    }
+                };
+            };
+        }
+        
+        // Special handling for string_decoder module
+        if (moduleName === 'string_decoder') {
+            const originalStringDecoder = module.StringDecoder;
+            module.StringDecoder = function(encoding) {
+                const decoderId = originalStringDecoder(encoding);
+                return {
+                    write: function(buffer) {
+                        return globalThis._string_decoder__stringDecoder_write.applySync(undefined, [decoderId, buffer]);
+                    },
+                    end: function(buffer) {
+                        return globalThis._string_decoder__stringDecoder_end.applySync(undefined, [decoderId, buffer]);
+                    }
+                };
+            };
+        }
+        
         // Cache the reconstructed module
         _builtinModuleCache[moduleName] = module;
         return module;

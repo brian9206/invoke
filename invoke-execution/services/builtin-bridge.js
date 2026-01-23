@@ -155,37 +155,71 @@ class BuiltinBridge {
         const crypto = require('crypto');
         
         return {
-            // Hashing
+            // Simplified hash function (no chaining, direct computation)
             createHash: new ivm.Reference(function(algorithm) {
+                // Return a simple hash builder ID that can be used
+                const hashId = Math.random().toString(36);
                 const hash = crypto.createHash(algorithm);
-                return {
-                    update: new ivm.Reference((data) => {
-                        hash.update(data);
-                        return this; // For chaining
-                    }),
-                    digest: new ivm.Reference((encoding) => {
-                        return hash.digest(encoding);
-                    })
-                };
+                
+                // Store hash instance temporarily
+                if (!global.__hashStore) global.__hashStore = new Map();
+                global.__hashStore.set(hashId, hash);
+                
+                return hashId;
+            }),
+            
+            // Hash update (works on stored hash instance)
+            _hashUpdate: new ivm.Reference(function(hashId, data) {
+                const hash = global.__hashStore?.get(hashId);
+                if (hash) {
+                    hash.update(data);
+                }
+                return hashId; // Return for chaining
+            }),
+            
+            // Hash digest (completes and cleans up)
+            _hashDigest: new ivm.Reference(function(hashId, encoding) {
+                const hash = global.__hashStore?.get(hashId);
+                if (hash) {
+                    const result = hash.digest(encoding);
+                    global.__hashStore.delete(hashId);
+                    return result;
+                }
+                return '';
             }),
             
             // HMAC
             createHmac: new ivm.Reference(function(algorithm, key) {
+                const hmacId = Math.random().toString(36);
                 const hmac = crypto.createHmac(algorithm, key);
-                return {
-                    update: new ivm.Reference((data) => {
-                        hmac.update(data);
-                        return this;
-                    }),
-                    digest: new ivm.Reference((encoding) => {
-                        return hmac.digest(encoding);
-                    })
-                };
+                
+                if (!global.__hmacStore) global.__hmacStore = new Map();
+                global.__hmacStore.set(hmacId, hmac);
+                
+                return hmacId;
+            }),
+            
+            _hmacUpdate: new ivm.Reference(function(hmacId, data) {
+                const hmac = global.__hmacStore?.get(hmacId);
+                if (hmac) {
+                    hmac.update(data);
+                }
+                return hmacId;
+            }),
+            
+            _hmacDigest: new ivm.Reference(function(hmacId, encoding) {
+                const hmac = global.__hmacStore?.get(hmacId);
+                if (hmac) {
+                    const result = hmac.digest(encoding);
+                    global.__hmacStore.delete(hmacId);
+                    return result;
+                }
+                return '';
             }),
             
             // Random bytes
             randomBytes: new ivm.Reference(function(size) {
-                return crypto.randomBytes(size);
+                return crypto.randomBytes(size).toString('hex');
             }),
             
             // UUID
@@ -247,16 +281,48 @@ class BuiltinBridge {
             
             // URLSearchParams class constructor
             URLSearchParams: new ivm.Reference(function(init) {
+                const paramsId = Math.random().toString(36);
                 const params = new URLSearchParams(init);
-                return {
-                    append: new ivm.Reference((name, value) => params.append(name, value)),
-                    delete: new ivm.Reference((name) => params.delete(name)),
-                    get: new ivm.Reference((name) => params.get(name)),
-                    getAll: new ivm.Reference((name) => params.getAll(name)),
-                    has: new ivm.Reference((name) => params.has(name)),
-                    set: new ivm.Reference((name, value) => params.set(name, value)),
-                    toString: new ivm.Reference(() => params.toString())
-                };
+                
+                if (!global.__urlSearchParamsStore) global.__urlSearchParamsStore = new Map();
+                global.__urlSearchParamsStore.set(paramsId, params);
+                
+                return paramsId;
+            }),
+            
+            _urlSearchParams_append: new ivm.Reference((paramsId, name, value) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                if (params) params.append(name, value);
+            }),
+            
+            _urlSearchParams_delete: new ivm.Reference((paramsId, name) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                if (params) params.delete(name);
+            }),
+            
+            _urlSearchParams_get: new ivm.Reference((paramsId, name) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                return params ? params.get(name) : null;
+            }),
+            
+            _urlSearchParams_getAll: new ivm.Reference((paramsId, name) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                return params ? params.getAll(name) : [];
+            }),
+            
+            _urlSearchParams_has: new ivm.Reference((paramsId, name) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                return params ? params.has(name) : false;
+            }),
+            
+            _urlSearchParams_set: new ivm.Reference((paramsId, name, value) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                if (params) params.set(name, value);
+            }),
+            
+            _urlSearchParams_toString: new ivm.Reference((paramsId) => {
+                const params = global.__urlSearchParamsStore?.get(paramsId);
+                return params ? params.toString() : '';
             })
         };
     }
@@ -337,15 +403,43 @@ class BuiltinBridge {
         
         return {
             EventEmitter: new ivm.Reference(function() {
+                const emitterId = Math.random().toString(36);
                 const emitter = new EventEmitter();
-                return {
-                    on: new ivm.Reference((event, listener) => emitter.on(event, listener)),
-                    once: new ivm.Reference((event, listener) => emitter.once(event, listener)),
-                    emit: new ivm.Reference((event, ...args) => emitter.emit(event, ...args)),
-                    removeListener: new ivm.Reference((event, listener) => emitter.removeListener(event, listener)),
-                    removeAllListeners: new ivm.Reference((event) => emitter.removeAllListeners(event)),
-                    listenerCount: new ivm.Reference((event) => emitter.listenerCount(event))
-                };
+                
+                if (!global.__eventEmitterStore) global.__eventEmitterStore = new Map();
+                global.__eventEmitterStore.set(emitterId, emitter);
+                
+                return emitterId;
+            }),
+            
+            _eventEmitter_on: new ivm.Reference((emitterId, event, listener) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                if (emitter) emitter.on(event, listener);
+            }),
+            
+            _eventEmitter_once: new ivm.Reference((emitterId, event, listener) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                if (emitter) emitter.once(event, listener);
+            }),
+            
+            _eventEmitter_emit: new ivm.Reference((emitterId, event, ...args) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                return emitter ? emitter.emit(event, ...args) : false;
+            }),
+            
+            _eventEmitter_removeListener: new ivm.Reference((emitterId, event, listener) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                if (emitter) emitter.removeListener(event, listener);
+            }),
+            
+            _eventEmitter_removeAllListeners: new ivm.Reference((emitterId, event) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                if (emitter) emitter.removeAllListeners(event);
+            }),
+            
+            _eventEmitter_listenerCount: new ivm.Reference((emitterId, event) => {
+                const emitter = global.__eventEmitterStore?.get(emitterId);
+                return emitter ? emitter.listenerCount(event) : 0;
             })
         };
     }
@@ -358,11 +452,28 @@ class BuiltinBridge {
         
         return {
             StringDecoder: new ivm.Reference(function(encoding) {
+                const decoderId = Math.random().toString(36);
                 const decoder = new StringDecoder(encoding);
-                return {
-                    write: new ivm.Reference((buffer) => decoder.write(buffer)),
-                    end: new ivm.Reference((buffer) => decoder.end(buffer))
-                };
+                
+                if (!global.__stringDecoderStore) global.__stringDecoderStore = new Map();
+                global.__stringDecoderStore.set(decoderId, decoder);
+                
+                return decoderId;
+            }),
+            
+            _stringDecoder_write: new ivm.Reference((decoderId, buffer) => {
+                const decoder = global.__stringDecoderStore?.get(decoderId);
+                return decoder ? decoder.write(buffer) : '';
+            }),
+            
+            _stringDecoder_end: new ivm.Reference((decoderId, buffer) => {
+                const decoder = global.__stringDecoderStore?.get(decoderId);
+                if (decoder) {
+                    const result = decoder.end(buffer);
+                    global.__stringDecoderStore.delete(decoderId);
+                    return result;
+                }
+                return '';
             })
         };
     }

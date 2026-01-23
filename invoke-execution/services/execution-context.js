@@ -47,6 +47,9 @@ class ExecutionContext {
     async bootstrap() {
         // Set up process.env (dynamic, needs to be injected per execution)
         await this._setupProcess();
+        
+        // Set up timers
+        await this._setupTimers();
 
         // Set up console references (needed for pre-compiled script)
         await this._setupConsoleRefs();
@@ -129,6 +132,15 @@ class ExecutionContext {
         await this.context.global.set('_arch', process.arch, { copy: true });
         await this.context.global.set('_node_version', process.version, { copy: true });
         await this.context.global.set('_node_versions', process.versions, { copy: true });
+    }
+
+    /**
+     * Set up timer
+     */
+    async _setupTimers() {
+        await this.context.global.set('_sleep', new ivm.Reference((timeoutMs) => {
+            return new Promise((resolve) => setTimeout(() => resolve(), timeoutMs));
+        }));
     }
 
     /**
