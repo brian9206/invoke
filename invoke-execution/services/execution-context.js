@@ -38,7 +38,7 @@ class ExecutionContext {
      */
     async bootstrap() {
         // Set up process.env (dynamic, needs to be injected per execution)
-        await this._setupProcessEnv();
+        await this._setupProcess();
 
         // Set up console references (needed for pre-compiled script)
         await this._setupConsoleRefs();
@@ -113,13 +113,14 @@ class ExecutionContext {
     }
 
     /**
-     * Set up process.env (dynamic per execution)
-    /**
-     * Set up process.env (dynamic per execution)
+     * Set up process related
      * Must run after pre-compiled script since it overwrites process object
      */
-    async _setupProcessEnv() {
-        await this.context.global.set('process', { env: this.envVars }, { copy: true });
+    async _setupProcess() {
+        await this.context.global.set('_envVars', { env: this.envVars }, { copy: true });
+        await this.context.global.set('_arch', process.arch);
+        await this.context.global.set('_node_version', process.version);
+        await this.context.global.set('_node_versions', process.versions, { copy: true });
     }
 
     /**
