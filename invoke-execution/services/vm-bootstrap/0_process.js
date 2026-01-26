@@ -258,4 +258,4 @@ globalThis.process = {
     // Allow reallyExit but make it throw
     _exit: (code) => throwEACCES('_exit'),
     reallyExit: (code) => throwEACCES('reallyExit')
-}
+};

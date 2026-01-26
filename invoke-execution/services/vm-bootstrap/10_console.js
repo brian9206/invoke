@@ -1,21 +1,21 @@
 // ============================================================================
 // CONSOLE - Logging Interface
 // ============================================================================
-globalThis.console = {
-    log: (...args) => _consoleLog.applySync(undefined, args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg);
-        return String(arg);
-    })),
-    info: (...args) => _consoleInfo.applySync(undefined, args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg);
-        return String(arg);
-    })),
-    warn: (...args) => _consoleWarn.applySync(undefined, args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg);
-        return String(arg);
-    })),
-    error: (...args) => _consoleError.applySync(undefined, args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) return JSON.stringify(arg);
-        return String(arg);
-    }))
-};
+(function() {
+    function formatArgs(args) {
+        return args.map(arg => {
+            if (arg === undefined) return 'undefined';
+            if (arg === null) return 'null';
+            if (arg instanceof Error) return arg.stack;
+            if (typeof arg === 'object') return JSON.stringify(arg);
+            return String(arg);
+        })
+    }
+
+    globalThis.console = {
+        log: (...args) => _consoleLog.applySync(undefined, formatArgs(args)),
+        info: (...args) => _consoleInfo.applySync(undefined, formatArgs(args)),
+        warn: (...args) => _consoleWarn.applySync(undefined, formatArgs(args)),
+        error: (...args) => _consoleError.applySync(undefined, formatArgs(args))
+    };
+})();

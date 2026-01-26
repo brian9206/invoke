@@ -54,11 +54,12 @@ class BuiltinBridge {
         this.setupEvents(context);
         this.setupStringDecoder(context);
         this.setupZlib(context);
+        this.setupMimeTypes(context);
         
         // Set metadata array of available modules
         await context.global.set(
             '_moduleNames',
-            new ivm.ExternalCopy(['fs', 'path', 'crypto', 'querystring', 'url', 'util', 'buffer', 'events', 'string_decoder', 'zlib']).copyInto()
+            new ivm.ExternalCopy(['fs', 'path', 'crypto', 'querystring', 'url', 'util', 'buffer', 'events', 'string_decoder', 'zlib', 'mime-types']).copyInto()
         );
     }
     
@@ -516,6 +517,42 @@ class BuiltinBridge {
             inflateSync: new ivm.Reference(function(buffer, options) {
                 return zlib.inflateSync(buffer, options);
             })
+        };
+    }
+    
+    /**
+     * Setup mime-types module
+     */
+    static setupMimeTypes(context) {
+        const mimeTypes = this.createMimeTypesModule();
+        this.setModuleGlobals(context, 'mime-types', mimeTypes);
+    }
+    
+    /**
+     * Create mime-types module
+     */
+    static createMimeTypesModule() {
+        const mime = require('mime-types');
+        
+        return {
+            lookup: new ivm.Reference((filenameOrExt) => {
+                return mime.lookup(filenameOrExt) || false;
+            }),
+            
+            contentType: new ivm.Reference((typeOrExt) => {
+                return mime.contentType(typeOrExt) || false;
+            }),
+            
+            extension: new ivm.Reference((mimeType) => {
+                return mime.extension(mimeType) || false;
+            }),
+            
+            charset: new ivm.Reference((mimeType) => {
+                return mime.charset(mimeType) || false;
+            }),
+            
+            types: new ivm.ExternalCopy(mime.types).copyInto(),
+            extensions: new ivm.ExternalCopy(mime.extensions).copyInto()
         };
     }
 }

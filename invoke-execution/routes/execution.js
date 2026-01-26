@@ -122,9 +122,17 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
         const executionTime = Date.now() - startTime;
         const statusCode = result.statusCode || 200;
         
+        // Calculate response size properly for buffers
+        let responseSize = 0;
+        if (Buffer.isBuffer(result.data)) {
+            responseSize = Buffer.byteLength(result.data);
+        } else if (result.data) {
+            responseSize = JSON.stringify(result.data).length;
+        }
+        
         const requestInfo = {
             requestSize: JSON.stringify(queryParams).length,
-            responseSize: JSON.stringify(result.data || {}).length,
+            responseSize: responseSize,
             clientIp: req.ip,
             userAgent: req.headers['user-agent'],
             consoleOutput: result.logs || [],
@@ -133,7 +141,7 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
             requestMethod: req.method,
             requestUrl: req.url,
             requestBody: JSON.stringify(queryParams),
-            responseBody: JSON.stringify(result.data || {})
+            responseBody: result.data  // Pass Buffer directly, not stringified
         };
         
         await logExecution(functionId, executionTime, statusCode, result.error, requestInfo);
@@ -150,17 +158,17 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
             // Set headers from user function
             if (result.headers) {
                 Object.entries(result.headers).forEach(([key, value]) => {
-                    res.setHeader(key, value);
+                    // Handle array values (e.g., Set-Cookie with multiple cookies)
+                    if (Array.isArray(value)) {
+                        value.forEach(v => res.append(key, v));
+                    } else {
+                        res.setHeader(key, value);
+                    }
                 });
             }
             
-            // Send response with appropriate content-type
-            const contentType = result.headers && result.headers['content-type'];
-            if (contentType && !contentType.includes('application/json')) {
-                res.status(statusCode).send(result.data);
-            } else {
-                res.status(statusCode).json(result.data);
-            }
+            // Send response
+            res.status(statusCode).send(result.data);
         }
 
     } catch (error) {
@@ -224,7 +232,24 @@ function filterHeaders(headers) {
     const filtered = { ...headers };
     delete filtered['x-api-key'];
     delete filtered['authorization'];
-    delete filtered['cookie'];
+    delete filtered['host'];
+    delete filtered['x-forwarded-for'];
+    
+    // Filter out auth-token cookie from Cookie header
+    if (filtered['cookie']) {
+        const cookies = filtered['cookie'].split(';').map(c => c.trim());
+        const filteredCookies = cookies.filter(cookie => {
+            const name = cookie.split('=')[0];
+            return name !== 'auth-token';
+        });
+        
+        if (filteredCookies.length > 0) {
+            filtered['cookie'] = filteredCookies.join('; ');
+        } else {
+            delete filtered['cookie'];
+        }
+    }
+    
     return filtered;
 }
 

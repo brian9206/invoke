@@ -6,6 +6,7 @@ const path = require('path')
 const fs = require('fs-extra')
 const { CronJob } = require('cron')
 const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution')
+const { logExecution } = require('../services/utils')
 
 // Utility function to calculate next execution time based on cron expression
 function calculateNextExecution(cronExpression) {
@@ -60,33 +61,29 @@ async function executeScheduledFunction(functionData) {
 
     // Get the response data from either the function return value or res.json/res.send calls
     const responseData = context.res.data || result.data || result.error || {}
-
-    // Log execution to database
-    const logQuery = `
-      INSERT INTO execution_logs (
-        function_id, status_code, execution_time_ms, 
-        request_method, request_url, executed_at, response_body, console_logs
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `
     
-    await database.query(logQuery, [
-      functionData.id,
-      statusCode,
-      executionTime,
-      'SCHEDULED',
-      '/scheduled',
-      new Date(),
-      JSON.stringify(responseData),
-      JSON.stringify(context.console.getLogs())
-    ])
+    // Calculate response size
+    let responseSize = 0;
+    if (Buffer.isBuffer(responseData)) {
+      responseSize = Buffer.byteLength(responseData);
+    } else if (responseData) {
+      responseSize = JSON.stringify(responseData).length;
+    }
 
-    // Update function execution stats
-    await database.query(`
-      UPDATE functions 
-      SET execution_count = execution_count + 1,
-          last_executed = $2
-      WHERE id = $1
-    `, [functionData.id, new Date()])
+    // Log execution using shared utility
+    await logExecution(functionData.id, executionTime, statusCode, result.error, {
+      requestMethod: 'SCHEDULED',
+      requestUrl: '/scheduled',
+      requestBody: '',
+      requestSize: 0,
+      responseBody: responseData,
+      responseSize: responseSize,
+      requestHeaders: { 'x-scheduled-execution': 'true' },
+      responseHeaders: result.headers || {},
+      consoleOutput: result.logs || [],
+      clientIp: '127.0.0.1',
+      userAgent: 'Invoke-Scheduler/1.0'
+    })
 
     console.log(`✓ Scheduled function ${functionData.name} executed successfully in ${executionTime}ms`)
     

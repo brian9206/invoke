@@ -120,6 +120,47 @@
             };
         }
         
+        // Special handling for fs module - ensure readFileSync returns Buffer when no encoding
+        if (moduleName === 'fs') {
+            const originalReadFileSync = module.readFileSync;
+            module.readFileSync = function(path, encoding) {
+                const result = originalReadFileSync(path, encoding);
+                // If no encoding specified and result is ArrayBuffer, convert to Buffer
+                if ((encoding === undefined || encoding === null) && result instanceof ArrayBuffer) {
+                    return Buffer.from(result);
+                }
+                return result;
+            };
+            
+            // Handle callback version
+            const originalReadFile = module.readFile;
+            module.readFile = function(path, encodingOrCallback, callback) {
+                const actualCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
+                const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
+                
+                originalReadFile(path, encodingOrCallback, (err, data) => {
+                    // If no encoding specified and result is ArrayBuffer, convert to Buffer
+                    if (!err && (encoding === undefined || encoding === null) && data instanceof ArrayBuffer) {
+                        data = Buffer.from(data);
+                    }
+                    actualCallback(err, data);
+                });
+            };
+            
+            // Handle promises version
+            if (module.promises) {
+                const originalPromisesReadFile = module.promises.readFile;
+                module.promises.readFile = async function(path, encoding) {
+                    const result = await originalPromisesReadFile(path, encoding);
+                    // If no encoding specified and result is ArrayBuffer, convert to Buffer
+                    if ((encoding === undefined || encoding === null) && result instanceof ArrayBuffer) {
+                        return Buffer.from(result);
+                    }
+                    return result;
+                };
+            }
+        }
+        
         // Special handling for events module - EventEmitter
         if (moduleName === 'events') {
             const originalEventEmitter = module.EventEmitter;

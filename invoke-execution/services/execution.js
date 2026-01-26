@@ -346,54 +346,27 @@ async function getFunctionPackage(functionId) {
 }
 
 /**
- * Create a secure console object that captures logs
- * @param {string} packageDir - Optional package directory (not used in new implementation)
- */
-function createConsoleObject(packageDir = null) {
-    const logs = [];
-    
-    const formatArgs = (...args) => {
-        return args.map(arg => {
-            if (arg instanceof Error) {
-                let errorOutput = arg.message || String(arg);
-                if (arg.stack) {
-                    errorOutput += '\n' + arg.stack;
-                }
-                return errorOutput;
-            }
-            
-            if (typeof arg === 'object' && arg !== null) {
-                try {
-                    return JSON.stringify(arg);
-                } catch (error) {
-                    return '[object Object]';
-                }
-            }
-            return String(arg);
-        }).join(' ');
-    };
-    
-    return {
-        log: (...args) => logs.push({ level: 'log', message: formatArgs(...args), timestamp: Date.now() }),
-        info: (...args) => logs.push({ level: 'info', message: formatArgs(...args), timestamp: Date.now() }),
-        warn: (...args) => logs.push({ level: 'warn', message: formatArgs(...args), timestamp: Date.now() }),
-        error: (...args) => logs.push({ level: 'error', message: formatArgs(...args), timestamp: Date.now() }),
-        getLogs: () => logs
-    };
-}
-
-/**
  * Create a mock request object compatible with Express.js
  */
 function createRequestObject(method = 'POST', body = {}, query = {}, headers = {}, params = {}, originalReq = {}) {
-    let url = originalReq.params && originalReq.params[1] ? originalReq.params[1] : '/';
+    // Extract the path after the function ID
+    // originalReq.params[0] = functionId, originalReq.params[1] = the rest of the path
+    let pathAfterFunctionId = originalReq.params && originalReq.params[1] ? originalReq.params[1] : '';
     
-    if (originalReq.path && !originalReq.path.endsWith('/') && url === '/') {
-        url = '';
+    // Ensure path starts with /
+    let url = pathAfterFunctionId ? `/${pathAfterFunctionId}` : '/';
+    
+    // If there's a query string in the original URL, preserve it
+    if (originalReq.originalUrl) {
+        const queryString = originalReq.originalUrl.split('?')[1];
+        if (queryString) {
+            url += `?${queryString}`;
+        }
     }
     
     const protocol = originalReq.protocol || 'http';
-    const hostname = originalReq.hostname || 'localhost';
+    const hostname = 'localhost';
+    const host = 'localhost';
     
     const request = {
         method,
@@ -402,109 +375,17 @@ function createRequestObject(method = 'POST', body = {}, query = {}, headers = {
         path: url.split('?')[0],
         protocol,
         hostname,
+        host,
         secure: protocol === 'https',
         ip: originalReq.ip || (originalReq.connection && originalReq.connection.remoteAddress) || '127.0.0.1',
         ips: originalReq.ips || [],
         body,
         query,
         params,
-        headers,
-        
-        // Express.js methods
-        get(headerName) {
-            return this.headers[headerName.toLowerCase()];
-        },
-        
-        header(headerName) {
-            return this.get(headerName);
-        },
-        
-        is(type) {
-            const contentType = this.get('content-type') || '';
-            return contentType.includes(type);
-        },
-        
-        accepts(types) {
-            const acceptHeader = this.get('accept') || '*/*';
-            if (typeof types === 'string') {
-                return acceptHeader.includes(types) ? types : false;
-            }
-            if (Array.isArray(types)) {
-                for (const type of types) {
-                    if (acceptHeader.includes(type)) return type;
-                }
-                return false;
-            }
-            return acceptHeader;
-        }
+        headers
     };
     
     return request;
-}
-
-/**
- * Create a mock response object for function context
- */
-function createResponseObject() {
-    const response = {
-        statusCode: 200,
-        headers: {},
-        data: undefined,
-        locals: {},
-        
-        status(code) {
-            this.statusCode = code;
-            return this;
-        },
-        
-        json(data) {
-            this.data = data;
-            this.headers['content-type'] = 'application/json';
-            return this;
-        },
-        
-        send(data) {
-            this.data = data;
-            if (!this.headers['content-type']) {
-                if (typeof data === 'string') {
-                    this.headers['content-type'] = 'text/plain';
-                } else if (typeof data === 'object') {
-                    this.headers['content-type'] = 'application/json';
-                } else {
-                    this.headers['content-type'] = 'text/plain';
-                }
-            }
-            return this;
-        },
-        
-        sendFile(filePath, options = {}) {
-            // Note: This is a stub for backward compatibility
-            // Actual sendFile implementation is in ExecutionContext
-            throw new Error('sendFile not supported in this context');
-        },
-        
-        set(name, value) {
-            return this.setHeader(name, value);
-        },
-        
-        setHeader(name, value) {
-            this.headers[name.toLowerCase()] = value;
-            return this;
-        },
-        
-        get(name) {
-            return this.headers[name.toLowerCase()];
-        },
-        
-        end(data) {
-            if (data !== undefined) {
-                this.data = data;
-            }
-            return this;
-        }
-    };
-    
-    return response;
 }
 
 /**
@@ -515,13 +396,11 @@ function createResponseObject() {
  * @param {Object} headers - Request headers
  * @param {Object} params - Route parameters
  * @param {Object} originalReq - Original request object
- * @returns {Object} Execution context with req, res, console
+ * @returns {Object} Execution context with req
  */
 function createExecutionContext(method = 'POST', body = {}, query = {}, headers = {}, params = {}, originalReq = {}, packageDir = null) {
     return {
-        req: createRequestObject(method, body, query, headers, params, originalReq),
-        res: createResponseObject(),
-        console: createConsoleObject(packageDir)
+        req: createRequestObject(method, body, query, headers, params, originalReq)
     };
 }
 
@@ -530,9 +409,6 @@ module.exports = {
     executeFunction: (...args) => executionEngine.executeFunction(...args),
     createExecutionContext,
     fetchEnvironmentVariables,
-    createConsoleObject,
-    createRequestObject,
-    createResponseObject,
     getFunctionPackage,
     fetchFunctionMetadata,
     getMetrics: () => executionEngine.getMetrics(),

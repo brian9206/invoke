@@ -60,6 +60,9 @@ class ExecutionContext {
         // Set up response references (needed for pre-compiled script)
         await this._setupResponseRefs();
         
+        // Set up TextEncoder and TextDecoder
+        await this._setupTextEncoderDecoder();
+        
         // Run pre-compiled bootstrap script that sets up all globals
         await this.compiledScript.run(this.context);
     }
@@ -132,6 +135,10 @@ class ExecutionContext {
         await this.context.global.set('_arch', process.arch, { copy: true });
         await this.context.global.set('_node_version', process.version, { copy: true });
         await this.context.global.set('_node_versions', process.versions, { copy: true });
+        
+        // Set HTTP status codes from Node.js http module
+        const http = require('http');
+        await this.context.global.set('_httpStatusCodes', new ivm.ExternalCopy(http.STATUS_CODES).copyInto());
     }
 
     /**
@@ -141,6 +148,29 @@ class ExecutionContext {
         await this.context.global.set('_sleep', new ivm.Reference((timeoutMs) => {
             return new Promise((resolve) => setTimeout(() => resolve(), timeoutMs));
         }));
+    }
+
+    /**
+     * Set up TextEncoder and TextDecoder
+     */
+    async _setupTextEncoderDecoder() {
+        const { TextEncoder: HostTextEncoder, TextDecoder: HostTextDecoder } = require('util');
+        
+        // Create TextEncoder reference - returns ArrayBuffer via ExternalCopy
+        const textEncoderEncode = new ivm.Reference((str) => {
+            const encoder = new HostTextEncoder();
+            const encoded = encoder.encode(str);
+            return new ivm.ExternalCopy(encoded.buffer).copyInto();
+        });
+        
+        // Create TextDecoder reference - receives plain array with copy option
+        const textDecoderDecode = new ivm.Reference((arr, encoding = 'utf-8') => {
+            const decoder = new HostTextDecoder(encoding);
+            return decoder.decode(new Uint8Array(arr));
+        }, { arguments: { copy: true } });
+        
+        await this.context.global.set('_textEncoderEncode', textEncoderEncode);
+        await this.context.global.set('_textDecoderDecode', textDecoderDecode);
     }
 
     /**
@@ -154,27 +184,21 @@ class ExecutionContext {
             self.response.statusCode = code;
         });
         
-        const resJson = new ivm.Reference((jsonString) => {
-            self.response.data = JSON.parse(jsonString);
-            self.response.headers['content-type'] = 'application/json';
-        });
-        
-        const resSend = new ivm.Reference((data) => {
-            self.response.data = data;
+        const resSend = new ivm.Reference((externalCopy) => {
+            const hostBuffer = externalCopy.copy();
+            self.response.data = Buffer.from(hostBuffer);
             
+            // Auto-detect content-type if not set
             if (!self.response.headers['content-type']) {
-                if (typeof data === 'string') {
-                    try {
-                        JSON.parse(data);
-                        self.response.headers['content-type'] = 'application/json';
-                    } catch {
-                        self.response.headers['content-type'] = 'text/plain';
-                    }
-                } else {
+                try {
+                    const asString = self.response.data.toString('utf8');
+                    JSON.parse(asString);
+                    self.response.headers['content-type'] = 'application/json';
+                } catch {
                     self.response.headers['content-type'] = 'text/plain';
                 }
             }
-        });
+        }, { arguments: { copy: true } });
         
         const resSendFile = new ivm.Reference((filePath, options = {}) => {
             try {
@@ -196,10 +220,12 @@ class ExecutionContext {
                 };
                 
                 const contentType = contentTypes[ext] || 'application/octet-stream';
-                const content = vfsFs.readFileSync(filePath, 'utf8');
+                
+                // Read as buffer (no encoding)
+                const buffer = vfsFs.readFileSync(filePath);
                 
                 self.response.headers['content-type'] = contentType;
-                self.response.data = content;
+                self.response.data = buffer;
                 
                 if (options.maxAge !== undefined) {
                     self.response.headers['cache-control'] = `public, max-age=${options.maxAge}`;
@@ -217,18 +243,46 @@ class ExecutionContext {
             return self.response.headers[name.toLowerCase()];
         });
         
-        const resEnd = new ivm.Reference((data) => {
-            if (data !== undefined) {
-                self.response.data = data;
+        const resAppendHeader = new ivm.Reference((name, value) => {
+            const lowerName = name.toLowerCase();
+            const existing = self.response.headers[lowerName];
+            
+            if (existing) {
+                // For Set-Cookie, allow multiple values as array
+                if (lowerName === 'set-cookie') {
+                    if (Array.isArray(existing)) {
+                        existing.push(value);
+                    } else {
+                        self.response.headers[lowerName] = [existing, value];
+                    }
+                } else {
+                    // For other headers, concatenate with comma
+                    self.response.headers[lowerName] = `${existing}, ${value}`;
+                }
+            } else {
+                self.response.headers[lowerName] = value;
+            }
+        });
+        
+        const resRemoveHeader = new ivm.Reference((name) => {
+            delete self.response.headers[name.toLowerCase()];
+        });
+        
+        const resEnd = new ivm.Reference((externalCopy) => {
+            if (externalCopy !== null && externalCopy !== undefined) {
+                // externalCopy is already an ExternalCopy instance due to { externalCopy: true }
+                const hostBuffer = externalCopy.copy();
+                self.response.data = Buffer.from(hostBuffer);
             }
         });
         
         await this.context.global.set('_resStatus', resStatus);
-        await this.context.global.set('_resJson', resJson);
         await this.context.global.set('_resSend', resSend);
         await this.context.global.set('_resSendFile', resSendFile);
         await this.context.global.set('_resSetHeader', resSetHeader);
         await this.context.global.set('_resGet', resGet);
+        await this.context.global.set('_resAppendHeader', resAppendHeader);
+        await this.context.global.set('_resRemoveHeader', resRemoveHeader);
         await this.context.global.set('_resEnd', resEnd);
     }
     

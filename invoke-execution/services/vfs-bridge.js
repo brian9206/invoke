@@ -27,7 +27,19 @@ class VFSBridge {
         return {
             // Sync methods
             readFileSync: new ivm.Reference((path, encoding) => {
-                return self.fs.readFileSync(path, encoding || 'utf8');
+                // If no encoding or null, read as buffer and return as ArrayBuffer for transfer
+                if (encoding === null || encoding === undefined) {
+                    const buffer = self.fs.readFileSync(path);
+                    // Copy the buffer to a new ArrayBuffer for transfer to VM
+                    const arrayBuffer = new ArrayBuffer(buffer.length);
+                    const view = new Uint8Array(arrayBuffer);
+                    for (let i = 0; i < buffer.length; i++) {
+                        view[i] = buffer[i];
+                    }
+                    return new ivm.ExternalCopy(arrayBuffer).copyInto();
+                }
+                // Otherwise read as string with encoding
+                return self.fs.readFileSync(path, encoding);
             }),
             
             writeFileSync: new ivm.Reference((path, data, encoding) => {
@@ -113,6 +125,15 @@ class VFSBridge {
                 const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
                 
                 self.fs.readFile(path, encoding, (err, data) => {
+                    // Convert Buffer to ArrayBuffer via ExternalCopy when no encoding specified
+                    if (!err && !encoding && Buffer.isBuffer(data)) {
+                        const arrayBuffer = new ArrayBuffer(data.length);
+                        const view = new Uint8Array(arrayBuffer);
+                        for (let i = 0; i < data.length; i++) {
+                            view[i] = data[i];
+                        }
+                        data = new ivm.ExternalCopy(arrayBuffer).copyInto();
+                    }
                     actualCallback.applySync(undefined, [err, data]);
                 });
             }),
@@ -282,7 +303,19 @@ class VFSBridge {
         
         return {
             readFile: new ivm.Reference(async (path, encoding) => {
-                return await self.fs.promises.readFile(path, encoding || 'utf8');
+                // If no encoding or null, read as buffer and return as ArrayBuffer for transfer
+                if (encoding === null || encoding === undefined) {
+                    const buffer = await self.fs.promises.readFile(path);
+                    // Copy the buffer to a new ArrayBuffer for transfer to VM
+                    const arrayBuffer = new ArrayBuffer(buffer.length);
+                    const view = new Uint8Array(arrayBuffer);
+                    for (let i = 0; i < buffer.length; i++) {
+                        view[i] = buffer[i];
+                    }
+                    return new ivm.ExternalCopy(arrayBuffer).copyInto();
+                }
+                // Otherwise read as string with encoding
+                return await self.fs.promises.readFile(path, encoding);
             }),
             
             writeFile: new ivm.Reference(async (path, data, encoding) => {

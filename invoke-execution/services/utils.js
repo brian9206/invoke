@@ -1,6 +1,26 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 
+// Validate and parse MAX_RESPONSE_LOG_SIZE environment variable
+const parseMaxResponseLogSize = () => {
+    const envValue = process.env.MAX_RESPONSE_LOG_SIZE;
+    
+    if (!envValue) {
+        // Default to 10MB
+        return 10 * 1024 * 1024;
+    }
+    
+    const parsed = parseInt(envValue, 10);
+    
+    if (isNaN(parsed) || parsed <= 0) {
+        throw new Error(`MAX_RESPONSE_LOG_SIZE must be a positive integer, got: ${envValue}`);
+    }
+    
+    return parsed;
+};
+
+const MAX_RESPONSE_LOG_SIZE = parseMaxResponseLogSize();
+
 /**
  * Shared utility functions for all Invoke services
  */
@@ -116,6 +136,42 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
     const database = require('./database');
     
     try {
+        // Format response body for logging based on MIME type
+        let responseBodyLog = '';
+        if (requestInfo.responseBody) {
+            const contentType = (requestInfo.responseHeaders?.['content-type'] || '').toLowerCase();
+            
+            // Text-based MIME types that should be logged
+            const isTextContent = 
+                contentType.startsWith('text/') ||
+                contentType.includes('application/json') ||
+                contentType.includes('application/xml') ||
+                contentType.includes('application/javascript') ||
+                contentType.includes('application/x-www-form-urlencoded') ||
+                contentType.includes('+json') ||
+                contentType.includes('+xml');
+            
+            if (isTextContent) {
+                if (Buffer.isBuffer(requestInfo.responseBody)) {
+                    responseBodyLog = requestInfo.responseBody.toString('utf8');
+                } else if (typeof requestInfo.responseBody === 'string') {
+                    responseBodyLog = requestInfo.responseBody;
+                } else {
+                    responseBodyLog = JSON.stringify(requestInfo.responseBody);
+                }
+                
+                // Truncate if exceeds max size
+                if (responseBodyLog.length > MAX_RESPONSE_LOG_SIZE) {
+                    const sizeMB = (MAX_RESPONSE_LOG_SIZE / (1024 * 1024)).toFixed(1);
+                    responseBodyLog = responseBodyLog.substring(0, MAX_RESPONSE_LOG_SIZE) + 
+                        `...<TRUNCATED at ${sizeMB}MB>`;
+                }
+            } else {
+                // Binary content (images, videos, etc.)
+                responseBodyLog = '<BINARY>';
+            }
+        }
+        
         await database.query(`
             INSERT INTO execution_logs (
                 function_id, status_code, execution_time_ms, 
@@ -137,7 +193,7 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
             JSON.stringify(requestInfo.requestHeaders || {}),
             JSON.stringify(requestInfo.responseHeaders || {}),
             requestInfo.requestBody || '',
-            requestInfo.responseBody || '',
+            responseBodyLog,
             requestInfo.requestMethod || 'POST',
             requestInfo.requestUrl || ''
         ]);
