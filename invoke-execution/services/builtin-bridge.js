@@ -7,31 +7,7 @@ const ivm = require('isolated-vm');
  * Architecture: Uses flattened globals with naming convention _moduleName_methodName
  * This allows the VM to reconstruct module objects generically without hardcoded structure
  */
-class BuiltinBridge {
-    /**
-     * Recursively flatten a module object to individual globals with naming convention
-     * @param {ivm.Context} context - The isolated-vm context
-     * @param {string} moduleName - Name of the module (e.g., 'fs', 'crypto')
-     * @param {Object} moduleObj - Module object with methods/properties
-     * @param {string} prefix - Current prefix for nested properties
-     */
-    static setModuleGlobals(context, moduleName, moduleObj, prefix = '') {
-        const currentPrefix = prefix || `_${moduleName}_`;
-        
-        for (const [key, value] of Object.entries(moduleObj)) {
-            const globalName = `${currentPrefix}${key}`;
-            
-            // Handle nested objects (e.g., fs.promises, util.types)
-            if (value && typeof value === 'object' && !value.applySync && !value.copyInto) {
-                // This is a plain object or external copy, recurse into it
-                this.setModuleGlobals(context, moduleName, value, `${currentPrefix}${key}_`);
-            } else {
-                // This is an ivm.Reference or ExternalCopy, set directly
-                context.global.setSync(globalName, value);
-            }
-        }
-    }
-    
+class BuiltinBridge {    
     /**
      * Set up all built-in module references in the VM context
      * @param {ivm.Context} context - The isolated-vm context
@@ -39,521 +15,597 @@ class BuiltinBridge {
      * @param {Object} pathModule - The path module object with ivm.Reference methods
      */
     static async setupAll(context, fsModule, pathModule) {
-        // Set fs module references (flattened with naming convention)
         this.setupFS(context, fsModule);
-        
-        // Set path module references (flattened with naming convention)
         this.setupPath(context, pathModule);
-        
-        // Set up other built-in modules (flattened with naming convention)
-        this.setupCrypto(context);
-        this.setupQuerystring(context);
-        this.setupUrl(context);
-        this.setupUtil(context);
-        this.setupBuffer(context);
-        this.setupEvents(context);
-        this.setupStringDecoder(context);
-        this.setupZlib(context);
         this.setupMimeTypes(context);
-        
-        // Set metadata array of available modules
-        await context.global.set(
-            '_moduleNames',
-            new ivm.ExternalCopy(['fs', 'path', 'crypto', 'querystring', 'url', 'util', 'buffer', 'events', 'string_decoder', 'zlib', 'mime-types']).copyInto()
-        );
     }
     
     /**
      * Setup fs module (from VFS)
      */
     static setupFS(context, fsModule) {
-        // fsModule is the VFS-based fs with all methods as ivm.Reference
-        // Flatten it using naming convention: _fs_readFileSync, _fs_promises_readFile, etc.
-        this.setModuleGlobals(context, 'fs', fsModule);
+        function convertErrorObject(value) {
+            if (!value || typeof value.message !== 'string') {
+                return value;
+            }
+
+            return new Error('__FS_ERROR__:' + JSON.stringify(value));
+        }
+
+        // Sync methods
+        context.global.setSync('_fs_readFileSync', new ivm.Reference((path, encoding) => {
+            try {
+                if (encoding === null || encoding === undefined) {
+                    const buffer = fsModule.readFileSync(path);
+                    return BuiltinBridge._bufferToArrayBuffer(buffer);
+                }
+                return fsModule.readFileSync(path, encoding);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_writeFileSync', new ivm.Reference((path, data, encoding) => {
+            try {
+                // Convert ArrayBuffer from VM to Buffer if needed
+                if (data instanceof ArrayBuffer) {
+                    data = BuiltinBridge._arrayBufferToBuffer(data);
+                }
+                return fsModule.writeFileSync(path, data, encoding);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_appendFileSync', new ivm.Reference((path, data, encoding) => {
+            try {
+                if (data instanceof ArrayBuffer) {
+                    data = BuiltinBridge._arrayBufferToBuffer(data);
+                }
+                return fsModule.appendFileSync(path, data, encoding);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_statSync', new ivm.Reference((path) => {
+            try {
+                const stats = fsModule.statSync(path);
+                return BuiltinBridge._serializeStats(stats);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_readdirSync', new ivm.Reference((path, options) => {
+            try {
+                return fsModule.readdirSync(path, options);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_existsSync', new ivm.Reference((path) => {
+            try {
+                return fsModule.existsSync(path);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_accessSync', new ivm.Reference((path, mode) => {
+            try {
+                return fsModule.accessSync(path, mode);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_mkdirSync', new ivm.Reference((path, options) => {
+            try {
+                return fsModule.mkdirSync(path, options);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_unlinkSync', new ivm.Reference((path) => {
+            try {
+                return fsModule.unlinkSync(path);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_rmdirSync', new ivm.Reference((path, options) => {
+            try {
+                return fsModule.rmdirSync(path, options);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_renameSync', new ivm.Reference((oldPath, newPath) => {
+            try {
+                return fsModule.renameSync(oldPath, newPath);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_copyFileSync', new ivm.Reference((src, dest, flags) => {
+            try {
+                return fsModule.copyFileSync(src, dest, flags);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_chmodSync', new ivm.Reference((path, mode) => {
+            try {
+                return fsModule.chmodSync(path, mode);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_chownSync', new ivm.Reference((path, uid, gid) => {
+            try {
+                return fsModule.chownSync(path, uid, gid);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_openSync', new ivm.Reference((path, flags, mode) => {
+            try {
+                return fsModule.openSync(path, flags, mode);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_closeSync', new ivm.Reference((fd) => {
+            try {
+                return fsModule.closeSync(fd);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_readSync', new ivm.Reference((fd, buffer, offset, length, position) => {
+            try {
+                // Convert ArrayBuffer from VM to Buffer
+                if (buffer instanceof ArrayBuffer) {
+                    buffer = BuiltinBridge._arrayBufferToBuffer(buffer);
+                }
+                const bytesRead = fsModule.readSync(fd, buffer, offset, length, position);
+                // Return both bytesRead and filled buffer as ArrayBuffer
+                return new ivm.ExternalCopy({ bytesRead, buffer: BuiltinBridge._bufferToArrayBuffer(buffer) }).copyInto();
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_writeSync', new ivm.Reference((fd, buffer, offset, length, position) => {
+            try {
+                // Convert ArrayBuffer from VM to Buffer
+                if (buffer instanceof ArrayBuffer) {
+                    buffer = BuiltinBridge._arrayBufferToBuffer(buffer);
+                }
+                return fsModule.writeSync(fd, buffer, offset, length, position);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_truncateSync', new ivm.Reference((path, len) => {
+            try {
+                return fsModule.truncateSync(path, len);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_ftruncateSync', new ivm.Reference((fd, len) => {
+            try {
+                return fsModule.ftruncateSync(fd, len);
+            }
+            catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        // Async callback methods
+        context.global.setSync('_fs_readFile', new ivm.Reference((path, encodingOrCallback, callback) => {
+            const actualCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
+            const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
+            
+            fsModule.readFile(path, encoding, (err, data) => {
+                if (!err && !encoding && Buffer.isBuffer(data)) {
+                    data = BuiltinBridge._bufferToArrayBuffer(data);
+                }
+                actualCallback.applySync(undefined, [convertErrorObject(err), data], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_writeFile', new ivm.Reference((path, data, encodingOrCallback, callback) => {
+            const actualCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
+            const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
+            
+            if (data instanceof ArrayBuffer) {
+                data = BuiltinBridge._arrayBufferToBuffer(data);
+            }
+            
+            fsModule.writeFile(path, data, encoding, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_appendFile', new ivm.Reference((path, data, encodingOrCallback, callback) => {
+            const actualCallback = typeof encodingOrCallback === 'function' ? encodingOrCallback : callback;
+            const encoding = typeof encodingOrCallback === 'string' ? encodingOrCallback : undefined;
+            
+            if (data instanceof ArrayBuffer) {
+                data = BuiltinBridge._arrayBufferToBuffer(data);
+            }
+            
+            fsModule.appendFile(path, data, encoding, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_stat', new ivm.Reference((path, callback) => {
+            fsModule.stat(path, (err, stats) => {
+                const serializedStats = stats ? BuiltinBridge._serializeStats(stats) : null;
+                callback.applySync(undefined, [convertErrorObject(err), serializedStats], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_readdir', new ivm.Reference((path, optionsOrCallback, callback) => {
+            const actualCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+            const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : undefined;
+            
+            fsModule.readdir(path, options, (err, files) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err), files], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_access', new ivm.Reference((path, modeOrCallback, callback) => {
+            const actualCallback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
+            const mode = typeof modeOrCallback === 'number' ? modeOrCallback : undefined;
+            
+            fsModule.access(path, mode, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_mkdir', new ivm.Reference((path, optionsOrCallback, callback) => {
+            const actualCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+            const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : undefined;
+            
+            fsModule.mkdir(path, options, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_unlink', new ivm.Reference((path, callback) => {
+            fsModule.unlink(path, (err) => {
+                callback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_rmdir', new ivm.Reference((path, optionsOrCallback, callback) => {
+            const actualCallback = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+            const options = typeof optionsOrCallback === 'object' ? optionsOrCallback : undefined;
+            
+            fsModule.rmdir(path, options, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_rename', new ivm.Reference((oldPath, newPath, callback) => {
+            fsModule.rename(oldPath, newPath, (err) => {
+                callback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_copyFile', new ivm.Reference((src, dest, flagsOrCallback, callback) => {
+            const actualCallback = typeof flagsOrCallback === 'function' ? flagsOrCallback : callback;
+            const flags = typeof flagsOrCallback === 'number' ? flagsOrCallback : undefined;
+            
+            fsModule.copyFile(src, dest, flags, (err) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_chmod', new ivm.Reference((path, mode, callback) => {
+            fsModule.chmod(path, mode, (err) => {
+                callback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_chown', new ivm.Reference((path, uid, gid, callback) => {
+            fsModule.chown(path, uid, gid, (err) => {
+                callback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_open', new ivm.Reference((path, flags, modeOrCallback, callback) => {
+            const actualCallback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
+            const mode = typeof modeOrCallback === 'number' ? modeOrCallback : undefined;
+            
+            fsModule.open(path, flags, mode, (err, fd) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err), fd], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_close', new ivm.Reference((fd, callback) => {
+            fsModule.close(fd, (err) => {
+                callback.applySync(undefined, [convertErrorObject(err)], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_read', new ivm.Reference((fd, buffer, offset, length, position, callback) => {
+            if (buffer instanceof ArrayBuffer) {
+                buffer = BuiltinBridge._arrayBufferToBuffer(buffer);
+            }
+            
+            fsModule.read(fd, buffer, offset, length, position, (err, bytesRead) => {
+                const bufferArrayBuffer = BuiltinBridge._bufferToArrayBuffer(buffer);
+                callback.applySync(undefined, [convertErrorObject(err), bytesRead, bufferArrayBuffer], { arguments: { copy: true } });
+            });
+        }));
+
+        context.global.setSync('_fs_write', new ivm.Reference((fd, buffer, offsetOrCallback, lengthOrCallback, positionOrCallback, callback) => {
+            let actualCallback, offset, length, position;
+            
+            if (typeof offsetOrCallback === 'function') {
+                actualCallback = offsetOrCallback;
+            } else if (typeof lengthOrCallback === 'function') {
+                actualCallback = lengthOrCallback;
+                offset = offsetOrCallback;
+            } else if (typeof positionOrCallback === 'function') {
+                actualCallback = positionOrCallback;
+                offset = offsetOrCallback;
+                length = lengthOrCallback;
+            } else {
+                actualCallback = callback;
+                offset = offsetOrCallback;
+                length = lengthOrCallback;
+                position = positionOrCallback;
+            }
+            
+            if (buffer instanceof ArrayBuffer) {
+                buffer = BuiltinBridge._arrayBufferToBuffer(buffer);
+            }
+            
+            fsModule.write(fd, buffer, offset, length, position, (err, bytesWritten) => {
+                actualCallback.applySync(undefined, [convertErrorObject(err), bytesWritten], { arguments: { copy: true } });
+            });
+        }));
+
+        // Stream methods (throw errors)
+        context.global.setSync('_fs_createReadStream', new ivm.Reference((path, options) => {
+            throw new Error('fs.createReadStream() is not supported in isolated environment');
+        }));
+
+        context.global.setSync('_fs_createWriteStream', new ivm.Reference((path, options) => {
+            throw new Error('fs.createWriteStream() is not supported in isolated environment');
+        }));
+
+        // Setup fs.promises API - direct globals pattern
+        context.global.setSync('_fs_promises_readFile', new ivm.Reference(async (path, encoding) => {
+            try {
+                if (encoding === null || encoding === undefined) {
+                    const buffer = await fsModule.promises.readFile(path);
+                    return BuiltinBridge._bufferToArrayBuffer(buffer);
+                }
+                return await fsModule.promises.readFile(path, encoding);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_writeFile', new ivm.Reference(async (path, data, encoding) => {
+            try {
+                if (data instanceof ArrayBuffer) {
+                    data = BuiltinBridge._arrayBufferToBuffer(data);
+                }
+                return await fsModule.promises.writeFile(path, data, encoding);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_appendFile', new ivm.Reference(async (path, data, encoding) => {
+            try {
+                if (data instanceof ArrayBuffer) {
+                    data = BuiltinBridge._arrayBufferToBuffer(data);
+                }
+                return await fsModule.promises.appendFile(path, data, encoding);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_stat', new ivm.Reference(async (path) => {
+            try {
+                const stats = await fsModule.promises.stat(path);
+                return BuiltinBridge._serializeStats(stats);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_readdir', new ivm.Reference(async (path, options) => {
+            try {
+                return await fsModule.promises.readdir(path, options);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_access', new ivm.Reference(async (path, mode) => {
+            try {
+                return await fsModule.promises.access(path, mode);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_mkdir', new ivm.Reference(async (path, options) => {
+            try {
+                return await fsModule.promises.mkdir(path, options);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_unlink', new ivm.Reference(async (path) => {
+            try {
+                return await fsModule.promises.unlink(path);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_rmdir', new ivm.Reference(async (path, options) => {
+            try {
+                return await fsModule.promises.rmdir(path, options);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_rename', new ivm.Reference(async (oldPath, newPath) => {
+            try {
+                return await fsModule.promises.rename(oldPath, newPath);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_copyFile', new ivm.Reference(async (src, dest, flags) => {
+            try {
+                return await fsModule.promises.copyFile(src, dest, flags);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_chmod', new ivm.Reference(async (path, mode) => {
+            try {
+                return await fsModule.promises.chmod(path, mode);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        context.global.setSync('_fs_promises_chown', new ivm.Reference(async (path, uid, gid) => {
+            try {
+                return await fsModule.promises.chown(path, uid, gid);
+            } catch (err) {
+                throw convertErrorObject(err);
+            }
+        }));
+
+        // Set fs.constants
+        context.global.set('_fs_constants', fsModule.constants, { copy: true });
     }
     
     /**
      * Setup path module (from VFS)
      */
     static setupPath(context, pathModule) {
-        // pathModule is the VFS-based path with all methods as ivm.Reference
-        // Flatten it using naming convention: _path_join, _path_resolve, etc.
-        this.setModuleGlobals(context, 'path', pathModule);
-    }
-    
-    /**
-     * Setup crypto module
-     */
-    static setupCrypto(context) {
-        const crypto = this.createCryptoModule();
-        this.setModuleGlobals(context, 'crypto', crypto);
-    }
-    
-    /**
-     * Setup querystring module
-     */
-    static setupQuerystring(context) {
-        const querystring = this.createQuerystringModule();
-        this.setModuleGlobals(context, 'querystring', querystring);
-    }
-    
-    /**
-     * Setup url module
-     */
-    static setupUrl(context) {
-        const url = this.createUrlModule();
-        this.setModuleGlobals(context, 'url', url);
-    }
-    
-    /**
-     * Setup util module
-     */
-    static setupUtil(context) {
-        const util = this.createUtilModule();
-        this.setModuleGlobals(context, 'util', util);
-    }
-    
-    /**
-     * Setup buffer module
-     */
-    static setupBuffer(context) {
-        const buffer = this.createBufferModule();
-        this.setModuleGlobals(context, 'buffer', buffer);
-    }
-    
-    /**
-     * Setup events module
-     */
-    static setupEvents(context) {
-        const events = this.createEventsModule();
-        this.setModuleGlobals(context, 'events', events);
-    }
-    
-    /**
-     * Setup string_decoder module
-     */
-    static setupStringDecoder(context) {
-        const stringDecoder = this.createStringDecoderModule();
-        this.setModuleGlobals(context, 'string_decoder', stringDecoder);
-    }
-    
-    /**
-     * Setup zlib module
-     */
-    static setupZlib(context) {
-        const zlib = this.createZlibModule();
-        this.setModuleGlobals(context, 'zlib', zlib);
+        // Expose sep and delimiter as direct values
+        context.global.set('_path_sep', pathModule.sep);
+        context.global.set('_path_delimiter', pathModule.delimiter);
+        
+        context.global.setSync('_path_normalize', new ivm.Reference((p) => pathModule.normalize(p)));
+        context.global.setSync('_path_join', new ivm.Reference((...args) => pathModule.join(...args)));
+        context.global.setSync('_path_resolve', new ivm.Reference((...args) => pathModule.resolve(...args)));
+        context.global.setSync('_path_dirname', new ivm.Reference((p) => pathModule.dirname(p)));
+        context.global.setSync('_path_basename', new ivm.Reference((p, ext) => pathModule.basename(p, ext)));
+        context.global.setSync('_path_extname', new ivm.Reference((p) => pathModule.extname(p)));
+        context.global.setSync('_path_isAbsolute', new ivm.Reference((p) => pathModule.isAbsolute(p)));
+        context.global.setSync('_path_relative', new ivm.Reference((from, to) => pathModule.relative(from, to)));
+        context.global.setSync('_path_parse', new ivm.Reference((p) => {
+            const result = pathModule.parse(p);
+            return new ivm.ExternalCopy(result).copyInto();
+        }));
+        context.global.setSync('_path_format', new ivm.Reference((obj) => pathModule.format(obj)));
     }
 
-    // =========================================================================
-    // MODULE CREATORS - Create module objects with ivm.Reference methods
-    // =========================================================================
-    
-    /**
-     * Create crypto module
-     */
-    static createCryptoModule() {
-        const crypto = require('crypto');
-        
-        return {
-            // Simplified hash function (no chaining, direct computation)
-            createHash: new ivm.Reference(function(algorithm) {
-                // Return a simple hash builder ID that can be used
-                const hashId = Math.random().toString(36);
-                const hash = crypto.createHash(algorithm);
-                
-                // Store hash instance temporarily
-                if (!global.__hashStore) global.__hashStore = new Map();
-                global.__hashStore.set(hashId, hash);
-                
-                return hashId;
-            }),
-            
-            // Hash update (works on stored hash instance)
-            _hashUpdate: new ivm.Reference(function(hashId, data) {
-                const hash = global.__hashStore?.get(hashId);
-                if (hash) {
-                    hash.update(data);
-                }
-                return hashId; // Return for chaining
-            }),
-            
-            // Hash digest (completes and cleans up)
-            _hashDigest: new ivm.Reference(function(hashId, encoding) {
-                const hash = global.__hashStore?.get(hashId);
-                if (hash) {
-                    const result = hash.digest(encoding);
-                    global.__hashStore.delete(hashId);
-                    return result;
-                }
-                return '';
-            }),
-            
-            // HMAC
-            createHmac: new ivm.Reference(function(algorithm, key) {
-                const hmacId = Math.random().toString(36);
-                const hmac = crypto.createHmac(algorithm, key);
-                
-                if (!global.__hmacStore) global.__hmacStore = new Map();
-                global.__hmacStore.set(hmacId, hmac);
-                
-                return hmacId;
-            }),
-            
-            _hmacUpdate: new ivm.Reference(function(hmacId, data) {
-                const hmac = global.__hmacStore?.get(hmacId);
-                if (hmac) {
-                    hmac.update(data);
-                }
-                return hmacId;
-            }),
-            
-            _hmacDigest: new ivm.Reference(function(hmacId, encoding) {
-                const hmac = global.__hmacStore?.get(hmacId);
-                if (hmac) {
-                    const result = hmac.digest(encoding);
-                    global.__hmacStore.delete(hmacId);
-                    return result;
-                }
-                return '';
-            }),
-            
-            // Random bytes
-            randomBytes: new ivm.Reference(function(size) {
-                return crypto.randomBytes(size).toString('hex');
-            }),
-            
-            // UUID
-            randomUUID: new ivm.Reference(function() {
-                return crypto.randomUUID();
-            }),
-            
-            // Constants
-            constants: new ivm.ExternalCopy(crypto.constants).copyInto()
-        };
-    }
-    
-    /**
-     * Create querystring module
-     */
-    static createQuerystringModule() {
-        const querystring = require('querystring');
-        
-        return {
-            parse: new ivm.Reference(function(str, sep, eq, options) {
-                return new ivm.ExternalCopy(querystring.parse(str, sep, eq, options)).copyInto();
-            }),
-            stringify: new ivm.Reference(function(obj, sep, eq, options) {
-                return querystring.stringify(obj, sep, eq, options);
-            }),
-            escape: new ivm.Reference(function(str) {
-                return querystring.escape(str);
-            }),
-            unescape: new ivm.Reference(function(str) {
-                return querystring.unescape(str);
-            })
-        };
-    }
-    
-    /**
-     * Create url module
-     */
-    static createUrlModule() {
-        const { URL, URLSearchParams } = require('url');
-        
-        return {
-            // URL class constructor
-            URL: new ivm.Reference(function(input, base) {
-                const url = new URL(input, base);
-                return new ivm.ExternalCopy({
-                    href: url.href,
-                    origin: url.origin,
-                    protocol: url.protocol,
-                    username: url.username,
-                    password: url.password,
-                    host: url.host,
-                    hostname: url.hostname,
-                    port: url.port,
-                    pathname: url.pathname,
-                    search: url.search,
-                    hash: url.hash
-                }).copyInto();
-            }),
-            
-            // URLSearchParams class constructor
-            URLSearchParams: new ivm.Reference(function(init) {
-                const paramsId = Math.random().toString(36);
-                const params = new URLSearchParams(init);
-                
-                if (!global.__urlSearchParamsStore) global.__urlSearchParamsStore = new Map();
-                global.__urlSearchParamsStore.set(paramsId, params);
-                
-                return paramsId;
-            }),
-            
-            _urlSearchParams_append: new ivm.Reference((paramsId, name, value) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                if (params) params.append(name, value);
-            }),
-            
-            _urlSearchParams_delete: new ivm.Reference((paramsId, name) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                if (params) params.delete(name);
-            }),
-            
-            _urlSearchParams_get: new ivm.Reference((paramsId, name) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                return params ? params.get(name) : null;
-            }),
-            
-            _urlSearchParams_getAll: new ivm.Reference((paramsId, name) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                return params ? params.getAll(name) : [];
-            }),
-            
-            _urlSearchParams_has: new ivm.Reference((paramsId, name) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                return params ? params.has(name) : false;
-            }),
-            
-            _urlSearchParams_set: new ivm.Reference((paramsId, name, value) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                if (params) params.set(name, value);
-            }),
-            
-            _urlSearchParams_toString: new ivm.Reference((paramsId) => {
-                const params = global.__urlSearchParamsStore?.get(paramsId);
-                return params ? params.toString() : '';
-            })
-        };
-    }
-    
-    /**
-     * Create util module
-     */
-    static createUtilModule() {
-        const util = require('util');
-        
-        return {
-            // Type checking
-            types: {
-                isArrayBuffer: new ivm.Reference((value) => util.types.isArrayBuffer(value)),
-                isDate: new ivm.Reference((value) => util.types.isDate(value)),
-                isMap: new ivm.Reference((value) => util.types.isMap(value)),
-                isPromise: new ivm.Reference((value) => util.types.isPromise(value)),
-                isRegExp: new ivm.Reference((value) => util.types.isRegExp(value)),
-                isSet: new ivm.Reference((value) => util.types.isSet(value)),
-                isTypedArray: new ivm.Reference((value) => util.types.isTypedArray(value))
-            },
-            
-            // Formatting
-            format: new ivm.Reference(function(...args) {
-                return util.format(...args);
-            }),
-            
-            // Inspection
-            inspect: new ivm.Reference(function(object, options) {
-                return util.inspect(object, options);
-            }),
-            
-            // Promisify (limited support)
-            promisify: new ivm.Reference(function(fn) {
-                // Return a reference to promisified function
-                return new ivm.Reference(util.promisify(fn));
-            })
-        };
-    }
-    
-    /**
-     * Create buffer module
-     */
-    static createBufferModule() {
-        return {
-            // Buffer from string
-            from: new ivm.Reference(function(data, encoding) {
-                return Buffer.from(data, encoding);
-            }),
-            
-            // Buffer allocation
-            alloc: new ivm.Reference(function(size, fill, encoding) {
-                return Buffer.alloc(size, fill, encoding);
-            }),
-            
-            // Unsafe buffer allocation
-            allocUnsafe: new ivm.Reference(function(size) {
-                return Buffer.allocUnsafe(size);
-            }),
-            
-            // Concatenation
-            concat: new ivm.Reference(function(list, totalLength) {
-                return Buffer.concat(list, totalLength);
-            }),
-            
-            // Type check
-            isBuffer: new ivm.Reference(function(obj) {
-                return Buffer.isBuffer(obj);
-            })
-        };
-    }
-    
-    /**
-     * Create events module (EventEmitter)
-     */
-    static createEventsModule() {
-        const { EventEmitter } = require('events');
-        
-        return {
-            EventEmitter: new ivm.Reference(function() {
-                const emitterId = Math.random().toString(36);
-                const emitter = new EventEmitter();
-                
-                if (!global.__eventEmitterStore) global.__eventEmitterStore = new Map();
-                global.__eventEmitterStore.set(emitterId, emitter);
-                
-                return emitterId;
-            }),
-            
-            _eventEmitter_on: new ivm.Reference((emitterId, event, listener) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                if (emitter) emitter.on(event, listener);
-            }),
-            
-            _eventEmitter_once: new ivm.Reference((emitterId, event, listener) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                if (emitter) emitter.once(event, listener);
-            }),
-            
-            _eventEmitter_emit: new ivm.Reference((emitterId, event, ...args) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                return emitter ? emitter.emit(event, ...args) : false;
-            }),
-            
-            _eventEmitter_removeListener: new ivm.Reference((emitterId, event, listener) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                if (emitter) emitter.removeListener(event, listener);
-            }),
-            
-            _eventEmitter_removeAllListeners: new ivm.Reference((emitterId, event) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                if (emitter) emitter.removeAllListeners(event);
-            }),
-            
-            _eventEmitter_listenerCount: new ivm.Reference((emitterId, event) => {
-                const emitter = global.__eventEmitterStore?.get(emitterId);
-                return emitter ? emitter.listenerCount(event) : 0;
-            })
-        };
-    }
-    
-    /**
-     * Create string_decoder module
-     */
-    static createStringDecoderModule() {
-        const { StringDecoder } = require('string_decoder');
-        
-        return {
-            StringDecoder: new ivm.Reference(function(encoding) {
-                const decoderId = Math.random().toString(36);
-                const decoder = new StringDecoder(encoding);
-                
-                if (!global.__stringDecoderStore) global.__stringDecoderStore = new Map();
-                global.__stringDecoderStore.set(decoderId, decoder);
-                
-                return decoderId;
-            }),
-            
-            _stringDecoder_write: new ivm.Reference((decoderId, buffer) => {
-                const decoder = global.__stringDecoderStore?.get(decoderId);
-                return decoder ? decoder.write(buffer) : '';
-            }),
-            
-            _stringDecoder_end: new ivm.Reference((decoderId, buffer) => {
-                const decoder = global.__stringDecoderStore?.get(decoderId);
-                if (decoder) {
-                    const result = decoder.end(buffer);
-                    global.__stringDecoderStore.delete(decoderId);
-                    return result;
-                }
-                return '';
-            })
-        };
-    }
-    
-    /**
-     * Create zlib module
-     */
-    static createZlibModule() {
-        const zlib = require('zlib');
-        
-        return {
-            // Compression
-            gzip: new ivm.Reference(function(buffer, callback) {
-                zlib.gzip(buffer, callback);
-            }),
-            gzipSync: new ivm.Reference(function(buffer, options) {
-                return zlib.gzipSync(buffer, options);
-            }),
-            
-            // Decompression
-            gunzip: new ivm.Reference(function(buffer, callback) {
-                zlib.gunzip(buffer, callback);
-            }),
-            gunzipSync: new ivm.Reference(function(buffer, options) {
-                return zlib.gunzipSync(buffer, options);
-            }),
-            
-            // Deflate
-            deflate: new ivm.Reference(function(buffer, callback) {
-                zlib.deflate(buffer, callback);
-            }),
-            deflateSync: new ivm.Reference(function(buffer, options) {
-                return zlib.deflateSync(buffer, options);
-            }),
-            
-            // Inflate
-            inflate: new ivm.Reference(function(buffer, callback) {
-                zlib.inflate(buffer, callback);
-            }),
-            inflateSync: new ivm.Reference(function(buffer, options) {
-                return zlib.inflateSync(buffer, options);
-            })
-        };
-    }
-    
     /**
      * Setup mime-types module
      */
     static setupMimeTypes(context) {
-        const mimeTypes = this.createMimeTypesModule();
-        this.setModuleGlobals(context, 'mime-types', mimeTypes);
+        const mime = require('mime-types');
+        context.global.setSync('_mime_types_lookup', new ivm.Reference((...args) => mime.lookup(...args)));
+        context.global.setSync('_mime_types_contentType', new ivm.Reference((...args) => mime.contentType(...args)));
+        context.global.setSync('_mime_types_extension', new ivm.Reference((...args) => mime.extension(...args)));
+        context.global.setSync('_mime_types_charset', new ivm.Reference((...args) => mime.charset(...args)));
+        context.global.setSync('_mime_types_types', new ivm.Reference((arg) => mime.types[arg]));
+        context.global.setSync('_mime_types_extensions', new ivm.Reference((arg) => mime.extensions[arg]));
+    }
+    
+    // =========================================================================
+    // HELPER METHODS - For fs module data conversion and serialization
+    // =========================================================================
+    
+    /**
+     * Serialize Stats object to plain object with boolean properties
+     */
+    static _serializeStats(stats) {
+        return {
+            isFile: stats.isFile(),
+            isDirectory: stats.isDirectory(),
+            isSymbolicLink: stats.isSymbolicLink ? stats.isSymbolicLink() : false,
+            size: stats.size,
+            mtime: stats.mtime.toISOString(),
+            atime: stats.atime ? stats.atime.toISOString() : null,
+            ctime: stats.ctime ? stats.ctime.toISOString() : null,
+            mode: stats.mode
+        };
     }
     
     /**
-     * Create mime-types module
+     * Convert Node.js Buffer to ArrayBuffer for transfer to VM
      */
-    static createMimeTypesModule() {
-        const mime = require('mime-types');
-        
-        return {
-            lookup: new ivm.Reference((filenameOrExt) => {
-                return mime.lookup(filenameOrExt) || false;
-            }),
-            
-            contentType: new ivm.Reference((typeOrExt) => {
-                return mime.contentType(typeOrExt) || false;
-            }),
-            
-            extension: new ivm.Reference((mimeType) => {
-                return mime.extension(mimeType) || false;
-            }),
-            
-            charset: new ivm.Reference((mimeType) => {
-                return mime.charset(mimeType) || false;
-            }),
-            
-            types: new ivm.ExternalCopy(mime.types).copyInto(),
-            extensions: new ivm.ExternalCopy(mime.extensions).copyInto()
-        };
+    static _bufferToArrayBuffer(buffer) {
+        const arrayBuffer = new ArrayBuffer(buffer.length);
+        const view = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < buffer.length; i++) {
+            view[i] = buffer[i];
+        }
+        return new ivm.ExternalCopy(arrayBuffer).copyInto();
+    }
+    
+    /**
+     * Convert ArrayBuffer from VM to Node.js Buffer
+     */
+    static _arrayBufferToBuffer(arrayBuffer) {
+        return Buffer.from(arrayBuffer);
     }
 }
 

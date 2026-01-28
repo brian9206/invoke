@@ -1,6 +1,5 @@
 const { VirtualFileSystem } = require('sandbox-fs');
 const ivm = require('isolated-vm');
-const FSBridge = require('./vfs-bridge');
 const BuiltinBridge = require('./builtin-bridge');
 
 /**
@@ -20,9 +19,6 @@ class ExecutionContext {
         
         // Create VFS instance
         this.vfs = new VirtualFileSystem({ root: packageDir });
-        
-        // Create FS bridge
-        this.fsBridge = new FSBridge(this.vfs);
         
         // Captured logs and response
         this.logs = [];
@@ -115,12 +111,11 @@ class ExecutionContext {
     /**
      * Set up built-in module references
      * Provides access to whitelisted Node.js core modules
-     * Note: This is now handled in _setupFSRefs to combine all modules
      */
     async _setupBuiltinModuleRef() {
-        // Get complete fs and path modules from FSBridge
-        const fsModule = this.fsBridge.getFSModule();
-        const pathModule = this.fsBridge.getPathModule();
+        // Get plain VFS modules directly
+        const fsModule = this.vfs.createNodeFSModule();
+        const pathModule = this.vfs.createNodePathModule();
         
         // Add fs and path to _builtinModules along with other built-in modules
         await BuiltinBridge.setupAll(this.context, fsModule, pathModule);

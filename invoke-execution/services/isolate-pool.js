@@ -20,14 +20,28 @@ class IsolatePool {
         this.totalDisposed = 0;
         this.warmupComplete = false;
         
-        // Load bootstrap code from vm-bootstrap.js on initialization
+        // Load bootstrap code from vm-bootstrap on initialization
         this.bootstrapCode = '';
-        fs.readdirSync(path.join(__dirname, 'vm-bootstrap'))
+        fs.globSync(path.join(__dirname, 'vm-bootstrap', '**/*.js'))
             .filter(file => file.endsWith('.js'))
             .sort((a, b) => a.localeCompare(b))
             .forEach(file => {
-                this.bootstrapCode += fs.readFileSync(path.join(__dirname, 'vm-bootstrap', file), 'utf8') + '\n';
+                this.bootstrapCode += fs.readFileSync(file, 'utf8') + '\n';
             });
+
+        // Load polyfill code from vm-polyfill on initialization
+        this.bootstrapCode += '\nfunction loadPolyfills(modules) {\n';
+        fs.globSync(path.join(__dirname, 'vm-polyfill', '**/*.js'))
+            .filter(file => file.endsWith('.js'))
+            .sort((a, b) => a.localeCompare(b))
+            .forEach(file => {
+                this.bootstrapCode += `(function(){\n`;
+                this.bootstrapCode += `const module = { exports: {} }; const exports = module.exports;\n`;
+                this.bootstrapCode += `${fs.readFileSync(file, 'utf8')};\n`;
+                this.bootstrapCode += `modules[${JSON.stringify(path.basename(file, '.js'))}] = module.exports;\n`;
+                this.bootstrapCode += `})();\n`;
+            });
+        this.bootstrapCode += '}';
         
         // Cleanup interval
         this.cleanupInterval = null;

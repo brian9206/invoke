@@ -1,5 +1,5 @@
 // ============================================================================
-// BOOTSTRAP HELPER - Request Object Creator
+// Express.js Request and Response Object implementation
 // ============================================================================
 (function() {
     // Helper to parse cookies from Cookie header

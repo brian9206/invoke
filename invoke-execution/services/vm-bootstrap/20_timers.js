@@ -1,5 +1,5 @@
 // ============================================================================
-// TIMERS - Disabled for Security
+// TIMERS implementation
 // ============================================================================
 (function() {
     let handle = 1;
@@ -48,8 +48,16 @@
 
 
     globalThis.clearTimeout = (timerId) => {
-        timeoutTimers.delete(timerId);
+        timerIds.delete(timerId);
     };
 
     globalThis.clearInterval = globalThis.clearTimeout;
+
+    globalThis.setImmediate = function (fn, ...args) {
+        return setTimeout(fn, 0, ...args);
+    };
+
+    globalThis.clearImmediate = function (id) {
+        clearTimeout(id);
+    };
 })();
