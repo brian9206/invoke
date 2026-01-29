@@ -115,8 +115,12 @@ class ExecutionContext {
      * Set up timer
      */
     async _setupTimers() {
-        await this.context.global.set('_sleep', new ivm.Reference((timeoutMs) => {
-            return new Promise((resolve) => setTimeout(() => resolve(), timeoutMs));
+        await this.context.global.set('_sleep', new ivm.Reference((timeoutMs, callback) => {
+            setTimeout(() => {
+                if (callback) {
+                    callback.applyIgnored(undefined, []);
+                }
+            }, timeoutMs);
         }));
     }
 

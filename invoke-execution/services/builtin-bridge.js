@@ -19,6 +19,7 @@ class BuiltinBridge {
         this.setupPath(context, pathModule);
         this.setupMimeTypes(context);
         this.setupCrypto(context);
+        this.setupNet(context);
     }
     
     /**
@@ -573,6 +574,288 @@ class BuiltinBridge {
     /**
      * Setup crypto module
      */
+    static setupNet(context) {
+        const net = require('net');
+        
+        // Map to store socket instances using handle-based state management
+        const netHandles = new Map();
+        let handleCounter = 0;
+        
+        // Helper: Create a unique handle for socket objects
+        function createHandle(obj) {
+            const handleId = ++handleCounter;
+            netHandles.set(handleId, obj);
+            return handleId;
+        }
+        
+        // Helper: Get object from handle
+        function getHandle(handleId) {
+            const obj = netHandles.get(handleId);
+            if (!obj) {
+                throw new Error('Invalid net handle');
+            }
+            return obj;
+        }
+        
+        // Helper: Remove handle when socket closes
+        function removeHandle(handleId) {
+            netHandles.delete(handleId);
+        }
+        
+        // net.Socket() - Create an unconnected socket
+        context.global.setSync('_net_createSocket', new ivm.Reference(() => {
+            const socket = new net.Socket();
+            const handleId = createHandle(socket);
+            
+            // Auto-remove handle when socket closes
+            socket.once('close', () => {
+                removeHandle(handleId);
+            });
+            
+            return handleId;
+        }));
+        
+        // net.createConnection(port, host, connectCallback)
+        context.global.setSync('_net_createConnection', new ivm.Reference((port, host, connectCallback) => {
+            // If port is not provided, create an unconnected socket
+            let socket;
+            if (port === undefined || port === null) {
+                socket = new net.Socket();
+            } else {
+                socket = net.createConnection(port, host);
+            }
+            const handleId = createHandle(socket);
+            
+            // Setup listeners for socket events
+            if (connectCallback) {
+                socket.once('connect', () => {
+                    connectCallback.applyIgnored(undefined, [null, handleId]);
+                });
+                
+                socket.once('error', (err) => {
+                    connectCallback.applyIgnored(undefined, [err]);
+                    removeHandle(handleId);
+                });
+            }
+            
+            // Auto-remove handle when socket closes
+            socket.once('close', () => {
+                removeHandle(handleId);
+            });
+            
+            return handleId;
+        }));
+        
+        // socket.write(data, callback)
+        context.global.setSync('_net_socketWrite', new ivm.Reference((handleId, data, callback) => {
+            const socket = getHandle(handleId);
+            
+            // Convert ArrayBuffer to Buffer if needed
+            if (data instanceof ArrayBuffer) {
+                data = BuiltinBridge._arrayBufferToBuffer(data);
+            }
+            
+            try {
+                return socket.write(data, (err) => {
+                    if (callback) {
+                        callback.applyIgnored(undefined, [err]);
+                    }
+                });
+            } catch (err) {
+                throw err;
+            }
+        }));
+        
+        // socket.read(size)
+        context.global.setSync('_net_socketRead', new ivm.Reference((handleId, size) => {
+            const socket = getHandle(handleId);
+            const data = socket.read(size);
+            
+            if (data && Buffer.isBuffer(data)) {
+                return BuiltinBridge._bufferToArrayBuffer(data);
+            }
+            return data;
+        }));
+        
+        // socket.destroy()
+        context.global.setSync('_net_socketDestroy', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            socket.destroy();
+            removeHandle(handleId);
+        }));
+        
+        // socket.connect(port, host, connectCallback)
+        context.global.setSync('_net_socketConnect', new ivm.Reference((handleId, port, host, connectCallback) => {
+            const socket = getHandle(handleId);
+            
+            // Setup listeners for socket events
+            if (connectCallback) {
+                socket.once('connect', () => {
+                    connectCallback.applyIgnored(undefined, [null]);
+                });
+                
+                socket.once('error', (err) => {
+                    connectCallback.applyIgnored(undefined, [err]);
+                });
+            }
+            
+            socket.connect(port, host);
+        }));
+        
+        // socket.end()
+        context.global.setSync('_net_socketEnd', new ivm.Reference((handleId, callback) => {
+            const socket = getHandle(handleId);
+            
+            if (callback) {
+                socket.end((err) => {
+                    callback.applyIgnored(undefined, [err]);
+                });
+            } else {
+                socket.end();
+            }
+        }));
+        
+        // socket.pause()
+        context.global.setSync('_net_socketPause', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            socket.pause();
+        }));
+        
+        // socket.resume()
+        context.global.setSync('_net_socketResume', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            socket.resume();
+        }));
+        
+        // socket.setTimeout(timeout, callback)
+        context.global.setSync('_net_socketSetTimeout', new ivm.Reference((handleId, timeout, callback) => {
+            const socket = getHandle(handleId);
+            
+            if (callback) {
+                socket.setTimeout(timeout, () => {
+                    callback.applyIgnored(undefined, []);
+                });
+            } else {
+                socket.setTimeout(timeout);
+            }
+        }));
+        
+        // socket.setNoDelay(noDelay)
+        context.global.setSync('_net_socketSetNoDelay', new ivm.Reference((handleId, noDelay) => {
+            const socket = getHandle(handleId);
+            socket.setNoDelay(noDelay);
+        }));
+        
+        // socket.setKeepAlive(enable, initialDelay)
+        context.global.setSync('_net_socketSetKeepAlive', new ivm.Reference((handleId, enable, initialDelay) => {
+            const socket = getHandle(handleId);
+            socket.setKeepAlive(enable, initialDelay);
+        }));
+        
+        // socket.localAddress getter
+        context.global.setSync('_net_socketGetLocalAddress', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.localAddress;
+        }));
+        
+        // socket.localPort getter
+        context.global.setSync('_net_socketGetLocalPort', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.localPort;
+        }));
+        
+        // socket.remoteAddress getter
+        context.global.setSync('_net_socketGetRemoteAddress', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.remoteAddress;
+        }));
+        
+        // socket.remotePort getter
+        context.global.setSync('_net_socketGetRemotePort', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.remotePort;
+        }));
+        
+        // socket.remoteFamily getter
+        context.global.setSync('_net_socketGetRemoteFamily', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.remoteFamily;
+        }));
+        
+        // socket.bytesRead getter
+        context.global.setSync('_net_socketGetBytesRead', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.bytesRead;
+        }));
+        
+        // socket.bytesWritten getter
+        context.global.setSync('_net_socketGetBytesWritten', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.bytesWritten;
+        }));
+        
+        // socket.readyState getter
+        context.global.setSync('_net_socketGetReadyState', new ivm.Reference((handleId) => {
+            const socket = getHandle(handleId);
+            return socket.readyState;
+        }));
+        
+        // socket.on(event, listener) - for setting up event listeners
+        context.global.setSync('_net_socketOn', new ivm.Reference((handleId, event, listener) => {
+            const socket = getHandle(handleId);
+            
+            socket.on(event, function(...args) {
+                try {
+                    // For 'data' events, convert Buffer using ivm.ExternalCopy (same as fs module)
+                    if (event === 'data' && args.length > 0 && Buffer.isBuffer(args[0])) {
+                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(args[0]);
+                        listener.applyIgnored(undefined, [arrayBuffer]);
+                    } else if (event === 'error' && args.length > 0) {
+                        // For error events, convert Error to string to avoid non-transferable object
+                        const error = args[0];
+                        const errorMsg = error instanceof Error ? error.message : String(error);
+                        listener.applyIgnored(undefined, [errorMsg]);
+                    } else {
+                        // For other events, pass args as-is (should be primitives)
+                        listener.applyIgnored(undefined, args);
+                    }
+                } catch (err) {
+                    // Event listener errors should not crash
+                    console.error('Error in socket event listener for', event, ':', err);
+                }
+            });
+        }));
+        
+        // socket.once(event, listener)
+        context.global.setSync('_net_socketOnce', new ivm.Reference((handleId, event, listener) => {
+            const socket = getHandle(handleId);
+            
+            socket.once(event, function(...args) {
+                try {
+                    // Same handling as 'on' for event-specific data conversion
+                    if (event === 'data' && args.length > 0 && Buffer.isBuffer(args[0])) {
+                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(args[0]);
+                        listener.applyIgnored(undefined, [arrayBuffer]);
+                    } else if (event === 'error' && args.length > 0) {
+                        const error = args[0];
+                        const errorMsg = error instanceof Error ? error.message : String(error);
+                        listener.applyIgnored(undefined, [errorMsg]);
+                    } else {
+                        listener.applyIgnored(undefined, args);
+                    }
+                } catch (err) {
+                    console.error('Error in socket event listener for', event, ':', err);
+                }
+            });
+        }));
+        
+        // socket.removeListener(event, listener)
+        context.global.setSync('_net_socketRemoveListener', new ivm.Reference((handleId, event, listener) => {
+            const socket = getHandle(handleId);
+            socket.removeListener(event, listener);
+        }));
+    }
+
     static setupCrypto(context) {
         const crypto = require('crypto');
         

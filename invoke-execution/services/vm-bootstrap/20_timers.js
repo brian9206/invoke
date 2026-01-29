@@ -6,20 +6,28 @@
     const timerIds = new Set();
 
     function sleep(delay) {
-        return _sleep.apply(undefined, [delay || 0]);
+        return new Promise((resolve) => {
+            _sleepAsync(delay || 0, () => resolve());
+        });
+    }
+    
+    function _sleepAsync(delay, callback) {
+        // Call the host-side _sleep with a callback wrapper
+        const wrappedCallback = new ivm.Reference(callback);
+        _sleep.applySync(undefined, [delay, wrappedCallback]);
     }
 
     globalThis.sleep = sleep;
     
-    globalThis.setTimeout = (callback, delay) => {
+    globalThis.setTimeout = (callback, delay, ...args) => {
         handle++;
 
         const timerId = handle;
         timerIds.add(timerId);
 
-        sleep(delay).then(() => {
+        sleep(delay || 0).then(() => {
             if (timerIds.has(timerId)) {
-                callback();
+                callback(...args);
                 timerIds.delete(timerId);
             }
         });
@@ -27,16 +35,16 @@
         return timerId;
     };
 
-    globalThis.setInterval = (callback, delay) => {
+    globalThis.setInterval = (callback, delay, ...args) => {
         handle++;
 
         const timerId = handle;
         timerIds.add(timerId);
 
         const schedule = () => {
-            sleep(delay).then(() => {
+            sleep(delay || 0).then(() => {
                 if (timerIds.has(timerId)) {
-                    callback();
+                    callback(...args);
                     schedule();
                 }
             });

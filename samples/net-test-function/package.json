@@ -1,0 +1,17 @@
+{
+  "name": "net-test-function",
+  "version": "1.0.0",
+  "description": "Test function for Node.js net module compatibility in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "keywords": [
+    "net",
+    "socket",
+    "tcp",
+    "test"
+  ],
+  "author": "",
+  "license": "ISC"
+}
