@@ -69,45 +69,18 @@ class ExecutionContext {
      * Set up console reference bindings
      * These are called by the pre-compiled bootstrap script
      */
-    async _setupConsoleRefs() {
-        const self = this;
-        
-        const consoleLog = new ivm.Reference((...args) => {
-            self.logs.push({
-                level: 'log',
-                message: args.map(arg => String(arg)).join(' '),
+    async _setupConsoleRefs() {        
+        await this.context.global.set('_consoleWrite', new ivm.Reference((data) => {
+            this.logs.push({
+                level: data.level || 'log',
+                message: data.message.map(arg => String(arg)).join(' '),
                 timestamp: Date.now()
             });
-        });
-        
-        const consoleInfo = new ivm.Reference((...args) => {
-            self.logs.push({
-                level: 'info',
-                message: args.map(arg => String(arg)).join(' '),
-                timestamp: Date.now()
-            });
-        });
-        
-        const consoleWarn = new ivm.Reference((...args) => {
-            self.logs.push({
-                level: 'warn',
-                message: args.map(arg => String(arg)).join(' '),
-                timestamp: Date.now()
-            });
-        });
-        
-        const consoleError = new ivm.Reference((...args) => {
-            self.logs.push({
-                level: 'error',
-                message: args.map(arg => String(arg)).join(' '),
-                timestamp: Date.now()
-            });
-        });
-        
-        await this.context.global.set('_consoleLog', consoleLog);
-        await this.context.global.set('_consoleInfo', consoleInfo);
-        await this.context.global.set('_consoleWarn', consoleWarn);
-        await this.context.global.set('_consoleError', consoleError);
+        }));
+
+        await this.context.global.set('_consoleClear', new ivm.Reference(() => {
+            this.logs = [];
+        }));
     }
     
     /**
