@@ -1,0 +1,19 @@
+{
+  "name": "crypto-test-function",
+  "version": "1.0.0",
+  "description": "Comprehensive test function for Node.js crypto module compatibility in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "keywords": [
+    "crypto",
+    "test",
+    "hash",
+    "hmac",
+    "pbkdf2",
+    "random"
+  ],
+  "author": "",
+  "license": "ISC"
+}

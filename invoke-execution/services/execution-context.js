@@ -41,6 +41,8 @@ class ExecutionContext {
      * Bootstrap the isolate context with globals
      */
     async bootstrap() {
+        await this.context.global.set('ivm', ivm);
+
         // Set up process.env (dynamic, needs to be injected per execution)
         await this._setupProcess();
         

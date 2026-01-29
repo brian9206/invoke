@@ -1,0 +1,6 @@
+{
+  "name": "asymmetric-test-function",
+  "version": "1.0.0",
+  "description": "Test function for asymmetric cryptography (RSA, EC, Ed25519)",
+  "main": "index.js"
+}

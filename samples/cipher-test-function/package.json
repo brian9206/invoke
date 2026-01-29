@@ -1,0 +1,21 @@
+{
+  "name": "cipher-test-function",
+  "version": "1.0.0",
+  "description": "Comprehensive test function for Node.js crypto Cipher/Decipher implementation in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "keywords": [
+    "crypto",
+    "cipher",
+    "decipher",
+    "aes",
+    "gcm",
+    "cbc",
+    "encryption",
+    "test"
+  ],
+  "author": "",
+  "license": "ISC"
+}
