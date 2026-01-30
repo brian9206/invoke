@@ -2699,7 +2699,7 @@ process.binding = function (name) {
     throw new Error('process.binding is not supported');
 };
 
-process.cwd = function () { return '/' };
+process.cwd = function () { return '/app' };
 process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };

@@ -285,10 +285,10 @@ const builtinModule = {};
             }
             
             // Handle node_modules packages
-            return loadModule(resolveNodeModule(cleanModuleName, currentDir), '/');
+            return loadModule(resolveNodeModule(cleanModuleName, currentDir), '/app');
         };
     }
     
     // Set global require function (bound to root directory)
-    globalThis.require = createRequire('/');
+    globalThis.require = createRequire('/app');
 })();

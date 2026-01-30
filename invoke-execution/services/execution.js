@@ -103,8 +103,8 @@ class ExecutionEngine {
             await executionContext.setupRequest(reqData);
             await executionContext.setupResponse();
             
-            // Load user function from /index.js
-            const virtualIndexPath = '/index.js';
+            // Load user function from /aindex.js
+            const virtualIndexPath = '/app/index.js';
             const vfs = executionContext.vfs;
             const vfsFs = vfs.createNodeFSModule();
             const userCode = vfsFs.readFileSync(virtualIndexPath, 'utf8');
@@ -116,7 +116,7 @@ class ExecutionEngine {
     // Set up module pattern
     const module = { exports: {} };
     const exports = module.exports;
-    const __filename = '/index.js';
+    const __filename = '/app/index.js';
     const __dirname = '/';
     
     // Execute user code
@@ -138,7 +138,7 @@ class ExecutionEngine {
 `;
             
             // Compile and execute
-            const executeScript = await isolate.compileScript(executeCode, { filename: '/index.js' });
+            const executeScript = await isolate.compileScript(executeCode, { filename: '/app/index.js' });
             
             // Run with timeout (handle promise)
             try {

@@ -58,7 +58,7 @@ This document describes the complete rewrite of the execution engine from `vm2` 
   3. Acquire isolate from pool
   4. Create ExecutionContext
   5. Bootstrap environment
-  6. Load `/index.js` via ModuleLoader
+  6. Load `/app/index.js` via ModuleLoader
   7. Validate exports is a function
   8. Invoke with timeout
   9. Extract response and logs

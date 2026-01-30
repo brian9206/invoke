@@ -32,7 +32,7 @@ globalThis.process = {
     execArgv: [],
     
     // Working directory (read-only)
-    cwd: () => '/',
+    cwd: () => '/app',
     
     // Memory usage (mocked)
     memoryUsage: () => ({
