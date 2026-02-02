@@ -71,9 +71,19 @@
             }
 
             // Establish connection on existing socket handle
-            const wrappedCallback = actualCallback ? new ivm.Reference((err, handleId) => {
+            const wrappedCallback = actualCallback ? new ivm.Reference((err) => {
                 if (err) {
-                    actualCallback(err);
+                    // Convert error object to proper Error
+                    let error;
+                    if (err && typeof err === 'object' && err.message) {
+                        error = new Error(err.message);
+                        error.code = err.code;
+                        error.errno = err.errno;
+                        error.syscall = err.syscall;
+                    } else {
+                        error = err;
+                    }
+                    actualCallback(error);
                 } else {
                     actualCallback(null);
                 }
@@ -209,12 +219,59 @@
 
     /**
      * Create a client socket connection
-     * @param {number} port - The port to connect to (optional)
-     * @param {string} host - The host to connect to (optional)
+     * @param {number|Object} port - Port number or options object
+     * @param {string} host - The host to connect to (optional when using options object)
      * @param {function} connectCallback - Called when connection is established or on error (optional)
      * @returns {Socket} The socket object
      */
     self.createConnection = function(port, host, connectCallback) {
+        // Handle options object format: createConnection({ port, host, ... }, callback)
+        if (typeof port === 'object' && port !== null) {
+            const options = port;
+            const callback = host; // second param is callback when first is options
+            
+            const actualPort = options.port;
+            const actualHost = options.host || options.hostname || 'localhost';
+            
+            // Handle no arguments case - creates unconnected socket
+            if (!actualPort) {
+                const handleId = _net_createSocket.applySync(undefined, [], { arguments: { copy: true } });
+                return new Socket(handleId);
+            }
+            
+            // Create wrapper for the connection callback
+            const wrappedCallback = callback ? new ivm.Reference((err, handleId) => {
+                if (err) {
+                    // Convert error object to proper Error
+                    let error;
+                    if (err && typeof err === 'object' && err.message) {
+                        error = new Error(err.message);
+                        error.code = err.code;
+                        error.errno = err.errno;
+                        error.syscall = err.syscall;
+                    } else {
+                        error = err;
+                    }
+                    callback(error);
+                } else {
+                    callback(null);
+                }
+            }) : null;
+
+            const handleId = _net_createConnection.applySync(undefined, [actualPort, actualHost, wrappedCallback], { arguments: { copy: true } });
+            const socket = new Socket(handleId);
+            
+            // Setup connection event if no callback provided
+            if (!callback) {
+                // Emit connect event when connection is established
+                setTimeout(() => {
+                    socket.emit('connect');
+                }, 0);
+            }
+
+            return socket;
+        }
+        
         // Handle no arguments case - creates unconnected socket
         if (port === undefined && host === undefined && connectCallback === undefined) {
             const handleId = _net_createSocket.applySync(undefined, [], { arguments: { copy: true } });
@@ -237,9 +294,19 @@
         // Host returns [null, handleId] on success or [err] on failure
         const wrappedCallback = actualCallback ? new ivm.Reference((err, handleId) => {
             if (err) {
-                actualCallback(err);
+                // Convert error object to proper Error
+                let error;
+                if (err && typeof err === 'object' && err.message) {
+                    error = new Error(err.message);
+                    error.code = err.code;
+                    error.errno = err.errno;
+                    error.syscall = err.syscall;
+                } else {
+                    error = err;
+                }
+                actualCallback(error);
             } else {
-                // Host already created the handle, just create Socket wrapper
+                // Host already created the handle, just call callback with no error
                 actualCallback(null);
             }
         }) : null;

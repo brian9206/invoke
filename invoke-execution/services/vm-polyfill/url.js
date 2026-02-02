@@ -115,7 +115,14 @@ function URLSearchParams(init, ref) {
 	}
 
 	function cascade() {
-		if (ref) ref.search = list.length ? ('?' + toStr().replace(/=$/, '')) : '';
+		if (ref) {
+			var searchStr = list.length ? ('?' + toStr().replace(/=$/, '')) : '';
+			if (ref.updateSearch) {
+				ref.updateSearch(searchStr);
+			} else {
+				ref.search = searchStr;
+			}
+		}
 	}
 
 	$.append = toAppend;
@@ -200,83 +207,200 @@ function URLSearchParams(init, ref) {
 }
 
 function URL(url, base) {
-	var tmp = document.createElement('a');
-	var link = document.createElement('a');
-	var input = document.createElement('input');
 	var segs, usp, $=this, rgx=/(blob|ftp|wss?|https?):/;
+	var parsed = {};
 
-	input.type = 'url';
 	base = String(base || '').trim();
-	if ((input.value = base) && !input.checkValidity()) return invalid(base);
-
 	url = String(url).trim();
-	input.value = url || 0;
 
-	if (input.checkValidity()) {
-		link.href = url; // full
-	} else if (base) {
-		link.href = base;
-		if (url) { // non-empty string
-			usp = url.match(/^\/+/);
-			if (usp && usp[0].length == 2) {
-				link.href = link.protocol + url;
-			} else if (/[?#]/.test(url[0])) {
-				link.href += url;
-			} else if (url[0] == '/' || link.pathname == '/') {
-				link.href = link.origin + '/' + url.replace(/^\/+/, '');
-			} else {
-				segs = link.pathname.split('/');
-				base = url.replace(/^(\.\/)?/, '').split('../');
-				link.href = link.origin + segs.slice(0, Math.max(1, segs.length - base.length)).concat(base.pop()).join('/')
-			}
-		}
+	// Parse base URL if provided
+	var baseParsed = base ? parseURL(base) : null;
+	if (base && !baseParsed) return invalid(base);
+
+	// Parse the URL
+	var urlParsed = parseURL(url);
+	
+	if (urlParsed) {
+		// Absolute URL
+		parsed = urlParsed;
+	} else if (baseParsed) {
+		// Relative URL with base
+		parsed = resolveURL(url, baseParsed);
 	} else {
 		return invalid(url);
 	}
 
-	function proxy(key) {
-		tmp.href=link.href; tmp.protocol='http:';
-		if (key == 'protocol' || key == 'href' || rgx.test(link.protocol)) return link[key];
-		// @see https://url.spec.whatwg.org/#concept-url-origin
-		if (key == 'origin') return rgx.test(link.protocol) ? link[key] : 'null';
-		return tmp[key];
+	// URL parsing regex
+	function parseURL(str) {
+		if (!str) return null;
+		
+		// Full URL regex: protocol://[username:password@]hostname[:port][/path][?search][#hash]
+		var match = str.match(/^([a-z][a-z0-9+.-]*):\/\/(?:([^:@]+)(?::([^@]+))?@)?([^:/?#]+)(?::(\d+))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/i);
+		
+		if (!match) {
+			// Try protocol-relative URL: //hostname[:port][/path][?search][#hash]
+			match = str.match(/^\/\/(?:([^:@]+)(?::([^@]+))?@)?([^:/?#]+)(?::(\d+))?([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/i);
+			if (match) {
+				return {
+					protocol: '',
+					username: match[1] || '',
+					password: match[2] || '',
+					hostname: match[3],
+					port: match[4] || '',
+					pathname: match[5] || '/',
+					search: match[6] ? '?' + match[6] : '',
+					hash: match[7] ? '#' + match[7] : ''
+				};
+			}
+			return null;
+		}
+		
+		return {
+			protocol: match[1].toLowerCase() + ':',
+			username: match[2] || '',
+			password: match[3] || '',
+			hostname: match[4].toLowerCase(),
+			port: match[5] || '',
+			pathname: match[6] || '/',
+			search: match[7] ? '?' + match[7] : '',
+			hash: match[8] ? '#' + match[8] : ''
+		};
 	}
 
-	function block(key, readonly, getter, out) {
-		out = { enumerable: true };
-		if (!readonly) {
-			out.set = function (val) {
-				if (val != null) {
-					link[key] = String(val);
-					if (key == 'href' || key == 'search') {
-						usp = new URLSearchParams(link.search, link);
-					}
+	function resolveURL(relativeUrl, baseUrl) {
+		if (!relativeUrl) return baseUrl;
+		
+		// Handle different types of relative URLs
+		if (relativeUrl.startsWith('//')) {
+			// Protocol-relative
+			return parseURL(baseUrl.protocol + relativeUrl);
+		} else if (relativeUrl.startsWith('/')) {
+			// Root-relative
+			var result = Object.assign({}, baseUrl);
+			var match = relativeUrl.match(/^([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/);
+			result.pathname = match[1];
+			result.search = match[2] ? '?' + match[2] : '';
+			result.hash = match[3] ? '#' + match[3] : '';
+			return result;
+		} else if (relativeUrl.match(/^[?#]/)) {
+			// Query or fragment only
+			var result = Object.assign({}, baseUrl);
+			if (relativeUrl.startsWith('?')) {
+				var match = relativeUrl.match(/^(\?[^#]*)(?:#(.*))?$/);
+				result.search = match[1];
+				result.hash = match[2] ? '#' + match[2] : '';
+			} else {
+				result.hash = relativeUrl;
+			}
+			return result;
+		} else {
+			// Path-relative
+			var result = Object.assign({}, baseUrl);
+			var basePath = baseUrl.pathname.split('/').slice(0, -1);
+			var relativeParts = relativeUrl.replace(/^(\.\/)?/, '').split('/');
+			
+			// Handle .. segments
+			var i = 0;
+			while (i < relativeParts.length) {
+				if (relativeParts[i] === '..') {
+					basePath.pop();
+					relativeParts.splice(i, 1);
+				} else {
+					i++;
 				}
 			}
+			
+			var fullPath = basePath.concat(relativeParts).join('/');
+			var match = fullPath.match(/^([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/);
+			result.pathname = match[1] || '/';
+			result.search = match[2] ? '?' + match[2] : '';
+			result.hash = match[3] ? '#' + match[3] : '';
+			return result;
+		}
+	}
+
+	function getHost() {
+		return parsed.hostname + (parsed.port ? ':' + parsed.port : '');
+	}
+
+	function getOrigin() {
+		if (!rgx.test(parsed.protocol)) return 'null';
+		return parsed.protocol + '//' + getHost();
+	}
+
+	function getHref() {
+		var auth = '';
+		if (parsed.username || parsed.password) {
+			auth = parsed.username + (parsed.password ? ':' + parsed.password : '') + '@';
+		}
+		return parsed.protocol + '//' + auth + getHost() + parsed.pathname + parsed.search + parsed.hash;
+	}
+
+	function setHref(val) {
+		var newParsed = parseURL(String(val));
+		if (!newParsed) return invalid(val);
+		parsed = newParsed;
+		usp = new URLSearchParams(parsed.search.slice(1), { 
+			search: parsed.search,
+			updateSearch: function(newSearch) { 
+				parsed.search = newSearch;
+			}
+		});
+	}
+
+	function block(key, readonly, getter, setter) {
+		var out = { enumerable: true };
+		if (!readonly && setter) {
+			out.set = setter;
+		} else if (!readonly) {
+			out.set = function (val) {
+				if (val != null) {
+					parsed[key] = String(val);
+					if (key === 'search') {
+						usp = new URLSearchParams(parsed.search.slice(1), {
+							search: parsed.search,
+							updateSearch: function(newSearch) { 
+								parsed.search = newSearch;
+							}
+						});
+					}
+				}
+			};
 		}
 		out.get = getter || function () {
-			return proxy(key);
+			return parsed[key] || '';
 		};
 		return out;
 	}
 
-	usp = new URLSearchParams(link.search, link);
+	usp = new URLSearchParams(parsed.search.slice(1), {
+		search: parsed.search,
+		updateSearch: function(newSearch) { 
+			parsed.search = newSearch;
+		}
+	});
 
-	$.toString = $.toJSON = link.toString.bind(link);
+	$.toString = $.toJSON = function() {
+		return getHref();
+	};
 
 	return Object.defineProperties($, {
-		href: block('href'),
+		href: block('href', false, getHref, setHref),
 		protocol: block('protocol'),
 		username: block('username'),
 		password: block('password'),
 		hostname: block('hostname'),
-		host: block('host'),
+		host: block('host', false, getHost, function(val) {
+			var parts = String(val).split(':');
+			parsed.hostname = parts[0];
+			parsed.port = parts[1] || '';
+		}),
 		port: block('port'),
 		search: block('search'),
 		hash: block('hash'),
 		pathname: block('pathname'),
-		origin: block('origin', 1),
-		searchParams: block('searchParams', 1, function () {
+		origin: block('origin', true, getOrigin),
+		searchParams: block('searchParams', true, function () {
 			return usp;
 		})
 	});

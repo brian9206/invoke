@@ -625,21 +625,49 @@ class BuiltinBridge {
             if (port === undefined || port === null) {
                 socket = new net.Socket();
             } else {
-                socket = net.createConnection(port, host);
-            }
-            const handleId = createHandle(socket);
-            
-            // Setup listeners for socket events
-            if (connectCallback) {
-                socket.once('connect', () => {
-                    connectCallback.applyIgnored(undefined, [null, handleId]);
+                // Create socket and initiate connection
+                socket = new net.Socket();
+                
+                // Set a connection timeout to prevent hanging
+                const connectionTimeout = setTimeout(() => {
+                    if (!socket.connecting && socket.readyState !== 'open') {
+                        const timeoutError = {
+                            message: 'Connection timeout',
+                            code: 'ETIMEDOUT',
+                            errno: -110,
+                            syscall: 'connect'
+                        };
+                        socket.destroy();
+                        if (connectCallback) {
+                            connectCallback.applyIgnored(undefined, [timeoutError]);
+                        }
+                    }
+                }, 10000); // 10 second timeout
+                
+                // Setup connection
+                socket.connect(port, host, () => {
+                    clearTimeout(connectionTimeout);
+                    if (connectCallback) {
+                        connectCallback.applyIgnored(undefined, [null]);
+                    }
                 });
                 
                 socket.once('error', (err) => {
-                    connectCallback.applyIgnored(undefined, [err]);
+                    clearTimeout(connectionTimeout);
+                    const errorObj = {
+                        message: err instanceof Error ? err.message : String(err),
+                        code: err.code || 'ECONNREFUSED',
+                        errno: err.errno,
+                        syscall: err.syscall
+                    };
+                    if (connectCallback) {
+                        connectCallback.applyIgnored(undefined, [errorObj]);
+                    }
                     removeHandle(handleId);
                 });
             }
+            
+            const handleId = createHandle(socket);
             
             // Auto-remove handle when socket closes
             socket.once('close', () => {
@@ -698,7 +726,13 @@ class BuiltinBridge {
                 });
                 
                 socket.once('error', (err) => {
-                    connectCallback.applyIgnored(undefined, [err]);
+                    const errorObj = {
+                        message: err instanceof Error ? err.message : String(err),
+                        code: err.code || 'ECONNREFUSED',
+                        errno: err.errno,
+                        syscall: err.syscall
+                    };
+                    connectCallback.applyIgnored(undefined, [errorObj]);
                 });
             }
             
@@ -812,15 +846,42 @@ class BuiltinBridge {
                     // For 'data' events, convert Buffer using ivm.ExternalCopy (same as fs module)
                     if (event === 'data' && args.length > 0 && Buffer.isBuffer(args[0])) {
                         const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(args[0]);
-                        listener.applyIgnored(undefined, [arrayBuffer]);
+                        listener.applySync(undefined, [arrayBuffer], { arguments: { copy: true } });
                     } else if (event === 'error' && args.length > 0) {
-                        // For error events, convert Error to string to avoid non-transferable object
+                        // For error events, use the same pattern as fs module
                         const error = args[0];
-                        const errorMsg = error instanceof Error ? error.message : String(error);
-                        listener.applyIgnored(undefined, [errorMsg]);
+                        const errorObj = {
+                            message: error instanceof Error ? error.message : String(error),
+                            code: typeof error.code === 'string' || typeof error.code === 'number' ? error.code : 'UNKNOWN_ERROR',
+                            errno: typeof error.errno === 'string' || typeof error.errno === 'number' ? error.errno : undefined,
+                            syscall: typeof error.syscall === 'string' ? error.syscall : undefined
+                        };
+                        // Remove undefined properties
+                        Object.keys(errorObj).forEach(key => {
+                            if (errorObj[key] === undefined) {
+                                delete errorObj[key];
+                            }
+                        });
+                        // Use fs module pattern: create Error with JSON serialized data
+                        const transferableError = new Error('__NET_ERROR__:' + JSON.stringify(errorObj));
+                        listener.applySync(undefined, [transferableError], { arguments: { copy: true } });
                     } else {
-                        // For other events, pass args as-is (should be primitives)
-                        listener.applyIgnored(undefined, args);
+                        // For other events, sanitize args to ensure transferability
+                        const safeArgs = args.map(arg => {
+                            if (arg === null || arg === undefined) return arg;
+                            if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') return arg;
+                            if (Buffer.isBuffer(arg)) return BuiltinBridge._bufferToArrayBuffer(arg);
+                            // For objects, create a plain object copy
+                            if (typeof arg === 'object') {
+                                try {
+                                    return JSON.parse(JSON.stringify(arg));
+                                } catch (e) {
+                                    return String(arg);
+                                }
+                            }
+                            return String(arg);
+                        });
+                        listener.applySync(undefined, safeArgs, { arguments: { copy: true } });
                     }
                 } catch (err) {
                     // Event listener errors should not crash
@@ -838,13 +899,42 @@ class BuiltinBridge {
                     // Same handling as 'on' for event-specific data conversion
                     if (event === 'data' && args.length > 0 && Buffer.isBuffer(args[0])) {
                         const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(args[0]);
-                        listener.applyIgnored(undefined, [arrayBuffer]);
+                        listener.applySync(undefined, [arrayBuffer], { arguments: { copy: true } });
                     } else if (event === 'error' && args.length > 0) {
+                        // For error events, use the same pattern as fs module
                         const error = args[0];
-                        const errorMsg = error instanceof Error ? error.message : String(error);
-                        listener.applyIgnored(undefined, [errorMsg]);
+                        const errorObj = {
+                            message: error instanceof Error ? error.message : String(error),
+                            code: typeof error.code === 'string' || typeof error.code === 'number' ? error.code : 'UNKNOWN_ERROR',
+                            errno: typeof error.errno === 'string' || typeof error.errno === 'number' ? error.errno : undefined,
+                            syscall: typeof error.syscall === 'string' ? error.syscall : undefined
+                        };
+                        // Remove undefined properties
+                        Object.keys(errorObj).forEach(key => {
+                            if (errorObj[key] === undefined) {
+                                delete errorObj[key];
+                            }
+                        });
+                        // Use fs module pattern: create Error with JSON serialized data
+                        const transferableError = new Error('__NET_ERROR__:' + JSON.stringify(errorObj));
+                        listener.applySync(undefined, [transferableError], { arguments: { copy: true } });
                     } else {
-                        listener.applyIgnored(undefined, args);
+                        // For other events, sanitize args to ensure transferability
+                        const safeArgs = args.map(arg => {
+                            if (arg === null || arg === undefined) return arg;
+                            if (typeof arg === 'string' || typeof arg === 'number' || typeof arg === 'boolean') return arg;
+                            if (Buffer.isBuffer(arg)) return BuiltinBridge._bufferToArrayBuffer(arg);
+                            // For objects, create a plain object copy
+                            if (typeof arg === 'object') {
+                                try {
+                                    return JSON.parse(JSON.stringify(arg));
+                                } catch (e) {
+                                    return String(arg);
+                                }
+                            }
+                            return String(arg);
+                        });
+                        listener.applySync(undefined, safeArgs, { arguments: { copy: true } });
                     }
                 } catch (err) {
                     console.error('Error in socket event listener for', event, ':', err);

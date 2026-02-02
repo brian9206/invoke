@@ -97,13 +97,11 @@
                             certs.push(cert);
                         }
                     } catch (err) {
-                        console.warn(`Warning: Malformed certificate in ${extraCertPath}: ${err.message}`);
                     }
                 }
                 
                 return certs;
             } catch (err) {
-                console.warn(`Warning: Could not load extra CA certificates: ${err.message}`);
                 return [];
             }
         }
@@ -530,7 +528,6 @@
                         this._protocol = _tls_socketGetProtocol.applySync(undefined, [this._tlsHandle], { arguments: { copy: true } });
                         this._peerCertificate = _tls_socketGetPeerCertificate.applySync(undefined, [this._tlsHandle, true], { arguments: { copy: true } });
                     } catch (err) {
-                        console.warn('Error getting TLS properties:', err.message);
                     }
                     
                     if (callback) {

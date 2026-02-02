@@ -1,0 +1,22 @@
+{
+  "name": "http-test-function",
+  "version": "1.0.0",
+  "description": "Comprehensive test suite for HTTP/HTTPS/WebSocket functionality in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.19.0"
+  },
+  "keywords": [
+    "http",
+    "https",
+    "websocket",
+    "test",
+    "vm",
+    "nodejs"
+  ],
+  "author": "VM Test Suite",
+  "license": "ISC"
+}
