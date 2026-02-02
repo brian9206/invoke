@@ -1,4 +1,8 @@
 const ivm = require('isolated-vm');
+const mime = require('mime-types');
+const net = require('net');
+const crypto = require('crypto');
+const tls = require('tls');
 
 /**
  * Builtin module bridge for isolated-vm context
@@ -20,6 +24,7 @@ class BuiltinBridge {
         this.setupMimeTypes(context);
         this.setupCrypto(context);
         this.setupNet(context);
+        this.setupTLS(context);
     }
     
     /**
@@ -562,7 +567,6 @@ class BuiltinBridge {
      * Setup mime-types module
      */
     static setupMimeTypes(context) {
-        const mime = require('mime-types');
         context.global.setSync('_mime_types_lookup', new ivm.Reference((...args) => mime.lookup(...args)));
         context.global.setSync('_mime_types_contentType', new ivm.Reference((...args) => mime.contentType(...args)));
         context.global.setSync('_mime_types_extension', new ivm.Reference((...args) => mime.extension(...args)));
@@ -575,7 +579,6 @@ class BuiltinBridge {
      * Setup crypto module
      */
     static setupNet(context) {
-        const net = require('net');
         
         // Map to store socket instances using handle-based state management
         const netHandles = new Map();
@@ -857,7 +860,6 @@ class BuiltinBridge {
     }
 
     static setupCrypto(context) {
-        const crypto = require('crypto');
         
         // Map to store stateful crypto objects (Hash, Hmac)
         // Using Map with numeric IDs instead of WeakMap because handle objects
@@ -1267,6 +1269,20 @@ class BuiltinBridge {
         context.global.setSync('_crypto_getCiphers', new ivm.Reference(() => {
             return new ivm.ExternalCopy(crypto.getCiphers()).copyInto();
         }));
+        
+        // Constant-time comparison for timing attack prevention
+        context.global.setSync('_crypto_timingSafeEqual', new ivm.Reference((a, b) => {
+            // Convert ArrayBuffers to Buffers if needed
+            if (a instanceof ArrayBuffer) {
+                a = BuiltinBridge._arrayBufferToBuffer(a);
+            }
+            if (b instanceof ArrayBuffer) {
+                b = BuiltinBridge._arrayBufferToBuffer(b);
+            }
+            if (!Buffer.isBuffer(a)) a = Buffer.from(a);
+            if (!Buffer.isBuffer(b)) b = Buffer.from(b);
+            return crypto.timingSafeEqual(a, b);
+        }));
     }
     
     // =========================================================================
@@ -1301,6 +1317,234 @@ class BuiltinBridge {
         return new ivm.ExternalCopy(arrayBuffer).copyInto();
     }
     
+    /**
+     * Setup TLS module (minimal bridge functions only)
+     */
+    static setupTLS(context) {
+        
+        // Map to store TLS socket instances
+        const tlsHandles = new Map();
+        let tlsHandleCounter = 0;
+        
+        // Helper: Create a unique handle for TLS socket objects
+        function createTLSHandle(obj) {
+            const handleId = ++tlsHandleCounter;
+            tlsHandles.set(handleId, obj);
+            return handleId;
+        }
+        
+        // Helper: Get TLS object from handle
+        function getTLSHandle(handleId) {
+            const obj = tlsHandles.get(handleId);
+            if (!obj) {
+                throw new Error('Invalid TLS handle');
+            }
+            return obj;
+        }
+        
+        // Helper: Remove TLS handle when socket closes
+        function removeTLSHandle(handleId) {
+            tlsHandles.delete(handleId);
+        }
+        
+        // Bridge TLS connect functionality
+        context.global.setSync('_tls_connect', new ivm.Reference((port, host, options, callback) => {
+            const tlsSocket = tls.connect(port, host, options);
+            const handleId = createTLSHandle(tlsSocket);
+            
+            // Setup event forwarding
+            tlsSocket.on('secureConnect', () => {
+                if (callback) callback.applyIgnored(undefined, ['secureConnect', handleId]);
+            });
+            
+            tlsSocket.on('connect', () => {
+                if (callback) callback.applyIgnored(undefined, ['connect', handleId]);
+            });
+            
+            tlsSocket.on('data', (data) => {
+                try {
+                    // Convert Buffer to ArrayBuffer for VM using helper method
+                    if (Buffer.isBuffer(data)) {
+                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(data);
+                        if (callback) callback.applyIgnored(undefined, ['data', arrayBuffer]);
+                    } else {
+                        if (callback) callback.applyIgnored(undefined, ['data', data]);
+                    }
+                } catch (err) {
+                    console.error('Error forwarding TLS data:', err);
+                }
+            });
+            
+            tlsSocket.on('close', (hadError) => {
+                if (callback) callback.applyIgnored(undefined, ['close', hadError]);
+                removeTLSHandle(handleId);
+            });
+            
+            tlsSocket.on('error', (err) => {
+                const errorMsg = err && err.message ? err.message : String(err);
+                if (callback) callback.applyIgnored(undefined, ['error', errorMsg]);
+            });
+            
+            tlsSocket.on('end', () => {
+                if (callback) callback.applyIgnored(undefined, ['end']);
+            });
+            
+            return handleId;
+        }));
+        
+        // Bridge TLS socket write
+        context.global.setSync('_tls_socketWrite', new ivm.Reference((handleId, data, encoding, callback) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                
+                // Handle different data types using helper methods
+                let buffer;
+                if (data instanceof ArrayBuffer) {
+                    buffer = BuiltinBridge._arrayBufferToBuffer(data);
+                } else if (Buffer.isBuffer(data)) {
+                    buffer = data;
+                } else if (typeof data === 'string') {
+                    buffer = Buffer.from(data, encoding || 'utf8');
+                } else {
+                    buffer = Buffer.from(data);
+                }
+                
+                // Handle callback parameter overloading
+                const actualCallback = (typeof encoding === 'function') ? encoding : callback;
+                const actualEncoding = (typeof encoding === 'string') ? encoding : undefined;
+                
+                const result = tlsSocket.write(buffer, actualEncoding, (err) => {
+                    if (actualCallback) {
+                        const errorMsg = err ? (err.message || String(err)) : null;
+                        actualCallback.applyIgnored(undefined, [errorMsg]);
+                    }
+                });
+                return result;
+            } catch (err) {
+                if (callback || (typeof encoding === 'function')) {
+                    const actualCallback = (typeof encoding === 'function') ? encoding : callback;
+                    const errorMsg = err.message || String(err);
+                    actualCallback.applyIgnored(undefined, [errorMsg]);
+                }
+                return false;
+            }
+        }));
+        
+        // Bridge TLS socket properties
+        context.global.setSync('_tls_socketGetAuthorized', new ivm.Reference((handleId) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                return tlsSocket.authorized;
+            } catch (err) {
+                return false;
+            }
+        }));
+        
+        context.global.setSync('_tls_socketGetCipher', new ivm.Reference((handleId) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                const cipher = tlsSocket.getCipher();
+                // Ensure cipher object is properly transferred using ExternalCopy
+                return cipher ? new ivm.ExternalCopy(cipher).copyInto() : null;
+            } catch (err) {
+                return null;
+            }
+        }));
+        
+        context.global.setSync('_tls_socketGetProtocol', new ivm.Reference((handleId) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                return tlsSocket.getProtocol();
+            } catch (err) {
+                return null;
+            }
+        }));
+        
+        context.global.setSync('_tls_socketGetPeerCertificate', new ivm.Reference((handleId, detailed) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                const cert = tlsSocket.getPeerCertificate(detailed);
+                // Ensure certificate object is properly transferred using ExternalCopy
+                return new ivm.ExternalCopy(cert).copyInto();
+            } catch (err) {
+                return {};
+            }
+        }));
+        
+        context.global.setSync('_tls_socketEnd', new ivm.Reference((handleId, data, encoding, callback) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                
+                // Handle parameter overloading like Node.js socket.end()
+                if (typeof data === 'function') {
+                    callback = data;
+                    data = undefined;
+                    encoding = undefined;
+                } else if (typeof encoding === 'function') {
+                    callback = encoding;
+                    encoding = undefined;
+                }
+                
+                if (data !== undefined) {
+                    let buffer;
+                    if (data instanceof ArrayBuffer) {
+                        buffer = BuiltinBridge._arrayBufferToBuffer(data);
+                    } else {
+                        buffer = Buffer.from(data, encoding);
+                    }
+                    tlsSocket.end(buffer, encoding, callback);
+                } else {
+                    tlsSocket.end(callback);
+                }
+            } catch (err) {
+                if (callback) {
+                    const errorMsg = err.message || String(err);
+                    callback.applyIgnored(undefined, [errorMsg]);
+                }
+            }
+        }));
+        
+        context.global.setSync('_tls_socketDestroy', new ivm.Reference((handleId) => {
+            try {
+                const tlsSocket = getTLSHandle(handleId);
+                tlsSocket.destroy();
+                removeTLSHandle(handleId);
+            } catch (err) {
+                // Ignore errors on destroy
+            }
+        }));
+        
+        // Bridge CA certificates from host
+        context.global.setSync('_tls_getCACertificates', new ivm.Reference((store) => {
+            if (store === 'bundled' || store === 'default' || store === 'system') {
+                // Get bundled CA certificates from Node.js
+                let bundledCerts = [];
+                
+                // Try tls.rootCertificates first (Node.js 12+)
+                if (tls.rootCertificates && Array.isArray(tls.rootCertificates)) {
+                    bundledCerts = tls.rootCertificates;
+                } else {
+                    // Fallback: try to get from crypto module or use require('tls').rootCertificates
+                    try {
+                        const fs = require('fs');
+                        const path = require('path');
+                        // Node.js bundles CA certs, we can access them via require
+                        bundledCerts = require('tls').rootCertificates || [];
+                    } catch (err) {
+                        // If all else fails, return empty array
+                        console.warn('Could not load CA certificates:', err.message);
+                        bundledCerts = [];
+                    }
+                }
+                
+                return new ivm.ExternalCopy(bundledCerts).copyInto();
+            }
+            return [];
+        }));
+        
+
+    }
+
     /**
      * Convert ArrayBuffer from VM to Node.js Buffer
      */

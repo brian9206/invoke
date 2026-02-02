@@ -18,7 +18,7 @@ class ExecutionContext {
         this.compiledScript = compiledScript;
         
         // Create VFS instance
-        this.vfs = new VirtualFileSystem();
+        this.vfs = new VirtualFileSystem({});
         this.vfs.mountSync(this.packageDir, '/app');
         
         // Captured logs and response

@@ -513,6 +513,39 @@ globalThis.res = {
         return this;
     },
     
+    writeHead(statusCode, statusMessage, headers) {
+        // Handle argument overloading
+        // writeHead(statusCode, headers)
+        if (typeof statusMessage === 'object' && statusMessage !== null) {
+            headers = statusMessage;
+            statusMessage = undefined;
+        }
+        
+        // Validate status code
+        if (typeof statusCode !== 'number' || statusCode < 100 || statusCode > 999) {
+            throw new Error('Invalid status code: ' + statusCode);
+        }
+        
+        // Set status code
+        this.status(statusCode);
+        
+        // Set headers if provided
+        if (headers && typeof headers === 'object') {
+            for (const [name, value] of Object.entries(headers)) {
+                if (Array.isArray(value)) {
+                    // Handle multiple values for same header (like Set-Cookie)
+                    for (const val of value) {
+                        this.append(name, val);
+                    }
+                } else {
+                    this.setHeader(name, value);
+                }
+            }
+        }
+        
+        return this;
+    },
+    
     render(view, locals, callback) {
         throw new Error('res.render() is not supported in this serverless environment');
     },

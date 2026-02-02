@@ -1,0 +1,10 @@
+{
+  "name": "tls-test-function",
+  "version": "1.0.0",
+  "description": "Test function for TLS module implementation",
+  "main": "index.js",
+  "dependencies": {},
+  "keywords": ["tls", "test", "crypto", "certificates"],
+  "author": "Invoke VM",
+  "license": "MIT"
+}
