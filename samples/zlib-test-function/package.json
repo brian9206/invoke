@@ -1,0 +1,12 @@
+{
+  "name": "zlib-test-function",
+  "version": "1.0.0",
+  "description": "Comprehensive test function for Node.js v24.x zlib API compatibility in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "keywords": ["zlib", "compression", "gzip", "deflate", "brotli", "test"],
+  "author": "",
+  "license": "MIT"
+}

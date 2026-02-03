@@ -2,6 +2,7 @@ const ivm = require('isolated-vm');
 const mime = require('mime-types');
 const net = require('net');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const tls = require('tls');
 
 /**
@@ -23,6 +24,7 @@ class BuiltinBridge {
         this.setupPath(context, pathModule);
         this.setupMimeTypes(context);
         this.setupCrypto(context);
+        this.setupZlib(context);
         this.setupNet(context);
         this.setupTLS(context);
     }
@@ -1640,6 +1642,818 @@ class BuiltinBridge {
      */
     static _arrayBufferToBuffer(arrayBuffer) {
         return Buffer.from(arrayBuffer);
+    }
+
+    static setupZlib(context) {
+        // CRC32 lookup table for fallback implementation
+        const crc32Table = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+            let crc = i;
+            for (let j = 0; j < 8; j++) {
+                crc = (crc & 1) ? (0xEDB88320 ^ (crc >>> 1)) : (crc >>> 1);
+            }
+            crc32Table[i] = crc;
+        }
+        
+        // Map to store stateful zlib stream objects
+        const zlibHandles = new Map();
+        let zlibHandleCounter = 0;
+        
+        // Helper: Create a unique handle for stateful stream objects
+        function createZlibHandle(stream) {
+            const handleId = ++zlibHandleCounter;
+            zlibHandles.set(handleId, {
+                stream: stream,
+                finished: false,
+                destroyed: false,
+                bytesWritten: 0,
+                bytesRead: 0
+            });
+            return handleId;
+        }
+        
+        // Helper: Get stream from handle
+        function getZlibHandle(handleId) {
+            const handleObj = zlibHandles.get(handleId);
+            if (!handleObj) {
+                throw new Error('Invalid zlib handle');
+            }
+            return handleObj;
+        }
+        
+        // Helper: Convert zlib error to transferable Error object  
+        function convertZlibError(err) {
+            if (!err) {
+                return null;
+            }
+            
+            // Create a clean Error object with only transferable properties
+            const cleanError = new Error();
+            
+            // Copy basic properties safely
+            try {
+                cleanError.message = err.message || String(err);
+            } catch (e) {
+                cleanError.message = 'Error conversion failed';
+            }
+            
+            try {
+                if (err.code !== undefined) cleanError.code = err.code;
+                if (err.errno !== undefined) cleanError.errno = err.errno;
+                if (err.syscall !== undefined) cleanError.syscall = err.syscall;
+                if (err.name !== undefined) cleanError.name = err.name;
+            } catch (e) {
+                // Ignore property access errors
+            }
+            
+            return cleanError;
+        }
+        
+        // Helper: Extract transferable error properties for VM boundary
+        function getTransferableError(err) {
+            if (!err) return null;
+            if (typeof err.message !== 'string') return err;
+            
+            return {
+                message: '__ZLIB_ERROR__:' + JSON.stringify({
+                    message: err.message,
+                    code: err.code,
+                    errno: err.errno,
+                    syscall: err.syscall,
+                    name: err.name
+                })
+            };
+        }
+        
+        // Synchronous convenience methods
+        context.global.setSync('_zlib_deflateSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.deflateSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_inflateSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.inflateSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_gzipSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.gzipSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_gunzipSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.gunzipSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_deflateRawSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.deflateRawSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_inflateRawSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.inflateRawSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_unzipSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.unzipSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_brotliCompressSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.brotliCompressSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_brotliDecompressSync', new ivm.Reference((buffer, options) => {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                const result = zlib.brotliDecompressSync(input, options);
+                return BuiltinBridge._bufferToArrayBuffer(result);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Add experimental Zstd methods if available
+        if (zlib.zstdCompressSync && zlib.zstdDecompressSync) {
+            context.global.setSync('_zlib_zstdCompressSync', new ivm.Reference((buffer, options) => {
+                try {
+                    const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                    const result = zlib.zstdCompressSync(input, options);
+                    return BuiltinBridge._bufferToArrayBuffer(result);
+                } catch (err) {
+                    throw convertZlibError(err);
+                }
+            }));
+            
+            context.global.setSync('_zlib_zstdDecompressSync', new ivm.Reference((buffer, options) => {
+                try {
+                    const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                    const result = zlib.zstdDecompressSync(input, options);
+                    return BuiltinBridge._bufferToArrayBuffer(result);
+                } catch (err) {
+                    throw convertZlibError(err);
+                }
+            }));
+        }
+        
+        // Asynchronous convenience methods with chunked transfer
+        const CHUNK_SIZE = 64 * 1024; // 64KB default chunk size
+        
+        function processAsyncWithChunking(method, buffer, options, callback) {
+            try {
+                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+                
+                if (input.length <= CHUNK_SIZE) {
+                    // Small buffer, process directly
+                    method(input, options, (err, result) => {
+                        if (err) {
+                            callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                        } else {
+                            const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                            callback.applyIgnored(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                        }
+                    });
+                } else {
+                    // Large buffer, use streaming approach
+                    const chunks = [];
+                    const stream = method === zlib.deflate ? zlib.createDeflate(options) :
+                                  method === zlib.inflate ? zlib.createInflate(options) :
+                                  method === zlib.gzip ? zlib.createGzip(options) :
+                                  method === zlib.gunzip ? zlib.createGunzip(options) :
+                                  method === zlib.deflateRaw ? zlib.createDeflateRaw(options) :
+                                  method === zlib.inflateRaw ? zlib.createInflateRaw(options) :
+                                  method === zlib.unzip ? zlib.createUnzip(options) :
+                                  method === zlib.brotliCompress ? zlib.createBrotliCompress(options) :
+                                  method === zlib.brotliDecompress ? zlib.createBrotliDecompress(options) :
+                                  null;
+                    
+                    if (!stream) {
+                        return callback.applyIgnored(undefined, [convertZlibError(new Error('Unsupported compression method')), null], { arguments: { copy: true } });
+                    }
+                    
+                    stream.on('data', (chunk) => chunks.push(chunk));
+                    stream.on('error', (err) => {
+                        callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                    });
+                    stream.on('end', () => {
+                        const result = Buffer.concat(chunks);
+                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                        callback.applyIgnored(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                    });
+                    
+                    stream.end(input);
+                }
+            } catch (err) {
+                callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+            }
+        }
+        
+        context.global.setSync('_zlib_deflate', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.deflate, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_inflate', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.inflate, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_gzip', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.gzip, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_gunzip', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.gunzip, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_deflateRaw', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.deflateRaw, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_inflateRaw', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.inflateRaw, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_unzip', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.unzip, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_brotliCompress', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.brotliCompress, buffer, options, callback);
+        }));
+        
+        context.global.setSync('_zlib_brotliDecompress', new ivm.Reference((buffer, options, callback) => {
+            processAsyncWithChunking(zlib.brotliDecompress, buffer, options, callback);
+        }));
+        
+        // Stream factory methods
+        context.global.setSync('_zlib_createDeflate', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createDeflate(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createInflate', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createInflate(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createGzip', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createGzip(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createGunzip', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createGunzip(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createDeflateRaw', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createDeflateRaw(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createInflateRaw', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createInflateRaw(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createUnzip', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createUnzip(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createBrotliCompress', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createBrotliCompress(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_createBrotliDecompress', new ivm.Reference((options) => {
+            try {
+                const stream = zlib.createBrotliDecompress(options);
+                return createZlibHandle(stream);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Add experimental Zstd stream methods if available
+        if (zlib.createZstdCompress && zlib.createZstdDecompress) {
+            context.global.setSync('_zlib_createZstdCompress', new ivm.Reference((options) => {
+                try {
+                    const stream = zlib.createZstdCompress(options);
+                    return createZlibHandle(stream);
+                } catch (err) {
+                    throw convertZlibError(err);
+                }
+            }));
+            
+            context.global.setSync('_zlib_createZstdDecompress', new ivm.Reference((options) => {
+                try {
+                    const stream = zlib.createZstdDecompress(options);
+                    return createZlibHandle(stream);
+                } catch (err) {
+                    throw convertZlibError(err);
+                }
+            }));
+        }
+        
+        // Synchronous chunk processing method
+        context.global.setSync('_zlib_processChunk', new ivm.Reference((handle, chunk) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (handleObj.destroyed) {
+                    throw new Error('Cannot process chunk on destroyed stream');
+                }
+                
+                const input = chunk instanceof ArrayBuffer ? BuiltinBridge._arrayBufferToBuffer(chunk) : chunk;
+                handleObj.bytesRead += input.length;
+                
+                // For transform streams, we need to manually process the data
+                // This is a simplified synchronous approach
+                const chunks = [];
+                let hasData = false;
+                
+                // Temporarily capture output
+                const originalPush = stream.push;
+                stream.push = (chunk) => {
+                    if (chunk !== null) {
+                        chunks.push(chunk);
+                        hasData = true;
+                    }
+                    return true; // Always accept more data
+                };
+                
+                // Process the chunk
+                stream._transform(input, 'buffer', (err) => {
+                    if (err) {
+                        throw err;
+                    }
+                });
+                
+                // Restore original push
+                stream.push = originalPush;
+                
+                if (hasData && chunks.length > 0) {
+                    const result = Buffer.concat(chunks);
+                    handleObj.bytesWritten += result.length;
+                    return BuiltinBridge._bufferToArrayBuffer(result);
+                }
+                
+                return null;
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Synchronous flush processing method
+        context.global.setSync('_zlib_flushChunk', new ivm.Reference((handle) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (handleObj.destroyed) {
+                    throw new Error('Cannot flush destroyed stream');
+                }
+                
+                const chunks = [];
+                let hasData = false;
+                
+                // Temporarily capture output
+                const originalPush = stream.push;
+                stream.push = (chunk) => {
+                    if (chunk !== null) {
+                        chunks.push(chunk);
+                        hasData = true;
+                    }
+                    return true; // Always accept more data
+                };
+                
+                // Process the flush
+                if (stream._flush) {
+                    stream._flush((err) => {
+                        if (err) {
+                            throw err;
+                        }
+                    });
+                }
+                
+                // Restore original push
+                stream.push = originalPush;
+                
+                if (hasData && chunks.length > 0) {
+                    const result = Buffer.concat(chunks);
+                    handleObj.bytesWritten += result.length;
+                    return BuiltinBridge._bufferToArrayBuffer(result);
+                }
+                
+                return null;
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Stream control methods
+        context.global.setSync('_zlib_write', new ivm.Reference((handle, chunk, encoding, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (handleObj.destroyed) {
+                    throw new Error('Cannot write to destroyed stream');
+                }
+                
+                const input = chunk instanceof ArrayBuffer ? BuiltinBridge._arrayBufferToBuffer(chunk) : chunk;
+                handleObj.bytesRead += input.length;
+                
+                const result = stream.write(input, encoding, (err) => {
+                    if (callback) {
+                        callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                    }
+                });
+                
+                return result;
+            } catch (err) {
+                if (callback) {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                }
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_end', new ivm.Reference((handle, chunk, encoding, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (chunk !== undefined && chunk !== null) {
+                    const input = chunk instanceof ArrayBuffer ? BuiltinBridge._arrayBufferToBuffer(chunk) : chunk;
+                    handleObj.bytesRead += input.length;
+                }
+                
+                stream.end(chunk, encoding, (err) => {
+                    handleObj.finished = true;
+                    if (callback) {
+                        callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                    }
+                });
+            } catch (err) {
+                if (callback) {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                }
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_destroy', new ivm.Reference((handle, error) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                handleObj.destroyed = true;
+                stream.destroy(error ? new Error(error) : undefined);
+                
+                // Clean up handle
+                zlibHandles.delete(handle);
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // ZlibBase methods
+        context.global.setSync('_zlib_flush', new ivm.Reference((handle, kind, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (typeof stream.flush === 'function') {
+                    stream.flush(kind, (err) => {
+                        if (callback) {
+                            const serializedError = err ? convertZlibError(err) : null;
+                            callback.applyIgnored(undefined, [serializedError], { arguments: { copy: true } });
+                        }
+                    });
+                } else {
+                    throw new Error('Stream does not support flush operation');
+                }
+            } catch (err) {
+                if (callback) {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                }
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_params', new ivm.Reference((handle, level, strategy, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (typeof stream.params === 'function') {
+                    stream.params(level, strategy, (err) => {
+                        if (callback) {
+                            callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                        }
+                    });
+                } else {
+                    throw new Error('Stream does not support params operation');
+                }
+            } catch (err) {
+                if (callback) {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                }
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_reset', new ivm.Reference((handle) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (typeof stream.reset === 'function') {
+                    stream.reset();
+                    handleObj.bytesWritten = 0;
+                    handleObj.bytesRead = 0;
+                } else {
+                    throw new Error('Stream does not support reset operation');
+                }
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_close', new ivm.Reference((handle, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                if (typeof stream.close === 'function') {
+                    stream.close((err) => {
+                        zlibHandles.delete(handle);
+                        if (callback) {
+                            callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                        }
+                    });
+                } else {
+                    // Clean up handle even if close is not supported
+                    zlibHandles.delete(handle);
+                    if (callback) {
+                        callback.applyIgnored(undefined, [null], { arguments: { copy: true } });
+                    }
+                }
+            } catch (err) {
+                if (callback) {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                }
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_getBytesWritten', new ivm.Reference((handle) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                return stream.bytesWritten || handleObj.bytesWritten;
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_getBytesRead', new ivm.Reference((handle) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                return stream.bytesRead || handleObj.bytesRead;
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Stream event registration for VM callbacks
+        context.global.setSync('_zlib_onData', new ivm.Reference((handle, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                stream.on('data', (chunk) => {
+                    handleObj.bytesWritten += chunk.length;
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(chunk);
+                    callback.applyIgnored(undefined, [arrayBuffer], { arguments: { copy: true } });
+                });
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_onEnd', new ivm.Reference((handle, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                stream.on('end', () => {
+                    handleObj.finished = true;
+                    callback.applyIgnored(undefined, [], { arguments: { copy: true } });
+                });
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_onError', new ivm.Reference((handle, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                stream.on('error', (err) => {
+                    callback.applyIgnored(undefined, [convertZlibError(err)], { arguments: { copy: true } });
+                });
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        context.global.setSync('_zlib_onClose', new ivm.Reference((handle, callback) => {
+            try {
+                const handleObj = getZlibHandle(handle);
+                const stream = handleObj.stream;
+                
+                stream.on('close', () => {
+                    zlibHandles.delete(handle);
+                    callback.applyIgnored(undefined, [], { arguments: { copy: true } });
+                });
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Utility functions
+        context.global.setSync('_zlib_crc32', new ivm.Reference((data, value) => {
+            try {
+                const input = data instanceof ArrayBuffer ? BuiltinBridge._arrayBufferToBuffer(data) : data;
+                if (typeof zlib.crc32 === 'function') {
+                    return zlib.crc32(input, value);
+                } else {
+                    // Fallback CRC32 implementation if not available in zlib
+                    try {
+                        const crc32 = require('crc-32');
+                        return crc32.buf(input, value);
+                    } catch (requireError) {
+                        // Simple polynomial CRC32 fallback
+                        let crc = value || -1;
+                        for (let i = 0; i < input.length; i++) {
+                            crc = (crc >>> 8) ^ crc32Table[(crc ^ input[i]) & 0xFF];
+                        }
+                        return (crc ^ -1) >>> 0;
+                    }
+                }
+            } catch (err) {
+                throw convertZlibError(err);
+            }
+        }));
+        
+        // Constants
+        context.global.setSync('_zlib_constants', new ivm.ExternalCopy({
+            // Compression levels
+            Z_NO_COMPRESSION: zlib.constants.Z_NO_COMPRESSION,
+            Z_BEST_SPEED: zlib.constants.Z_BEST_SPEED,
+            Z_BEST_COMPRESSION: zlib.constants.Z_BEST_COMPRESSION,
+            Z_DEFAULT_COMPRESSION: zlib.constants.Z_DEFAULT_COMPRESSION,
+            
+            // Compression strategies
+            Z_FILTERED: zlib.constants.Z_FILTERED,
+            Z_HUFFMAN_ONLY: zlib.constants.Z_HUFFMAN_ONLY,
+            Z_RLE: zlib.constants.Z_RLE,
+            Z_FIXED: zlib.constants.Z_FIXED,
+            Z_DEFAULT_STRATEGY: zlib.constants.Z_DEFAULT_STRATEGY,
+            
+            // Flush modes
+            Z_NO_FLUSH: zlib.constants.Z_NO_FLUSH,
+            Z_PARTIAL_FLUSH: zlib.constants.Z_PARTIAL_FLUSH,
+            Z_SYNC_FLUSH: zlib.constants.Z_SYNC_FLUSH,
+            Z_FULL_FLUSH: zlib.constants.Z_FULL_FLUSH,
+            Z_FINISH: zlib.constants.Z_FINISH,
+            Z_BLOCK: zlib.constants.Z_BLOCK,
+            Z_TREES: zlib.constants.Z_TREES,
+            
+            // Window bits
+            Z_MIN_WINDOWBITS: zlib.constants.Z_MIN_WINDOWBITS,
+            Z_MAX_WINDOWBITS: zlib.constants.Z_MAX_WINDOWBITS,
+            Z_DEFAULT_WINDOWBITS: zlib.constants.Z_DEFAULT_WINDOWBITS,
+            
+            // Memory levels
+            Z_MIN_MEMLEVEL: zlib.constants.Z_MIN_MEMLEVEL,
+            Z_MAX_MEMLEVEL: zlib.constants.Z_MAX_MEMLEVEL,
+            Z_DEFAULT_MEMLEVEL: zlib.constants.Z_DEFAULT_MEMLEVEL,
+            
+            // Chunk sizes
+            Z_MIN_CHUNK: zlib.constants.Z_MIN_CHUNK,
+            Z_MAX_CHUNK: zlib.constants.Z_MAX_CHUNK,
+            Z_DEFAULT_CHUNK: zlib.constants.Z_DEFAULT_CHUNK,
+            
+            // Brotli constants
+            BROTLI_DECODE: zlib.constants.BROTLI_DECODE,
+            BROTLI_ENCODE: zlib.constants.BROTLI_ENCODE,
+            BROTLI_OPERATION_PROCESS: zlib.constants.BROTLI_OPERATION_PROCESS,
+            BROTLI_OPERATION_FLUSH: zlib.constants.BROTLI_OPERATION_FLUSH,
+            BROTLI_OPERATION_FINISH: zlib.constants.BROTLI_OPERATION_FINISH,
+            BROTLI_OPERATION_EMIT_METADATA: zlib.constants.BROTLI_OPERATION_EMIT_METADATA,
+            
+            BROTLI_PARAM_MODE: zlib.constants.BROTLI_PARAM_MODE,
+            BROTLI_PARAM_QUALITY: zlib.constants.BROTLI_PARAM_QUALITY,
+            BROTLI_PARAM_LGWIN: zlib.constants.BROTLI_PARAM_LGWIN,
+            BROTLI_PARAM_LGBLOCK: zlib.constants.BROTLI_PARAM_LGBLOCK,
+            BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING: zlib.constants.BROTLI_PARAM_DISABLE_LITERAL_CONTEXT_MODELING,
+            BROTLI_PARAM_SIZE_HINT: zlib.constants.BROTLI_PARAM_SIZE_HINT,
+            BROTLI_PARAM_LARGE_WINDOW: zlib.constants.BROTLI_PARAM_LARGE_WINDOW,
+            BROTLI_PARAM_NPOSTFIX: zlib.constants.BROTLI_PARAM_NPOSTFIX,
+            BROTLI_PARAM_NDIRECT: zlib.constants.BROTLI_PARAM_NDIRECT,
+            
+            BROTLI_MODE_GENERIC: zlib.constants.BROTLI_MODE_GENERIC,
+            BROTLI_MODE_TEXT: zlib.constants.BROTLI_MODE_TEXT,
+            BROTLI_MODE_FONT: zlib.constants.BROTLI_MODE_FONT,
+            
+            BROTLI_MIN_QUALITY: zlib.constants.BROTLI_MIN_QUALITY,
+            BROTLI_MAX_QUALITY: zlib.constants.BROTLI_MAX_QUALITY,
+            BROTLI_DEFAULT_QUALITY: zlib.constants.BROTLI_DEFAULT_QUALITY,
+            BROTLI_MIN_WINDOW_BITS: zlib.constants.BROTLI_MIN_WINDOW_BITS,
+            BROTLI_MAX_WINDOW_BITS: zlib.constants.BROTLI_MAX_WINDOW_BITS,
+            BROTLI_DEFAULT_WINDOW: zlib.constants.BROTLI_DEFAULT_WINDOW
+        }).copyInto());
     }
 }
 
