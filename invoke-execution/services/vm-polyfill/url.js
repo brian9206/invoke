@@ -408,3 +408,6 @@ function URL(url, base) {
 
 exports.URL = URL;
 exports.URLSearchParams = URLSearchParams;
+exports.parse = function(input, base) {
+	return new URL(input, base);
+}

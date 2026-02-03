@@ -30,7 +30,7 @@ class IsolatePool {
             });
 
         // Load polyfill code from vm-polyfill on initialization
-        this.bootstrapCode += '\nfunction loadPolyfills(modules) {\n';
+        this.bootstrapCode += '\nfunction loadPolyfills(modules, require) {\n';
         fs.globSync(path.join(__dirname, 'vm-polyfill', '**/*.js'))
             .filter(file => file.endsWith('.js'))
             .sort((a, b) => a.localeCompare(b))
@@ -41,7 +41,7 @@ class IsolatePool {
                 this.bootstrapCode += `modules[module.name] = module.exports;\n`;
                 this.bootstrapCode += `})();\n`;
             });
-        this.bootstrapCode += '}';
+        this.bootstrapCode += '}\n';
         
         // Cleanup interval
         this.cleanupInterval = null;

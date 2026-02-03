@@ -7,6 +7,7 @@
             if (arg === undefined) return 'undefined';
             if (arg === null) return 'null';
             if (arg instanceof Error) return arg.stack;
+            if (arg instanceof Function) return '[Function: ' + (arg.name || 'anonymous') + ']';
             if (typeof arg === 'object') {
                 try { return JSON.stringify(arg); }
                 catch (e) { return '[Unserializable]'; }

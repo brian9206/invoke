@@ -77,6 +77,10 @@ class ExecutionContext {
                 message: data.message.map(arg => String(arg)).join(' '),
                 timestamp: Date.now()
             });
+            
+            if (process.env.REDIRECT_OUTPUT === 'true') {
+                console[data.level || 'log'](`[Function ${this.functionId}] ${data.message.map(arg => String(arg)).join(' ')}`);
+            }
         }));
 
         await this.context.global.set('_consoleClear', new ivm.Reference(() => {
