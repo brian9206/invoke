@@ -225,77 +225,113 @@
         }
     };
 
-    // Async methods using sync + nextTick
+    // Async methods following fs.js pattern with proper callback wrapping
     self.deflate = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.deflateSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_deflate.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.inflate = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.inflateSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_inflate.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.gzip = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.gzipSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_gzip.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.gunzip = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.gunzipSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_gunzip.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.deflateRaw = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.deflateRawSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_deflateRaw.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.inflateRaw = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.inflateRawSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_inflateRaw.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.unzip = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.unzipSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_unzip.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.brotliCompress = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.brotliCompressSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_brotliCompress.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     self.brotliDecompress = function(buffer, options, callback) {
         if (typeof options === 'function') { callback = options; options = {}; }
-        process.nextTick(() => {
-            try { callback(null, self.brotliDecompressSync(buffer, options)); }
-            catch (err) { callback(convertZlibError(err)); }
-        });
+        const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        return _zlib_brotliDecompress.applySync(undefined, [arrayBuffer, options, new ivm.Reference((err, result) => {
+            if (err) {
+                callback(convertZlibError(err));
+            } else {
+                callback(null, convertArrayBufferToBufferSafe(result));
+            }
+        })], { arguments: { copy: true } });
     };
 
     // Stream classes using simple accumulate-and-process approach

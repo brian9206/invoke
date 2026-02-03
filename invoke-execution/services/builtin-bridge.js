@@ -1839,92 +1839,113 @@ class BuiltinBridge {
             }));
         }
         
-        // Asynchronous convenience methods with chunked transfer
-        const CHUNK_SIZE = 64 * 1024; // 64KB default chunk size
-        
-        function processAsyncWithChunking(method, buffer, options, callback) {
-            try {
-                const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
-                
-                if (input.length <= CHUNK_SIZE) {
-                    // Small buffer, process directly
-                    method(input, options, (err, result) => {
-                        if (err) {
-                            callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
-                        } else {
-                            const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
-                            callback.applyIgnored(undefined, [null, arrayBuffer], { arguments: { copy: true } });
-                        }
-                    });
-                } else {
-                    // Large buffer, use streaming approach
-                    const chunks = [];
-                    const stream = method === zlib.deflate ? zlib.createDeflate(options) :
-                                  method === zlib.inflate ? zlib.createInflate(options) :
-                                  method === zlib.gzip ? zlib.createGzip(options) :
-                                  method === zlib.gunzip ? zlib.createGunzip(options) :
-                                  method === zlib.deflateRaw ? zlib.createDeflateRaw(options) :
-                                  method === zlib.inflateRaw ? zlib.createInflateRaw(options) :
-                                  method === zlib.unzip ? zlib.createUnzip(options) :
-                                  method === zlib.brotliCompress ? zlib.createBrotliCompress(options) :
-                                  method === zlib.brotliDecompress ? zlib.createBrotliDecompress(options) :
-                                  null;
-                    
-                    if (!stream) {
-                        return callback.applyIgnored(undefined, [convertZlibError(new Error('Unsupported compression method')), null], { arguments: { copy: true } });
-                    }
-                    
-                    stream.on('data', (chunk) => chunks.push(chunk));
-                    stream.on('error', (err) => {
-                        callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
-                    });
-                    stream.on('end', () => {
-                        const result = Buffer.concat(chunks);
-                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
-                        callback.applyIgnored(undefined, [null, arrayBuffer], { arguments: { copy: true } });
-                    });
-                    
-                    stream.end(input);
-                }
-            } catch (err) {
-                callback.applyIgnored(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
-            }
-        }
-        
+        // Asynchronous convenience methods following fs module pattern
         context.global.setSync('_zlib_deflate', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.deflate, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.deflate(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_inflate', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.inflate, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.inflate(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_gzip', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.gzip, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.gzip(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_gunzip', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.gunzip, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.gunzip(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_deflateRaw', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.deflateRaw, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.deflateRaw(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_inflateRaw', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.inflateRaw, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.inflateRaw(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_unzip', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.unzip, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.unzip(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_brotliCompress', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.brotliCompress, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.brotliCompress(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         context.global.setSync('_zlib_brotliDecompress', new ivm.Reference((buffer, options, callback) => {
-            processAsyncWithChunking(zlib.brotliDecompress, buffer, options, callback);
+            const input = Buffer.isBuffer(buffer) ? buffer : BuiltinBridge._arrayBufferToBuffer(buffer);
+            zlib.brotliDecompress(input, options, (err, result) => {
+                if (err) {
+                    callback.applySync(undefined, [convertZlibError(err), null], { arguments: { copy: true } });
+                } else {
+                    const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(result);
+                    callback.applySync(undefined, [null, arrayBuffer], { arguments: { copy: true } });
+                }
+            });
         }));
         
         // Stream factory methods
