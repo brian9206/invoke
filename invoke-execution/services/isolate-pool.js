@@ -36,9 +36,9 @@ class IsolatePool {
             .sort((a, b) => a.localeCompare(b))
             .forEach(file => {
                 this.bootstrapCode += `(function(){\n`;
-                this.bootstrapCode += `const module = { exports: {} }; const exports = module.exports; const global = exports;\n`;
+                this.bootstrapCode += `const module = { exports: {}, name: ${JSON.stringify(path.basename(file, '.js'))} }; const exports = module.exports; const global = exports;\n`;
                 this.bootstrapCode += `${fs.readFileSync(file, 'utf8')};\n`;
-                this.bootstrapCode += `modules[${JSON.stringify(path.basename(file, '.js'))}] = module.exports;\n`;
+                this.bootstrapCode += `modules[module.name] = module.exports;\n`;
                 this.bootstrapCode += `})();\n`;
             });
         this.bootstrapCode += '}';

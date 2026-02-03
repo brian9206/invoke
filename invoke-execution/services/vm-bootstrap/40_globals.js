@@ -4,7 +4,9 @@
 
 (function() {
     globalThis.Buffer = require('buffer').Buffer;
-    globalThis.EventEmitter = require('events').EventEmitter;
-    globalThis.URL = require('url').URL;
-    globalThis.URLSearchParams = require('url').URLSearchParams;
+
+    // URL and URLSearchParams
+    const { URL, URLSearchParams } = require('url');
+    globalThis.URL = URL;
+    globalThis.URLSearchParams = URLSearchParams;
 })();

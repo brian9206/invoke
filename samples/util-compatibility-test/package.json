@@ -1,0 +1,10 @@
+{
+  "name": "util-compatibility-test",
+  "version": "1.0.0",
+  "description": "Comprehensive Node.js util module compatibility test",
+  "main": "index.js",
+  "dependencies": {},
+  "scripts": {
+    "test": "node index.js"
+  }
+}
