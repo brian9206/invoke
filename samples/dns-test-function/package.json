@@ -1,0 +1,16 @@
+{
+  "name": "dns-test-function",
+  "version": "1.0.0",
+  "description": "Test function for DNS module in VM environment",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "dns",
+    "test",
+    "invoke"
+  ],
+  "author": "",
+  "license": "ISC"
+}

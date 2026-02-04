@@ -10,6 +10,7 @@ http
 https
 tls
 net
+dns
 mime-types
 path
 ws

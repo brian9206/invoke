@@ -4,6 +4,7 @@ const net = require('net');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const tls = require('tls');
+const dns = require('dns');
 
 /**
  * Builtin module bridge for isolated-vm context
@@ -27,6 +28,7 @@ class BuiltinBridge {
         this.setupZlib(context);
         this.setupNet(context);
         this.setupTLS(context);
+        this.setupDNS(context);
     }
     
     /**
@@ -2522,6 +2524,301 @@ class BuiltinBridge {
             BROTLI_MAX_WINDOW_BITS: zlib.constants.BROTLI_MAX_WINDOW_BITS,
             BROTLI_DEFAULT_WINDOW: zlib.constants.BROTLI_DEFAULT_WINDOW
         }).copyInto());
+    }
+
+    /**
+     * Setup DNS module
+     */
+    static setupDNS(context) {
+        // Helper to convert error to serializable object
+        function convertErrorObject(err) {
+            if (!err) return null;
+            return {
+                message: err.message,
+                code: err.code,
+                errno: err.errno,
+                syscall: err.syscall,
+                hostname: err.hostname
+            };
+        }
+
+        // dns.lookup
+        context.global.setSync('_dns_lookup', new ivm.Reference((hostname, options, callback) => {
+            dns.lookup(hostname, options, (err, address, family) => {
+                callback.applySync(undefined, [convertErrorObject(err), address, family], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.lookupService
+        context.global.setSync('_dns_lookupService', new ivm.Reference((address, port, callback) => {
+            dns.lookupService(address, port, (err, hostname, service) => {
+                callback.applySync(undefined, [convertErrorObject(err), hostname, service], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolve
+        context.global.setSync('_dns_resolve', new ivm.Reference((hostname, rrtype, callback) => {
+            dns.resolve(hostname, rrtype, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolve4
+        context.global.setSync('_dns_resolve4', new ivm.Reference((hostname, options, callback) => {
+            dns.resolve4(hostname, options, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolve6
+        context.global.setSync('_dns_resolve6', new ivm.Reference((hostname, options, callback) => {
+            dns.resolve6(hostname, options, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveAny
+        context.global.setSync('_dns_resolveAny', new ivm.Reference((hostname, callback) => {
+            dns.resolveAny(hostname, (err, records) => {
+                callback.applySync(undefined, [convertErrorObject(err), records], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveCname
+        context.global.setSync('_dns_resolveCname', new ivm.Reference((hostname, callback) => {
+            dns.resolveCname(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveMx
+        context.global.setSync('_dns_resolveMx', new ivm.Reference((hostname, callback) => {
+            dns.resolveMx(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveNaptr
+        context.global.setSync('_dns_resolveNaptr', new ivm.Reference((hostname, callback) => {
+            dns.resolveNaptr(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveNs
+        context.global.setSync('_dns_resolveNs', new ivm.Reference((hostname, callback) => {
+            dns.resolveNs(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolvePtr
+        context.global.setSync('_dns_resolvePtr', new ivm.Reference((hostname, callback) => {
+            dns.resolvePtr(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveSoa
+        context.global.setSync('_dns_resolveSoa', new ivm.Reference((hostname, callback) => {
+            dns.resolveSoa(hostname, (err, address) => {
+                callback.applySync(undefined, [convertErrorObject(err), address], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveSrv
+        context.global.setSync('_dns_resolveSrv', new ivm.Reference((hostname, callback) => {
+            dns.resolveSrv(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.resolveTxt
+        context.global.setSync('_dns_resolveTxt', new ivm.Reference((hostname, callback) => {
+            dns.resolveTxt(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.reverse
+        context.global.setSync('_dns_reverse', new ivm.Reference((ip, callback) => {
+            dns.reverse(ip, (err, hostnames) => {
+                callback.applySync(undefined, [convertErrorObject(err), hostnames], { arguments: { copy: true } });
+            });
+        }));
+
+        // dns.setDefaultResultOrder
+        context.global.setSync('_dns_setDefaultResultOrder', new ivm.Reference((order) => {
+            dns.setDefaultResultOrder(order);
+        }));
+
+        // dns.getDefaultResultOrder
+        context.global.setSync('_dns_getDefaultResultOrder', new ivm.Reference(() => {
+            return dns.getDefaultResultOrder();
+        }));
+
+        // dns.setServers
+        context.global.setSync('_dns_setServers', new ivm.Reference((servers) => {
+            dns.setServers(servers);
+        }));
+
+        // dns.getServers
+        context.global.setSync('_dns_getServers', new ivm.Reference(() => {
+            const servers = dns.getServers();
+            return new ivm.ExternalCopy(servers).copyInto();
+        }));
+
+        // Resolver instance management
+        const resolverHandles = new Map();
+        let resolverHandleCounter = 0;
+
+        function createResolverHandle(resolver) {
+            const handleId = ++resolverHandleCounter;
+            resolverHandles.set(handleId, resolver);
+            return handleId;
+        }
+
+        function getResolverHandle(handleId) {
+            const resolver = resolverHandles.get(handleId);
+            if (!resolver) {
+                throw new Error('Invalid resolver handle');
+            }
+            return resolver;
+        }
+
+        function removeResolverHandle(handleId) {
+            resolverHandles.delete(handleId);
+        }
+
+        // dns.Resolver constructor
+        context.global.setSync('_dns_createResolver', new ivm.Reference((options) => {
+            const resolver = new dns.Resolver(options);
+            return createResolverHandle(resolver);
+        }));
+
+        // Resolver.cancel
+        context.global.setSync('_dns_resolverCancel', new ivm.Reference((handle) => {
+            const resolver = getResolverHandle(handle);
+            resolver.cancel();
+            removeResolverHandle(handle);
+        }));
+
+        // Resolver.setServers
+        context.global.setSync('_dns_resolverSetServers', new ivm.Reference((handle, servers) => {
+            const resolver = getResolverHandle(handle);
+            resolver.setServers(servers);
+        }));
+
+        // Resolver.getServers
+        context.global.setSync('_dns_resolverGetServers', new ivm.Reference((handle) => {
+            const resolver = getResolverHandle(handle);
+            const servers = resolver.getServers();
+            return new ivm.ExternalCopy(servers).copyInto();
+        }));
+
+        // Resolver.resolve
+        context.global.setSync('_dns_resolverResolve', new ivm.Reference((handle, hostname, rrtype, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolve(hostname, rrtype, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolve4
+        context.global.setSync('_dns_resolverResolve4', new ivm.Reference((handle, hostname, options, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolve4(hostname, options, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolve6
+        context.global.setSync('_dns_resolverResolve6', new ivm.Reference((handle, hostname, options, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolve6(hostname, options, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveAny
+        context.global.setSync('_dns_resolverResolveAny', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveAny(hostname, (err, records) => {
+                callback.applySync(undefined, [convertErrorObject(err), records], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveCname
+        context.global.setSync('_dns_resolverResolveCname', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveCname(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveMx
+        context.global.setSync('_dns_resolverResolveMx', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveMx(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveNaptr
+        context.global.setSync('_dns_resolverResolveNaptr', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveNaptr(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveNs
+        context.global.setSync('_dns_resolverResolveNs', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveNs(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolvePtr
+        context.global.setSync('_dns_resolverResolvePtr', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolvePtr(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveSoa
+        context.global.setSync('_dns_resolverResolveSoa', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveSoa(hostname, (err, address) => {
+                callback.applySync(undefined, [convertErrorObject(err), address], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveSrv
+        context.global.setSync('_dns_resolverResolveSrv', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveSrv(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.resolveTxt
+        context.global.setSync('_dns_resolverResolveTxt', new ivm.Reference((handle, hostname, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.resolveTxt(hostname, (err, addresses) => {
+                callback.applySync(undefined, [convertErrorObject(err), addresses], { arguments: { copy: true } });
+            });
+        }));
+
+        // Resolver.reverse
+        context.global.setSync('_dns_resolverReverse', new ivm.Reference((handle, ip, callback) => {
+            const resolver = getResolverHandle(handle);
+            resolver.reverse(ip, (err, hostnames) => {
+                callback.applySync(undefined, [convertErrorObject(err), hostnames], { arguments: { copy: true } });
+            });
+        }));
     }
 }
 
