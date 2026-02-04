@@ -1,0 +1,21 @@
+{
+  "name": "invoke-execution-bundler",
+  "version": "1.0.0",
+  "description": "Bundler for Invoke Execution Engine modules or polyfills",
+  "license": "MIT",
+  "author": "Brian Choi",
+  "type": "commonjs",
+  "main": "build.js",
+  "scripts": {
+    "start": "node build.js",
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "esbuild": "^0.27.2",
+    "events": "^3.3.0",
+    "node-fetch": "^2.7.0",
+    "punycode": "^2.3.1",
+    "readable-stream": "^4.7.0"
+  }
+}

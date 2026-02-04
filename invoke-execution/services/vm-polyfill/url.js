@@ -411,3 +411,51 @@ exports.URLSearchParams = URLSearchParams;
 exports.parse = function(input, base) {
 	return new URL(input, base);
 }
+exports.format = function(urlObj) {
+    // Handle URL object or parsed URL object
+    if (urlObj && typeof urlObj.toString === 'function') {
+        return urlObj.toString();
+    }
+    
+    // Handle legacy url.parse() format
+    var result = '';
+    
+    if (urlObj.protocol) {
+        result += urlObj.protocol;
+        if (!result.endsWith('//')) {
+            result += '//';
+        }
+    }
+    
+    if (urlObj.username) {
+        result += urlObj.username;
+        if (urlObj.password) {
+            result += ':' + urlObj.password;
+        }
+        result += '@';
+    }
+    
+    if (urlObj.hostname || urlObj.host) {
+        result += urlObj.hostname || urlObj.host;
+    }
+    
+    if (urlObj.port) {
+        result += ':' + urlObj.port;
+    }
+    
+    if (urlObj.pathname) {
+        result += urlObj.pathname;
+    }
+    
+    if (urlObj.search) {
+        result += urlObj.search;
+    } else if (urlObj.query) {
+        result += '?' + urlObj.query;
+    }
+    
+    if (urlObj.hash) {
+        result += urlObj.hash;
+    }
+    
+    return result;
+}

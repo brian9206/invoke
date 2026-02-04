@@ -191,7 +191,7 @@
                 });
                 listener(...convertedArgs);
             });
-            _net_socketOn.applySync(undefined, [this._handle, event, wrappedListener], { arguments: { copy: true } });
+            _net_socketOn.applyIgnored(undefined, [this._handle, event, wrappedListener]);
             return this;
         }
 
@@ -207,7 +207,7 @@
                 });
                 listener(...convertedArgs);
             });
-            _net_socketOnce.applySync(undefined, [this._handle, event, wrappedListener], { arguments: { copy: true } });
+            _net_socketOnce.applyIgnored(undefined, [this._handle, event, wrappedListener]);
             return this;
         }
 

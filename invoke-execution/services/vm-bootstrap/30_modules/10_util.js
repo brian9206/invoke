@@ -820,19 +820,19 @@
             }
         }
         
-        decode(input, options = {}) {
-            const stream = !!options.stream;
-            
+        decode(input) {
             if (input === undefined) {
                 return '';
             }
             
             // Convert ArrayBuffer to Uint8Array if needed
-            if (input instanceof ArrayBuffer) {
-                input = new Uint8Array(input);
+            if (input instanceof Uint8Array) {
+                input = input.buffer.slice(input.byteOffset, input.byteOffset + input.byteLength);
             }
             
-            return _textDecoderDecode.applySync(undefined, [input, this.encoding]);
+            const res = _textDecoderDecode.applySync(undefined, [input, this.encoding], { arguments: { copy: true } });
+            console.log('nigger', new Uint8Array(input).toString());
+            return res;
         }
     };
 
@@ -1726,5 +1726,8 @@
             });
         }
     };
+
+    globalThis.TextEncoder = self.TextEncoder;
+    globalThis.TextDecoder = self.TextDecoder;
 
 })();

@@ -21,7 +21,7 @@ class IsolatePool {
         this.warmupComplete = false;
         
         // Load bootstrap code from vm-bootstrap on initialization
-        this.bootstrapCode = '';
+        this.bootstrapCode = 'var global = globalThis;\n';
         fs.globSync(path.join(__dirname, 'vm-bootstrap', '**/*.js'))
             .filter(file => file.endsWith('.js'))
             .sort((a, b) => a.localeCompare(b))

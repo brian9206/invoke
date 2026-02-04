@@ -14,7 +14,13 @@ const builtinModule = {};
     
     // Get fs and path modules from built-in modules
     const fs = () => builtinModule['fs'];
-    const path = () => builtinModule['path'];
+    const path = () => {
+        if (!builtinModule['path']) {
+            console.log('Error in bootstrap code: ' + new Error().stack);
+        }
+
+        return builtinModule['path'];
+    };
 
     /**
      * Resolve module path by trying extensions and index files
@@ -255,7 +261,8 @@ const builtinModule = {};
     function createRequire(currentDir) {
         return function require(moduleName) {
             // Strip 'node:' prefix if present (Node.js module protocol)
-            const cleanModuleName = moduleName.startsWith('node:') ? moduleName.slice(5) : moduleName;
+            let cleanModuleName = moduleName.startsWith('node:') ? moduleName.slice(5) : moduleName;
+            cleanModuleName = cleanModuleName.endsWith('/') ? cleanModuleName.slice(0, -1) : cleanModuleName;
             
             // Handle built-in modules
             if (Object.keys(builtinModule).includes(cleanModuleName)) {
