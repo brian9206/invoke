@@ -8,7 +8,7 @@ const { buildModule, bootstrapDir, externalModules } = require('./utils');
     await buildModule({ 
         moduleName: 'events/', 
         exportModuleName: 'events', 
-        outputFileName: '30_modules/10_events.js',
+        outputFileName: '20_modules/10_events.js',
         globalThisExports: ['EventEmitter']
     });
 
@@ -16,7 +16,7 @@ const { buildModule, bootstrapDir, externalModules } = require('./utils');
     await buildModule({ 
         moduleName: 'buffer/', 
         exportModuleName: 'buffer', 
-        outputFileName: '30_modules/20_buffer.js',
+        outputFileName: '20_modules/10_buffer.js',
         inputFileName: './modules/buffer.js',
     });
 
@@ -24,21 +24,21 @@ const { buildModule, bootstrapDir, externalModules } = require('./utils');
     await buildModule({ 
         moduleName: 'readable-stream', 
         exportModuleName: 'stream', 
-        outputFileName: '30_modules/30_stream.js' 
+        outputFileName: '20_modules/20_stream.js' 
     });
 
     // punycode
     await buildModule({ 
         moduleName: 'punycode/', 
         exportModuleName: 'punycode', 
-        outputFileName: '30_modules/punycode.js' 
+        outputFileName: '20_modules/punycode.js' 
     });
 
     // fetch
-    console.log(`Building module: fetch -> ${path.resolve(bootstrapDir, '40_fetch.js')}`);
+    console.log(`Building module: fetch -> ${path.resolve(bootstrapDir, '30_fetch.js')}`);
     await esbuild.build({
         entryPoints: [path.resolve(process.cwd(), './modules/fetch.js')],
-        outfile: path.resolve(bootstrapDir, '40_fetch.js'),
+        outfile: path.resolve(bootstrapDir, '30_fetch.js'),
         bundle: true,
         keepNames: true,
         platform: 'node',
@@ -50,14 +50,14 @@ const { buildModule, bootstrapDir, externalModules } = require('./utils');
     await buildModule({ 
         moduleName: 'assert/', 
         exportModuleName: 'assert', 
-        outputFileName: '30_modules/assert.js' 
+        outputFileName: '20_modules/assert.js' 
     });
 
     // string_decoder
     await buildModule({ 
         moduleName: 'string_decoder/', 
         exportModuleName: 'string_decoder', 
-        outputFileName: '30_modules/string_decoder.js' 
+        outputFileName: '20_modules/10_string_decoder.js' 
     });
 
     console.log('All done');
