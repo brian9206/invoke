@@ -6,6 +6,7 @@
     // Lazy require helpers to avoid bootstrap dependency issues
     const getHttp = () => require('http');
     const getTls = () => require('tls');
+    const getURL = () => require('url').URL;
 
     // Error object conversion utility (same pattern as fs module)
     function convertErrorObject(value) {
@@ -183,6 +184,7 @@
     self.request = function(url, options, callback) {
         // Parse URL if string, same as HTTP module
         if (typeof url === 'string') {
+            const URL = getURL();
             const parsed = new URL(url);
             options = {
                 protocol: 'https:',

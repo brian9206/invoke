@@ -1441,8 +1441,21 @@ class BuiltinBridge {
         
         // Bridge TLS connect functionality
         context.global.setSync('_tls_connect', new ivm.Reference((port, host, options, callback) => {
-            const tlsSocket = tls.connect(port, host, options);
+            // Merge options with port and host
+            const tlsOptions = {
+                ...options,
+                port: port,
+                host: host
+            };
+            
+            const tlsSocket = tls.connect(tlsOptions);
             const handleId = createTLSHandle(tlsSocket);
+            
+            // Buffer to collect all data before 'end'
+            const dataChunks = [];
+            let endEmitted = false;
+            let closeQueued = false;
+            let closeHadError = false;
             
             // Setup event forwarding
             tlsSocket.on('secureConnect', () => {
@@ -1455,6 +1468,9 @@ class BuiltinBridge {
             
             tlsSocket.on('data', (data) => {
                 try {
+                    // Buffer the data
+                    dataChunks.push(data);
+                    
                     // Convert Buffer to ArrayBuffer for VM using helper method
                     if (Buffer.isBuffer(data)) {
                         const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(data);
@@ -1467,18 +1483,49 @@ class BuiltinBridge {
                 }
             });
             
+            tlsSocket.on('end', () => {
+                // Wait a bit to ensure all data events are processed
+                setImmediate(() => {
+                    endEmitted = true;
+                    if (callback) callback.applyIgnored(undefined, ['end']);
+                    
+                    // If close was queued, emit it now
+                    if (closeQueued) {
+                        setImmediate(() => {
+                            if (callback) callback.applyIgnored(undefined, ['close', closeHadError]);
+                            removeTLSHandle(handleId);
+                        });
+                    }
+                });
+            });
+            
             tlsSocket.on('close', (hadError) => {
-                if (callback) callback.applyIgnored(undefined, ['close', hadError]);
-                removeTLSHandle(handleId);
+                // If 'end' hasn't been emitted yet, queue the close event
+                if (!endEmitted) {
+                    closeQueued = true;
+                    closeHadError = hadError;
+                    // Emit 'end' first
+                    setImmediate(() => {
+                        if (callback) callback.applyIgnored(undefined, ['end']);
+                        endEmitted = true;
+                        // Then emit close
+                        setImmediate(() => {
+                            if (callback) callback.applyIgnored(undefined, ['close', hadError]);
+                            removeTLSHandle(handleId);
+                        });
+                    });
+                } else {
+                    // 'end' was already emitted, just emit close
+                    setImmediate(() => {
+                        if (callback) callback.applyIgnored(undefined, ['close', hadError]);
+                        removeTLSHandle(handleId);
+                    });
+                }
             });
             
             tlsSocket.on('error', (err) => {
                 const errorMsg = err && err.message ? err.message : String(err);
                 if (callback) callback.applyIgnored(undefined, ['error', errorMsg]);
-            });
-            
-            tlsSocket.on('end', () => {
-                if (callback) callback.applyIgnored(undefined, ['end']);
             });
             
             return handleId;

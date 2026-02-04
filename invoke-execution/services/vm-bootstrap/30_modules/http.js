@@ -7,6 +7,7 @@
     const getEventEmitter = () => require('events');
     const getStream = () => require('stream');
     const getNet = () => require('net');
+    const getURL = () => require('url').URL;
 
     // HTTP constants
     self.METHODS = [
@@ -534,6 +535,11 @@
             // Set up response parser
             const parser = new HTTPParser('response');
             
+            // Store the data handler so we can remove it later
+            const onData = (data) => {
+                parser.execute(data);
+            };
+            
             parser.on('headersComplete', (info) => {
                 const response = new IncomingMessage(socket);
                 Object.assign(response, info);
@@ -542,7 +548,7 @@
                 if (info.statusCode === 101 && info.headers.upgrade) {
                     const head = parser.buffer;
                     parser.removeAllListeners();
-                    socket.removeAllListeners('data');
+                    socket.removeListener('data', onData);
                     this.emit('upgrade', response, socket, head);
                     return;
                 }
@@ -556,6 +562,11 @@
                 parser.on('messageComplete', () => {
                     response.push(null);
                     response.complete = true;
+                    
+                    // Clean up the data listener immediately when message is complete
+                    socket.removeListener('data', onData);
+                    parser.removeAllListeners();
+                    
                     // Emit free immediately to return socket to agent pool
                     setImmediate(() => {
                         socket.emit('free');
@@ -563,9 +574,7 @@
                 });
             });
 
-            socket.on('data', (data) => {
-                parser.execute(data);
-            });
+            socket.on('data', onData);
 
             // Handle connection - socket might already be connected
             if (socket.readyState === 'open' || socket.connecting === false) {
@@ -860,6 +869,7 @@
     // Main request function
     self.request = function(url, options, callback) {
         if (typeof url === 'string') {
+            const URL = getURL();
             const parsed = new URL(url);
             options = {
                 protocol: parsed.protocol,
