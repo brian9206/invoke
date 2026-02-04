@@ -1,53 +1,10 @@
-const fs = require('fs');
-const path = require('path');
 const esbuild = require('esbuild');
-
-const externalModules = fs.readFileSync('./external-modules.txt', 'utf-8')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line && !line.startsWith('#'));
-
-console.log('External modules to exclude from bundle:', externalModules);
-
-const bootstrapDir = path.resolve(__dirname, '../invoke-execution/services/vm-bootstrap');
-console.log('Bootstrap directory:', bootstrapDir);
-
-async function buildModule(options) {
-    let { moduleName, outputFileName, exportModuleName, inputFileName, globalThisExports } = options;
-    const fullOutputPath = path.resolve(bootstrapDir, outputFileName);
-
-    globalThisExports = globalThisExports || [];
-
-    const esbuildOptions = {
-        stdin: {
-            contents: `module.exports = require('${moduleName}');` + globalThisExports.map(exportName => exportName === 'this' ? `globalThis['${exportName}'] = module.exports;` : `globalThis['${exportName}'] = module.exports['${exportName}'];`).join('\n'),
-            resolveDir: process.cwd(),
-            sourcefile: exportModuleName + '.js',
-            loader: 'js'
-        },
-        write: false,
-        bundle: true,
-        keepNames: true,
-        platform: 'node',
-        format: 'iife',
-        globalName: `builtinModule['${exportModuleName}']`,
-        external: externalModules.filter(module => module !== moduleName && module !== exportModuleName),
-    };
-
-    if (inputFileName) {
-        esbuildOptions.stdin = undefined;
-        esbuildOptions.entryPoints = [path.resolve(process.cwd(), inputFileName)];
-    }
-    
-    console.log(`Building module: ${exportModuleName} -> ${fullOutputPath}`);
-    const res = await esbuild.build(esbuildOptions);
-
-    fs.writeFileSync(fullOutputPath, res.outputFiles[0].text.replace('var builtinModule;\n', ''), 'utf-8');
-}
+const path = require('path');
+const { buildModule, bootstrapDir, externalModules } = require('./utils');
 
 (async () => {
 
-    // Events
+    // events
     await buildModule({ 
         moduleName: 'events/', 
         exportModuleName: 'events', 
@@ -55,7 +12,7 @@ async function buildModule(options) {
         globalThisExports: ['EventEmitter']
     });
 
-    // Buffer
+    // buffer
     await buildModule({ 
         moduleName: 'buffer/', 
         exportModuleName: 'buffer', 
@@ -63,21 +20,21 @@ async function buildModule(options) {
         inputFileName: './modules/buffer.js',
     });
 
-    // Stream
+    // stream
     await buildModule({ 
         moduleName: 'readable-stream', 
         exportModuleName: 'stream', 
         outputFileName: '30_modules/30_stream.js' 
     });
 
-    // Punycode
+    // punycode
     await buildModule({ 
         moduleName: 'punycode/', 
         exportModuleName: 'punycode', 
         outputFileName: '30_modules/punycode.js' 
     });
 
-    // Fetch API
+    // fetch
     console.log(`Building module: fetch -> ${path.resolve(bootstrapDir, '40_fetch.js')}`);
     await esbuild.build({
         entryPoints: [path.resolve(process.cwd(), './modules/fetch.js')],
@@ -86,6 +43,21 @@ async function buildModule(options) {
         keepNames: true,
         platform: 'node',
         format: 'iife',
+        external: externalModules
+    });
+
+    // assert
+    await buildModule({ 
+        moduleName: 'assert/', 
+        exportModuleName: 'assert', 
+        outputFileName: '30_modules/assert.js' 
+    });
+
+    // string_decoder
+    await buildModule({ 
+        moduleName: 'string_decoder/', 
+        exportModuleName: 'string_decoder', 
+        outputFileName: '30_modules/string_decoder.js' 
     });
 
     console.log('All done');

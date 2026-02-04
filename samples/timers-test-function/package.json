@@ -1,0 +1,6 @@
+{
+  "name": "timers-test-function",
+  "version": "1.0.0",
+  "description": "Test function for Node.js timers module compatibility",
+  "main": "index.js"
+}

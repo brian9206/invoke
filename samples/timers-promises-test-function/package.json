@@ -1,0 +1,6 @@
+{
+  "name": "timers-promises-test-function",
+  "version": "1.0.0",
+  "description": "Test function for Node.js timers/promises module compatibility",
+  "main": "index.js"
+}

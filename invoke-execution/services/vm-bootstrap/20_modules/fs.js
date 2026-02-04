@@ -495,6 +495,7 @@
 
     // Promise methods
     self.promises = {};
+    builtinModule['fs/promises'] = self.promises;
 
     self.promises.readFile = async function(...args) {
         try {
