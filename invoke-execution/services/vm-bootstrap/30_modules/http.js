@@ -918,7 +918,7 @@
         }
 
         listen() {
-            const error = new Error('HTTP server functionality not supported in VM environment');
+            const error = new Error('HTTP server functionality not supported in serverless environment');
             error.code = 'ENOTSUP';
             error.errno = -95;
             error.syscall = 'listen';
@@ -926,14 +926,14 @@
         }
 
         close() {
-            const error = new Error('HTTP server functionality not supported in VM environment');
+            const error = new Error('HTTP server functionality not supported in serverless environment');
             error.code = 'ENOTSUP';
             throw error;
         }
     }
 
     self.createServer = function(options, requestListener) {
-        const error = new Error('HTTP server functionality not supported in VM environment');
+        const error = new Error('HTTP server functionality not supported in serverless environment');
         error.code = 'ENOTSUP';
         error.errno = -95;
         error.syscall = 'createServer';

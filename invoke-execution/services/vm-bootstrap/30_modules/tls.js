@@ -440,7 +440,7 @@
     class Server extends EventEmitter {
         constructor() {
             super();
-            const error = new Error('TLS server functionality not supported in VM environment');
+            const error = new Error('TLS server functionality not supported in serverless environment');
             error.code = 'ENOTSUP';
             throw error;
         }
@@ -540,7 +540,7 @@
      * Create TLS server (not supported)
      */
     self.createServer = function(options, secureConnectionListener) {
-        const error = new Error('TLS server functionality not supported in VM environment');
+        const error = new Error('TLS server functionality not supported in serverless environment');
         error.code = 'ENOTSUP';
         throw error;
     };

@@ -547,7 +547,7 @@ globalThis.res = {
     },
     
     render(view, locals, callback) {
-        throw new Error('res.render() is not supported in this serverless environment');
+        throw new Error('res.render() not supported in serverless environment');
     },
     
     end(data) {
@@ -566,5 +566,22 @@ globalThis.res = {
             _resEnd.applySync(undefined, [null]);
         }
         return this;
+    },
+    
+    async pipeFrom(fetchResponse) {
+        const blacklistedHeaders = ['transfer-encoding', 'content-length', 'connection', 'content-encoding'];
+
+        // Copy headers from fetch response to Express res
+        fetchResponse.headers.forEach((value, key) => {
+            if (blacklistedHeaders.includes(key.toLowerCase())) return; // Skip hop-by-hop headers
+            this.setHeader(key, value);
+        });
+
+        // Set status code
+        this.status(fetchResponse.status);
+
+        // Stream body directly
+        const body = await fetchResponse.arrayBuffer();
+        this.end(Buffer.from(body));
     }
 };

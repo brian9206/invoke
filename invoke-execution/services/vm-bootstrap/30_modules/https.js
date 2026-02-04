@@ -225,7 +225,7 @@
     // Server stubs - reuse HTTP Server class but throw HTTPS-specific errors
     class Server extends getHttp().Server {
         listen() {
-            const error = new Error('HTTPS server functionality not supported in VM environment');
+            const error = new Error('HTTPS server functionality not supported in serverless environment');
             error.code = 'ENOTSUP';
             error.errno = -95;
             error.syscall = 'listen';
@@ -234,7 +234,7 @@
     }
 
     self.createServer = function(options, requestListener) {
-        const error = new Error('HTTPS server functionality not supported in VM environment');
+        const error = new Error('HTTPS server functionality not supported in serverless environment');
         error.code = 'ENOTSUP';
         error.errno = -95;
         error.syscall = 'createServer';

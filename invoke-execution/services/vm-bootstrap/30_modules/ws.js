@@ -662,7 +662,7 @@
         }
 
         handleUpgrade() {
-            const error = new Error('WebSocket server functionality not supported in VM environment');
+            const error = new Error('WebSocket server functionality not supported in serverless environment');
             error.code = 'ENOTSUP';
             throw error;
         }
