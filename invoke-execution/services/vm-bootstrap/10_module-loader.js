@@ -14,7 +14,7 @@
 
     function createModuleNotFoundError(moduleName) {
         // Module not found - create error matching Node.js format
-        const error = new Error(`Cannot find module '${moduleName}' ${new Error().stack}`);
+        const error = new Error(`Cannot find module '${moduleName}'`);
         error.code = 'MODULE_NOT_FOUND';
         return error;
     }
