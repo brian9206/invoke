@@ -19,6 +19,13 @@
     globalThis.clearImmediate = clearImmediate;
     globalThis.sleep = sleep;
 
+    const { Event, CustomEvent, EventTarget, AbortController, AbortSignal } = require('_eventtarget');
+    globalThis.Event = Event;
+    globalThis.CustomEvent = CustomEvent;
+    globalThis.EventTarget = EventTarget;
+    globalThis.AbortController = AbortController;
+    globalThis.AbortSignal = AbortSignal;
+
     const { TextEncoder, TextDecoder } = require('util');
     globalThis.TextEncoder = TextEncoder;
     globalThis.TextDecoder = TextDecoder;
