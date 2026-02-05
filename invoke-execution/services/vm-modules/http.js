@@ -2,10 +2,10 @@ const http = {};
 module.exports = http;
 
 // Lazy require helpers to avoid bootstrap dependency issues
-const getEventEmitter = () => require('events');
-const getStream = () => require('stream');
-const getNet = () => require('net');
-const getURL = () => require('url').URL;
+const { EventEmitter } = require('events');
+const stream = require('stream');
+const net = require('net');
+const URL = require('url').URL;
 
 // HTTP constants
 http.METHODS = [
@@ -102,7 +102,7 @@ function processHeaders(rawHeaders) {
 }
 
 // HTTP Parser - streaming implementation
-class HTTPParser extends getEventEmitter() {
+class HTTPParser extends EventEmitter {
     constructor(type) {
         super();
         this.type = type; // 'request' or 'response'
@@ -272,7 +272,7 @@ class HTTPParser extends getEventEmitter() {
 }
 
 // IncomingMessage class
-class IncomingMessage extends getStream().Readable {
+class IncomingMessage extends stream.Readable {
     constructor(socket) {
         super();
         this.socket = socket;
@@ -308,7 +308,7 @@ class IncomingMessage extends getStream().Readable {
 }
 
 // OutgoingMessage base class
-class OutgoingMessage extends getStream().Writable {
+class OutgoingMessage extends stream.Writable {
     constructor() {
         super();
         this.socket = null;
@@ -472,7 +472,7 @@ class ClientRequest extends OutgoingMessage {
         }
 
         // Fallback to direct connection if no agent
-        const socket = getNet().createConnection({
+        const socket = net.createConnection({
             port: this.port,
             host: this.host,
             timeout: this.timeout
@@ -659,7 +659,7 @@ class ClientRequest extends OutgoingMessage {
 }
 
 // Agent class with connection pooling
-class Agent extends getEventEmitter() {
+class Agent extends EventEmitter {
     constructor(options = {}) {
         super();
         this.defaultPort = options.defaultPort || 80;
@@ -714,7 +714,7 @@ class Agent extends getEventEmitter() {
 
     _createConnection(req, options) {
         const key = this._getSocketKey(options);
-        const socket = getNet().createConnection({
+        const socket = net.createConnection({
             port: options.port || this.defaultPort,
             host: options.hostname || options.host || 'localhost',
             timeout: this.timeout
@@ -867,7 +867,6 @@ http.globalAgent = new Agent();
 // Main request function
 http.request = function(url, options, callback) {
     if (typeof url === 'string') {
-        const URL = getURL();
         const parsed = new URL(url);
         options = {
             protocol: parsed.protocol,
@@ -910,7 +909,7 @@ http.get = function(url, options, callback) {
 };
 
 // Server stubs that throw ENOTSUP
-class Server extends getEventEmitter() {
+class Server extends EventEmitter {
     constructor() {
         super();
     }

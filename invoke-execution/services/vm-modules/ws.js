@@ -2,11 +2,11 @@ const ws = {};
 module.exports = ws;
 
 // Lazy require helpers to avoid bootstrap dependency issues
-const getEventEmitter = () => require('events');
-const getStream = () => require('stream');
-const getHttp = () => require('http');
-const getHttps = () => require('https');
-const getCrypto = () => require('crypto');
+const { EventEmitter } = require('events');
+const stream = require('stream');
+const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
 
 // WebSocket constants
 const WS_MAGIC_STRING = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
@@ -104,7 +104,7 @@ function createFrame(opcode, payload, masked = true) {
     // Masking key
     let maskKey = null;
     if (masked) {
-        maskKey = getCrypto().randomBytes(4);
+        maskKey = crypto.randomBytes(4);
         maskKey.copy(frame, offset);
         offset += 4;
     }
@@ -186,7 +186,7 @@ function parseFrame(buffer) {
 }
 
 // WebSocket class
-class WebSocket extends getStream().Duplex {
+class WebSocket extends stream.Duplex {
     constructor(address, protocols, options) {
         if (typeof protocols === 'object' && protocols !== null && !Array.isArray(protocols)) {
             options = protocols;
@@ -251,7 +251,7 @@ class WebSocket extends getStream().Duplex {
         };
         
         // Use HTTPS for wss:// and HTTP for ws://
-        const httpModule = isSecure ? getHttps() : getHttp();
+        const httpModule = isSecure ? https : http;
         const req = httpModule.request(requestOptions);
         
         req.on('error', (err) => {
@@ -654,7 +654,7 @@ WebSocket.CLOSING = 2;
 WebSocket.CLOSED = 3;
 
 // Server stub that throws ENOTSUP
-class WebSocketServer extends getEventEmitter() {
+class WebSocketServer extends EventEmitter {
     constructor(options) {
         super();
     }
