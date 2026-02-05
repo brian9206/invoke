@@ -18,3 +18,4 @@ zlib
 assert
 string_decoder
 process
+node-fetch

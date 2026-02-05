@@ -44,4 +44,13 @@ async function buildModule(options) {
     await esbuild.build(esbuildOptions);
 }
 
-module.exports = { buildModule, moduleDir, bootstrapDir, externalModules };
+function patchModule(moduleName, patchFunction) {
+    const modulePath = path.resolve(moduleDir, moduleName + '.js');
+    console.log(`Patching module: ${moduleName} -> ${modulePath}`);
+
+    let moduleContent = fs.readFileSync(modulePath, 'utf-8');
+    moduleContent = patchFunction(moduleContent);
+    fs.writeFileSync(modulePath, moduleContent, 'utf-8');
+}
+
+module.exports = { buildModule, patchModule, moduleDir, bootstrapDir, externalModules };
