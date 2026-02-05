@@ -21,7 +21,7 @@ class IsolatePool {
         this.warmupComplete = false;
         
         // Load VM module from vm-modules
-        this.bootstrapCode = 'var global = globalThis;\n';
+        this.bootstrapCode = 'globalThis.global = globalThis;\n';
         this.bootstrapCode += 'let _loadBuiltinModules = () => {\n';
         this.bootstrapCode += 'const modules = {};\n';
         fs.readdirSync(path.join(__dirname, 'vm-modules'))
