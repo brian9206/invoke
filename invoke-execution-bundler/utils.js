@@ -9,12 +9,14 @@ const externalModules = fs.readFileSync('./external-modules.txt', 'utf-8')
 
 console.log('External modules to exclude from bundle:', externalModules);
 
+const moduleDir = path.resolve(__dirname, '../invoke-execution/services/vm-modules');
 const bootstrapDir = path.resolve(__dirname, '../invoke-execution/services/vm-bootstrap');
+console.log('Module directory:', moduleDir);
 console.log('Bootstrap directory:', bootstrapDir);
 
 async function buildModule(options) {
-    let { moduleName, outputFileName, exportModuleName, inputFileName, globalThisExports } = options;
-    const fullOutputPath = path.resolve(bootstrapDir, outputFileName);
+    let { moduleName, exportModuleName, inputFileName, globalThisExports } = options;
+    const fullOutputPath = path.resolve(moduleDir, exportModuleName + '.js');
 
     globalThisExports = globalThisExports || [];
 
@@ -25,12 +27,11 @@ async function buildModule(options) {
             sourcefile: exportModuleName + '.js',
             loader: 'js'
         },
-        write: false,
+        outfile: fullOutputPath,
         bundle: true,
         keepNames: true,
         platform: 'node',
-        format: 'iife',
-        globalName: `builtinModule['${exportModuleName}']`,
+        format: 'cjs',
         external: externalModules.filter(module => module !== moduleName && module !== exportModuleName),
     };
 
@@ -40,9 +41,7 @@ async function buildModule(options) {
     }
     
     console.log(`Building module: ${exportModuleName} -> ${fullOutputPath}`);
-    const res = await esbuild.build(esbuildOptions);
-
-    fs.writeFileSync(fullOutputPath, res.outputFiles[0].text.replace('var builtinModule;\n', ''), 'utf-8');
+    await esbuild.build(esbuildOptions);
 }
 
-module.exports = { buildModule, bootstrapDir, externalModules };
+module.exports = { buildModule, moduleDir, bootstrapDir, externalModules };

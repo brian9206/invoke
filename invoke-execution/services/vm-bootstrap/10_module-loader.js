@@ -1,26 +1,40 @@
 // ============================================================================
 // MODULE LOADER - CommonJS module system with built-in module support
 // ============================================================================
-const builtinModule = {};
-
 (function() {
-    // Load polyfills
-    const _polyfillModules = new Set();
-    loadPolyfills(_polyfillModules);
+    const builtinModule = _loadBuiltinModules();
 
     // Module cache and loading state
     const _moduleCache = new Map(); // key: absolute path, value: module.exports
     const _loadingModules = new Set(); // track modules currently being loaded (circular dependency detection)
     
     // Get fs and path modules from built-in modules
-    const fs = () => builtinModule['fs'];
-    const path = () => {
-        if (!builtinModule['path']) {
-            console.log('Error in bootstrap code: ' + new Error().stack);
+    const fs = () => requireBuiltinModule(false, 'fs');
+    const path = () => requireBuiltinModule(false, 'path');
+
+    function createModuleNotFoundError(moduleName) {
+        // Module not found - create error matching Node.js format
+        const error = new Error(`Cannot find module '${moduleName}' ${new Error().stack}`);
+        error.code = 'MODULE_NOT_FOUND';
+        return error;
+    }
+
+    function requireBuiltinModule(throwOnError, moduleName) {
+        if (!Object.keys(builtinModule).includes(moduleName)) {
+            if (throwOnError) {
+                throw createModuleNotFoundError(moduleName);
+            }
+
+            return undefined;
         }
 
-        return builtinModule['path'];
-    };
+        if (typeof builtinModule[moduleName] === 'function') {
+            const module = { exports: {} };
+            builtinModule[moduleName] = builtinModule[moduleName](module, requireBuiltinModule.bind(undefined, true));
+        }
+
+        return builtinModule[moduleName].exports;
+    }
 
     /**
      * Resolve module path by trying extensions and index files
@@ -61,10 +75,8 @@ const builtinModule = {};
             return indexJsonPath;
         }
 
-        // Module not found - create error matching Node.js format
-        const error = new Error(`Cannot find module '${requestedPath}'`);
-        error.code = 'MODULE_NOT_FOUND';
-        throw error;
+        // Module not found
+        throw createModuleNotFoundError(requestedPath);
     }
     
     /**
@@ -131,10 +143,8 @@ const builtinModule = {};
             currentDir = parentDir;
         }
         
-        // Module not found - create error matching Node.js format
-        const error = new Error(`Cannot find module '${moduleName}'`);
-        error.code = 'MODULE_NOT_FOUND';
-        throw error;
+        // Module not found
+        throw createModuleNotFoundError(moduleName);
     }
     
     /**
@@ -265,20 +275,9 @@ const builtinModule = {};
             cleanModuleName = cleanModuleName.endsWith('/') ? cleanModuleName.slice(0, -1) : cleanModuleName;
             
             // Handle built-in modules
-            if (Object.keys(builtinModule).includes(cleanModuleName)) {
-                return builtinModule[cleanModuleName];
-            }
-
-            // Handle polyfill modules
-            if (Object.keys(_polyfillModules).includes(cleanModuleName)) {
-                return _polyfillModules[cleanModuleName];
-            }
-
-            if (moduleName.startsWith('node:')) {
-                // Module not found - create error matching Node.js format
-                const error = new Error(`Cannot find module '${requestedPath}'`);
-                error.code = 'MODULE_NOT_FOUND';
-                throw error;
+            const module = requireBuiltinModule(false, cleanModuleName);
+            if (module !== undefined) {
+                return module;
             }
             
             // Handle relative requires

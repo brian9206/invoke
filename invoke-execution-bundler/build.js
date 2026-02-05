@@ -1,37 +1,36 @@
-const esbuild = require('esbuild');
+const fs = require('fs');
 const path = require('path');
-const { buildModule, bootstrapDir, externalModules } = require('./utils');
+const esbuild = require('esbuild');
+const { buildModule, bootstrapDir, externalModules, moduleDir } = require('./utils');
 
 (async () => {
 
     // events
     await buildModule({ 
         moduleName: 'events/', 
-        exportModuleName: 'events', 
-        outputFileName: '20_modules/10_events.js',
-        globalThisExports: ['EventEmitter']
+        exportModuleName: 'events'
     });
 
     // buffer
     await buildModule({ 
         moduleName: 'buffer/', 
         exportModuleName: 'buffer', 
-        outputFileName: '20_modules/10_buffer.js',
-        inputFileName: './modules/buffer.js',
+        inputFileName: './modules/buffer.js'
     });
 
     // stream
     await buildModule({ 
         moduleName: 'readable-stream', 
-        exportModuleName: 'stream', 
-        outputFileName: '20_modules/20_stream.js' 
+        exportModuleName: 'stream'
     });
+    const streamModulePath = path.resolve(moduleDir, 'stream.js');
+    const streamModuleContent = fs.readFileSync(streamModulePath, 'utf-8');
+    fs.writeFileSync(streamModulePath, streamModuleContent.replace('require("stream")', '{}'), 'utf-8');
 
     // punycode
     await buildModule({ 
         moduleName: 'punycode/', 
-        exportModuleName: 'punycode', 
-        outputFileName: '20_modules/punycode.js' 
+        exportModuleName: 'punycode'
     });
 
     // fetch
@@ -49,15 +48,13 @@ const { buildModule, bootstrapDir, externalModules } = require('./utils');
     // assert
     await buildModule({ 
         moduleName: 'assert/', 
-        exportModuleName: 'assert', 
-        outputFileName: '20_modules/assert.js' 
+        exportModuleName: 'assert'
     });
 
     // string_decoder
     await buildModule({ 
         moduleName: 'string_decoder/', 
-        exportModuleName: 'string_decoder', 
-        outputFileName: '20_modules/10_string_decoder.js' 
+        exportModuleName: 'string_decoder'
     });
 
     console.log('All done');

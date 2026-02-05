@@ -20,29 +20,32 @@ class IsolatePool {
         this.totalDisposed = 0;
         this.warmupComplete = false;
         
-        // Load bootstrap code from vm-bootstrap on initialization
+        // Load VM module from vm-modules
         this.bootstrapCode = 'var global = globalThis;\n';
-        fs.globSync(path.join(__dirname, 'vm-bootstrap', '**/*.js'))
+        this.bootstrapCode += 'let _loadBuiltinModules = () => {\n';
+        this.bootstrapCode += 'const modules = {};\n';
+        fs.readdirSync(path.join(__dirname, 'vm-modules'))
             .filter(file => file.endsWith('.js'))
             .sort((a, b) => a.localeCompare(b))
             .forEach(file => {
-                this.bootstrapCode += fs.readFileSync(file, 'utf8') + '\n';
+                this.bootstrapCode += `modules[${JSON.stringify(path.basename(file, '.js'))}] = () => {\n`;
+                this.bootstrapCode += `const module = { exports: {} }; const exports = module.exports;\n`;
+                this.bootstrapCode += `${fs.readFileSync(path.join(__dirname, 'vm-modules', file), 'utf8')};\n`;
+                this.bootstrapCode += `return module;\n`;
+                this.bootstrapCode += `};\n`;
+            });
+        this.bootstrapCode += 'delete _loadBuiltinModules;\n';
+        this.bootstrapCode += 'return modules;\n';
+        this.bootstrapCode += '}\n';
+
+        // Load bootstrap scripts from vm-bootstrap
+        fs.readdirSync(path.join(__dirname, 'vm-bootstrap'))
+            .filter(file => file.endsWith('.js'))
+            .sort((a, b) => a.localeCompare(b))
+            .forEach(file => {
+                this.bootstrapCode += fs.readFileSync(path.join(__dirname, 'vm-bootstrap', file), 'utf8') + ';\n';
             });
 
-        // Load polyfill code from vm-polyfill on initialization
-        this.bootstrapCode += '\nfunction loadPolyfills(modules, require) {\n';
-        fs.globSync(path.join(__dirname, 'vm-polyfill', '**/*.js'))
-            .filter(file => file.endsWith('.js'))
-            .sort((a, b) => a.localeCompare(b))
-            .forEach(file => {
-                this.bootstrapCode += `(function(){\n`;
-                this.bootstrapCode += `const module = { exports: {}, name: ${JSON.stringify(path.basename(file, '.js'))} }; const exports = module.exports; const global = exports;\n`;
-                this.bootstrapCode += `${fs.readFileSync(file, 'utf8')};\n`;
-                this.bootstrapCode += `modules[module.name] = module.exports;\n`;
-                this.bootstrapCode += `})();\n`;
-            });
-        this.bootstrapCode += '}\n';
-        
         // Cleanup interval
         this.cleanupInterval = null;
         
