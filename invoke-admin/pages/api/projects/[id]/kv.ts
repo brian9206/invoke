@@ -106,47 +106,68 @@ function createKVStore(projectId: string) {
 }
 
 /**
- * GET - List all keys with values and storage info
+ * GET - List keys with values and storage info (with pagination)
  */
 async function handleGet(req: AuthenticatedRequest, res: NextApiResponse, projectId: string, kvStore: any) {
   try {
-    // Get all keys from Keyv using iterator
+    // Parse pagination params
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const search = (req.query.search as string) || '';
+    const offset = (page - 1) * limit;
+
+    // Collect all keys (for counting and filtering)
+    let allItems = [];
     let totalBytes = 0;
-    const items = [];
 
     for await (const [key, value] of kvStore.iterator()) {
-      let parsedValue;
       const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
+      const entrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8');
+      totalBytes += entrySize;
 
+      // Apply key filter if search query provided
+      if (search && !key.toLowerCase().includes(search.toLowerCase())) {
+        continue;
+      }
+
+      let parsedValue;
       try {
         parsedValue = JSON.parse(valueStr);
       } catch {
         parsedValue = value;
       }
 
-      const entrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8');
-      totalBytes += entrySize;
-
-      items.push({
+      allItems.push({
         key,
         value: parsedValue,
         size: entrySize
       });
     }
 
+    // Sort by key and paginate
+    allItems.sort((a, b) => a.key.localeCompare(b.key));
+    const paginatedItems = allItems.slice(offset, offset + limit);
+    const totalFiltered = allItems.length;
+
     // Get storage limit from project
     const limitResult = await database.query(
       `SELECT kv_storage_limit_bytes FROM projects WHERE id = $1`,
       [projectId]
     );
-    const limit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].kv_storage_limit_bytes) : 1073741824;
+    const storageLimit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].kv_storage_limit_bytes) : 1073741824;
 
     return res.status(200).json(createResponse(true, {
-      items,
+      items: paginatedItems,
+      pagination: {
+        page,
+        limit,
+        total: totalFiltered,
+        totalPages: Math.ceil(totalFiltered / limit)
+      },
       storage: {
         bytes: totalBytes,
-        limit: limit,
-        percentage: limit > 0 ? (totalBytes / limit) * 100 : 0
+        limit: storageLimit,
+        percentage: storageLimit > 0 ? (totalBytes / storageLimit) * 100 : 0
       }
     }, 'KV store retrieved successfully', 200));
 

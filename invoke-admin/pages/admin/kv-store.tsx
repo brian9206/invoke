@@ -29,15 +29,23 @@ interface StorageInfo {
   percentage: number
 }
 
+interface PaginationInfo {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
 export default function KVStore() {
   const { user } = useAuth()
   const { activeProject } = useProject()
   
   const [items, setItems] = useState<KVItem[]>([])
-  const [filteredItems, setFilteredItems] = useState<KVItem[]>([])
   const [storageInfo, setStorageInfo] = useState<StorageInfo>({ bytes: 0, limit: 0, percentage: 0 })
+  const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 50, total: 0, totalPages: 0 })
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   
   // Add/Edit state
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -58,38 +66,45 @@ export default function KVStore() {
     } else {
       setLoading(false)
     }
-  }, [activeProject, user])
-  
-  // Filter items based on search query
-  useEffect(() => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      setFilteredItems(items.filter(item => 
-        item.key.toLowerCase().includes(query) ||
-        JSON.stringify(item.value).toLowerCase().includes(query)
-      ))
-    } else {
-      setFilteredItems(items)
-    }
-  }, [searchQuery, items])
+  }, [activeProject, user, pagination.page, searchQuery])
   
   const fetchKVStore = async () => {
     try {
       setLoading(true)
+      const params = new URLSearchParams({
+        page: pagination.page.toString(),
+        limit: pagination.limit.toString(),
+      })
+      if (searchQuery) {
+        params.append('search', searchQuery)
+      }
+      
       const response = await authenticatedFetch(
-        `/api/projects/${activeProject!.id}/kv`
+        `/api/projects/${activeProject!.id}/kv?${params}`
       )
       const data = await response.json()
       
       if (data.success) {
         setItems(data.data.items)
         setStorageInfo(data.data.storage)
+        setPagination(data.data.pagination)
       }
     } catch (error) {
       console.error('Error fetching KV store:', error)
     } finally {
       setLoading(false)
     }
+  }
+  
+  const handleSearch = () => {
+    setPagination(prev => ({ ...prev, page: 1 }))
+    setSearchQuery(searchInput)
+  }
+  
+  const handleSearchClear = () => {
+    setSearchInput('')
+    setSearchQuery('')
+    setPagination(prev => ({ ...prev, page: 1 }))
   }
   
   const handleSaveItem = async () => {
@@ -314,15 +329,32 @@ export default function KVStore() {
           
           {/* Actions Bar */}
           <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
-              <input
-                type="text"
-                placeholder="Search keys or values..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
+            <div className="flex-1 flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-5 h-5" />
+                <input
+                  type="text"
+                  placeholder="Search by key..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 placeholder-gray-500 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <button
+                onClick={handleSearch}
+                className="btn-secondary px-4"
+              >
+                Search
+              </button>
+              {searchQuery && (
+                <button
+                  onClick={handleSearchClear}
+                  className="btn-secondary px-4"
+                >
+                  Clear
+                </button>
+              )}
             </div>
             
             <div className="flex gap-2">
@@ -492,7 +524,7 @@ export default function KVStore() {
           
           {/* KV Table */}
           <div className="card overflow-hidden">
-            {filteredItems.length === 0 ? (
+            {items.length === 0 ? (
               <div className="text-center py-12">
                 <Database className="w-12 h-12 text-gray-600 mx-auto mb-3" />
                 <p className="text-gray-400">
@@ -512,43 +544,44 @@ export default function KVStore() {
                 )}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-800 border-b border-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Key
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Value
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Size
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {filteredItems.map((item) => (
-                      <tr key={item.key} className="hover:bg-gray-800/50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <code className="text-sm text-primary-400 font-mono">{item.key}</code>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-300 max-w-md truncate font-mono">
-                            {formatValue(item.value)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
-                          {item.size ? formatBytes(item.size) : '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button
-                            onClick={() => handleEditItem(item)}
-                            className="text-primary-400 hover:text-primary-300 mr-3"
-                            title="Edit"
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-800 border-b border-gray-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Key
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Value
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Size
+                        </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {items.map((item) => (
+                        <tr key={item.key} className="hover:bg-gray-800/50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <code className="text-sm text-primary-400 font-mono">{item.key}</code>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-gray-300 max-w-md truncate font-mono">
+                              {formatValue(item.value)}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                            {item.size ? formatBytes(item.size) : '-'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                            <button
+                              onClick={() => handleEditItem(item)}
+                              className="text-primary-400 hover:text-primary-300 mr-3"
+                              title="Edit"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
@@ -565,16 +598,51 @@ export default function KVStore() {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination Controls */}
+              {pagination.totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-700 flex items-center justify-between">
+                  <div className="text-sm text-gray-400">
+                    Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} keys
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: 1 }))}
+                      disabled={pagination.page === 1}
+                      className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                      disabled={pagination.page === 1}
+                      className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-4 py-1 bg-gray-800 text-gray-300 rounded">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setPagination(prev => ({ ...prev, page: prev.totalPages }))}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="px-3 py-1 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
             )}
           </div>
-          
-          {/* Total Count */}
-          {filteredItems.length > 0 && (
-            <div className="text-sm text-gray-400 text-center">
-              Showing {filteredItems.length} {filteredItems.length === 1 ? 'key' : 'keys'}
-              {searchQuery && ` (filtered from ${items.length} total)`}
-            </div>
-          )}
         </div>
       </Layout>
     </ProtectedRoute>
