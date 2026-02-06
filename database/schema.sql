@@ -24,6 +24,7 @@ CREATE TABLE projects (
     description TEXT,
     created_by INTEGER REFERENCES users(id),
     is_active BOOLEAN DEFAULT true,
+    kv_storage_limit_bytes BIGINT DEFAULT 1073741824,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -194,7 +195,8 @@ INSERT INTO global_settings (setting_key, setting_value, description) VALUES
 ('log_retention_type', 'time', 'Default log retention type: time, count, or none'),
 ('log_retention_value', '7', 'Default log retention value (7 days or 1000 count)'),
 ('log_retention_enabled', 'true', 'Whether log retention cleanup is enabled globally'),
-('function_base_url', 'https://localhost:3001/invoke', 'Base URL for function invocation endpoints');
+('function_base_url', 'https://localhost:3001/invoke', 'Base URL for function invocation endpoints'),
+('kv_storage_limit_bytes', '1073741824', 'Maximum storage size for project KV store in bytes (default 1GB)');
 
 -- Create default project for migration purposes
 INSERT INTO projects (id, name, description, created_by, created_at) VALUES 

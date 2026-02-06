@@ -11,6 +11,7 @@ interface GlobalSettings {
   value: { value: string; description: string }
   enabled: { value: string; description: string }
   function_base_url: { value: string; description: string }
+  kv_storage_limit_bytes: { value: string; description: string }
 }
 
 interface CleanupResult {
@@ -33,6 +34,7 @@ export default function GlobalSettings() {
   const [retentionValue, setRetentionValue] = useState('7')
   const [retentionEnabled, setRetentionEnabled] = useState(true)
   const [functionBaseUrl, setFunctionBaseUrl] = useState('https://localhost:3001/invoke')
+  const [kvStorageLimitGB, setKvStorageLimitGB] = useState('1')
 
   useEffect(() => {
     fetchSettings()
@@ -66,6 +68,11 @@ export default function GlobalSettings() {
         setRetentionValue(data.data.value.value)
         setRetentionEnabled(data.data.enabled.value === 'true')
         setFunctionBaseUrl(data.data.function_base_url?.value || 'https://localhost:3001/invoke')
+        
+        // Convert bytes to GB for display
+        const kvLimitBytes = parseInt(data.data.kv_storage_limit_bytes?.value || '1073741824')
+        const kvLimitGB = (kvLimitBytes / (1024 * 1024 * 1024)).toFixed(2)
+        setKvStorageLimitGB(kvLimitGB)
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -90,7 +97,8 @@ export default function GlobalSettings() {
           type: retentionType,
           value: parseInt(retentionValue),
           enabled: retentionEnabled,
-          function_base_url: functionBaseUrl
+          function_base_url: functionBaseUrl,
+          kv_storage_limit_bytes: Math.floor(parseFloat(kvStorageLimitGB) * 1024 * 1024 * 1024)
         })
       })
 
@@ -250,6 +258,32 @@ export default function GlobalSettings() {
                   />
                   <p className="mt-1 text-sm text-gray-500">
                     Base URL used for function invocation endpoints. Function URLs will be displayed as <code className="bg-gray-700 px-1 rounded">{functionBaseUrl}/&lt;function-id&gt;</code>
+                  </p>
+                </div>
+              </div>
+
+              {/* KV Storage Limit */}
+              <div className="border-t border-gray-700 pt-6 mt-6">
+                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  KV Storage Settings
+                </h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Default Storage Limit (GB)
+                  </label>
+                  <input
+                    type="number"
+                    value={kvStorageLimitGB}
+                    onChange={(e) => setKvStorageLimitGB(e.target.value)}
+                    min="0.1"
+                    step="0.1"
+                    placeholder="1"
+                    className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 px-3 py-2"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    Default storage limit for new projects. You can customize the limit for each project individually on the Projects page.
                   </p>
                 </div>
               </div>

@@ -4,6 +4,7 @@ const db = require('./database');
 const cache = require('./cache');
 const ExecutionContext = require('./execution-context');
 const { getInstance: getIsolatePool } = require('./isolate-pool');
+const { createProjectKV } = require('./kv-store');
 
 /**
  * ExecutionEngine - Singleton class managing function execution with isolated-vm
@@ -60,9 +61,13 @@ class ExecutionEngine {
             // Fetch function metadata (includes package_hash)
             const metadata = await fetchFunctionMetadata(functionId);
             const packageHash = metadata.package_hash;
+            const projectId = metadata.project_id;
             
             // Fetch environment variables
             const envVars = await fetchEnvironmentVariables(functionId);
+            
+            // Create project-scoped KV store
+            const kvStore = createProjectKV(projectId, db.pool);
             
             // Acquire isolate from pool
             const acquired = await this.isolatePool.acquire();
@@ -77,7 +82,9 @@ class ExecutionEngine {
                 functionId,
                 packageHash,
                 envVars,
-                acquired.compiledScript
+                acquired.compiledScript,
+                projectId,
+                kvStore
             );
             
             // Bootstrap environment
@@ -245,6 +252,7 @@ async function fetchFunctionMetadata(functionId) {
         SELECT 
             f.id, 
             f.name, 
+            f.project_id,
             f.is_active,
             f.created_at, 
             f.updated_at,

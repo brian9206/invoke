@@ -1,0 +1,7 @@
+{
+  "name": "kv-test-function",
+  "version": "1.0.0",
+  "description": "Demonstration of KV store functionality in Invoke functions",
+  "main": "index.js",
+  "keywords": ["invoke", "kv-store", "key-value", "storage", "demo"]
+}

@@ -26,6 +26,7 @@ async function getProjects(req: NextApiRequest, res: NextApiResponse) {
         p.name, 
         p.description, 
         p.is_active,
+        p.kv_storage_limit_bytes,
         p.created_at,
         u.username as created_by,
         COUNT(pm.user_id) as member_count,
@@ -34,7 +35,7 @@ async function getProjects(req: NextApiRequest, res: NextApiResponse) {
       LEFT JOIN users u ON p.created_by = u.id
       LEFT JOIN project_memberships pm ON p.id = pm.project_id
       LEFT JOIN functions f ON p.id = f.project_id
-      GROUP BY p.id, p.name, p.description, p.is_active, p.created_at, u.username
+      GROUP BY p.id, p.name, p.description, p.is_active, p.kv_storage_limit_bytes, p.created_at, u.username
       ORDER BY p.created_at DESC
     `);
     
@@ -65,12 +66,18 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Project name already exists' });
     }
 
+    // Get default KV storage limit from global settings
+    const limitResult = await database.query(
+      `SELECT setting_value FROM global_settings WHERE setting_key = 'kv_storage_limit_bytes'`
+    );
+    const defaultLimit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].setting_value) : 1073741824;
+
     // Create project
     const projectResult = await database.query(
-      `INSERT INTO projects (name, description, created_by) 
-       VALUES ($1, $2, $3) 
-       RETURNING id, name, description, created_at`,
-      [name, description || null, userId]
+      `INSERT INTO projects (name, description, created_by, kv_storage_limit_bytes) 
+       VALUES ($1, $2, $3, $4) 
+       RETURNING id, name, description, created_at, kv_storage_limit_bytes`,
+      [name, description || null, userId, defaultLimit]
     );
 
     const project = projectResult.rows[0];
@@ -91,7 +98,7 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
 
 // Update project
 async function updateProject(req: NextApiRequest, res: NextApiResponse) {
-  const { id, name, description, is_active } = req.body;
+  const { id, name, description, is_active, kv_storage_limit_bytes } = req.body;
 
   if (!id || !name) {
     return res.status(400).json({ error: 'Project ID and name are required' });
@@ -100,10 +107,10 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
   try {
     const result = await database.query(
       `UPDATE projects 
-       SET name = $1, description = $2, is_active = $3, updated_at = NOW()
-       WHERE id = $4
-       RETURNING id, name, description, is_active, updated_at`,
-      [name, description || null, is_active ?? true, id]
+       SET name = $1, description = $2, is_active = $3, kv_storage_limit_bytes = $4, updated_at = NOW()
+       WHERE id = $5
+       RETURNING id, name, description, is_active, kv_storage_limit_bytes, updated_at`,
+      [name, description || null, is_active ?? true, kv_storage_limit_bytes ?? 1073741824, id]
     );
 
     if (result.rows.length === 0) {

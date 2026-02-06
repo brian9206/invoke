@@ -8,7 +8,7 @@ const BuiltinBridge = require('./builtin-bridge');
  * Uses pre-compiled bootstrap script from isolate pool
  */
 class ExecutionContext {
-    constructor(isolate, context, packageDir, functionId, packageHash, envVars, compiledScript) {
+    constructor(isolate, context, packageDir, functionId, packageHash, envVars, compiledScript, projectId, kvStore) {
         this.isolate = isolate;
         this.context = context;
         this.packageDir = packageDir;
@@ -16,6 +16,8 @@ class ExecutionContext {
         this.packageHash = packageHash;
         this.envVars = this._sanitizeEnvVars(envVars);
         this.compiledScript = compiledScript;
+        this.projectId = projectId;
+        this.kvStore = kvStore;
         
         // Create VFS instance
         this.vfs = new VirtualFileSystem({});
@@ -61,6 +63,9 @@ class ExecutionContext {
         
         // Set up TextEncoder and TextDecoder
         await this._setupTextEncoderDecoder();
+        
+        // Set up KV store
+        await this._setupKVStore();
         
         // Run pre-compiled bootstrap script that sets up all globals
         await this.compiledScript.run(this.context);
@@ -150,6 +155,71 @@ class ExecutionContext {
         
         await this.context.global.set('_textEncoderEncode', textEncoderEncode);
         await this.context.global.set('_textDecoderDecode', textDecoderDecode);
+    }
+
+    /**
+     * Set up KV store global object
+     * Provides Keyv-compatible interface to user functions
+     */
+    async _setupKVStore() {
+        const self = this;
+        
+        // Create KV operation references
+        const kvGet = new ivm.Reference(async (key) => {
+            try {
+                const value = await self.kvStore.get(key);
+                if (value === undefined || value === null) {
+                    return undefined;
+                }
+                // Return JSON string for safe transfer
+                return JSON.stringify(value);
+            } catch (error) {
+                throw new Error(`KV get error: ${error.message}`);
+            }
+        });
+        
+        const kvSet = new ivm.Reference(async (key, jsonStr, ttl) => {
+            try {
+                // Parse JSON string from VM
+                const value = JSON.parse(jsonStr);
+                const result = await self.kvStore.set(key, value, ttl);
+                return result;
+            } catch (error) {
+                throw new Error(`KV set error: ${error.message}`);
+            }
+        });
+        
+        const kvDelete = new ivm.Reference(async (key) => {
+            try {
+                return await self.kvStore.delete(key);
+            } catch (error) {
+                throw new Error(`KV delete error: ${error.message}`);
+            }
+        });
+        
+        const kvClear = new ivm.Reference(async () => {
+            try {
+                await self.kvStore.clear();
+                return true;
+            } catch (error) {
+                throw new Error(`KV clear error: ${error.message}`);
+            }
+        });
+        
+        const kvHas = new ivm.Reference(async (key) => {
+            try {
+                return await self.kvStore.has(key);
+            } catch (error) {
+                throw new Error(`KV has error: ${error.message}`);
+            }
+        });
+        
+        // Set references
+        await this.context.global.set('_kvGet', kvGet);
+        await this.context.global.set('_kvSet', kvSet);
+        await this.context.global.set('_kvDelete', kvDelete);
+        await this.context.global.set('_kvClear', kvClear);
+        await this.context.global.set('_kvHas', kvHas);
     }
 
     /**

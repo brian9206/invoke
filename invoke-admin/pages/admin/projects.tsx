@@ -11,6 +11,7 @@ interface Project {
   name: string;
   description: string;
   is_active: boolean;
+  kv_storage_limit_bytes: number;
   created_at: string;
   created_by: string;
   member_count: number;
@@ -22,7 +23,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [formData, setFormData] = useState({ name: '', description: '' });
+  const [formData, setFormData] = useState({ name: '', description: '', kvStorageLimit: 1 });
   const router = useRouter();
   const { refreshProjects, lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -101,6 +102,7 @@ export default function ProjectsPage() {
           name: formData.name,
           description: formData.description,
           is_active: editingProject.is_active,
+          kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024,
         }),
       });
 
@@ -145,13 +147,17 @@ export default function ProjectsPage() {
 
   const openEditModal = (project: Project) => {
     setEditingProject(project);
-    setFormData({ name: project.name, description: project.description || '' });
+    setFormData({ 
+      name: project.name, 
+      description: project.description || '',
+      kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024)
+    });
   };
 
   const closeModals = () => {
     setShowCreateModal(false);
     setEditingProject(null);
-    setFormData({ name: '', description: '' });
+    setFormData({ name: '', description: '', kvStorageLimit: 1 });
   };
 
   if (loading) {
@@ -322,6 +328,20 @@ export default function ProjectsPage() {
                       onChange={(e) => setFormData({...formData, description: e.target.value})}
                       className="form-textarea"
                       rows={3}
+                    />
+                  </div>
+                  <div className="mb-4">
+                    <label className="form-label">
+                      KV Storage Limit (GB)
+                    </label>
+                    <input
+                      type="number"
+                      min="0.001"
+                      step="0.1"
+                      required
+                      value={formData.kvStorageLimit}
+                      onChange={(e) => setFormData({...formData, kvStorageLimit: parseFloat(e.target.value) || 0})}
+                      className="form-input"
                     />
                   </div>
                   <div className="flex justify-end space-x-3">

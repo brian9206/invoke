@@ -15,7 +15,8 @@ import {
   FileText,
   Settings,
   LogOut,
-  User
+  User,
+  Database
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -32,6 +33,7 @@ export default function Layout({ children, title }: LayoutProps) {
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
     { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
+    { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
     { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
     { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
     { name: 'Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
