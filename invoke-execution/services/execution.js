@@ -66,6 +66,9 @@ class ExecutionEngine {
             // Fetch environment variables
             const envVars = await fetchEnvironmentVariables(functionId);
             
+            // Fetch network security policies for the project
+            const networkPolicies = await fetchNetworkPolicies(projectId);
+            
             // Create project-scoped KV store
             const kvStore = createProjectKV(projectId, db.pool);
             
@@ -84,7 +87,8 @@ class ExecutionEngine {
                 envVars,
                 acquired.compiledScript,
                 projectId,
-                kvStore
+                kvStore,
+                networkPolicies
             );
             
             // Bootstrap environment
@@ -288,14 +292,36 @@ async function fetchEnvironmentVariables(functionId) {
         `, [functionId]);
         
         const envVars = {};
-        result.rows.forEach(row => {
-            envVars[row.variable_name.toString()] = row.variable_value.toString();
-        });
+        for (const row of result.rows) {
+            envVars[row.variable_name] = row.variable_value;
+        }
         
         return envVars;
-    } catch (error) {
-        console.error('Error fetching environment variables:', error);
+    } catch (err) {
+        console.error('Error fetching environment variables:', err);
         return {};
+    }
+}
+
+/**
+ * Fetch network security policies for a project
+ * @param {string} projectId - Project UUID
+ * @returns {Array} Network policy rules
+ */
+async function fetchNetworkPolicies(projectId) {
+    try {
+        const result = await db.query(`
+            SELECT action, target_type, target_value, description, priority
+            FROM project_network_policies
+            WHERE project_id = $1
+            ORDER BY priority ASC
+        `, [projectId]);
+        
+        return result.rows;
+    } catch (err) {
+        console.error('Error fetching network policies:', err);
+        // Return empty array - will be handled by NetworkPolicy class (default deny)
+        return [];
     }
 }
 
@@ -417,6 +443,7 @@ module.exports = {
     executeFunction: (...args) => executionEngine.executeFunction(...args),
     createExecutionContext,
     fetchEnvironmentVariables,
+    fetchNetworkPolicies,
     getFunctionPackage,
     fetchFunctionMetadata,
     getMetrics: () => executionEngine.getMetrics(),

@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import { Settings } from 'lucide-react'
+import NetworkPolicyEditor from '@/components/NetworkPolicyEditor'
+import { Settings, Shield } from 'lucide-react'
 import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
+import toast from 'react-hot-toast'
 
 interface GlobalSettings {
   type: { value: string; description: string }
@@ -19,6 +21,14 @@ interface CleanupResult {
   functions: number
 }
 
+interface NetworkPolicyRule {
+  action: 'allow' | 'deny';
+  target_type: 'ip' | 'cidr' | 'domain';
+  target_value: string;
+  description?: string;
+  priority: number;
+}
+
 export default function GlobalSettings() {
   const { lockProject, unlockProject, userProjects } = useProject()
   const hasLockedProject = useRef(false)
@@ -29,6 +39,10 @@ export default function GlobalSettings() {
   const [message, setMessage] = useState('')
   const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null)
   
+  // Network policy state
+  const [networkPolicyRules, setNetworkPolicyRules] = useState<NetworkPolicyRule[]>([])
+  const [savingNetworkPolicy, setSavingNetworkPolicy] = useState(false)
+  
   // Form state
   const [retentionType, setRetentionType] = useState('time')
   const [retentionValue, setRetentionValue] = useState('7')
@@ -38,6 +52,7 @@ export default function GlobalSettings() {
 
   useEffect(() => {
     fetchSettings()
+    fetchNetworkPolicy()
   }, [])
 
   // Lock project to System when on this page
@@ -79,6 +94,77 @@ export default function GlobalSettings() {
       setMessage('Failed to load settings')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchNetworkPolicy = async () => {
+    try {
+      const response = await authenticatedFetch('/api/admin/settings/network-policy')
+      if (response.ok) {
+        const data = await response.json()
+        setNetworkPolicyRules(data.rules || [])
+      }
+    } catch (error) {
+      console.error('Error fetching network policy:', error)
+      toast.error('Failed to load default network policy')
+    }
+  }
+
+  const handleSaveNetworkPolicy = async () => {
+    if (networkPolicyRules.length === 0) {
+      toast.error('At least one policy rule is required')
+      return
+    }
+
+    setSavingNetworkPolicy(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/settings/network-policy', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ rules: networkPolicyRules })
+      })
+
+      if (response.ok) {
+        toast.success('Default network policy saved successfully')
+        fetchNetworkPolicy() // Reload
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Failed to save network policy')
+      }
+    } catch (error) {
+      console.error('Error saving network policy:', error)
+      toast.error('Failed to save network policy')
+    } finally {
+      setSavingNetworkPolicy(false)
+    }
+  }
+
+  const handleTestNetworkConnection = async (host: string): Promise<{ allowed: boolean; reason: string }> => {
+    try {
+      const response = await authenticatedFetch('/api/admin/settings/network-policy/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ host, rules: networkPolicyRules })
+      })
+
+      if (response.ok) {
+        return await response.json()
+      } else {
+        const error = await response.json()
+        return {
+          allowed: false,
+          reason: error.error || 'Test failed'
+        }
+      }
+    } catch (error) {
+      return {
+        allowed: false,
+        reason: 'Test failed: ' + (error instanceof Error ? error.message : String(error))
+      }
     }
   }
 
@@ -308,6 +394,25 @@ export default function GlobalSettings() {
                 </button>
               </div>
             </form>
+          </div>
+
+          {/* Default Network Security Policy */}
+          <div className="card max-w-7xl">
+            <h2 className="text-2xl font-bold text-gray-100 mb-2 flex items-center">
+              <Shield className="w-6 h-6 mr-2 text-blue-400" />
+              Default Network Security Policy
+            </h2>
+            <p className="text-gray-400 mb-6">
+              This policy is automatically applied to new projects. Existing projects can customize their policies individually.
+            </p>
+            
+            <NetworkPolicyEditor
+              rules={networkPolicyRules}
+              onChange={setNetworkPolicyRules}
+              onSave={handleSaveNetworkPolicy}
+              saving={savingNetworkPolicy}
+              onTestConnection={handleTestNetworkConnection}
+            />
           </div>
 
           {/* Message Display */}

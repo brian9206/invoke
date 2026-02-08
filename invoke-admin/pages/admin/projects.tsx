@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
-import { Users, Edit, Trash2 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
@@ -196,7 +195,11 @@ export default function ProjectsPage() {
           ) : (
             <div className="grid gap-6">
               {projects.map((project) => (
-                <div key={project.id} className="card hover:bg-gray-800/50 transition-colors">
+                <button
+                  key={project.id}
+                  onClick={() => router.push(`/admin/projects/${project.id}`)}
+                  className="card hover:bg-gray-800/50 transition-colors text-left"
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3">
@@ -220,31 +223,8 @@ export default function ProjectsPage() {
                         <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>
-                      <div className="ml-4 flex items-center space-x-2">
-                        <button
-                          onClick={() => router.push(`/admin/projects/${project.id}/members`)}
-                          className="p-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
-                          title="Members"
-                        >
-                          <Users className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => openEditModal(project)}
-                          className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteProject(project)}
-                          className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}

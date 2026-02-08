@@ -1,6 +1,7 @@
 const { VirtualFileSystem } = require('sandbox-fs');
 const ivm = require('isolated-vm');
 const BuiltinBridge = require('./builtin-bridge');
+const NetworkPolicy = require('./network-policy');
 
 /**
  * ExecutionContext - Manages a single function execution
@@ -8,7 +9,7 @@ const BuiltinBridge = require('./builtin-bridge');
  * Uses pre-compiled bootstrap script from isolate pool
  */
 class ExecutionContext {
-    constructor(isolate, context, packageDir, functionId, packageHash, envVars, compiledScript, projectId, kvStore) {
+    constructor(isolate, context, packageDir, functionId, packageHash, envVars, compiledScript, projectId, kvStore, networkPolicies) {
         this.isolate = isolate;
         this.context = context;
         this.packageDir = packageDir;
@@ -18,6 +19,9 @@ class ExecutionContext {
         this.compiledScript = compiledScript;
         this.projectId = projectId;
         this.kvStore = kvStore;
+        
+        // Initialize network policy enforcement
+        this.networkPolicy = new NetworkPolicy(networkPolicies || []);
         
         // Create VFS instance
         this.vfs = new VirtualFileSystem({});
@@ -94,6 +98,17 @@ class ExecutionContext {
     }
     
     /**
+     * Console log function that writes to user's function output
+     */
+    consoleLog(message) {
+        this.logs.push({
+            level: 'log',
+            message: String(message),
+            timestamp: Date.now()
+        });
+    }
+    
+    /**
      * Set up built-in module references
      * Provides access to whitelisted Node.js core modules
      */
@@ -103,7 +118,14 @@ class ExecutionContext {
         const pathModule = this.vfs.createNodePathModule();
         
         // Add fs and path to _builtinModules along with other built-in modules
-        await BuiltinBridge.setupAll(this.context, fsModule, pathModule);
+        // Pass network policy and console logger for network policy enforcement
+        await BuiltinBridge.setupAll(
+            this.context, 
+            fsModule, 
+            pathModule, 
+            this.networkPolicy, 
+            this.consoleLog.bind(this)
+        );
     }
 
     /**

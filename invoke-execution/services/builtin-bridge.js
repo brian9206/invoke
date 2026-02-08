@@ -19,15 +19,17 @@ class BuiltinBridge {
      * @param {ivm.Context} context - The isolated-vm context
      * @param {Object} fsModule - The fs module object with ivm.Reference methods
      * @param {Object} pathModule - The path module object with ivm.Reference methods
+     * @param {Object} networkPolicy - Network policy enforcement instance
+     * @param {Function} consoleLog - Console logging function for user output
      */
-    static async setupAll(context, fsModule, pathModule) {
+    static async setupAll(context, fsModule, pathModule, networkPolicy, consoleLog) {
         this.setupFS(context, fsModule);
         this.setupPath(context, pathModule);
         this.setupMimeTypes(context);
         this.setupCrypto(context);
         this.setupZlib(context);
-        this.setupNet(context);
-        this.setupTLS(context);
+        this.setupNet(context, networkPolicy, consoleLog);
+        this.setupTLS(context, networkPolicy, consoleLog);
         this.setupDNS(context);
     }
     
@@ -580,9 +582,12 @@ class BuiltinBridge {
     }
     
     /**
-     * Setup crypto module
+     * Setup net module with network policy enforcement
+     * @param {ivm.Context} context - The isolated-vm context
+     * @param {Object} networkPolicy - Network policy enforcement instance
+     * @param {Function} consoleLog - Console logging function for user output
      */
-    static setupNet(context) {
+    static setupNet(context, networkPolicy, consoleLog) {
         
         // Map to store socket instances using handle-based state management
         const netHandles = new Map();
@@ -624,40 +629,34 @@ class BuiltinBridge {
         
         // net.createConnection(port, host, connectCallback)
         context.global.setSync('_net_createConnection', new ivm.Reference((port, host, connectCallback) => {
-            // If port is not provided, create an unconnected socket
-            let socket;
+            const handleId = ++handleCounter;
+            
+            // If port is not provided, create unconnected socket
             if (port === undefined || port === null) {
-                socket = new net.Socket();
-            } else {
-                // Create socket and initiate connection
-                socket = new net.Socket();
+                const socket = new net.Socket();
+                netHandles.set(handleId, socket);
+                socket.once('close', () => {
+                    netHandles.delete(handleId);
+                });
+                return handleId;
+            }
+            
+            // If no network policy, create real socket immediately
+            if (!networkPolicy) {
+                const socket = new net.Socket();
+                netHandles.set(handleId, socket);
                 
-                // Set a connection timeout to prevent hanging
-                const connectionTimeout = setTimeout(() => {
-                    if (!socket.connecting && socket.readyState !== 'open') {
-                        const timeoutError = {
-                            message: 'Connection timeout',
-                            code: 'ETIMEDOUT',
-                            errno: -110,
-                            syscall: 'connect'
-                        };
-                        socket.destroy();
-                        if (connectCallback) {
-                            connectCallback.applyIgnored(undefined, [timeoutError]);
-                        }
-                    }
-                }, 10000); // 10 second timeout
+                socket.once('close', () => {
+                    netHandles.delete(handleId);
+                });
                 
-                // Setup connection
-                socket.connect(port, host, () => {
-                    clearTimeout(connectionTimeout);
+                socket.once('connect', () => {
                     if (connectCallback) {
                         connectCallback.applyIgnored(undefined, [null]);
                     }
                 });
                 
                 socket.once('error', (err) => {
-                    clearTimeout(connectionTimeout);
                     const errorObj = {
                         message: err instanceof Error ? err.message : String(err),
                         code: err.code || 'ECONNREFUSED',
@@ -667,17 +666,71 @@ class BuiltinBridge {
                     if (connectCallback) {
                         connectCallback.applyIgnored(undefined, [errorObj]);
                     }
-                    removeHandle(handleId);
                 });
+                
+                socket.connect(port, host);
+                return handleId;
             }
+
+            // With network policy: connect immediately, abort if policy denies
+            // Note: We must connect immediately so socket enters "connecting" state
+            // which the HTTP module requires. If policy denies, connection will be 
+            // quickly aborted (may send SYN packet but will close immediately).
+            const socket = new net.Socket();
+            netHandles.set(handleId, socket);
             
-            const handleId = createHandle(socket);
-            
-            // Auto-remove handle when socket closes
             socket.once('close', () => {
-                removeHandle(handleId);
+                netHandles.delete(handleId);
             });
             
+            socket.once('connect', () => {
+                if (connectCallback) {
+                    connectCallback.applyIgnored(undefined, [null]);
+                }
+            });
+            
+            socket.once('error', (err) => {
+                const errorObj = {
+                    message: err instanceof Error ? err.message : String(err),
+                    code: err.code || 'ECONNREFUSED',
+                    errno: err.errno,
+                    syscall: err.syscall
+                };
+                if (connectCallback) {
+                    connectCallback.applyIgnored(undefined, [errorObj]);
+                }
+            });
+            
+            // Start connection immediately so HTTP module sees socket as "connecting"
+            socket.connect(port, host);
+            
+            // Check policy async and abort connection if denied
+            (async () => {
+                try {
+                    const result = await networkPolicy.evaluatePolicy(host, consoleLog);
+                    
+                    if (!result.allowed) {
+                        // Policy denied - abort the connection
+                        if (consoleLog) {
+                            consoleLog(`[Network] Connection to ${host} denied: ${result.reason}`);
+                        }
+                        const error = new Error(result.reason);
+                        error.code = 'POLICY_DENIED';
+                        error.errno = 'POLICY_DENIED';
+                        error.syscall = 'connect';
+                        socket.destroy(error);
+                    }
+                    // If allowed, connection already in progress - do nothing
+                } catch (err) {
+                    // Policy check error - abort connection
+                    const error = new Error(err.message || 'Policy evaluation failed');
+                    error.code = 'POLICY_ERROR';
+                    error.errno = 'POLICY_ERROR';
+                    error.syscall = 'connect';
+                    socket.destroy(error);
+                }
+            })();
+
             return handleId;
         }));
         
@@ -723,6 +776,38 @@ class BuiltinBridge {
         context.global.setSync('_net_socketConnect', new ivm.Reference((handleId, port, host, connectCallback) => {
             const socket = getHandle(handleId);
             
+            // Check network policy before allowing connection
+            if (networkPolicy) {
+                networkPolicy.evaluatePolicy(host, consoleLog).then((result) => {
+                    if (!result.allowed) {
+                        const errorObj = {
+                            message: result.reason,
+                            code: 'POLICY_DENIED'
+                        };
+                        if (connectCallback) {
+                            connectCallback.applyIgnored(undefined, [errorObj]);
+                        }
+                        socket.destroy();
+                        return;
+                    }
+                    
+                    // Policy allows, proceed with connection
+                    setupAndConnect();
+                }).catch((err) => {
+                    if (connectCallback) {
+                        connectCallback.applyIgnored(undefined, [{
+                            message: err.message || 'Policy evaluation failed',
+                            code: 'POLICY_ERROR'
+                        }]);
+                    }
+                });
+                return;
+            }
+            
+            // No policy enforcement
+            setupAndConnect();
+            
+            function setupAndConnect() {
             // Setup listeners for socket events
             if (connectCallback) {
                 socket.once('connect', () => {
@@ -741,6 +826,7 @@ class BuiltinBridge {
             }
             
             socket.connect(port, host);
+            }
         }));
         
         // socket.end()
@@ -1412,9 +1498,12 @@ class BuiltinBridge {
     }
     
     /**
-     * Setup TLS module (minimal bridge functions only)
+     * Setup TLS module with network policy enforcement
+     * @param {ivm.Context} context - The isolated-vm context
+     * @param {Object} networkPolicy - Network policy enforcement instance
+     * @param {Function} consoleLog - Console logging function for user output
      */
-    static setupTLS(context) {
+    static setupTLS(context, networkPolicy, consoleLog) {
         
         // Map to store TLS socket instances
         const tlsHandles = new Map();
@@ -1443,6 +1532,14 @@ class BuiltinBridge {
         
         // Bridge TLS connect functionality
         context.global.setSync('_tls_connect', new ivm.Reference((port, host, options, callback) => {
+            const handleId = ++tlsHandleCounter;
+            
+            // If no network policy, create real TLS socket immediately
+            if (!networkPolicy) {
+                return createRealTLSConnection(handleId);
+            }
+
+            // With network policy: connect immediately, abort if policy denies
             // Merge options with port and host
             const tlsOptions = {
                 ...options,
@@ -1451,7 +1548,97 @@ class BuiltinBridge {
             };
             
             const tlsSocket = tls.connect(tlsOptions);
-            const handleId = createTLSHandle(tlsSocket);
+            tlsHandles.set(handleId, tlsSocket);
+            
+            // Buffer to collect all data before 'end'
+            const dataChunks = [];
+            let endEmitted = false;
+            let closeQueued = false;
+            let closeHadError = false;
+            
+            // Setup event forwarding
+            tlsSocket.on('secureConnect', () => {
+                if (callback) callback.applyIgnored(undefined, ['secureConnect', handleId]);
+            });
+            
+            tlsSocket.on('connect', () => {
+                if (callback) callback.applyIgnored(undefined, ['connect', handleId]);
+            });
+            
+            tlsSocket.on('data', (data) => {
+                try {
+                    // Buffer the data
+                    dataChunks.push(data);
+                    
+                    // Convert Buffer to ArrayBuffer for VM using helper method
+                    if (Buffer.isBuffer(data)) {
+                        const arrayBuffer = BuiltinBridge._bufferToArrayBuffer(data);
+                        if (callback) callback.applyIgnored(undefined, ['data', arrayBuffer]);
+                    } else {
+                        if (callback) callback.applyIgnored(undefined, ['data', data]);
+                    }
+                } catch (err) {
+                    console.error('Error forwarding TLS data:', err);
+                }
+            });
+            
+            tlsSocket.on('end', () => {
+                endEmitted = true;
+                if (callback) callback.applyIgnored(undefined, ['end']);
+            });
+            
+            tlsSocket.on('close', (hadError) => {
+                closeHadError = hadError;
+                if (!closeQueued) {
+                    closeQueued = true;
+                    if (callback) callback.applyIgnored(undefined, ['close', hadError]);
+                }
+                removeTLSHandle(handleId);
+            });
+            
+            tlsSocket.on('error', (err) => {
+                if (callback) {
+                    const errorMsg = err && err.message ? err.message : String(err);
+                    const errorCode = err && err.code ? err.code : 'UNKNOWN';
+                    callback.applyIgnored(undefined, ['error', errorMsg, errorCode]);
+                }
+            });
+            
+            // Check policy async and abort connection if denied
+            (async () => {
+                try {
+                    const result = await networkPolicy.evaluatePolicy(host, consoleLog);
+                    
+                    if (!result.allowed) {
+                        // Policy denied - abort the connection
+                        if (consoleLog) {
+                            consoleLog(`[TLS] Connection to ${host} denied: ${result.reason}`);
+                        }
+                        const error = new Error(result.reason);
+                        error.code = 'POLICY_DENIED';
+                        tlsSocket.destroy(error);
+                    }
+                    // If allowed, connection already in progress - do nothing
+                } catch (err) {
+                    // Policy check error - abort connection
+                    const error = new Error(err.message || 'Policy evaluation failed');
+                    error.code = 'POLICY_ERROR';
+                    tlsSocket.destroy(error);
+                }
+            })();
+
+            return handleId;
+            
+            function createRealTLSConnection(handleId) {
+            // Merge options with port and host
+            const tlsOptions = {
+                ...options,
+                port: port,
+                host: host
+            };
+            
+            const tlsSocket = tls.connect(tlsOptions);
+            tlsHandles.set(handleId, tlsSocket);
             
             // Buffer to collect all data before 'end'
             const dataChunks = [];
@@ -1531,6 +1718,7 @@ class BuiltinBridge {
             });
             
             return handleId;
+            }
         }));
         
         // Bridge TLS socket write
