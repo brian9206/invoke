@@ -52,7 +52,7 @@ export default function Login() {
       if (window.turnstile && turnstileWidgetRef.current && !turnstileIdRef.current) {
         try {
           turnstileIdRef.current = window.turnstile.render(turnstileWidgetRef.current, {
-            sitekey: '1x00000000000000000000AA',
+            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA',
             callback: (token: string) => {
               console.log('Turnstile callback triggered:', token)
               setTurnstileToken(token)
