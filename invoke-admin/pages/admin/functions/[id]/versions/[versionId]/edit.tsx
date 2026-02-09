@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   ArrowLeft, 
@@ -528,22 +529,18 @@ export default function FunctionCodeEditor() {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center">
               <button
                 onClick={() => router.push(`/admin/functions/${functionId}/versioning`)}
-                className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-800 rounded-lg transition-colors mr-2"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-100 flex items-center">
-                  <Code2 className="w-6 h-6 mr-2" />
-                  Code Editor
-                </h1>
-                <p className="text-gray-400 mt-1">
-                  {functionData.functionName} - Version {functionData.version}
-                </p>
-              </div>
+              <PageHeader
+                title="Code Editor"
+                subtitle={`${functionData.functionName} - Version ${functionData.version}`}
+                icon={<Code2 className="w-8 h-8 text-primary-500" />}
+              />
             </div>
             
             <div className="flex items-center space-x-3">

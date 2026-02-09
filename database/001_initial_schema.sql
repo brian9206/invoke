@@ -47,7 +47,7 @@ CREATE TABLE project_memberships (
     id SERIAL PRIMARY KEY,
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'viewer')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('owner', 'developer')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by INTEGER REFERENCES users(id),
     UNIQUE(project_id, user_id)

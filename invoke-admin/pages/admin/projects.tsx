@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import PageHeader from '@/components/PageHeader';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
+import { FolderOpen } from 'lucide-react';
 
 interface Project {
   id: string;
@@ -175,18 +177,18 @@ export default function ProjectsPage() {
     <ProtectedRoute>
       <Layout title="Projects">
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100">Projects</h1>
-              <p className="text-gray-400 mt-2">Manage projects and assign users</p>
-            </div>
+          <PageHeader
+            title="Projects"
+            subtitle="Manage projects and assign users"
+            icon={<FolderOpen className="w-8 h-8 text-primary-500" />}
+          >
             <button
               onClick={() => setShowCreateModal(true)}
               className="btn-primary"
             >
               Create Project
             </button>
-          </div>
+          </PageHeader>
 
           {projects.length === 0 ? (
             <div className="card text-center py-12">

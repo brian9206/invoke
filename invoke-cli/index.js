@@ -358,7 +358,7 @@ program
           message: 'Select role:',
           choices: [
             { name: 'Owner (full access)', value: 'owner' },
-            { name: 'Viewer (read-only access)', value: 'viewer' }
+            { name: 'Developer', value: 'developer' }
           ]
         }
       ])

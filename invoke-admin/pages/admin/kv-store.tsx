@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
@@ -293,17 +294,11 @@ export default function KVStore() {
       <Layout title="KV Store">
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-100 flex items-center">
-                <Database className="w-8 h-8 mr-3 text-primary-500" />
-                Key-Value Store
-              </h1>
-              <p className="text-gray-400 mt-1">
-                Manage persistent key-value storage for {activeProject.name}
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            title="Key-Value Store"
+            subtitle={`Manage persistent key-value storage for ${activeProject.name}`}
+            icon={<Database className="w-8 h-8 text-primary-500" />}
+          />
           
           {/* Storage Usage */}
           <div className="card p-6">

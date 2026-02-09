@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { ArrowLeft, Users, Package, Settings, Calendar, Eye, Shield, Edit, Trash2, UserPlus, Crown } from 'lucide-react';
+import { ArrowLeft, Users, Package, Settings, Calendar, Eye, Edit, Trash2, UserPlus, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { toast } from 'react-hot-toast';
@@ -66,7 +67,7 @@ export default function ProjectDetailPage() {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [selectedRole, setSelectedRole] = useState('viewer');
+  const [selectedRole, setSelectedRole] = useState('developer');
 
   useEffect(() => {
     if (projectId) {
@@ -234,7 +235,7 @@ export default function ProjectDetailPage() {
       if (response.ok) {
         setShowAddMemberModal(false);
         setSelectedUserId('');
-        setSelectedRole('viewer');
+        setSelectedRole('developer');
         loadMembers();
         toast.success('Member added');
       } else {
@@ -262,7 +263,7 @@ export default function ProjectDetailPage() {
 
       if (response.ok) {
         setEditingMember(null);
-        setSelectedRole('viewer');
+        setSelectedRole('developer');
         loadMembers();
         toast.success('Role updated');
       } else {
@@ -308,7 +309,7 @@ export default function ProjectDetailPage() {
     setShowAddMemberModal(false);
     setEditingMember(null);
     setSelectedUserId('');
-    setSelectedRole('viewer');
+    setSelectedRole('developer');
   };
 
   const getRoleIcon = (role: string) => {
@@ -361,7 +362,7 @@ export default function ProjectDetailPage() {
       <Layout>
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center mb-6">
+          <div className="flex items-center justify-between mb-6">
             <Link
               href="/admin/projects"
               className="mr-4 p-2 hover:bg-gray-700 rounded-md transition-colors"
@@ -369,47 +370,37 @@ export default function ProjectDetailPage() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex-1">
-              <div className="flex items-center">
-                <h1 className="text-3xl font-bold text-gray-100">{project.name}</h1>
-                <span className={`ml-3 px-3 py-1 text-sm font-semibold rounded-full ${
+              <PageHeader
+                title={project.name}
+                subtitle={`Created by ${project.created_by} on ${new Date(project.created_at).toLocaleDateString()}`}
+              >
+                <span className={`px-3 py-1 text-sm font-semibold rounded-full ${
                   project.is_active 
                     ? 'bg-green-900/30 text-green-400 border border-green-800' 
                     : 'bg-red-900/30 text-red-400 border border-red-800'
                 }`}>
                   {project.is_active ? 'Active' : 'Inactive'}
                 </span>
-              </div>
-              {project.description && (
-                <p className="text-gray-600 mt-2">{project.description}</p>
-              )}
-              <p className="text-gray-500 text-sm mt-1">
-                Created by {project.created_by} on {new Date(project.created_at).toLocaleDateString()}
-              </p>
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={openEditModal}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </button>
-              <button
-                onClick={handleDeleteProject}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Delete
-              </button>
-              <Link
-                href={`/admin/projects/${project.id}/security`}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center"
-              >
-                <Shield className="w-4 h-4 mr-2" />
-                Security
-              </Link>
+                <button
+                  onClick={openEditModal}
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </button>
+                <button
+                  onClick={handleDeleteProject}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md flex items-center"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete
+                </button>
+              </PageHeader>
             </div>
           </div>
+          {project.description && (
+            <p className="text-gray-600">{project.description}</p>
+          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -586,7 +577,7 @@ export default function ProjectDetailPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-2">
+                  <div className="text-center pb-2 pt-6">
                     <Package className="w-8 h-8 mx-auto text-gray-400 mb-2" />
                     <p className="text-gray-500 text-sm">No functions yet</p>
                   </div>
@@ -631,7 +622,7 @@ export default function ProjectDetailPage() {
                       onChange={(e) => setSelectedRole(e.target.value)}
                       className="form-input"
                     >
-                      <option value="viewer">Viewer</option>
+                      <option value="developer">Developer</option>
                       <option value="owner">Owner</option>
                     </select>
                   </div>
@@ -671,7 +662,7 @@ export default function ProjectDetailPage() {
                       onChange={(e) => setSelectedRole(e.target.value)}
                       className="form-input"
                     >
-                      <option value="viewer">Viewer</option>
+                      <option value="developer">Developer</option>
                       <option value="owner">Owner</option>
                     </select>
                   </div>

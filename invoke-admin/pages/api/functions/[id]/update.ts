@@ -1,4 +1,5 @@
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs-extra'
@@ -70,6 +71,19 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     const existingFunction = functionResult.rows[0]
+
+    // Check project access (developer role required for function updates)
+    if (!authResult.user?.isAdmin) {
+      const projectId = existingFunction.project_id
+      if (!projectId) {
+        return res.status(403).json(createResponse(false, null, 'No project associated with this function', 403))
+      }
+
+      const access = await checkProjectDeveloperAccess(userId, projectId, false)
+      if (!access.allowed) {
+        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to update this function', 403))
+      }
+    }
 
     // Handle file upload
     await new Promise<void>((resolve, reject) => {

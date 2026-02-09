@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -12,6 +13,27 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         success: false,
         message: 'Version ID is required'
       })
+    }
+
+    // Check project access for non-admins
+    if (!req.user?.isAdmin) {
+      const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [functionId])
+      if (functionResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'Function not found'
+        })
+      }
+      const projectId = functionResult.rows[0].project_id
+      if (projectId) {
+        const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
+        if (!access.allowed) {
+          return res.status(403).json({
+            success: false,
+            message: access.message || 'Insufficient permissions to switch function version'
+          })
+        }
+      }
     }
 
     // Verify that the version exists and belongs to the function

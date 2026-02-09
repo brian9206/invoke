@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
 import fs from 'fs-extra'
 import crypto from 'crypto'
@@ -52,6 +53,21 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     const userId = authResult.user!.id
     const { id: functionId } = req.query
+
+    // Check project access for non-admins (required for all operations)
+    if (!authResult.user?.isAdmin) {
+      const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [functionId])
+      if (functionResult.rows.length === 0) {
+        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+      }
+      const projectId = functionResult.rows[0].project_id
+      if (projectId) {
+        const access = await checkProjectDeveloperAccess(userId, projectId, false)
+        if (!access.allowed) {
+          return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions', 403))
+        }
+      }
+    }
 
     if (req.method === 'GET') {
       // List all versions for a function

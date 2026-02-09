@@ -1,7 +1,8 @@
 export const runtime = 'nodejs';
 
 import { NextApiRequest, NextApiResponse } from 'next'
-import { AuthenticatedRequest, withAuthAndMethods, withProjectAccess } from '@/lib/middleware'
+import { AuthenticatedRequest, withAuthAndMethods } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
 import fs from 'fs-extra'
 import path from 'path'
@@ -65,8 +66,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const apiKey = requiresApiKey ? req.body.apiKey : null
     const projectId = req.body.projectId || null
 
-    // Note: Project access is enforced by the `withProjectAccess('owner')` middleware
-    // which will run after multer has parsed the request and before this handler executes.
+    // Check project access for non-admins (developer role required)
+    if (!req.user?.isAdmin && projectId) {
+      const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
+      if (!access.allowed) {
+        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to upload functions', 403))
+      }
+    }
+
     // Check if function already exists by name - reject duplicates for new uploads
     const existingResult = await database.query(
       'SELECT id, name FROM functions WHERE name = $1',
@@ -197,9 +204,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-// Wrap handler with project access middleware (owner required). We also ensure
-// multer runs first to populate `req.body` and `req.file` before middleware checks.
-const guarded = withAuthAndMethods(['POST'])(withProjectAccess('owner')(handler as any) as any)
+// Wrap handler with auth middleware
+const guarded = withAuthAndMethods(['POST'])(handler as any)
 
 export default async function adapter(req: NextApiRequest, res: NextApiResponse) {
   try {

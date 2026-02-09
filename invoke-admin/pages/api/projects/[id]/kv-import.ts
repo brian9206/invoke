@@ -1,5 +1,6 @@
 import { NextApiResponse } from 'next';
 import { AuthenticatedRequest, withAuth } from '@/lib/middleware';
+import { checkProjectAccess } from '@/lib/project-access';
 const { createResponse } = require('@/lib/utils');
 const database = require('@/lib/database');
 const KeyvModule = require('keyv');
@@ -37,7 +38,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     if (!hasAccess.canWrite) {
-      return res.status(403).json(createResponse(false, null, 'Owner role required for import operations', 403));
+      return res.status(403).json(createResponse(false, null, 'Developer or owner role required for import operations', 403));
     }
 
     // Validate input data
@@ -156,36 +157,6 @@ function createKVStore(projectId: string) {
     }),
     namespace: projectId
   });
-}
-
-/**
- * Check if user has access to project
- */
-async function checkProjectAccess(userId: number, projectId: string, isAdmin: boolean) {
-  if (isAdmin) {
-    return { allowed: true, canWrite: true };
-  }
-
-  try {
-    const result = await database.query(
-      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2',
-      [userId, projectId]
-    );
-
-    if (result.rows.length === 0) {
-      return { allowed: false, canWrite: false, message: 'Access denied: not a member of this project' };
-    }
-
-    const role = result.rows[0].role;
-    return {
-      allowed: true,
-      canWrite: role === 'owner',
-      role
-    };
-  } catch (error) {
-    console.error('Error checking project access:', error);
-    return { allowed: false, canWrite: false, message: 'Error checking access' };
-  }
 }
 
 export default withAuth(handler);

@@ -162,13 +162,13 @@ export async function getUserProjects(userId: number): Promise<any[]> {
   }
 }
 
-export function hasProjectAccess(role: string, requiredLevel: 'viewer' | 'owner'): boolean {
-  const roleHierarchy = { viewer: 0, owner: 1 }
+export function hasProjectAccess(role: string, requiredLevel: 'developer' | 'owner'): boolean {
+  const roleHierarchy = { developer: 0, owner: 1 }
   return roleHierarchy[role as keyof typeof roleHierarchy] >= roleHierarchy[requiredLevel]
 }
 
 // Project-scoped middleware for function operations
-export function withProjectAccess(requiredRole: 'viewer' | 'owner' = 'viewer') {
+export function withProjectAccess(requiredRole: 'developer' | 'owner' = 'developer') {
   return function (handler: NextApiHandler) {
     return withAuth(async (req: AuthenticatedRequest, res: NextApiResponse) => {
       // Admin users bypass project restrictions

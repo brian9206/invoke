@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 
@@ -38,10 +39,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         const log = result.rows[0]
         // Verify project membership for non-admins
         if (!req.user?.isAdmin) {
-            const role = await getUserProjectRole(req.user!.id, log.project_id)
-            const hasAccess = role && hasProjectAccess(role, 'viewer')
-            if (!hasAccess) {
-                return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+            const access = await checkProjectDeveloperAccess(req.user!.id, log.project_id, false)
+            if (!access.allowed) {
+                return res.status(403).json(createResponse(false, null, access.message || 'Access denied to this project', 403))
             }
         }
         

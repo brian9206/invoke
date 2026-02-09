@@ -51,15 +51,15 @@ async function getProjectMembers(req: AuthenticatedRequest, res: NextApiResponse
 
 // Add member to project
 async function addProjectMember(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { projectId, userId, role = 'viewer' } = req.body;
+  const { projectId, userId, role = 'developer' } = req.body;
   const createdBy = req.user?.id;
 
   if (!projectId || !userId) {
     return res.status(400).json({ error: 'Project ID and User ID are required' });
   }
 
-  if (!['owner', 'viewer'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be owner or viewer' });
+  if (!['owner', 'developer'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be owner or developer' });
   }
 
   try {
@@ -117,8 +117,8 @@ async function updateMemberRole(req: AuthenticatedRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Membership ID and role are required' });
   }
 
-  if (!['owner', 'viewer'].includes(role)) {
-    return res.status(400).json({ error: 'Invalid role. Must be owner or viewer' });
+  if (!['owner', 'developer'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be owner or developer' });
   }
 
   try {

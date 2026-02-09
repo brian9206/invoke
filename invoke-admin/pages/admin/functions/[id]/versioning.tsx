@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   Upload, 
@@ -18,6 +19,7 @@ import {
   User,
   Trash2,
   Code2,
+  GitBranch,
   Eye,
   Download
 } from 'lucide-react'
@@ -303,12 +305,12 @@ export default function FunctionVersioning() {
             >
               <ArrowLeft className="w-5 h-5 text-gray-400" />
             </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100">Function Versioning</h1>
-              <p className="text-gray-400 mt-2">
-                Manage versions for <span className="text-gray-200 font-medium">{functionData.name}</span>
-                {activeVersion && <span className="ml-2">- Active: v{activeVersion.version}</span>}
-              </p>
+            <div className="flex-1">
+              <PageHeader
+                title="Function Versioning"
+                subtitle={`Manage versions for ${functionData.name}${activeVersion ? ` - Active: v${activeVersion.version}` : ''}`}
+                icon={<GitBranch className="w-8 h-8 text-primary-500" />}
+              />
             </div>
           </div>
 

@@ -44,6 +44,7 @@ interface NetworkPolicyEditorProps {
   onSave: () => void;
   saving: boolean;
   onTestConnection?: (host: string) => Promise<{ allowed: boolean; reason: string }>;
+  readOnly?: boolean;
 }
 
 // Sortable row component
@@ -51,12 +52,14 @@ function SortableRuleRow({
   rule, 
   index, 
   onDelete, 
-  onUpdate 
+  onUpdate,
+  readOnly = false
 }: { 
   rule: NetworkPolicyRule; 
   index: number; 
   onDelete: () => void;
   onUpdate: (updates: Partial<NetworkPolicyRule>) => void;
+  readOnly?: boolean;
 }) {
   const {
     attributes,
@@ -123,7 +126,8 @@ function SortableRuleRow({
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300"
+          disabled={readOnly}
+          className={readOnly ? "text-gray-600 cursor-not-allowed" : "cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300"}
         >
           <GripVertical className="w-4 h-4" />
         </button>
@@ -133,7 +137,8 @@ function SortableRuleRow({
         <select
           value={rule.action}
           onChange={(e) => onUpdate({ action: e.target.value as 'allow' | 'deny' })}
-          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm"
+          disabled={readOnly}
+          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="allow">Allow</option>
           <option value="deny">Deny</option>
@@ -157,7 +162,8 @@ function SortableRuleRow({
             onUpdate({ target_type: e.target.value as 'ip' | 'cidr' | 'domain' });
             validateTarget(rule.target_value, e.target.value);
           }}
-          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm"
+          disabled={readOnly}
+          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <option value="ip">IP Address</option>
           <option value="cidr">CIDR Block</option>
@@ -173,6 +179,7 @@ function SortableRuleRow({
               onUpdate({ target_value: e.target.value });
               validateTarget(e.target.value, rule.target_type);
             }}
+            disabled={readOnly}
             placeholder={
               rule.target_type === 'ip' ? '192.168.1.1' :
               rule.target_type === 'cidr' ? '192.168.0.0/16' :
@@ -180,7 +187,7 @@ function SortableRuleRow({
             }
             className={`w-full bg-gray-700 border ${
               validationError ? 'border-red-500' : 'border-gray-600'
-            } rounded px-3 py-1.5 text-sm`}
+            } rounded px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
           />
           {validationError && (
             <p className="text-xs text-red-400 flex items-center gap-1">
@@ -201,14 +208,16 @@ function SortableRuleRow({
           type="text"
           value={rule.description || ''}
           onChange={(e) => onUpdate({ description: e.target.value })}
+          disabled={readOnly}
           placeholder="Optional description"
-          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm"
+          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         />
       </td>
       <td className="p-3">
         <button
           onClick={onDelete}
-          className="p-2 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors"
+          disabled={readOnly}
+          className="p-2 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           title="Delete rule"
         >
           <Trash2 className="w-4 h-4" />
@@ -223,7 +232,8 @@ export default function NetworkPolicyEditor({
   onChange,
   onSave,
   saving,
-  onTestConnection
+  onTestConnection,
+  readOnly = false
 }: NetworkPolicyEditorProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [testHost, setTestHost] = useState('');
@@ -330,13 +340,15 @@ export default function NetworkPolicyEditor({
       <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
         <div className="p-4 border-b border-gray-700 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-200">Network Policy Rules</h3>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Rule
-          </button>
+          {!readOnly && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Add Rule
+            </button>
+          )}
         </div>
 
         {rules.length > 0 ? (
@@ -371,6 +383,7 @@ export default function NetworkPolicyEditor({
                         index={index}
                         onDelete={() => handleDeleteRule(index)}
                         onUpdate={(updates) => handleUpdateRule(index, updates)}
+                        readOnly={readOnly}
                       />
                     ))}
                   </tbody>
@@ -431,18 +444,20 @@ export default function NetworkPolicyEditor({
       )}
 
       {/* Save Button */}
-      <div className="flex items-center justify-end gap-3">
-        {rules.length === 0 && (
-          <p className="text-sm text-red-400">Cannot save without at least one rule</p>
-        )}
-        <button
-          onClick={onSave}
-          disabled={saving || rules.length === 0 || hasValidationErrors}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? 'Saving...' : 'Save Policy'}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex items-center justify-end gap-3">
+          {rules.length === 0 && (
+            <p className="text-sm text-red-400">Cannot save without at least one rule</p>
+          )}
+          <button
+            onClick={onSave}
+            disabled={saving || rules.length === 0 || hasValidationErrors}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : 'Save Policy'}
+          </button>
+        </div>
+      )}
 
       {/* Add Rule Modal */}
       {showAddModal && (

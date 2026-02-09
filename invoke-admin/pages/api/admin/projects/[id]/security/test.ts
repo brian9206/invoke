@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { adminRequired } from '@/lib/middleware';
+import { withAuth } from '@/lib/middleware';
 
 // Import the NetworkPolicy class from execution service
 // Since we're in the admin service, we'll simulate the policy evaluation
@@ -128,4 +128,4 @@ function matchesDomain(host: string, pattern: string): boolean {
   return minimatch(lowerHost, lowerPattern);
 }
 
-export default adminRequired(handler);
+export default withAuth(handler);

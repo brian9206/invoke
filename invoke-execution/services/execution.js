@@ -128,7 +128,7 @@ class ExecutionEngine {
     const module = { exports: {} };
     const exports = module.exports;
     const __filename = '/app/index.js';
-    const __dirname = '/';
+    const __dirname = '/app';
     
     // Execute user code
     ${userCode}

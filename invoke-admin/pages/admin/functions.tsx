@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -129,15 +130,12 @@ export default function Functions() {
     <ProtectedRoute>
       <Layout title="Functions">
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <PageHeader
+            title="Functions"
+            subtitle="Manage your deployed serverless functions"
+          >
             <div>
-              <h1 className="text-3xl font-bold text-gray-100">Functions</h1>
-              <p className="text-gray-400 mt-2">
-                Manage your deployed serverless functions
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              {(!activeProject || user?.isAdmin || activeProject.role !== 'viewer') ? (
+              {(!activeProject || user?.isAdmin || (activeProject.role === 'developer' || activeProject.role === 'owner')) ? (
                 <Link href="/admin/deploy" className="btn-primary">
                   Deploy Function
                 </Link>
@@ -147,7 +145,7 @@ export default function Functions() {
                 </button>
               )}
             </div>
-          </div>
+          </PageHeader>
 
           {!activeProject ? (
             <div className="card text-center py-12">
@@ -168,7 +166,7 @@ export default function Functions() {
               <p className="text-gray-400 mb-6">
                 Deploy your first serverless function to get started
               </p>
-              {(!activeProject || user?.isAdmin || activeProject.role !== 'viewer') ? (
+              {(!activeProject || user?.isAdmin || (activeProject.role === 'developer' || activeProject.role === 'owner')) ? (
                 <Link href="/admin/deploy" className="btn-primary">
                   Deploy Function
                 </Link>

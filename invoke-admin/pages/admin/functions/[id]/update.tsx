@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
@@ -151,12 +152,11 @@ export default function UpdateFunction() {
             >
               <ArrowLeft className="w-5 h-5 text-gray-400" />
             </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100">Update Function Package</h1>
-              <p className="text-gray-400 mt-2">
-                Update the package for <span className="text-gray-200 font-medium">{functionData.name}</span> - Current version: {functionData.version}
-              </p>
-            </div>
+            <PageHeader
+              title="Update Function Package"
+              subtitle={`Update the package for ${functionData.name} - Current version: ${functionData.version}`}
+              icon={<Upload className="w-8 h-8 text-primary-500" />}
+            />
           </div>
 
           <div className="card max-w-2xl">

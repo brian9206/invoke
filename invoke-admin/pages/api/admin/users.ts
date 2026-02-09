@@ -90,6 +90,23 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
     return res.status(400).json({ error: 'User ID is required' });
   }
 
+  // Get current user ID from the request
+  const currentUserId = (req as any).user?.userId;
+
+  // Prevent users from changing their own password through this endpoint
+  if (password && currentUserId && id === currentUserId) {
+    return res.status(403).json({ 
+      error: 'You cannot change your own password through user management. Please use the Profile Settings page.' 
+    });
+  }
+
+  // Prevent users from removing their own admin rights
+  if (typeof is_admin === 'boolean' && !is_admin && currentUserId && id === currentUserId) {
+    return res.status(403).json({ 
+      error: 'You cannot remove your own admin rights. Please use another admin account to modify your role.' 
+    });
+  }
+
   try {
     let updateQuery = 'UPDATE users SET updated_at = NOW()';
     const values = [];
@@ -138,6 +155,16 @@ async function deleteUser(req: NextApiRequest, res: NextApiResponse) {
 
   if (!id) {
     return res.status(400).json({ error: 'User ID is required' });
+  }
+
+  // Get current user ID from the request
+  const currentUserId = (req as any).user?.userId;
+
+  // Prevent users from deleting themselves
+  if (currentUserId && id === currentUserId) {
+    return res.status(403).json({ 
+      error: 'You cannot delete your own account. Please use another admin account to delete this user.' 
+    });
   }
 
   try {

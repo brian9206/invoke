@@ -5,7 +5,8 @@ import fs from 'fs-extra'
 import path from 'path'
 import * as tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
-import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess, withProjectAccess } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 const minioService = require('@/lib/minio')
@@ -64,7 +65,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     const { name, description, requiresApiKey, apiKey, projectId } = req.body
 
-    // Permission check is handled by middleware wrapper below when projectId is provided.
+    // Check project access for non-admins (developer role required)
+    if (!req.user?.isAdmin && projectId) {
+      const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
+      if (!access.allowed) {
+        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to create functions', 403))
+      }
+    }
 
     if (!name || !name.trim()) {
       return res.status(400).json(createResponse(false, null, 'Function name is required', 400))
@@ -201,15 +208,9 @@ Returns a JSON object with a greeting message.
   }
 }
 
-// Export an adapter that applies project access middleware when a projectId is provided in the request.
+// Export an adapter that applies auth middleware
 const authWrapped = withAuthAndMethods(['POST'])(handler as any)
-const ownerGuarded = withAuthAndMethods(['POST'])(withProjectAccess('owner')(handler as any) as any)
 
 export default async function adapter(req: any, res: any) {
-  // Read projectId from body if possible (middleware wrappers will re-parse body as needed)
-  const projectId = req.body?.projectId || req.query?.projectId || null
-  if (projectId) {
-    return ownerGuarded(req, res)
-  }
   return authWrapped(req, res)
 }

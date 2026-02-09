@@ -16,7 +16,8 @@ import {
   Settings,
   LogOut,
   User,
-  Database
+  Database,
+  Shield
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -30,14 +31,27 @@ export default function Layout({ children, title }: LayoutProps) {
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
 
-  const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
-    { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
-    { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
-    { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
-    { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
-    { name: 'Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
-    { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings', adminOnly: true },
+  const navigationGroups = [
+    {
+      items: [
+        { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
+      ]
+    },
+    {
+      items: [
+        { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
+        { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
+        { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
+        { name: 'Execution Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
+      ]
+    },
+    {
+      items: [
+        { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
+        { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
+        { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings', adminOnly: true },
+      ]
+    }
   ]
 
   // Helper to check admin status (used when filtering nav items)
@@ -88,19 +102,28 @@ export default function Layout({ children, title }: LayoutProps) {
         </div>
 
         <nav className="mt-2">
-          {navigation
-            .filter(item => !item.adminOnly || reqUserIsAdmin())
-            .map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`sidebar-link ${item.active ? 'active' : ''}`}
-                onClick={() => setSidebarOpen(false)}
-              >
-                <item.icon className="w-5 h-5 mr-3" />
-                {item.name}
-              </Link>
-            ))}
+          {navigationGroups.map((group, groupIndex) => {
+            const visibleItems = group.items.filter(item => !item.adminOnly || reqUserIsAdmin());
+            
+            if (visibleItems.length === 0) return null;
+            
+            return (
+              <div key={groupIndex}>
+                {groupIndex > 0 && <div className="my-4 border-t border-gray-700"></div>}
+                {visibleItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    href={item.href}
+                    className={`sidebar-link ${item.active ? 'active' : ''}`}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <item.icon className="w-5 h-5 mr-3" />
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-700">
@@ -111,13 +134,23 @@ export default function Layout({ children, title }: LayoutProps) {
               <p className="text-xs text-gray-400">{user.email}</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
-          >
-            <LogOut className="w-4 h-4 mr-3" />
-            Sign out
-          </button>
+          <div className="space-y-2">
+            <Link
+              href="/admin/profile"
+              className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <Settings className="w-4 h-4 mr-3" />
+              Profile Settings
+            </Link>
+            <button
+              onClick={logout}
+              className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
+            >
+              <LogOut className="w-4 h-4 mr-3" />
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
 

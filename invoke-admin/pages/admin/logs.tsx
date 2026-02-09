@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { Activity, AlertCircle, Filter, Globe, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
@@ -137,17 +138,11 @@ export default function Logs() {
       <Layout title="Execution Logs">
         <div className="space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100 flex items-center">
-                <Activity className="w-8 h-8 mr-3" />
-                Execution Logs
-              </h1>
-              <p className="text-gray-400 mt-2">
-                Monitor all function execution history and performance across your serverless functions
-              </p>
-            </div>
-            
+          <PageHeader
+            title="Execution Logs"
+            subtitle="Monitor all function execution history and performance across your serverless functions"
+            icon={<Activity className="w-8 h-8" />}
+          >
             <div className="flex items-center space-x-3">
               <div className="flex items-center space-x-2">
                 <Filter className="w-4 h-4 text-gray-400" />
@@ -169,7 +164,7 @@ export default function Logs() {
                 Refresh
               </button>
             </div>
-          </div>
+          </PageHeader>
 
           {/* Execution Logs Table */}
           <div className="card">

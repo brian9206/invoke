@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
-import { Edit, Trash2 } from 'lucide-react';
+import PageHeader from '@/components/PageHeader';
+import { Edit, Trash2, Users } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: number;
@@ -17,6 +19,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -128,6 +131,12 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (user: User) => {
+    // Prevent deleting current user
+    if (currentUser && user.id === currentUser.id) {
+      alert('You cannot delete your own account. Please use another admin account to delete this user.');
+      return;
+    }
+
     if (!confirm(`Are you sure you want to delete the user "${user.username}"?`)) {
       return;
     }
@@ -182,18 +191,18 @@ export default function UsersPage() {
     <ProtectedRoute>
       <Layout title="Users">
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100">User Management</h1>
-              <p className="text-gray-400 mt-2">Manage system users and their permissions</p>
-            </div>
+          <PageHeader
+            title="User Management"
+            subtitle="Manage system users and their permissions"
+            icon={<Users className="w-8 h-8 text-primary-500" />}
+          >
             <button
               onClick={() => setShowCreateModal(true)}
               className="btn-primary"
             >
               Create User
             </button>
-          </div>
+          </PageHeader>
 
           {users.length === 0 ? (
             <div className="card text-center py-12">
@@ -234,8 +243,9 @@ export default function UsersPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user)}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
-                        title="Delete User"
+                        disabled={currentUser && user.id === currentUser.id}
+                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={currentUser && user.id === currentUser.id ? "Cannot delete yourself" : "Delete User"}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -358,12 +368,20 @@ export default function UsersPage() {
                     <label className="form-label">
                       New Password (leave blank to keep current)
                     </label>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="form-input"
-                    />
+                    {currentUser && editingUser && currentUser.id === editingUser.id ? (
+                      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
+                        <p className="text-sm text-gray-400">
+                          ℹ️ You cannot change your own password here. Please use the Profile Settings page.
+                        </p>
+                      </div>
+                    ) : (
+                      <input
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({...formData, password: e.target.value})}
+                        className="form-input"
+                      />
+                    )}
                   </div>
                   <div className="mb-4">
                     <label className="flex items-center">
@@ -371,10 +389,16 @@ export default function UsersPage() {
                         type="checkbox"
                         checked={formData.is_admin}
                         onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                        className="mr-2"
+                        disabled={currentUser && editingUser && currentUser.id === editingUser.id}
+                        className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <span className="text-sm font-medium text-gray-200">Admin User</span>
                     </label>
+                    {currentUser && editingUser && currentUser.id === editingUser.id && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        ℹ️ You cannot modify your own admin status
+                      </p>
+                    )}
                   </div>
                   <div className="flex justify-end space-x-3">
                     <button

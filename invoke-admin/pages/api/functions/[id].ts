@@ -1,4 +1,5 @@
-import { withAuthAndMethods, AuthenticatedRequest, getUserProjectRole, hasProjectAccess } from '@/lib/middleware'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 
@@ -54,13 +55,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       const functionData = result.rows[0]
       // Verify project membership for non-admins
-      if (!req.user?.isAdmin) {
-        const projectId = functionData.project_id
-        if (projectId) {
-          const role = await getUserProjectRole(req.user!.id, projectId)
-          if (!role || !hasProjectAccess(role, 'viewer')) {
-            return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
-          }
+      if (!req.user?.isAdmin && functionData.project_id) {
+        const access = await checkProjectDeveloperAccess(req.user!.id, functionData.project_id, false)
+        if (!access.allowed) {
+          return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
         }
       }
       return res.status(200).json(createResponse(true, functionData, 'Function details retrieved', 200))
@@ -68,6 +66,21 @@ async function handler(req: AuthenticatedRequest, res: any) {
     } else if (req.method === 'PATCH') {
       // Update function details
       const { name, description, requires_api_key, is_active } = req.body
+
+      // Check project access for non-admins (developer can update basic info, owner can update all)
+      if (!req.user?.isAdmin) {
+        const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
+        if (functionResult.rows.length === 0) {
+          return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+        }
+        const projectId = functionResult.rows[0].project_id
+        if (projectId) {
+          const access = await checkProjectDeveloperAccess(userId, projectId, false)
+          if (!access.allowed) {
+            return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to update function', 403))
+          }
+        }
+      }
 
       let updateFields: string[] = []
       let updateValues: any[] = []
@@ -128,16 +141,15 @@ async function handler(req: AuthenticatedRequest, res: any) {
         RETURNING *
       `
 
-      // Verify project membership (owner required) before applying updates
       const fn = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
       if (fn.rows.length === 0) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
       if (!req.user?.isAdmin) {
         const projectId = fn.rows[0].project_id
-        const role = await getUserProjectRole(req.user!.id, projectId)
-        if (!role || !hasProjectAccess(role, 'owner')) {
-          return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to update function', 403))
+        const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
+        if (!access.allowed) {
+          return res.status(403).json(createResponse(false, null, access.message || 'Insufficient project permissions', 403))
         }
       }
 
@@ -151,6 +163,21 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
 
     } else if (req.method === 'DELETE') {
+      // Check project access for non-admins
+      if (!req.user?.isAdmin) {
+        const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
+        if (functionResult.rows.length === 0) {
+          return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+        }
+        const projectId = functionResult.rows[0].project_id
+        if (projectId) {
+          const access = await checkProjectDeveloperAccess(userId, projectId, false)
+          if (!access.allowed) {
+            return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to delete function', 403))
+          }
+        }
+      }
+
       // Use centralized delete helper to remove MinIO packages and DB rows
       const { deleteFunction } = require('@/lib/delete-utils')
 

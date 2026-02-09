@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   Package, 
@@ -622,26 +623,24 @@ export default function FunctionDetails() {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-100 flex items-center">
-                <Package className="w-8 h-8 mr-3" />
-                {editing ? (
+            <div className="flex-1">
+              <PageHeader
+                title={editing ? (
                   <input
                     type="text"
                     value={editData.name}
                     onChange={(e) => setEditData(prev => ({ ...prev, name: e.target.value }))}
-                    className="bg-gray-800 border border-gray-600 rounded px-3 py-1 text-2xl"
+                    className="bg-gray-800 border border-gray-600 rounded px-3 py-1"
                   />
                 ) : (
                   functionData.name
                 )}
-              </h1>
-              <p className="text-gray-400 mt-2">
-                Function ID: {functionData.id}
-              </p>
+                subtitle={`Function ID: ${functionData.id}`}
+                icon={<Package className="w-8 h-8 text-primary-500" />}
+              />
             </div>
             
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 ml-4">
               {editing ? (
                 <>
                   <button

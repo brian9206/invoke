@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   ArrowLeft, 
@@ -15,6 +16,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Copy,
   Eye,
   EyeOff
 } from 'lucide-react'
@@ -184,15 +186,11 @@ export default function ExecutionLogDetails() {
               >
                 <ArrowLeft className="w-5 h-5 text-gray-400" />
               </button>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-100 flex items-center">
-                  <Activity className="w-8 h-8 mr-3" />
-                  Execution Log Details
-                </h1>
-                <p className="text-gray-400 mt-1">
-                  {logDetail.function_name} v{logDetail.function_version}
-                </p>
-              </div>
+              <PageHeader
+                title="Execution Log Details"
+                subtitle={`${logDetail.function_name} v${logDetail.function_version}`}
+                icon={<Activity className="w-8 h-8 text-primary-500" />}
+              />
             </div>
             <div className="flex items-center space-x-4">
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${

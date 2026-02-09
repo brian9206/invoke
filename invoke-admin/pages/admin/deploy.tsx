@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/router'
+import toast from 'react-hot-toast'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy } from 'lucide-react'
 import { getFunctionBaseUrl, getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -83,12 +85,12 @@ export default function DeployFunction() {
       })
 
       const result = await response.json()
-      setUploadResult(result)
 
       if (result.success) {
-        setTimeout(() => {
-          router.push(`/admin/functions/${result.data.id}`)
-        }, 2000)
+        toast.success('Function deployed successfully')
+        router.push(`/admin/functions/${result.data.id}`)
+      } else {
+        setUploadResult(result)
       }
     } catch (error) {
       setUploadResult({ success: false, message: 'Network error occurred' })
@@ -135,16 +137,11 @@ export default function DeployFunction() {
           fileInputRef.current.value = ''
         }
         
-        // Navigate to function details page
+        // Show success toast and navigate to function details page
+        toast.success('Function deployed successfully')
         const functionId = result.data?.id
         if (functionId) {
           router.push(`/admin/functions/${functionId}`)
-        } else {
-          setUploadResult({ 
-            success: true, 
-            message: 'Function uploaded successfully!',
-            data: result.data
-          })
         }
       } else {
         setUploadResult({ success: false, message: result.message || 'Upload failed' })
@@ -173,41 +170,41 @@ export default function DeployFunction() {
     <ProtectedRoute>
       <Layout title="Deploy Function">
         <div className="space-y-6">
-          {/* Permission check: viewers cannot deploy */}
-          {activeProject && !user?.isAdmin && activeProject.role === 'viewer' && (
-            <div className="card">
-              <div className="text-center py-8">
-                <AlertCircle className="w-12 h-12 mx-auto text-yellow-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-100 mb-2">Insufficient Permissions</h3>
-                <p className="text-gray-400">Your current project role does not allow deploying functions. Contact a project owner to deploy functions.</p>
-              </div>
-            </div>
-          )}
-          <div>
-            <h1 className="text-3xl font-bold text-gray-100">Deploy New Function</h1>
-            <p className="text-gray-400 mt-2">
-              Upload a function package or create a Hello World function to get started
-            </p>
-          </div>
-
-          {/* Project Selection Check - for all users */}
-          {!activeProject && (
-            <div className="card">
-              <div className="text-center py-8">
-                <AlertCircle className="w-12 h-12 mx-auto text-yellow-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-100 mb-2">
-                  Loading Project
-                </h3>
+          {/* System project message */}
+          {!activeProject || activeProject.id === 'system' ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <Upload className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-gray-300 mb-2">
+                  Please Select a Project
+                </h2>
                 <p className="text-gray-400">
-                  Please wait while we load your project data.
+                  Deploy is not available for the system project. Please select a regular project to deploy functions.
                 </p>
               </div>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Permission check: developers can deploy */}
+              {activeProject && !user?.isAdmin && activeProject.role === 'developer' && (
+                <div className="card">
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 mx-auto text-yellow-400 mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-100 mb-2">Insufficient Permissions</h3>
+                    <p className="text-gray-400">Your current project role does not allow deploying functions. Contact a project owner to deploy functions.</p>
+                  </div>
+                </div>
+              )}
+              
+              <PageHeader
+                title="Deploy New Function"
+                subtitle="Upload a function package or create a Hello World function to get started"
+                icon={<Upload className="w-8 h-8 text-primary-500" />}
+              />
 
-          {/* Show deployment form when project is loaded */}
-          {activeProject && (
-            <div className="card max-w-2xl">
+              {/* Show deployment form when project is loaded */}
+              {activeProject && (
+                <div className="card max-w-2xl">
             {/* Creation Mode Selector */}
             <div className="mb-6">
               <div className="flex space-x-1 p-1 bg-gray-800 rounded-lg w-fit">
@@ -468,6 +465,8 @@ export default function DeployFunction() {
               </ul>
             </div>
             </div>
+            )}
+            </>
           )}
         </div>
       </Layout>

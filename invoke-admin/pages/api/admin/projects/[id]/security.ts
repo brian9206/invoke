@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { adminRequired } from '@/lib/middleware';
+import { withAuth } from '@/lib/middleware';
+import { checkProjectOwnerAccess } from '@/lib/project-access';
 const database = require('@/lib/database');
 const ipaddr = require('ipaddr.js');
 
@@ -20,7 +21,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-// Get security policies for a project
+// Get security policies for a project (accessible to all authenticated users)
 async function getSecurityPolicies(
   projectId: string,
   req: NextApiRequest,
@@ -48,6 +49,14 @@ async function updateSecurityPolicies(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Only admins and project owners can modify security policies
+  const user = (req as any).user;
+  
+  const ownerAccess = await checkProjectOwnerAccess(user?.id, projectId, user?.isAdmin);
+  if (!ownerAccess.allowed) {
+    return res.status(403).json({ error: ownerAccess.message || 'Insufficient permissions' });
+  }
+
   const { rules } = req.body;
 
   if (!Array.isArray(rules)) {
@@ -129,4 +138,5 @@ async function updateSecurityPolicies(
   }
 }
 
-export default adminRequired(handler);
+// Use withAuth instead of adminRequired to allow GET requests for all authenticated users
+export default withAuth(handler);

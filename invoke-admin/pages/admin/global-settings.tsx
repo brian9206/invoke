@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
 import NetworkPolicyEditor from '@/components/NetworkPolicyEditor'
-import { Settings, Shield } from 'lucide-react'
+import { Settings, Shield, AlertCircle, CheckCircle, Plus, Trash2 } from 'lucide-react'
 import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
 import toast from 'react-hot-toast'
@@ -251,12 +252,11 @@ export default function GlobalSettings() {
     <ProtectedRoute>
       <Layout title="Global Settings">
         <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-100">Global Settings</h1>
-            <p className="text-gray-400 mt-2">
-              Configure default execution log retention settings for all functions
-            </p>
-          </div>
+          <PageHeader
+            title="Global Settings"
+            subtitle="Configure default execution log retention settings for all functions"
+            icon={<Settings className="w-8 h-8 text-primary-500" />}
+          />
 
           <div className="card max-w-2xl">
             <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
