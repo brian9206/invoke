@@ -31,6 +31,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
     res.json(createResponse(true, settings, 'Global settings retrieved successfully'))
 
   } else if (req.method === 'PUT') {
+    // Check admin permission for write operations
+    if (!req.user?.is_admin) {
+      return res.status(403).json(createResponse(false, null, 'Only administrators can modify global settings', 403))
+    }
+    
     // Update global settings
     const { type, value, enabled, function_base_url, kv_storage_limit_bytes } = req.body
 
@@ -88,4 +93,4 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 }
 
-export default withAuthAndMethods(['GET', 'PUT'], { adminRequired: true })(handler)
+export default withAuthAndMethods(['GET', 'PUT'])(handler)

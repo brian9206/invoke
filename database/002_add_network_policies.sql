@@ -56,14 +56,8 @@ SELECT
 FROM projects p
 CROSS JOIN (
     VALUES 
-        ('deny', 'cidr', '10.0.0.0/8', 'Block private network (RFC1918)', 1),
-        ('deny', 'cidr', '172.16.0.0/12', 'Block private network (RFC1918)', 2),
-        ('deny', 'cidr', '192.168.0.0/16', 'Block private network (RFC1918)', 3),
-        ('deny', 'cidr', '127.0.0.0/8', 'Block loopback', 4),
-        ('deny', 'cidr', 'fc00::/7', 'Block IPv6 ULA (RFC4193)', 5),
-        ('deny', 'cidr', 'fe80::/10', 'Block IPv6 link-local', 6),
-        ('deny', 'cidr', '::1/128', 'Block IPv6 loopback', 7),
-        ('allow', 'cidr', '0.0.0.0/0', 'Allow all public IPv4', 8)
+        ('allow', 'cidr', '0.0.0.0/0', 'Allow all public IPv4', 1),
+        ('allow', 'cidr', '::/0', 'Allow all public IPv6', 2)
 ) AS rule(action, target_type, target_value, description, priority)
 WHERE NOT EXISTS (
     SELECT 1 FROM project_network_policies WHERE project_id = p.id
