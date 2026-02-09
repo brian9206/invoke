@@ -32,7 +32,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
   } else if (req.method === 'PUT') {
     // Check admin permission for write operations
-    if (!req.user?.is_admin) {
+    if (!req.user?.isAdmin) {
       return res.status(403).json(createResponse(false, null, 'Only administrators can modify global settings', 403))
     }
     
