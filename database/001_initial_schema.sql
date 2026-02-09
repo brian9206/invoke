@@ -1,3 +1,16 @@
+-- Migration: Initial Schema
+-- Description: Complete base schema for Invoke application including all core tables
+-- Date: 2026-02-09
+-- 
+-- This migration creates the foundational database structure including:
+-- - User authentication and management
+-- - Projects and project memberships  
+-- - Functions and function versions
+-- - Execution logs and metrics
+-- - API keys and authentication
+-- - Global settings and configuration
+-- - Function environment variables
+--
 -- Invoke Application Database Schema
 -- PostgreSQL Database Schema for Invoke Microservices
 -- Complete schema including versioning system
