@@ -80,7 +80,7 @@ export default function ProjectsPage() {
 
       if (response.ok) {
         setShowCreateModal(false);
-        setFormData({ name: '', description: '' });
+        setFormData({ name: '', description: '', kvStorageLimit: 1 });
         await refreshProjects();
         loadProjects();
       } else {
@@ -111,7 +111,7 @@ export default function ProjectsPage() {
 
       if (response.ok) {
         setEditingProject(null);
-        setFormData({ name: '', description: '' });
+        setFormData({ name: '', description: '', kvStorageLimit: 1 });
         await refreshProjects();
         loadProjects();
       } else {

@@ -246,9 +246,6 @@ class ExecutionServer {
         console.log(
           `⏱️ Function Timeout: ${process.env.FUNCTION_TIMEOUT_MS || 30000}ms`,
         );
-        console.log(
-          `📦 Module Cache: ${process.env.ENABLE_MODULE_CACHE === "false" ? "Disabled" : "Enabled"} (max ${process.env.MODULE_CACHE_MAX_SIZE || 1000})`,
-        );
       });
 
       // Handle graceful shutdown

@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
 import ProjectSelector from '@/components/ProjectSelector'
+import Modal from '@/components/Modal'
 import {
   Menu,
   X,
@@ -25,13 +26,22 @@ interface LayoutProps {
   title?: string
 }
 
+interface NavItem {
+  name: string
+  href: string
+  icon: React.ComponentType<any>
+  active: boolean
+  adminOnly?: boolean
+}
+
 export default function Layout({ children, title }: LayoutProps) {
   const { user, logout } = useAuth()
   const { activeProject, setActiveProject, userProjects, loading, isProjectLocked } = useProject()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
+  const [showSignOutModal, setShowSignOutModal] = React.useState(false)
 
-  const navigationGroups = [
+  const navigationGroups: { items: NavItem[] }[] = [
     {
       items: [
         { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
@@ -64,6 +74,19 @@ export default function Layout({ children, title }: LayoutProps) {
         <meta name="description" content="Invoke Admin Panel - Manage serverless functions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
+
+      {/* Sign Out Confirmation Modal */}
+      <Modal
+        isOpen={showSignOutModal}
+        title="Sign Out"
+        description="Are you sure you want to sign out?"
+        onConfirm={logout}
+        onCancel={() => setShowSignOutModal(false)}
+        cancelText="Cancel"
+        confirmText="Sign Out"
+        confirmVariant="danger"
+      />
+
       <div className="min-h-screen bg-gray-900">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
@@ -140,7 +163,7 @@ export default function Layout({ children, title }: LayoutProps) {
               Profile Settings
             </Link>
             <button
-              onClick={logout}
+              onClick={() => setShowSignOutModal(true)}
               className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
             >
               <LogOut className="w-4 h-4 mr-3" />

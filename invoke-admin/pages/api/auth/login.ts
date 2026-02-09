@@ -19,10 +19,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     await database.connect()
 
-    const { username, password } = req.body
+    const { username, password, turnstileToken } = req.body
 
     if (!username || !password) {
       return res.status(400).json(createResponse(false, null, 'Username and password are required', 400))
+    }
+
+    // Verify Turnstile token
+    if (!turnstileToken) {
+      return res.status(400).json(createResponse(false, null, 'Verification challenge required', 400))
+    }
+
+    try {
+      const turnstileVerification = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          secret: process.env.TURNSTILE_SECRET_KEY,
+          response: turnstileToken,
+          remoteip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        }),
+      })
+
+      const turnstileResult = await turnstileVerification.json()
+      
+      if (!turnstileResult.success) {
+        console.error('Turnstile verification failed:', turnstileResult)
+        return res.status(400).json(createResponse(false, null, 'Verification challenge failed', 400))
+      }
+    } catch (turnstileError) {
+      console.error('Turnstile verification error:', turnstileError)
+      return res.status(500).json(createResponse(false, null, 'Verification service error', 500))
     }
 
     // Check if account is locked due to too many failed attempts

@@ -140,179 +140,189 @@ export default function ProfileSettings() {
             icon={<User className="w-8 h-8 text-primary-500" />}
           />
 
-          {/* User Info Card */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4">Account Information</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="text-sm text-gray-400">Username</label>
-                <p className="text-gray-100 font-medium">{user?.username}</p>
-              </div>
-              <div>
-                <label className="text-sm text-gray-400">Role</label>
-                <p className="text-gray-100 font-medium">
-                  {user?.isAdmin ? (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-900 text-purple-200">
-                      Administrator
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-900 text-blue-200">
-                      User
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Change Email Card */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Mail className="w-5 h-5 text-green-400" />
-              <h2 className="text-xl font-semibold text-gray-100">Change Email</h2>
-            </div>
-            
-            <form onSubmit={handleEmailChange} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={emailForm.email}
-                  onChange={(e) => setEmailForm({ email: e.target.value })}
-                  className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Enter new email address"
-                  disabled={emailLoading}
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Current: {user?.email}
-                </p>
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={emailLoading || !emailForm.email || emailForm.email === user?.email}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {emailLoading ? 'Updating Email...' : 'Update Email'}
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Change Password Card */}
-          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Key className="w-5 h-5 text-blue-400" />
-              <h2 className="text-xl font-semibold text-gray-100">Change Password</h2>
-            </div>
-            
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              {/* Current Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Current Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showCurrentPassword ? 'text' : 'password'}
-                    value={passwordForm.currentPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                    className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter current password"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+          {/* Main Content Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Account Information - Left Column */}
+            <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-100 mb-4">Account Information</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm text-gray-400">Username</label>
+                  <p className="text-gray-100 font-medium">{user?.username}</p>
                 </div>
-              </div>
-
-              {/* New Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={passwordForm.newPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                    className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Enter new password (min 8 characters)"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                <div>
+                  <label className="text-sm text-gray-400">Email</label>
+                  <p className="text-gray-100 font-medium">{user?.email}</p>
                 </div>
-                <PasswordStrengthMeter 
-                  password={passwordForm.newPassword} 
-                  onScoreChange={setPasswordScore}
-                />
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={passwordForm.confirmPassword}
-                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                    className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Confirm new password"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Passwords do not match
+                <div>
+                  <label className="text-sm text-gray-400">Role</label>
+                  <p className="text-gray-100 font-medium">
+                    {user?.isAdmin ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-purple-900 text-purple-200">
+                        Administrator
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-900 text-blue-200">
+                        User
+                      </span>
+                    )}
                   </p>
-                )}
+                </div>
+              </div>
+            </div>
+
+            {/* Settings - Right Column (2 columns wide) */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Change Email Card */}
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Mail className="w-5 h-5 text-green-400" />
+                  <h2 className="text-xl font-semibold text-gray-100">Change Email</h2>
+                </div>
+                
+                <form onSubmit={handleEmailChange} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={emailForm.email}
+                      onChange={(e) => setEmailForm({ email: e.target.value })}
+                      className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="Enter new email address"
+                      disabled={emailLoading}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Current: {user?.email}
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="submit"
+                      disabled={emailLoading || !emailForm.email || emailForm.email === user?.email}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      {emailLoading ? 'Updating Email...' : 'Update Email'}
+                    </button>
+                  </div>
+                </form>
               </div>
 
-              {/* Submit Button */}
-              <div className="pt-4">
-                <button
-                  type="submit"
-                  disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword || passwordScore < 3}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                >
-                  <Save className="w-4 h-4" />
-                  {loading ? 'Changing Password...' : 'Change Password'}
-                </button>
-              </div>
+              {/* Change Password Card */}
+              <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Key className="w-5 h-5 text-blue-400" />
+                  <h2 className="text-xl font-semibold text-gray-100">Change Password</h2>
+                </div>
+            
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  {/* Current Password */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Current Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showCurrentPassword ? 'text' : 'password'}
+                        value={passwordForm.currentPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                        className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter current password"
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      >
+                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Password Requirements */}
-              <div className="mt-4 p-4 bg-gray-900 rounded-lg">
-                <p className="text-sm font-medium text-gray-300 mb-2">Password Requirements:</p>
-                <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-                  <li>Must have a strength score of at least 3 (Strong)</li>
-                  <li>Must match confirmation password</li>
-                </ul>
+                  {/* New Password */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={passwordForm.newPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                        className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Enter new password (min 8 characters)"
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <PasswordStrengthMeter 
+                      password={passwordForm.newPassword} 
+                      onScoreChange={setPasswordScore}
+                    />
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Confirm New Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={passwordForm.confirmPassword}
+                        onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                        className="w-full px-3 py-2 pr-10 bg-gray-900 border border-gray-700 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Confirm new password"
+                        disabled={loading}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                      >
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    {passwordForm.confirmPassword && passwordForm.newPassword !== passwordForm.confirmPassword && (
+                      <p className="text-xs text-red-400 mt-1">
+                        Passwords do not match
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="pt-4">
+                    <button
+                      type="submit"
+                      disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword || passwordScore < 3}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      {loading ? 'Changing Password...' : 'Change Password'}
+                    </button>
+                  </div>
+
+                  {/* Password Requirements */}
+                  <div className="mt-4 p-4 bg-gray-900 rounded-lg">
+                    <p className="text-sm font-medium text-gray-300 mb-2">Password Requirements:</p>
+                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
+                      <li>Must have a strength score of at least 3 (Strong)</li>
+                      <li>Must match confirmation password</li>
+                    </ul>
+                  </div>
+                </form>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       </Layout>

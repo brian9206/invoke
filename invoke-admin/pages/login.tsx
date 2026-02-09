@@ -1,31 +1,108 @@
-import { useState } from 'react'
+/**
+ * Login page with Cloudflare Turnstile integration
+ * 
+ * Setup instructions:
+ * 1. Get Turnstile keys from https://dash.cloudflare.com/
+ * 2. Add to .env file:
+ *    - NEXT_PUBLIC_TURNSTILE_SITE_KEY (for frontend)
+ *    - TURNSTILE_SECRET_KEY (for backend verification)
+ * 3. For testing, use dummy keys (always passes):
+ *    - Site key: 1x00000000000000000000AA
+ *    - Secret key: 1x0000000000000000000000000000000AA
+ */
+
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth } from '@/contexts/AuthContext'
 import { Rocket, Lock, User } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+declare global {
+  interface Window {
+    turnstile?: any;
+  }
+}
+
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const turnstileWidgetRef = useRef<HTMLDivElement>(null)
+  const turnstileIdRef = useRef<string | null>(null)
   const { login } = useAuth()
   const router = useRouter()
 
+  useEffect(() => {
+    // Define the callback before loading the script
+    (window as any).onTurnstileSuccess = (token: string) => {
+      console.log('Turnstile success:', token)
+      setTurnstileToken(token)
+    }
+
+    // Load Turnstile script
+    const script = document.createElement('script')
+    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+    script.async = true
+    script.defer = true
+    script.onload = () => {
+      console.log('Turnstile script loaded')
+      // Render the widget once the script is loaded
+      if (window.turnstile && turnstileWidgetRef.current && !turnstileIdRef.current) {
+        try {
+          turnstileIdRef.current = window.turnstile.render(turnstileWidgetRef.current, {
+            sitekey: '1x00000000000000000000AA',
+            callback: (token: string) => {
+              console.log('Turnstile callback triggered:', token)
+              setTurnstileToken(token)
+            },
+            theme: 'dark',
+          })
+          console.log('Turnstile widget rendered with ID:', turnstileIdRef.current)
+        } catch (error) {
+          console.error('Error rendering Turnstile widget:', error)
+        }
+      }
+    }
+    document.body.appendChild(script)
+
+    return () => {
+      document.body.removeChild(script)
+      delete (window as any).onTurnstileSuccess
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!turnstileToken) {
+      toast.error('Please complete the verification challenge')
+      return
+    }
+    
     setLoading(true)
 
     try {
-      const {success, message} = await login(username, password)
+      const {success, message} = await login(username, password, turnstileToken)
       if (success) {
         toast.success('Welcome to Invoke !')
         router.push('/admin')
       } else {
         toast.error(message)
+        // Reset Turnstile on failed login
+        if (window.turnstile && turnstileIdRef.current) {
+          window.turnstile.reset(turnstileIdRef.current)
+          setTurnstileToken(null)
+        }
       }
     } catch (error) {
       toast.error('Login failed')
+      // Reset Turnstile on error
+      if (window.turnstile && turnstileIdRef.current) {
+        window.turnstile.reset(turnstileIdRef.current)
+        setTurnstileToken(null)
+      }
     } finally {
       setLoading(false)
     }
@@ -89,9 +166,16 @@ export default function Login() {
           </div>
 
           <div>
+            <div 
+              ref={turnstileWidgetRef}
+              className="flex justify-center"
+            ></div>
+          </div>
+
+          <div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !turnstileToken}
               className="w-full btn-primary py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

@@ -51,7 +51,7 @@ export default function FunctionCodeEditor() {
   const { id: functionId, versionId } = router.query
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
-  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void | Promise<void> }>({ type: null, title: '', message: '' })
   
   const [functionData, setFunctionData] = useState<FunctionData | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
@@ -329,28 +329,30 @@ export default function FunctionCodeEditor() {
             body: JSON.stringify({ 
               files,
               setActive: true 
-        })
-      })
-      
-      const result = await response.json()
-      
-      if (result.success) {
-        setSaveResult({ success: true, message: `Version ${result.data.version} deployed and activated successfully!` })
-        setHasChanges(false)
-        setDialogState({ type: null, title: '', message: '' })
-        
-        // Navigate to function details page after deployment
-        setTimeout(() => {
-          router.push(`/admin/functions/${functionId}`)
-        }, 2000)
-      } else {
-        setSaveResult({ success: false, message: result.message || 'Failed to deploy version' })
+            })
+          })
+          
+          const result = await response.json()
+          
+          if (result.success) {
+            setSaveResult({ success: true, message: `Version ${result.data.version} deployed and activated successfully!` })
+            setHasChanges(false)
+            setDialogState({ type: null, title: '', message: '' })
+            
+            // Navigate to function details page after deployment
+            setTimeout(() => {
+              router.push(`/admin/functions/${functionId}`)
+            }, 2000)
+          } else {
+            setSaveResult({ success: false, message: result.message || 'Failed to deploy version' })
+          }
+        } catch (error) {
+          setSaveResult({ success: false, message: 'Network error occurred during deployment' })
+        } finally {
+          setDeploying(false)
+        }
       }
-    } catch (error) {
-      setSaveResult({ success: false, message: 'Network error occurred during deployment' })
-    } finally {
-      setDeploying(false)
-    }
+    })
   }
 
   const handleDownload = async () => {

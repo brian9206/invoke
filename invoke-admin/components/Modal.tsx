@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React, { ReactNode, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 export interface ModalProps {
@@ -7,7 +7,7 @@ export interface ModalProps {
   description?: string | ReactNode;
   children?: ReactNode;
   onCancel: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   cancelText?: string;
   confirmText?: string;
   confirmVariant?: 'default' | 'danger';
@@ -28,6 +28,17 @@ export default function Modal({
   loading = false,
   confirmDisabled = false,
 }: ModalProps) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsLoading(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   const modalContent = (
@@ -47,8 +58,8 @@ export default function Modal({
             {cancelText}
           </button>
           <button
-            onClick={onConfirm}
-            disabled={loading || confirmDisabled}
+            onClick={handleConfirm}
+            disabled={loading || isLoading || confirmDisabled}
             className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               confirmVariant === 'danger'
                 ? 'bg-red-600 hover:bg-red-700'
