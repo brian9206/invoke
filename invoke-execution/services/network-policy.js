@@ -9,11 +9,16 @@ const minimatch = require('minimatch');
  */
 class NetworkPolicy {
     /**
-     * @param {Array} rules - Array of policy rules sorted by priority
+     * @param {Array} globalRules - Array of global policy rules sorted by priority
+     * @param {Array} projectRules - Array of project-specific policy rules sorted by priority
      * Each rule: { action: 'allow'|'deny', target_type: 'ip'|'cidr'|'domain', target_value: string, priority: number }
+     * Global rules are evaluated before project rules (first match wins)
      */
-    constructor(rules) {
-        this.rules = rules || [];
+    constructor(globalRules, projectRules) {
+        // Concatenate global rules first, then project rules
+        // This ensures global rules are evaluated before project-specific rules
+        const allRules = [...(globalRules || []), ...(projectRules || [])];
+        this.rules = allRules;
         
         // If no rules provided, deny all connections
         if (this.rules.length === 0) {

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import Modal from '@/components/Modal'
 import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -29,6 +30,7 @@ export default function Functions() {
   const [functions, setFunctions] = useState<Function[]>([])
   const [loading, setLoading] = useState(true)
   const [functionUrls, setFunctionUrls] = useState<Record<string, string>>({})
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
 
   useEffect(() => {
     // Always fetch functions when user changes or active project changes
@@ -87,19 +89,25 @@ export default function Functions() {
   }
 
   const deleteFunction = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this function?')) return
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Function',
+      message: 'Are you sure you want to delete this function?',
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch(`/api/functions/${id}`, {
+            method: 'DELETE'
+          })
 
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        fetchFunctions()
+          if (response.ok) {
+            fetchFunctions()
+            setDialogState({ type: null, title: '', message: '' })
+          }
+        } catch (error) {
+          console.error('Error deleting function:', error)
+        }
       }
-    } catch (error) {
-      console.error('Error deleting function:', error)
-    }
+    })
   }
 
   const formatFileSize = (bytes: number) => {
@@ -130,6 +138,24 @@ export default function Functions() {
     <ProtectedRoute>
       <Layout title="Functions">
         <div className="space-y-6">
+          {/* Dialog Modal */}
+          <Modal
+            isOpen={dialogState.type !== null}
+            title={dialogState.title}
+            description={dialogState.message}
+            onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+            onConfirm={async () => {
+              if (dialogState.onConfirm) {
+                await dialogState.onConfirm();
+              } else {
+                setDialogState({ type: null, title: '', message: '' });
+              }
+            }}
+            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+            confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
+            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+          />
+
           <PageHeader
             title="Functions"
             subtitle="Manage your deployed serverless functions"

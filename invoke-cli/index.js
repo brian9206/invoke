@@ -236,6 +236,13 @@ program
 
       const project = result.rows[0]
 
+      // Add default allow all security policies (IPv4 and IPv6)
+      await database.query(`
+        INSERT INTO project_network_policies (project_id, action, target_type, target_value, description, priority)
+        VALUES ($1, 'allow', 'cidr', '0.0.0.0/0', 'Allow all public IPv4', 1),
+               ($1, 'allow', 'cidr', '::/0', 'Allow all public IPv6', 2)
+      `, [project.id])
+
       console.log(chalk.green('✅ Project created successfully!'))
       console.log('')
       console.log(chalk.cyan('Project Details:'))

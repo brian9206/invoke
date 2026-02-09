@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import Modal from '@/components/Modal'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   Package, 
@@ -85,6 +86,7 @@ export default function FunctionDetails() {
   const { id } = router.query
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
   
   const [functionData, setFunctionData] = useState<Function | null>(null)
   const [executionLogs, setExecutionLogs] = useState<ExecutionLog[]>([])
@@ -324,15 +326,15 @@ export default function FunctionDetails() {
         // Handle specific errors
         if (!functionResponse.ok) {
           const functionError = await functionResponse.json()
-          alert('Failed to save function details: ' + (functionError.error || functionError.message || 'Unknown error'))
+          setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save function details: ' + (functionError.error || functionError.message || 'Unknown error') })
         }
         if (!retentionResponse.ok) {
           const retentionError = await retentionResponse.json()
-          alert('Failed to save retention settings: ' + (retentionError.error || retentionError.message || 'Unknown error'))
+          setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save retention settings: ' + (retentionError.error || retentionError.message || 'Unknown error') })
         }
         if (!scheduleResponse.ok) {
           const scheduleError = await scheduleResponse.json()
-          alert('Failed to save schedule settings: ' + (scheduleError.error || scheduleError.message || 'Unknown error'))
+          setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save schedule settings: ' + (scheduleError.error || scheduleError.message || 'Unknown error') })
         }
       }
     } catch (error) {
@@ -414,22 +416,28 @@ export default function FunctionDetails() {
   }
 
   const deleteFunction = async () => {
-    if (!confirm('Are you sure you want to delete this function? This action cannot be undone.')) return
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Function',
+      message: 'Are you sure you want to delete this function? This action cannot be undone.',
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch(`/api/functions/${id}`, {
+            method: 'DELETE'
+          })
 
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}`, {
-        method: 'DELETE'
-      })
-
-      if (response.ok) {
-        // Navigate back to functions list after successful deletion
-        router.push('/admin/functions')
-      } else {
-        console.error('Failed to delete function')
+          if (response.ok) {
+            // Navigate back to functions list after successful deletion
+            router.push('/admin/functions')
+            setDialogState({ type: null, title: '', message: '' })
+          } else {
+            console.error('Failed to delete function')
+          }
+        } catch (error) {
+          console.error('Error deleting function:', error)
+        }
       }
-    } catch (error) {
-      console.error('Error deleting function:', error)
-    }
+    })
   }
 
   const fetchRetentionSettings = async () => {
@@ -507,11 +515,11 @@ export default function FunctionDetails() {
       } else {
         const errorMessage = data.error || data.message || 'Unknown error'
         console.error('Failed to update schedule settings:', errorMessage)
-        alert('Failed to update schedule settings: ' + errorMessage)
+        setDialogState({ type: 'alert', title: 'Error', message: 'Failed to update schedule settings: ' + errorMessage })
       }
     } catch (error) {
       console.error('Error updating schedule settings:', error)
-      alert('Error updating schedule settings')
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating schedule settings' })
     } finally {
       setScheduleSaving(false)
     }
@@ -553,11 +561,11 @@ export default function FunctionDetails() {
       } else {
         const errorMessage = data.error || data.message || 'Unknown error'
         console.error('Failed to save environment variables:', errorMessage)
-        alert('Failed to save environment variables: ' + errorMessage)
+        setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save environment variables: ' + errorMessage })
       }
     } catch (error) {
       console.error('Error saving environment variables:', error)
-      alert('Error saving environment variables')
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error saving environment variables' })
     } finally {
       setEnvVarsSaving(false)
     }
@@ -620,6 +628,23 @@ export default function FunctionDetails() {
   return (
     <ProtectedRoute>
       <Layout title={`${functionData?.name || 'Function'}`}>
+        {/* Dialog Modal */}
+        <Modal
+          isOpen={dialogState.type !== null}
+          title={dialogState.title}
+          description={dialogState.message}
+          onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+          onConfirm={async () => {
+            if (dialogState.onConfirm) {
+              await dialogState.onConfirm();
+            } else {
+              setDialogState({ type: null, title: '', message: '' });
+            }
+          }}
+          cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+          confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
+          confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+        />
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">

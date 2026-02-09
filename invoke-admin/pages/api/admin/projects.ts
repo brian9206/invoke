@@ -89,6 +89,14 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       [project.id, userId, userId]
     );
 
+    // Add default allow all security policies (IPv4 and IPv6)
+    await database.query(
+      `INSERT INTO project_network_policies (project_id, action, target_type, target_value, description, priority)
+       VALUES ($1, 'allow', 'cidr', '0.0.0.0/0', 'Allow all public IPv4', 1),
+              ($1, 'allow', 'cidr', '::/0', 'Allow all public IPv6', 2)`,
+      [project.id]
+    );
+
     res.status(201).json({ project });
   } catch (error) {
     console.error('Error creating project:', error);

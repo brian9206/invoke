@@ -25,6 +25,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import Modal from './Modal';
 
 const ipaddr = require('ipaddr.js');
 const minimatch = require('minimatch');
@@ -460,30 +461,14 @@ export default function NetworkPolicyEditor({
       )}
 
       {/* Add Rule Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-semibold text-gray-200 mb-4">Add New Rule</h3>
-            <p className="text-gray-400 text-sm mb-4">
-              A new rule will be added at the end. You can reorder it by dragging after saving.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddRule}
-                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white transition-colors"
-              >
-                Add Rule
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        isOpen={showAddModal}
+        title="Add New Rule"
+        description="A new rule will be added at the end. You can reorder it by dragging after saving."
+        onCancel={() => setShowAddModal(false)}
+        onConfirm={handleAddRule}
+        confirmText="Add Rule"
+      />
     </div>
   );
 }

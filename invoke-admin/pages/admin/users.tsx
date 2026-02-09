@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
+import Modal from '@/components/Modal';
 import { Edit, Trash2, Users } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
@@ -30,6 +31,7 @@ export default function UsersPage() {
     password: '',
     is_admin: false
   });
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' });
   const router = useRouter();
   const { lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -87,11 +89,11 @@ export default function UsersPage() {
         loadUsers();
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to create user');
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to create user' });
       }
     } catch (error) {
       console.error('Error creating user:', error);
-      alert('Error creating user');
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error creating user' });
     }
   };
 
@@ -122,41 +124,45 @@ export default function UsersPage() {
         loadUsers();
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to update user');
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to update user' });
       }
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Error updating user');
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating user' });
     }
   };
 
   const handleDeleteUser = async (user: User) => {
     // Prevent deleting current user
     if (currentUser && user.id === currentUser.id) {
-      alert('You cannot delete your own account. Please use another admin account to delete this user.');
+      setDialogState({ type: 'alert', title: 'Cannot Delete', message: 'You cannot delete your own account. Please use another admin account to delete this user.' });
       return;
     }
 
-    if (!confirm(`Are you sure you want to delete the user "${user.username}"?`)) {
-      return;
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete User',
+      message: `Are you sure you want to delete the user "${user.username}"?`,
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch('/api/admin/users', {
+            method: 'DELETE',
+            body: JSON.stringify({ id: user.id }),
+          });
 
-    try {
-      const response = await authenticatedFetch('/api/admin/users', {
-        method: 'DELETE',
-        body: JSON.stringify({ id: user.id }),
-      });
-
-      if (response.ok) {
-        loadUsers();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to delete user');
+          if (response.ok) {
+            loadUsers();
+            setDialogState({ type: null, title: '', message: '' });
+          } else {
+            const data = await response.json();
+            setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to delete user' });
+          }
+        } catch (error) {
+          console.error('Error deleting user:', error);
+          setDialogState({ type: 'alert', title: 'Error', message: 'Error deleting user' });
+        }
       }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Error deleting user');
-    }
+    });
   };
 
   const openEditModal = (user: User) => {
@@ -257,168 +263,168 @@ export default function UsersPage() {
           )}
         </div>
 
+        {/* Dialog Modal */}
+        <Modal
+          isOpen={dialogState.type !== null}
+          title={dialogState.title}
+          description={dialogState.message}
+          onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+          onConfirm={async () => {
+            if (dialogState.onConfirm) {
+              await dialogState.onConfirm();
+            } else {
+              setDialogState({ type: null, title: '', message: '' });
+            }
+          }}
+          cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+          confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
+          confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+        />
+
         {/* Create User Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New User</h3>
-              <form onSubmit={handleCreateUser} className="space-y-4">
-                <div>
-                  <label className="form-label">
-                    Username
-                  </label>
+          <Modal
+            isOpen={showCreateModal}
+            title="Create New User"
+            onCancel={closeModals}
+            onConfirm={() => {
+              const form = document.querySelector('form[data-create-user]') as HTMLFormElement;
+              form?.dispatchEvent(new Event('submit', { bubbles: true }));
+            }}
+            cancelText="Cancel"
+            confirmText="Create User"
+          >
+            <form onSubmit={handleCreateUser} data-create-user className="space-y-4">
+              <div>
+                <label className="form-label">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  className="form-input"
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <label className="form-label">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="form-input"
+                  placeholder="Enter email address"
+                />
+              </div>
+              <div>
+                <label className="form-label">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className="form-input"
+                  placeholder="Enter password"
+                />
+              </div>
+              <div>
+                <label className="flex items-center space-x-2">
                   <input
-                    type="text"
-                    required
-                    value={formData.username}
-                    onChange={(e) => setFormData({...formData, username: e.target.value})}
-                    className="form-input"
-                    placeholder="Enter username"
+                    type="checkbox"
+                    checked={formData.is_admin}
+                    onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
+                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
                   />
-                </div>
-                <div>
-                  <label className="form-label">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="form-input"
-                    placeholder="Enter email address"
-                  />
-                </div>
-                <div>
-                  <label className="form-label">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="form-input"
-                    placeholder="Enter password"
-                  />
-                </div>
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.is_admin}
-                      onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                      className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
-                    />
-                    <span className="text-sm text-gray-300">Admin User</span>
-                  </label>
-                </div>
-                <div className="flex items-center justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={closeModals}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-primary"
-                  >
-                    Create User
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+                  <span className="text-sm text-gray-300">Admin User</span>
+                </label>
+              </div>
+            </form>
+          </Modal>
         )}
 
         {/* Edit User Modal */}
         {editingUser && (
-          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-              <div className="mt-0">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Edit User</h3>
-                <form onSubmit={handleUpdateUser}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.username}
-                      onChange={(e) => setFormData({...formData, username: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      New Password (leave blank to keep current)
-                    </label>
-                    {currentUser && editingUser && currentUser.id === editingUser.id ? (
-                      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-                        <p className="text-sm text-gray-400">
-                          ℹ️ You cannot change your own password here. Please use the Profile Settings page.
-                        </p>
-                      </div>
-                    ) : (
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="form-input"
-                      />
-                    )}
-                  </div>
-                  <div className="mb-4">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_admin}
-                        onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                        disabled={currentUser && editingUser && currentUser.id === editingUser.id}
-                        className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <span className="text-sm font-medium text-gray-200">Admin User</span>
-                    </label>
-                    {currentUser && editingUser && currentUser.id === editingUser.id && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        ℹ️ You cannot modify your own admin status
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={closeModals}
-                      className="btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                    >
-                      Update User
-                    </button>
-                  </div>
-                </form>
+          <Modal
+            isOpen={!!editingUser}
+            title="Edit User"
+            onCancel={closeModals}
+            onConfirm={() => {
+              const form = document.querySelector('form[data-edit-user]') as HTMLFormElement;
+              form?.dispatchEvent(new Event('submit', { bubbles: true }));
+            }}
+            cancelText="Cancel"
+            confirmText="Update User"
+          >
+            <form onSubmit={handleUpdateUser} data-edit-user>
+              <div className="mb-4">
+                <label className="form-label">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  className="form-input"
+                />
               </div>
-            </div>
-          </div>
+              <div className="mb-4">
+                <label className="form-label">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="form-input"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="form-label">
+                  New Password (leave blank to keep current)
+                </label>
+                {currentUser && editingUser && currentUser.id === editingUser.id ? (
+                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
+                    <p className="text-sm text-gray-400">
+                      ℹ️ You cannot change your own password here. Please use the Profile Settings page.
+                    </p>
+                  </div>
+                ) : (
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className="form-input"
+                  />
+                )}
+              </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_admin}
+                    onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
+                    disabled={currentUser && editingUser && currentUser.id === editingUser.id}
+                    className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className="text-sm font-medium text-gray-200">Admin User</span>
+                </label>
+                {currentUser && editingUser && currentUser.id === editingUser.id && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    ℹ️ You cannot modify your own admin status
+                  </p>
+                )}
+              </div>
+            </form>
+          </Modal>
         )}
       </Layout>
     </ProtectedRoute>

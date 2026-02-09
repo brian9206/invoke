@@ -31,17 +31,22 @@ export default function NetworkSecurityPage() {
   const isProjectOwner = activeProject?.role === 'owner';
 
   useEffect(() => {
-    if (activeProject?.id && activeProject.id !== 'system') {
+    if (activeProject?.id) {
       loadSecurityPolicies();
     }
   }, [activeProject?.id]);
 
   const loadSecurityPolicies = async () => {
-    if (!activeProject?.id || activeProject.id === 'system' || loading) return;
+    if (!activeProject?.id || loading) return;
     
     setLoading(true);
     try {
-      const response = await authenticatedFetch(`/api/admin/projects/${activeProject.id}/security`);
+      // Load from global endpoint for system project, project endpoint otherwise
+      const endpoint = activeProject.id === 'system'
+        ? '/api/admin/global/security'
+        : `/api/admin/projects/${activeProject.id}/security`;
+      
+      const response = await authenticatedFetch(endpoint);
 
       if (response.ok) {
         const data = await response.json();
@@ -70,8 +75,13 @@ export default function NetworkSecurityPage() {
 
     setSaving(true);
     try {
+      // Save to global endpoint for system project, project endpoint otherwise
+      const endpoint = activeProject.id === 'system'
+        ? '/api/admin/global/security'
+        : `/api/admin/projects/${activeProject.id}/security`;
+      
       const response = await authenticatedFetch(
-        `/api/admin/projects/${activeProject.id}/security`,
+        endpoint,
         {
           method: 'PUT',
           headers: {
@@ -105,8 +115,13 @@ export default function NetworkSecurityPage() {
     setTestResult(null);
 
     try {
+      // Use global test endpoint for system project, project endpoint otherwise
+      const endpoint = activeProject.id === 'system'
+        ? '/api/admin/global/security/test'
+        : `/api/admin/projects/${activeProject.id}/security/test`;
+      
       const response = await authenticatedFetch(
-        `/api/admin/projects/${activeProject.id}/security/test`,
+        endpoint,
         {
           method: 'POST',
           headers: {
@@ -136,8 +151,7 @@ export default function NetworkSecurityPage() {
     }
   };
 
-  // System project message
-  if (!activeProject || activeProject.id === 'system') {
+  if (!activeProject) {
     return (
       <ProtectedRoute>
         <Layout title="Network Security">
@@ -148,7 +162,7 @@ export default function NetworkSecurityPage() {
                 Please Select a Project
               </h2>
               <p className="text-gray-400">
-                Network Security is not available for the system project. Please select a regular project to manage network policies.
+                Select a project to manage network policies.
               </p>
             </div>
           </div>
@@ -179,6 +193,17 @@ export default function NetworkSecurityPage() {
             subtitle={`Manage network policies for ${activeProject.name}`}
             icon={<Shield className="w-8 h-8 text-primary-500" />}
           />
+
+          {/* Global Policy Info Banner */}
+          {activeProject.id === 'system' && (
+            <div className="bg-purple-900/20 border border-purple-800 rounded-lg p-4 mb-6">
+              <h3 className="text-purple-400 font-medium mb-2">Global Security Policies</h3>
+              <p className="text-gray-300 text-sm">
+                You are editing global security policies that are evaluated before all project-specific policies. 
+                These rules apply to all projects and are checked first during network policy evaluation.
+              </p>
+            </div>
+          )}
 
           {/* Info Card */}
           <div className="bg-blue-900/20 border border-blue-800 rounded-lg p-4 mb-6">

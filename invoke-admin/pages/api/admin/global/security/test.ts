@@ -1,14 +1,11 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '@/lib/middleware';
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware';
 const database = require('@/lib/database');
-
-// Import the NetworkPolicy class from execution service
-// Since we're in the admin service, we'll simulate the policy evaluation
 const ipaddr = require('ipaddr.js');
 const minimatch = require('minimatch');
 const dns = require('dns').promises;
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -31,11 +28,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
        ORDER BY priority ASC`
     );
 
-    const globalRules = globalResult.rows.map(rule => ({ ...rule, is_global: true }));
+    const globalRules = globalResult.rows;
 
-    // Prepend global rules to the provided rules, marking project rules
-    const projectRulesWithMarker = rules.map(rule => ({ ...rule, is_global: false }));
-    const combinedRules = [...globalRules, ...projectRulesWithMarker];
+    // Prepend global rules to the provided rules
+    const combinedRules = [...globalRules, ...rules];
 
     const result = await evaluatePolicy(host, combinedRules);
     res.json(result);
@@ -105,16 +101,15 @@ async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: bo
     }
 
     if (matched) {
-      const ruleType = rule.is_global ? 'global' : 'project';
       if (rule.action === 'deny') {
         return {
           allowed: false,
-          reason: `Denied by ${ruleType} rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
+          reason: `Denied by rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
         };
       } else {
         return {
           allowed: true,
-          reason: `Allowed by ${ruleType} rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
+          reason: `Allowed by rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
         };
       }
     }
@@ -143,4 +138,5 @@ function matchesDomain(host: string, pattern: string): boolean {
   return minimatch(lowerHost, lowerPattern);
 }
 
-export default withAuth(handler);
+// Admin-only access
+export default withAuthAndMethods(['POST'], { adminRequired: true })(handler);

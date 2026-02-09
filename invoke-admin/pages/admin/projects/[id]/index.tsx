@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import Modal from '@/components/Modal';
 import { ArrowLeft, Users, Package, Settings, Calendar, Eye, Edit, Trash2, UserPlus, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { authenticatedFetch } from '@/lib/frontend-utils';
@@ -60,6 +61,7 @@ export default function ProjectDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', description: '', kvStorageLimit: 1 });
   const [editing, setEditing] = useState(false);
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' });
   
   // Members management state
   const [members, setMembers] = useState<Member[]>([]);
@@ -167,27 +169,31 @@ export default function ProjectDetailPage() {
 
   const handleDeleteProject = async () => {
     if (!project) return;
-    if (!confirm(`Are you sure you want to delete the project "${project.name}"?`)) {
-      return;
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Project',
+      message: `Are you sure you want to delete the project "${project.name}"?`,
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch('/api/admin/projects', {
+            method: 'DELETE',
+            body: JSON.stringify({ id: project.id }),
+          });
 
-    try {
-      const response = await authenticatedFetch('/api/admin/projects', {
-        method: 'DELETE',
-        body: JSON.stringify({ id: project.id }),
-      });
-
-      if (response.ok) {
-        toast.success('Project deleted');
-        router.push('/admin/projects');
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to delete project');
+          if (response.ok) {
+            toast.success('Project deleted');
+            router.push('/admin/projects');
+            setDialogState({ type: null, title: '', message: '' });
+          } else {
+            const data = await response.json();
+            toast.error(data.error || 'Failed to delete project');
+          }
+        } catch (error) {
+          console.error('Error deleting project:', error);
+          toast.error('Error deleting project');
+        }
       }
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      toast.error('Error deleting project');
-    }
+    });
   };
 
   // Members management functions
@@ -218,7 +224,7 @@ export default function ProjectDetailPage() {
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserId) {
-      alert('Please select a user');
+      setDialogState({ type: 'alert', title: 'Error', message: 'Please select a user' });
       return;
     }
 
@@ -277,27 +283,31 @@ export default function ProjectDetailPage() {
   };
 
   const handleRemoveMember = async (member: Member) => {
-    if (!confirm(`Are you sure you want to remove ${member.username} from this project?`)) {
-      return;
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Remove Member',
+      message: `Are you sure you want to remove ${member.username} from this project?`,
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch('/api/admin/project-members', {
+            method: 'DELETE',
+            body: JSON.stringify({ membershipId: member.id }),
+          });
 
-    try {
-      const response = await authenticatedFetch('/api/admin/project-members', {
-        method: 'DELETE',
-        body: JSON.stringify({ membershipId: member.id }),
-      });
-
-      if (response.ok) {
-        loadMembers();
-        toast.success('Member removed');
-      } else {
-        const data = await response.json();
-        toast.error(data.error || 'Failed to remove member');
+          if (response.ok) {
+            loadMembers();
+            toast.success('Member removed');
+            setDialogState({ type: null, title: '', message: '' });
+          } else {
+            const data = await response.json();
+            toast.error(data.error || 'Failed to remove member');
+          }
+        } catch (error) {
+          console.error('Error removing member:', error);
+          toast.error('Error removing member');
+        }
       }
-    } catch (error) {
-      console.error('Error removing member:', error);
-      toast.error('Error removing member');
-    }
+    });
   };
 
   const openEditMemberModal = (member: Member) => {
@@ -361,6 +371,24 @@ export default function ProjectDetailPage() {
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
+          {/* Dialog Modal */}
+          <Modal
+            isOpen={dialogState.type !== null}
+            title={dialogState.title}
+            description={dialogState.message}
+            onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+            onConfirm={async () => {
+              if (dialogState.onConfirm) {
+                await dialogState.onConfirm();
+              } else {
+                setDialogState({ type: null, title: '', message: '' });
+              }
+            }}
+            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+            confirmText={dialogState.type === 'alert' ? undefined : 'Remove'}
+            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+          />
+
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <Link
@@ -588,165 +616,139 @@ export default function ProjectDetailPage() {
 
           {/* Add Member Modal */}
           {showAddMemberModal && (
-            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Add Member</h3>
-                <form onSubmit={handleAddMember}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      User
-                    </label>
-                    <select
-                      required
-                      value={selectedUserId}
-                      onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="form-input"
-                    >
-                      <option value="">Select a user...</option>
-                      {nonMemberUsers.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.username} ({user.email})
-                        </option>
-                      ))}
-                    </select>
-                    {nonMemberUsers.length === 0 && (
-                      <p className="text-xs text-gray-400 mt-1">All users are already members</p>
-                    )}
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Role
-                    </label>
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="form-input"
-                    >
-                      <option value="developer">Developer</option>
-                      <option value="owner">Owner</option>
-                    </select>
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={closeModals}
-                      className="btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                      disabled={!selectedUserId}
-                    >
-                      Add Member
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <Modal
+              isOpen={showAddMemberModal}
+              title="Add Member"
+              onCancel={closeModals}
+              onConfirm={() => {
+                const form = document.querySelector('form[data-add-member]') as HTMLFormElement;
+                form?.dispatchEvent(new Event('submit', { bubbles: true }));
+              }}
+              cancelText="Cancel"
+              confirmText="Add Member"
+            >
+              <form onSubmit={handleAddMember} data-add-member>
+                <div className="mb-4">
+                  <label className="form-label">
+                    User
+                  </label>
+                  <select
+                    required
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="">Select a user...</option>
+                    {nonMemberUsers.map((user) => (
+                      <option key={user.id} value={user.id}>
+                        {user.username} ({user.email})
+                      </option>
+                    ))}
+                  </select>
+                  {nonMemberUsers.length === 0 && (
+                    <p className="text-xs text-gray-400 mt-1">All users are already members</p>
+                  )}
+                </div>
+                <div className="mb-4">
+                  <label className="form-label">
+                    Role
+                  </label>
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="developer">Developer</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+              </form>
+            </Modal>
           )}
 
           {/* Edit Member Role Modal */}
           {editingMember && (
-            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Change Role for {editingMember.username}</h3>
-                <form onSubmit={handleUpdateMemberRole}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Role
-                    </label>
-                    <select
-                      value={selectedRole}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="form-input"
-                    >
-                      <option value="developer">Developer</option>
-                      <option value="owner">Owner</option>
-                    </select>
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={closeModals}
-                      className="btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                    >
-                      Update Role
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <Modal
+              isOpen={!!editingMember}
+              title={`Change Role for ${editingMember.username}`}
+              onCancel={closeModals}
+              onConfirm={() => {
+                const form = document.querySelector('form[data-edit-member]') as HTMLFormElement;
+                form?.dispatchEvent(new Event('submit', { bubbles: true }));
+              }}
+              cancelText="Cancel"
+              confirmText="Update Role"
+            >
+              <form onSubmit={handleUpdateMemberRole} data-edit-member>
+                <div className="mb-4">
+                  <label className="form-label">
+                    Role
+                  </label>
+                  <select
+                    value={selectedRole}
+                    onChange={(e) => setSelectedRole(e.target.value)}
+                    className="form-input"
+                  >
+                    <option value="developer">Developer</option>
+                    <option value="owner">Owner</option>
+                  </select>
+                </div>
+              </form>
+            </Modal>
           )}
 
           {/* Edit Project Modal */}
           {showEditModal && (
-            <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Edit Project</h3>
-                <form onSubmit={handleUpdateProject}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editForm.name}
-                      onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Description
-                    </label>
-                    <textarea
-                      value={editForm.description}
-                      onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                      className="form-textarea"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      KV Storage Limit (GB)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={editForm.kvStorageLimit}
-                      onChange={(e) => setEditForm({...editForm, kvStorageLimit: Number(e.target.value)})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={() => setShowEditModal(false)}
-                      className="btn-secondary"
-                      disabled={editing}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                      disabled={editing}
-                    >
-                      {editing ? 'Updating...' : 'Update Project'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <Modal
+              isOpen={showEditModal}
+              title="Edit Project"
+              onCancel={() => setShowEditModal(false)}
+              onConfirm={() => {
+                const form = document.querySelector('form[data-edit-project-detail]') as HTMLFormElement;
+                form?.dispatchEvent(new Event('submit', { bubbles: true }));
+              }}
+              cancelText="Cancel"
+              confirmText={editing ? 'Updating...' : 'Update Project'}
+              loading={editing}
+            >
+              <form onSubmit={handleUpdateProject} data-edit-project-detail>
+                <div className="mb-4">
+                  <label className="form-label">
+                    Project Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    className="form-input"
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="form-label">
+                    Description
+                  </label>
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+                    className="form-textarea"
+                    rows={3}
+                  />
+                </div>
+                <div className="mb-4">
+                  <label className="form-label">
+                    KV Storage Limit (GB)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editForm.kvStorageLimit}
+                    onChange={(e) => setEditForm({...editForm, kvStorageLimit: Number(e.target.value)})}
+                    className="form-input"
+                  />
+                </div>
+              </form>
+            </Modal>
           )}
         </div>
       </Layout>

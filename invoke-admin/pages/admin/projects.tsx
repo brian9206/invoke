@@ -5,6 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import PageHeader from '@/components/PageHeader';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
+import Modal from '@/components/Modal';
 import { FolderOpen } from 'lucide-react';
 
 interface Project {
@@ -25,6 +26,7 @@ export default function ProjectsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '', kvStorageLimit: 1 });
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' });
   const router = useRouter();
   const { refreshProjects, lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -83,11 +85,11 @@ export default function ProjectsPage() {
         loadProjects();
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to create project');
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to create project' });
       }
     } catch (error) {
       console.error('Error creating project:', error);
-      alert('Error creating project');
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error creating project' });
     }
   };
 
@@ -114,36 +116,40 @@ export default function ProjectsPage() {
         loadProjects();
       } else {
         const data = await response.json();
-        alert(data.error || 'Failed to update project');
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to update project' });
       }
     } catch (error) {
       console.error('Error updating project:', error);
-      alert('Error updating project');
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating project' });
     }
   };
 
   const handleDeleteProject = async (project: Project) => {
-    if (!confirm(`Are you sure you want to delete the project "${project.name}"?`)) {
-      return;
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Project',
+      message: `Are you sure you want to delete the project "${project.name}"?`,
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch('/api/admin/projects', {
+            method: 'DELETE',
+            body: JSON.stringify({ id: project.id }),
+          });
 
-    try {
-      const response = await authenticatedFetch('/api/admin/projects', {
-        method: 'DELETE',
-        body: JSON.stringify({ id: project.id }),
-      });
-
-      if (response.ok) {
-        await refreshProjects();
-        loadProjects();
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to delete project');
+          if (response.ok) {
+            await refreshProjects();
+            loadProjects();
+            setDialogState({ type: null, title: '', message: '' });
+          } else {
+            const data = await response.json();
+            setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to delete project' });
+          }
+        } catch (error) {
+          console.error('Error deleting project:', error);
+          setDialogState({ type: 'alert', title: 'Error', message: 'Error deleting project' });
+        }
       }
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      alert('Error deleting project');
-    }
+    });
   };
 
   const openEditModal = (project: Project) => {
@@ -233,118 +239,116 @@ export default function ProjectsPage() {
 
         {/* Create Project Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-              <div className="mt-0">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Create New Project</h3>
-                <form onSubmit={handleCreateProject}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Description (optional)
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      className="form-textarea"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={closeModals}
-                      className="btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                    >
-                      Create Project
-                    </button>
-                  </div>
-                </form>
+          <Modal
+            isOpen={showCreateModal}
+            title="Create New Project"
+            onCancel={closeModals}
+            onConfirm={() => {
+              const form = document.querySelector('form[data-create-project]') as HTMLFormElement;
+              form?.dispatchEvent(new Event('submit', { bubbles: true }));
+            }}
+            cancelText="Cancel"
+            confirmText="Create Project"
+          >
+            <form onSubmit={handleCreateProject} data-create-project>
+              <div className="mb-4">
+                <label className="form-label">
+                  Project Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="form-input"
+                />
               </div>
-            </div>
-          </div>
+              <div className="mb-4">
+                <label className="form-label">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  className="form-textarea"
+                  rows={3}
+                />
+              </div>
+            </form>
+          </Modal>
         )}
+
+        {/* Dialog Modal */}
+        <Modal
+          isOpen={dialogState.type !== null}
+          title={dialogState.title}
+          description={dialogState.message}
+          onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+          onConfirm={async () => {
+            if (dialogState.onConfirm) {
+              await dialogState.onConfirm();
+            } else {
+              setDialogState({ type: null, title: '', message: '' });
+            }
+          }}
+          cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+          confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
+          confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+        />
 
         {/* Edit Project Modal */}
         {editingProject && (
-          <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4">
-              <div className="mt-0">
-                <h3 className="text-lg font-medium text-gray-100 mb-4">Edit Project</h3>
-                <form onSubmit={handleUpdateProject}>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Project Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      Description (optional)
-                    </label>
-                    <textarea
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      className="form-textarea"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="mb-4">
-                    <label className="form-label">
-                      KV Storage Limit (GB)
-                    </label>
-                    <input
-                      type="number"
-                      min="0.001"
-                      step="0.1"
-                      required
-                      value={formData.kvStorageLimit}
-                      onChange={(e) => setFormData({...formData, kvStorageLimit: parseFloat(e.target.value) || 0})}
-                      className="form-input"
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      type="button"
-                      onClick={closeModals}
-                      className="btn-secondary"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                    >
-                      Update Project
-                    </button>
-                  </div>
-                </form>
+          <Modal
+            isOpen={!!editingProject}
+            title="Edit Project"
+            onCancel={closeModals}
+            onConfirm={() => {
+              const form = document.querySelector('form[data-edit-project]') as HTMLFormElement;
+              form?.dispatchEvent(new Event('submit', { bubbles: true }));
+            }}
+            cancelText="Cancel"
+            confirmText="Update Project"
+          >
+            <form onSubmit={handleUpdateProject} data-edit-project>
+              <div className="mb-4">
+                <label className="form-label">
+                  Project Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  className="form-input"
+                />
               </div>
-            </div>
-          </div>
+              <div className="mb-4">
+                <label className="form-label">
+                  Description (optional)
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  className="form-textarea"
+                  rows={3}
+                />
+              </div>
+              <div className="mb-4">
+                <label className="form-label">
+                  KV Storage Limit (GB)
+                </label>
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.1"
+                  required
+                  value={formData.kvStorageLimit}
+                  onChange={(e) => setFormData({...formData, kvStorageLimit: parseFloat(e.target.value) || 0})}
+                  className="form-input"
+                />
+              </div>
+            </form>
+          </Modal>
         )}
         </div>
       </Layout>

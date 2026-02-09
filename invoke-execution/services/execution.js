@@ -304,24 +304,38 @@ async function fetchEnvironmentVariables(functionId) {
 }
 
 /**
- * Fetch network security policies for a project
+ * Fetch network security policies (global and project-specific)
  * @param {string} projectId - Project UUID
- * @returns {Array} Network policy rules
+ * @returns {Object} Object with globalRules and projectRules arrays
  */
 async function fetchNetworkPolicies(projectId) {
     try {
-        const result = await db.query(`
+        // Fetch global network policies
+        const globalResult = await db.query(`
+            SELECT action, target_type, target_value, description, priority
+            FROM global_network_policies
+            ORDER BY priority ASC
+        `);
+        
+        // Fetch project-specific network policies
+        const projectResult = await db.query(`
             SELECT action, target_type, target_value, description, priority
             FROM project_network_policies
             WHERE project_id = $1
             ORDER BY priority ASC
         `, [projectId]);
         
-        return result.rows;
+        return {
+            globalRules: globalResult.rows,
+            projectRules: projectResult.rows
+        };
     } catch (err) {
         console.error('Error fetching network policies:', err);
-        // Return empty array - will be handled by NetworkPolicy class (default deny)
-        return [];
+        // Return empty arrays - will be handled by NetworkPolicy class (default deny)
+        return {
+            globalRules: [],
+            projectRules: []
+        };
     }
 }
 

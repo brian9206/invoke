@@ -21,7 +21,10 @@ class ExecutionContext {
         this.kvStore = kvStore;
         
         // Initialize network policy enforcement
-        this.networkPolicy = new NetworkPolicy(networkPolicies || []);
+        // networkPolicies object contains { globalRules, projectRules }
+        const globalRules = networkPolicies?.globalRules || [];
+        const projectRules = networkPolicies?.projectRules || [];
+        this.networkPolicy = new NetworkPolicy(globalRules, projectRules);
         
         // Create VFS instance
         this.vfs = new VirtualFileSystem({});

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import Modal from '@/components/Modal'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   ArrowLeft, 
@@ -50,6 +51,7 @@ export default function FunctionCodeEditor() {
   const { id: functionId, versionId } = router.query
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
   
   const [functionData, setFunctionData] = useState<FunctionData | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
@@ -228,38 +230,44 @@ export default function FunctionCodeEditor() {
   }
 
   const handleDeleteFile = (fileToDelete: FileNode) => {
-    if (window.confirm(`Are you sure you want to delete "${fileToDelete.name}"?`)) {
-      const deleteFromFiles = (files: FileNode[]): FileNode[] => {
-        return files.filter(file => {
-          if (file.path === fileToDelete.path) {
-            return false // Remove this file
-          } else if (file.type === 'directory' && file.children) {
-            return {
-              ...file,
-              children: deleteFromFiles(file.children)
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete File',
+      message: `Are you sure you want to delete "${fileToDelete.name}"?`,
+      onConfirm: () => {
+        const deleteFromFiles = (files: FileNode[]): FileNode[] => {
+          return files.filter(file => {
+            if (file.path === fileToDelete.path) {
+              return false // Remove this file
+            } else if (file.type === 'directory' && file.children) {
+              return {
+                ...file,
+                children: deleteFromFiles(file.children)
+              }
             }
-          }
-          return file
-        }).map(file => {
-          if (file.type === 'directory' && file.children) {
-            return {
-              ...file,
-              children: deleteFromFiles(file.children)
+            return file
+          }).map(file => {
+            if (file.type === 'directory' && file.children) {
+              return {
+                ...file,
+                children: deleteFromFiles(file.children)
+              }
             }
-          }
-          return file
-        })
+            return file
+          })
+        }
+        
+        setFiles(deleteFromFiles(files))
+        setHasChanges(true)
+        
+        // If the deleted file was selected, clear selection
+        if (selectedFile?.path === fileToDelete.path) {
+          setSelectedFile(null)
+          setEditorContent('')
+        }
+        setDialogState({ type: null, title: '', message: '' })
       }
-      
-      setFiles(deleteFromFiles(files))
-      setHasChanges(true)
-      
-      // If the deleted file was selected, clear selection
-      if (selectedFile?.path === fileToDelete.path) {
-        setSelectedFile(null)
-        setEditorContent('')
-      }
-    }
+    })
   }
 
   const handleRenameFile = (file: FileNode, newName: string) => {
@@ -303,23 +311,24 @@ export default function FunctionCodeEditor() {
   const handleDeploy = async () => {
     if (!functionData) return
 
-    if (!confirm('Deploying will create a new version and will immediately switch. Continue?')) {
-        return
-    }
-    
-    setDeploying(true)
-    setSaveResult(null)
-    
-    try {
-      // Create new version and set it as active
-      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          files,
-          setActive: true 
+    setDialogState({
+      type: 'confirm',
+      title: 'Deploy Function',
+      message: 'Deploying will create a new version and will immediately switch. Continue?',
+      onConfirm: async () => {
+        setDeploying(true)
+        setSaveResult(null)
+        
+        try {
+          // Create new version and set it as active
+          const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+              files,
+              setActive: true 
         })
       })
       
@@ -328,6 +337,7 @@ export default function FunctionCodeEditor() {
       if (result.success) {
         setSaveResult({ success: true, message: `Version ${result.data.version} deployed and activated successfully!` })
         setHasChanges(false)
+        setDialogState({ type: null, title: '', message: '' })
         
         // Navigate to function details page after deployment
         setTimeout(() => {
@@ -527,6 +537,24 @@ export default function FunctionCodeEditor() {
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
+          {/* Dialog Modal */}
+          <Modal
+            isOpen={dialogState.type !== null}
+            title={dialogState.title}
+            description={dialogState.message}
+            onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+            onConfirm={async () => {
+              if (dialogState.onConfirm) {
+                await dialogState.onConfirm();
+              } else {
+                setDialogState({ type: null, title: '', message: '' });
+              }
+            }}
+            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+            confirmText={dialogState.type === 'alert' ? undefined : 'Deploy'}
+            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+          />
+
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -726,88 +754,66 @@ export default function FunctionCodeEditor() {
 
         {/* Create File Modal */}
         {showCreateFileModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New File</h3>
-              <input
-                type="text"
-                value={newFileName}
-                onChange={(e) => setNewFileName(e.target.value)}
-                placeholder="Enter file name (e.g., utils.js)"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateFile()
-                  } else if (e.key === 'Escape') {
-                    setShowCreateFileModal(false)
-                    setNewFileName('')
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex justify-end space-x-3 mt-4">
-                <button
-                  onClick={() => {
-                    setShowCreateFileModal(false)
-                    setNewFileName('')
-                  }}
-                  className="px-4 py-2 text-gray-400 hover:text-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateFile}
-                  disabled={!newFileName.trim()}
-                  className="btn-primary disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
+          <Modal
+            isOpen={showCreateFileModal}
+            title="Create New File"
+            onCancel={() => {
+              setShowCreateFileModal(false);
+              setNewFileName('');
+            }}
+            onConfirm={handleCreateFile}
+            cancelText="Cancel"
+            confirmText="Create"
+          >
+            <input
+              type="text"
+              value={newFileName}
+              onChange={(e) => setNewFileName(e.target.value)}
+              placeholder="Enter file name (e.g., utils.js)"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateFile()
+                } else if (e.key === 'Escape') {
+                  setShowCreateFileModal(false)
+                  setNewFileName('')
+                }
+              }}
+              autoFocus
+            />
+          </Modal>
         )}
 
         {/* Create Directory Modal */}
         {showCreateDirModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-100 mb-4">Create New Directory</h3>
-              <input
-                type="text"
-                value={newDirName}
-                onChange={(e) => setNewDirName(e.target.value)}
-                placeholder="Enter directory name (e.g., lib)"
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:outline-none"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleCreateDirectory()
-                  } else if (e.key === 'Escape') {
-                    setShowCreateDirModal(false)
-                    setNewDirName('')
-                  }
-                }}
-                autoFocus
-              />
-              <div className="flex justify-end space-x-3 mt-4">
-                <button
-                  onClick={() => {
-                    setShowCreateDirModal(false)
-                    setNewDirName('')
-                  }}
-                  className="px-4 py-2 text-gray-400 hover:text-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateDirectory}
-                  disabled={!newDirName.trim()}
-                  className="btn-primary disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
+          <Modal
+            isOpen={showCreateDirModal}
+            title="Create New Directory"
+            onCancel={() => {
+              setShowCreateDirModal(false);
+              setNewDirName('');
+            }}
+            onConfirm={handleCreateDirectory}
+            cancelText="Cancel"
+            confirmText="Create"
+          >
+            <input
+              type="text"
+              value={newDirName}
+              onChange={(e) => setNewDirName(e.target.value)}
+              placeholder="Enter directory name (e.g., lib)"
+              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:border-primary-500 focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCreateDirectory()
+                } else if (e.key === 'Escape') {
+                  setShowCreateDirModal(false)
+                  setNewDirName('')
+                }
+              }}
+              autoFocus
+            />
+          </Modal>
         )}
       </Layout>
     </ProtectedRoute>

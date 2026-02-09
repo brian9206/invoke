@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import Modal from '@/components/Modal'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
@@ -47,6 +48,7 @@ export default function KVStore() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchInput, setSearchInput] = useState('')
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
   
   // Add/Edit state
   const [editingKey, setEditingKey] = useState<string | null>(null)
@@ -154,21 +156,27 @@ export default function KVStore() {
   }
   
   const handleDeleteItem = async (key: string) => {
-    if (!confirm(`Delete key "${key}"?`)) return
-    
-    try {
-      const response = await authenticatedFetch(
-        `/api/projects/${activeProject!.id}/kv?key=${encodeURIComponent(key)}`,
-        { method: 'DELETE' }
-      )
-      const data = await response.json()
-      
-      if (data.success) {
-        await fetchKVStore()
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Key',
+      message: `Delete key "${key}"?`,
+      onConfirm: async () => {
+        try {
+          const response = await authenticatedFetch(
+            `/api/projects/${activeProject!.id}/kv?key=${encodeURIComponent(key)}`,
+            { method: 'DELETE' }
+          )
+          const data = await response.json()
+          
+          if (data.success) {
+            await fetchKVStore()
+            setDialogState({ type: null, title: '', message: '' })
+          }
+        } catch (error) {
+          console.error('Error deleting item:', error)
+        }
       }
-    } catch (error) {
-      console.error('Error deleting item:', error)
-    }
+    })
   }
   
   const handleEditItem = (item: KVItem) => {
@@ -199,11 +207,11 @@ export default function KVStore() {
       } else {
         const errorText = await response.text()
         console.error('Export failed:', errorText)
-        alert('Failed to export KV store')
+        setDialogState({ type: 'alert', title: 'Error', message: 'Failed to export KV store' })
       }
     } catch (error) {
       console.error('Error exporting KV store:', error)
-      alert('Failed to export KV store')
+      setDialogState({ type: 'alert', title: 'Error', message: 'Failed to export KV store' })
     }
   }
   
@@ -226,14 +234,14 @@ export default function KVStore() {
       const result = await response.json()
       
       if (result.success) {
-        alert(`Import successful! ${result.data.imported} new, ${result.data.updated} updated`)
+        setDialogState({ type: 'alert', title: 'Success', message: `Import successful! ${result.data.imported} new, ${result.data.updated} updated` })
         await fetchKVStore()
         setShowImportDialog(false)
       } else {
-        alert(`Import failed: ${result.message}`)
+        setDialogState({ type: 'alert', title: 'Error', message: `Import failed: ${result.message}` })
       }
     } catch (error: any) {
-      alert(`Import error: ${error.message}`)
+      setDialogState({ type: 'alert', title: 'Error', message: `Import error: ${error.message}` })
     } finally {
       setImporting(false)
       event.target.value = ''
@@ -293,6 +301,24 @@ export default function KVStore() {
     <ProtectedRoute>
       <Layout title="KV Store">
         <div className="space-y-6">
+          {/* Dialog Modal */}
+          <Modal
+            isOpen={dialogState.type !== null}
+            title={dialogState.title}
+            description={dialogState.message}
+            onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+            onConfirm={async () => {
+              if (dialogState.onConfirm) {
+                await dialogState.onConfirm();
+              } else {
+                setDialogState({ type: null, title: '', message: '' });
+              }
+            }}
+            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+            confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
+            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+          />
+
           {/* Header */}
           <PageHeader
             title="Key-Value Store"
@@ -466,55 +492,53 @@ export default function KVStore() {
           
           {/* Import Dialog */}
           {showImportDialog && (
-            <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-              <div className="card p-6 max-w-md w-full mx-4">
-                <h3 className="text-lg font-semibold text-gray-100 mb-4">Import KV Store</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Import Strategy
-                    </label>
-                    <select
-                      value={importStrategy}
-                      onChange={(e) => setImportStrategy(e.target.value as 'merge' | 'replace')}
-                      className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500"
-                    >
-                      <option value="merge">Merge (keep existing keys)</option>
-                      <option value="replace">Replace All (delete existing)</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {importStrategy === 'merge' 
-                        ? 'Existing keys will be preserved unless overwritten by import'
-                        : 'All existing keys will be deleted before import'}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Select JSON File
-                    </label>
-                    <input
-                      type="file"
-                      accept=".json"
-                      onChange={handleImportFile}
-                      disabled={importing}
-                      className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary-600 file:text-white file:cursor-pointer hover:file:bg-primary-700"
-                    />
-                  </div>
+            <Modal
+              isOpen={showImportDialog}
+              title="Import KV Store"
+              onCancel={() => setShowImportDialog(false)}
+              onConfirm={() => {
+                const input = document.querySelector('input[data-import-file]') as HTMLInputElement;
+                input?.click();
+              }}
+              cancelText="Cancel"
+              confirmText="Select File"
+              loading={importing}
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Import Strategy
+                  </label>
+                  <select
+                    value={importStrategy}
+                    onChange={(e) => setImportStrategy(e.target.value as 'merge' | 'replace')}
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="merge">Merge (keep existing keys)</option>
+                    <option value="replace">Replace All (delete existing)</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {importStrategy === 'merge' 
+                      ? 'Existing keys will be preserved unless overwritten by import'
+                      : 'All existing keys will be deleted before import'}
+                  </p>
                 </div>
                 
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    onClick={() => setShowImportDialog(false)}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Select JSON File
+                  </label>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportFile}
                     disabled={importing}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
+                    className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-100 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-primary-600 file:text-white file:cursor-pointer hover:file:bg-primary-700"
+                    data-import-file
+                  />
                 </div>
               </div>
-            </div>
+            </Modal>
           )}
           
           {/* KV Table */}

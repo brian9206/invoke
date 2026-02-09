@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import Modal from '@/components/Modal'
 import { useProject } from '@/contexts/ProjectContext'
 import { 
   Upload, 
@@ -41,6 +42,7 @@ export default function FunctionVersioning() {
   const { id } = router.query
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
+  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
   
   const [functionData, setFunctionData] = useState<any>(null)
   const [versions, setVersions] = useState<FunctionVersion[]>([])
@@ -157,64 +159,72 @@ export default function FunctionVersioning() {
   }
 
   const handleSwitchVersion = async (versionId: string, version: string) => {
-    if (!confirm(`Are you sure you want to switch to version ${version}?`)) {
-      return
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Switch Version',
+      message: `Are you sure you want to switch to version ${version}?`,
+      onConfirm: async () => {
+        setSwitchingVersion(versionId)
+        
+        try {
+          const response = await authenticatedFetch(`/api/functions/${id}/switch-version`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ versionId })
+          })
 
-    setSwitchingVersion(versionId)
-    
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}/switch-version`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ versionId })
-      })
+          const result = await response.json()
 
-      const result = await response.json()
-
-      if (result.success) {
-        setUploadResult({ success: true, message: `Switched to version ${version}` })
-        // Refresh versions list to update active status
-        fetchVersions()
-        fetchFunctionData()
-      } else {
-        setUploadResult({ success: false, message: result.message || 'Version switch failed' })
+          if (result.success) {
+            setUploadResult({ success: true, message: `Switched to version ${version}` })
+            // Refresh versions list to update active status
+            fetchVersions()
+            fetchFunctionData()
+            setDialogState({ type: null, title: '', message: '' })
+          } else {
+            setUploadResult({ success: false, message: result.message || 'Version switch failed' })
+          }
+        } catch (error) {
+          setUploadResult({ success: false, message: 'Network error occurred' })
+        } finally {
+          setSwitchingVersion(null)
+        }
       }
-    } catch (error) {
-      setUploadResult({ success: false, message: 'Network error occurred' })
-    } finally {
-      setSwitchingVersion(null)
-    }
+    })
   }
 
   const handleDeleteVersion = async (versionId: string, versionNumber: number) => {
-    if (!confirm(`Are you sure you want to delete version ${versionNumber}? This action cannot be undone.`)) {
-      return
-    }
+    setDialogState({
+      type: 'confirm',
+      title: 'Delete Version',
+      message: `Are you sure you want to delete version ${versionNumber}? This action cannot be undone.`,
+      onConfirm: async () => {
+        setDeletingVersion(versionId)
 
-    setDeletingVersion(versionId)
+        try {
+          const response = await authenticatedFetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
+            method: 'DELETE'
+          })
 
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
-        method: 'DELETE'
-      })
+          const result = await response.json()
 
-      const result = await response.json()
-
-      if (result.success) {
-        setUploadResult({ success: true, message: `Version ${versionNumber} deleted successfully` })
-        // Refresh versions list
-        fetchVersions()
-      } else {
-        setUploadResult({ success: false, message: result.message || 'Failed to delete version' })
+          if (result.success) {
+            setUploadResult({ success: true, message: `Version ${versionNumber} deleted successfully` })
+            // Refresh versions list
+            fetchVersions()
+            setDialogState({ type: null, title: '', message: '' })
+          } else {
+            setUploadResult({ success: false, message: result.message || 'Failed to delete version' })
+          }
+        } catch (error) {
+          setUploadResult({ success: false, message: 'Network error occurred' })
+        } finally {
+          setDeletingVersion(null)
+        }
       }
-    } catch (error) {
-      setUploadResult({ success: false, message: 'Network error occurred' })
-    } finally {
-      setDeletingVersion(null)
-    }
+    })
   }
 
   const handleDownloadVersion = async (versionId: string, version: string) => {
@@ -298,6 +308,23 @@ export default function FunctionVersioning() {
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
+          {/* Dialog Modal */}
+          <Modal
+            isOpen={dialogState.type !== null}
+            title={dialogState.title}
+            description={dialogState.message}
+            onCancel={() => setDialogState({ type: null, title: '', message: '' })}
+            onConfirm={async () => {
+              if (dialogState.onConfirm) {
+                await dialogState.onConfirm();
+              } else {
+                setDialogState({ type: null, title: '', message: '' });
+              }
+            }}
+            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
+            confirmText={dialogState.type === 'alert' ? undefined : 'Continue'}
+            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+          />
           <div className="flex items-center space-x-4">
             <button
               onClick={() => router.push(`/admin/functions/${id}`)}
