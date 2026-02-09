@@ -4,7 +4,7 @@
  * Setup instructions:
  * 1. Get Turnstile keys from https://dash.cloudflare.com/
  * 2. Add to .env file:
- *    - NEXT_PUBLIC_TURNSTILE_SITE_KEY (for frontend)
+ *    - TURNSTILE_SITE_KEY (for frontend)
  *    - TURNSTILE_SECRET_KEY (for backend verification)
  * 3. For testing, use dummy keys (always passes):
  *    - Site key: 1x00000000000000000000AA
@@ -29,48 +29,68 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [siteKey, setSiteKey] = useState<string>('1x00000000000000000000AA')
   const turnstileWidgetRef = useRef<HTMLDivElement>(null)
   const turnstileIdRef = useRef<string | null>(null)
   const { login } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    // Define the callback before loading the script
-    (window as any).onTurnstileSuccess = (token: string) => {
-      console.log('Turnstile success:', token)
-      setTurnstileToken(token)
-    }
-
-    // Load Turnstile script
-    const script = document.createElement('script')
-    script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
-    script.async = true
-    script.defer = true
-    script.onload = () => {
-      console.log('Turnstile script loaded')
-      // Render the widget once the script is loaded
-      if (window.turnstile && turnstileWidgetRef.current && !turnstileIdRef.current) {
-        try {
-          turnstileIdRef.current = window.turnstile.render(turnstileWidgetRef.current, {
-            sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '1x00000000000000000000AA',
-            callback: (token: string) => {
-              console.log('Turnstile callback triggered:', token)
-              setTurnstileToken(token)
-            },
-            theme: 'dark',
-          })
-          console.log('Turnstile widget rendered with ID:', turnstileIdRef.current)
-        } catch (error) {
-          console.error('Error rendering Turnstile widget:', error)
+    // Fetch Turnstile site key and load script
+    const initTurnstile = async () => {
+      try {
+        // Fetch site key from server
+        const response = await fetch('/api/turnstile-config')
+        let key = '1x00000000000000000000AA'
+        if (response.ok) {
+          const data = await response.json()
+          key = data.siteKey
+          setSiteKey(key)
         }
+
+        // Define the callback before loading the script
+        (window as any).onTurnstileSuccess = (token: string) => {
+          console.log('Turnstile success:', token)
+          setTurnstileToken(token)
+        }
+
+        // Load Turnstile script
+        const script = document.createElement('script')
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+        script.async = true
+        script.defer = true
+        script.onload = () => {
+          console.log('Turnstile script loaded')
+          // Render the widget once the script is loaded
+          if (window.turnstile && turnstileWidgetRef.current && !turnstileIdRef.current) {
+            try {
+              turnstileIdRef.current = window.turnstile.render(turnstileWidgetRef.current, {
+                sitekey: key,
+                callback: (token: string) => {
+                  console.log('Turnstile callback triggered:', token)
+                  setTurnstileToken(token)
+                },
+                theme: 'dark',
+              })
+              console.log('Turnstile widget rendered with ID:', turnstileIdRef.current)
+            } catch (error) {
+              console.error('Error rendering Turnstile widget:', error)
+            }
+          }
+        }
+        document.body.appendChild(script)
+      } catch (error) {
+        console.error('Failed to initialize Turnstile:', error)
+      }
+
+      return () => {
+        const scripts = document.querySelectorAll('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js"]')
+        scripts.forEach(script => script.remove())
+        delete (window as any).onTurnstileSuccess
       }
     }
-    document.body.appendChild(script)
 
-    return () => {
-      document.body.removeChild(script)
-      delete (window as any).onTurnstileSuccess
-    }
+    initTurnstile()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
