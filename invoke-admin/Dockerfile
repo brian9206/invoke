@@ -14,6 +14,7 @@ RUN npm install --omit=dev
 
 # Copy source code and shared modules
 COPY ./invoke-admin .
+COPY ./database ./database
 
 # Copy invoke-cli into /cli directory and install dependencies
 COPY ./invoke-cli /cli
