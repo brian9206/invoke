@@ -11,7 +11,7 @@ import {
   Rocket,
   BarChart3,
   Package,
-  Upload,
+  FolderOpen,
   FileText,
   Settings,
   LogOut,
@@ -35,10 +35,6 @@ export default function Layout({ children, title }: LayoutProps) {
     {
       items: [
         { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
-      ]
-    },
-    {
-      items: [
         { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
         { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
         { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
@@ -47,7 +43,7 @@ export default function Layout({ children, title }: LayoutProps) {
     },
     {
       items: [
-        { name: 'Projects', href: '/admin/projects', icon: Upload, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
+        { name: 'Projects', href: '/admin/projects', icon: FolderOpen, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
         { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
         { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings', adminOnly: true },
       ]

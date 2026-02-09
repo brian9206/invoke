@@ -107,15 +107,15 @@ export default function GlobalSettings() {
       const data = await response.json()
       
       if (data.success) {
-        setMessage('Settings saved successfully!')
+        toast.success('Settings saved successfully!')
         clearFunctionBaseUrlCache() // Clear cache so other pages get updated URL
         fetchSettings() // Refresh
       } else {
-        setMessage('Failed to save settings: ' + data.message)
+        toast.error('Failed to save settings: ' + data.message)
       }
     } catch (error) {
       console.error('Error saving settings:', error)
-      setMessage('Failed to save settings')
+      toast.error('Failed to save settings')
     } finally {
       setSaving(false)
     }
@@ -139,13 +139,13 @@ export default function GlobalSettings() {
       
       if (data.success) {
         setCleanupResult(data.data)
-        setMessage('Cleanup completed successfully!')
+        toast.success('Cleanup completed successfully!')
       } else {
-        setMessage('Cleanup failed: ' + data.message)
+        toast.error('Cleanup failed: ' + data.message)
       }
     } catch (error) {
       console.error('Error during cleanup:', error)
-      setMessage('Cleanup failed')
+      toast.error('Cleanup failed')
     } finally {
       setCleaning(false)
     }

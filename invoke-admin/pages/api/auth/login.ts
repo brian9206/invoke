@@ -2,6 +2,14 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
 const { hashPassword, verifyPassword, createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
+const { 
+  recordFailedLogin, 
+  recordSuccessfulLogin, 
+  isAccountLocked, 
+  getRemainingLockoutTime,
+  getFailedAttemptCount,
+  getLockoutConfig 
+} = require('@/lib/rate-limiter')
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -17,6 +25,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json(createResponse(false, null, 'Username and password are required', 400))
     }
 
+    // Check if account is locked due to too many failed attempts
+    if (isAccountLocked(username)) {
+      const remainingTime = getRemainingLockoutTime(username)
+      const config = getLockoutConfig()
+      return res.status(429).json(createResponse(false, null, 
+        `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds. (Max ${config.maxAttempts} attempts per ${config.attemptWindowMinutes} minutes)`, 
+        429
+      ))
+    }
+
     // Find user in database
     const result = await database.query(
       'SELECT * FROM users WHERE username = $1 OR email = $1',
@@ -24,7 +42,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     )
 
     if (result.rows.length === 0) {
-      return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
+      recordFailedLogin(username)
+      const attempts = getFailedAttemptCount(username)
+      const config = getLockoutConfig()
+      return res.status(401).json(createResponse(false, null, 
+        `Invalid credentials. Failed attempts: ${attempts}/${config.maxAttempts}`, 
+        401
+      ))
     }
 
     const user = result.rows[0]
@@ -33,7 +57,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const isValidPassword = await verifyPassword(password, user.password_hash)
     
     if (!isValidPassword) {
-      return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
+      recordFailedLogin(username)
+      const attempts = getFailedAttemptCount(username)
+      const config = getLockoutConfig()
+      
+      if (isAccountLocked(username)) {
+        const remainingTime = getRemainingLockoutTime(username)
+        return res.status(429).json(createResponse(false, null, 
+          `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds.`, 
+          429
+        ))
+      }
+      
+      return res.status(401).json(createResponse(false, null, 
+        `Invalid credentials. Failed attempts: ${attempts}/${config.maxAttempts}`, 
+        401
+      ))
     }
 
 
@@ -52,6 +91,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'UPDATE users SET last_login = NOW() WHERE id = $1',
       [user.id]
     )
+
+    // Clear failed login attempts on successful login
+    recordSuccessfulLogin(username)
 
     // Generate JWT token
     const token = jwt.sign(
