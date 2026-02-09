@@ -4,6 +4,7 @@ const { program } = require('commander')
 const inquirer = require('inquirer').default;
 const chalk = require('chalk')
 const { table } = require('table')
+const zxcvbn = require('zxcvbn')
 require('dotenv').config()
 
 const database = require('./services/database')
@@ -49,7 +50,20 @@ program
           type: 'password',
           name: 'password',
           message: 'Enter password:',
-          validate: (input) => input.length >= 6 || 'Password must be at least 6 characters'
+          validate: (input) => {
+            if (input.length < 8) {
+              return 'Password must be at least 8 characters'
+            }
+            const result = zxcvbn(input)
+            if (result.score < 3) {
+              const feedback = result.feedback.warning || 
+                             (result.feedback.suggestions.length > 0 
+                               ? result.feedback.suggestions[0] 
+                               : 'Password is too weak. Use a longer password with a mix of characters.')
+              return `Password is too weak (score: ${result.score}/4). ${feedback}`
+            }
+            return true
+          }
         },
         {
           type: 'confirm',

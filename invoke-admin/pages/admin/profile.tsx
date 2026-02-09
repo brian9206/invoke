@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter'
 import { useAuth } from '@/contexts/AuthContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Key, Save, Eye, EyeOff, Mail, User } from 'lucide-react'
@@ -16,6 +17,7 @@ export default function ProfileSettings() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordScore, setPasswordScore] = useState(0)
   
   const [emailForm, setEmailForm] = useState({
     email: user?.email || ''
@@ -85,8 +87,8 @@ export default function ProfileSettings() {
       return
     }
 
-    if (passwordForm.newPassword.length < 8) {
-      toast.error('New password must be at least 8 characters long')
+    if (passwordScore < 3) {
+      toast.error('Password is not strong enough. Please use a stronger password.')
       return
     }
 
@@ -255,11 +257,10 @@ export default function ProfileSettings() {
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {passwordForm.newPassword && passwordForm.newPassword.length < 8 && (
-                  <p className="text-xs text-yellow-400 mt-1">
-                    Password must be at least 8 characters long
-                  </p>
-                )}
+                <PasswordStrengthMeter 
+                  password={passwordForm.newPassword} 
+                  onScoreChange={setPasswordScore}
+                />
               </div>
 
               {/* Confirm Password */}
@@ -295,7 +296,7 @@ export default function ProfileSettings() {
               <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword || passwordForm.newPassword.length < 8}
+                  disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword || passwordScore < 3}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                 >
                   <Save className="w-4 h-4" />
@@ -307,7 +308,7 @@ export default function ProfileSettings() {
               <div className="mt-4 p-4 bg-gray-900 rounded-lg">
                 <p className="text-sm font-medium text-gray-300 mb-2">Password Requirements:</p>
                 <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-                  <li>At least 8 characters long</li>
+                  <li>Must have a strength score of at least 3 (Strong)</li>
                   <li>Must match confirmation password</li>
                 </ul>
               </div>

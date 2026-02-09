@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
 const bcrypt = require('bcrypt')
 const database = require('@/lib/database')
-const { createResponse } = require('@/lib/utils')
+const { createResponse, validatePasswordStrength } = require('@/lib/utils')
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') {
@@ -39,11 +39,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Validate new password strength
-    if (newPassword.length < 8) {
+    const passwordValidation = validatePasswordStrength(newPassword)
+    if (!passwordValidation.success) {
       return res.status(400).json(createResponse(
         false,
-        null,
-        'New password must be at least 8 characters long',
+        { score: passwordValidation.score },
+        passwordValidation.feedback,
         400
       ))
     }

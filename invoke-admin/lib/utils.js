@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const zxcvbn = require('zxcvbn');
 
 /**
  * Utility functions for Invoke Admin service
@@ -41,6 +42,32 @@ async function hashPassword(password) {
  */
 async function verifyPassword(password, hash) {
     return await bcrypt.compare(password, hash);
+}
+
+/**
+ * Validate password strength using zxcvbn
+ * @param {string} password - Plain text password to validate
+ * @returns {Object} Validation result with success, score, and feedback
+ */
+function validatePasswordStrength(password) {
+    const result = zxcvbn(password);
+    
+    if (result.score < 3) {
+        return {
+            success: false,
+            score: result.score,
+            feedback: result.feedback.warning || 
+                      (result.feedback.suggestions.length > 0 
+                        ? result.feedback.suggestions[0] 
+                        : 'Password is too weak. Use a longer password with a mix of characters.')
+        };
+    }
+    
+    return {
+        success: true,
+        score: result.score,
+        feedback: null
+    };
 }
 
 /**
@@ -185,6 +212,7 @@ module.exports = {
     hashApiKey,
     hashPassword,
     verifyPassword,
+    validatePasswordStrength,
     generateFunctionId,
     validateEnvironment,
     formatFileSize,

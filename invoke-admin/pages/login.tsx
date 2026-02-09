@@ -19,7 +19,7 @@ export default function Login() {
     try {
       const {success, message} = await login(username, password)
       if (success) {
-        toast.success('Welcome to Invoke Admin!')
+        toast.success('Welcome to Invoke !')
         router.push('/admin')
       } else {
         toast.error(message)

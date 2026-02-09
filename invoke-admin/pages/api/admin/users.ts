@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired } from '@/lib/middleware';
 const database = require('@/lib/database');
 const bcrypt = require('bcrypt');
+const { validatePasswordStrength } = require('@/lib/utils');
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   switch (req.method) {
@@ -49,6 +50,15 @@ async function createUser(req: NextApiRequest, res: NextApiResponse) {
 
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Username, email, and password are required' });
+  }
+
+  // Validate password strength
+  const passwordValidation = validatePasswordStrength(password);
+  if (!passwordValidation.success) {
+    return res.status(400).json({ 
+      error: passwordValidation.feedback,
+      score: passwordValidation.score 
+    });
   }
 
   try {
@@ -128,6 +138,15 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
     }
 
     if (password) {
+      // Validate password strength
+      const passwordValidation = validatePasswordStrength(password);
+      if (!passwordValidation.success) {
+        return res.status(400).json({ 
+          error: passwordValidation.feedback,
+          score: passwordValidation.score 
+        });
+      }
+      
       const passwordHash = await bcrypt.hash(password, 12);
       updateQuery += `, password_hash = $${valueIndex++}`;
       values.push(passwordHash);

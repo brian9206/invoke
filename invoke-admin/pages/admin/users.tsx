@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import Modal from '@/components/Modal';
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import { Edit, Trash2, Users } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
@@ -25,6 +26,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [passwordScore, setPasswordScore] = useState(0);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -76,7 +78,13 @@ export default function UsersPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Validate password strength
+    if (passwordScore < 3) {
+      setDialogState({ type: 'alert', title: 'Weak Password', message: 'Password is not strong enough. Please use a stronger password with a score of at least 3.' });
+      return;
+    }
+
     try {
       const response = await authenticatedFetch('/api/admin/users', {
         method: 'POST',
@@ -100,6 +108,12 @@ export default function UsersPage() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    // Validate password strength if password is being changed
+    if (formData.password && passwordScore < 3) {
+      setDialogState({ type: 'alert', title: 'Weak Password', message: 'Password is not strong enough. Please use a stronger password with a score of at least 3.' });
+      return;
+    }
 
     const updateData: any = {
       id: editingUser.id,
@@ -179,6 +193,7 @@ export default function UsersPage() {
     setShowCreateModal(false);
     setEditingUser(null);
     setFormData({ username: '', email: '', password: '', is_admin: false });
+    setPasswordScore(0);
   };
 
   if (loading) {
@@ -293,6 +308,7 @@ export default function UsersPage() {
             }}
             cancelText="Cancel"
             confirmText="Create User"
+            confirmDisabled={passwordScore < 3}
           >
             <form onSubmit={handleCreateUser} data-create-user className="space-y-4">
               <div>
@@ -333,6 +349,10 @@ export default function UsersPage() {
                   className="form-input"
                   placeholder="Enter password"
                 />
+                <PasswordStrengthMeter 
+                  password={formData.password} 
+                  onScoreChange={setPasswordScore}
+                />
               </div>
               <div>
                 <label className="flex items-center space-x-2">
@@ -361,6 +381,7 @@ export default function UsersPage() {
             }}
             cancelText="Cancel"
             confirmText="Update User"
+            confirmDisabled={formData.password !== '' && passwordScore < 3}
           >
             <form onSubmit={handleUpdateUser} data-edit-user>
               <div className="mb-4">
@@ -398,12 +419,18 @@ export default function UsersPage() {
                     </p>
                   </div>
                 ) : (
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="form-input"
-                  />
+                  <>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({...formData, password: e.target.value})}
+                      className="form-input"
+                    />
+                    <PasswordStrengthMeter 
+                      password={formData.password} 
+                      onScoreChange={setPasswordScore}
+                    />
+                  </>
                 )}
               </div>
               <div className="mb-4">

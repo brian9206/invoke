@@ -16,7 +16,8 @@
     "dotenv": "^16.3.1",
     "inquirer": "^12.11.1",
     "pg": "^8.11.3",
-    "table": "^6.8.1"
+    "table": "^6.8.1",
+    "zxcvbn": "^4.4.2"
   },
   "keywords": [
     "invoke",
@@ -24,6 +25,6 @@
     "admin",
     "management"
   ],
-  "author": "Invoke Team",
+  "author": "Brian Choi",
   "license": "MIT"
 }

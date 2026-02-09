@@ -11,6 +11,7 @@ export interface ModalProps {
   confirmText?: string;
   confirmVariant?: 'default' | 'danger';
   loading?: boolean;
+  confirmDisabled?: boolean;
 }
 
 export default function Modal({
@@ -24,6 +25,7 @@ export default function Modal({
   confirmText = 'Confirm',
   confirmVariant = 'default',
   loading = false,
+  confirmDisabled = false,
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -45,7 +47,7 @@ export default function Modal({
           </button>
           <button
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
             className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               confirmVariant === 'danger'
                 ? 'bg-red-600 hover:bg-red-700'
