@@ -144,8 +144,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, [isProjectLocked])
 
   // Request a project change even when locked. If the project is locked and the
-  // user attempts to switch to a different project, prompt with `confirm` to
-  // warn about unsaved changes. If they confirm, unlock and perform the change.
+  // user attempts to switch to a different project, unlock and perform the change.
+  // Confirmation should be handled at the component level before calling this.
   const requestProjectChange = useCallback(async (project: Project | null): Promise<boolean> => {
     // If there is no change, resolve false
     const currentId = (isProjectLocked && lockedProject) ? lockedProject.id : (activeProject ? activeProject.id : null)
@@ -153,9 +153,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     if (currentId === newId) return false
 
     if (isProjectLocked) {
-      const proceed = confirm('There are unsaved changes. Do you want to switch projects and discard them?')
-      if (!proceed) return false
-      // User confirmed: unlock and change
+      // User must have confirmed at the component level before reaching here
+      // Unlock and change
       setIsProjectLocked(false)
       setLockedProject(null)
       setActiveProject(project)

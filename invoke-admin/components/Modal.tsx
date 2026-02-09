@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -29,8 +30,8 @@ export default function Modal({
 }: ModalProps) {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 !mt-0">
+  const modalContent = (
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
         <h3 className="text-xl font-semibold text-gray-200 mb-4">{title}</h3>
         {description && (
@@ -60,4 +61,6 @@ export default function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
