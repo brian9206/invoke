@@ -1,0 +1,10 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="100" cy="100" r="95" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  
+  <!-- Play triangle / execution arrow -->
+  <polygon points="70,60 70,140 130,100" fill="#3b82f6"/>
+  
+  <!-- Subtle glow -->
+  <circle cx="100" cy="100" r="88" fill="none" stroke="#3b82f6" stroke-width="1" opacity="0.2"/>
+</svg>
