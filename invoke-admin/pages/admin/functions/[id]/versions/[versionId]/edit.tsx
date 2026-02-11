@@ -592,6 +592,7 @@ export default function FunctionCodeEditor() {
       title: 'Deploy Function',
       message: 'Deploying will create a new version and will immediately switch. Continue?',
       onConfirm: async () => {
+        setDialogState({ type: null, title: '', message: '' });
         setDeploying(true)
         
         try {
