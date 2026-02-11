@@ -612,12 +612,16 @@ export default function FunctionCodeEditor() {
           if (result.success) {
             toast.success(`Version ${result.data.version} deployed and activated successfully!`)
             setHasChanges(false)
-            setDialogState({ type: null, title: '', message: '' })
-            
-            // Navigate to function details page after deployment
+            setFunctionData({
+              ...functionData,
+              versionId: result.data.versionId,
+              version: result.data.version
+            })
+                        
+            // Navigate to the new version's edit page
             setTimeout(() => {
-              router.push(`/admin/functions/${functionId}`)
-            }, 1500)
+              router.push(`/admin/functions/${functionId}/versions/${result.data.versionId}/edit`)
+            }, 100)
           } else {
             toast.error(result.message || 'Failed to deploy version')
           }
@@ -682,11 +686,16 @@ export default function FunctionCodeEditor() {
       if (result.success) {
         toast.success(`New version ${result.data.version} created successfully!`)
         setHasChanges(false)
-        
+        setFunctionData({
+          ...functionData,
+          versionId: result.data.versionId,
+          version: result.data.version
+        })
+
         // Navigate to the new version's edit page
         setTimeout(() => {
           router.push(`/admin/functions/${functionId}/versions/${result.data.versionId}/edit`)
-        }, 1000)
+        }, 100)
       } else {
         toast.error(result.message || 'Failed to save changes')
       }
