@@ -1,0 +1,30 @@
+name: Build and Push Scheduler Service
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'invoke-scheduler/**'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          context: ./invoke-scheduler
+          file: ./invoke-scheduler/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/scheduler:latest

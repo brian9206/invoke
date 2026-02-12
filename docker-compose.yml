@@ -36,9 +36,7 @@ services:
 
   # Execution Service
   execution:
-    build:
-      context: ./invoke-execution
-      dockerfile: Dockerfile
+    image: ghcr.io/brian9206/invoke/execution:latest
     ports:
       - "${EXECUTION_PORT}:${EXECUTION_PORT}"
     env_file:
@@ -76,9 +74,7 @@ services:
 
   # Admin Service
   admin:
-    build:
-      context: .
-      dockerfile: ./invoke-admin/Dockerfile
+    image: ghcr.io/brian9206/invoke/admin:latest
     ports:
       - "${ADMIN_PORT}:${ADMIN_PORT}"
     env_file:
@@ -112,9 +108,7 @@ services:
 
   # Scheduler Service
   scheduler:
-    build:
-      context: ./invoke-scheduler
-      dockerfile: Dockerfile
+    image: ghcr.io/brian9206/invoke/scheduler:latest
     env_file:
       - .env
     environment:
