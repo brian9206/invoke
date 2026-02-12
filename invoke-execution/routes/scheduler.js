@@ -15,8 +15,11 @@ function calculateNextExecution(cronExpression) {
     const job = new CronJob(cronExpression, function() {})
     const next = job.nextDate()
     
-    console.log(`Cron expression "${cronExpression}" next execution: ${next.toString()}`)
-    return next
+    // Convert to native Date object if needed (cron returns Moment.js object)
+    const nextDate = next.toDate ? next.toDate() : new Date(next)
+    
+    console.log(`Cron expression "${cronExpression}" next execution: ${nextDate.toString()}`)
+    return nextDate
     
   } catch (error) {
     console.error(`Error parsing cron expression "${cronExpression}":`, error.message)
@@ -60,7 +63,7 @@ async function executeScheduledFunction(functionData) {
     const statusCode = result.statusCode || 200
 
     // Get the response data from either the function return value or res.json/res.send calls
-    const responseData = context.res.data || result.data || result.error || {}
+    const responseData = (context.res && context.res.data) || result.data || result.error || {}
     
     // Calculate response size
     let responseSize = 0;
@@ -103,8 +106,8 @@ async function executeScheduledFunction(functionData) {
       const logQuery = `
         INSERT INTO execution_logs (
           function_id, status_code, execution_time_ms, 
-          request_method, request_url, executed_at, response_body, console_logs
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          request_method, request_url, request_size, executed_at, response_body, console_logs
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       `
       
       await database.query(logQuery, [
@@ -113,6 +116,7 @@ async function executeScheduledFunction(functionData) {
         executionTime,
         'SCHEDULED',
         '/scheduled',
+        0,
         new Date(),
         JSON.stringify({ error: error.message }),
         JSON.stringify([])
