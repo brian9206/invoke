@@ -1115,6 +1115,39 @@ export default function FunctionCodeEditor() {
     toast.success(`Replaced ${findReplaceResults.length} occurrences`)
   }
 
+  // Handle external file drops from filesystem
+  const processDroppedFiles = async (files: FileList, targetPath: string = ''): Promise<FileNode[]> => {
+    const fileNodes: FileNode[] = []
+    
+    // Process all files
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const relativePath = (file as any).webkitRelativePath || file.name
+      const parts = relativePath.split('/').filter(p => p) // Remove empty parts
+      
+      if (parts.length === 0) continue
+      
+      const fileName = parts[parts.length - 1]
+      const filePath = targetPath ? `${targetPath}/${fileName}` : fileName
+      
+      try {
+        const content = await file.text()
+        fileNodes.push({
+          name: fileName,
+          path: filePath,
+          type: 'file',
+          content,
+          size: file.size
+        })
+      } catch (err) {
+        console.error(`Failed to read file ${fileName}:`, err)
+        toast.error(`Failed to read file: ${fileName}`)
+      }
+    }
+    
+    return fileNodes
+  }
+
   const handleDragStart = (e: React.DragEvent, file: FileNode) => {
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', file.path) // Required for Firefox
@@ -1128,25 +1161,52 @@ export default function FunctionCodeEditor() {
     setDragOverFile(null)
   }
 
+  const hasDirectories = (files: FileList): boolean => {
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].size === 0 && !files[i].type) {
+        return true
+      }
+    }
+    return false
+  }
+
   const handleDragOver = (e: React.DragEvent, file: FileNode | null) => {
     e.preventDefault()
     e.stopPropagation()
     
-    // Allow dropping on directories and on null (root)
-    if (!file) {
-      // Dropping to root
-      if (draggedFile && draggedFile.path.includes('/')) {
-        e.dataTransfer.dropEffect = 'move'
+    // Check if dropping external files or internal drag
+    const hasFiles = e.dataTransfer.types.includes('Files')
+    
+    if (hasFiles) {
+      // Only allow dropping files, not folders
+      if (e.dataTransfer.items && hasDirectories(e.dataTransfer.files)) {
+        e.dataTransfer.dropEffect = 'none'
+      } else if (!file) {
+        e.dataTransfer.dropEffect = 'copy'
         setDragOverFile('root')
+      } else if (file.type === 'directory') {
+        e.dataTransfer.dropEffect = 'copy'
+        setDragOverFile(file.path)
       } else {
         e.dataTransfer.dropEffect = 'none'
       }
     } else {
-      if (file.type === 'directory' && draggedFile && file.path !== draggedFile.path) {
-        e.dataTransfer.dropEffect = 'move'
-        setDragOverFile(file.path)
+      // Internal drag - existing behavior
+      if (!file) {
+        // Dropping to root
+        if (draggedFile && draggedFile.path.includes('/')) {
+          e.dataTransfer.dropEffect = 'move'
+          setDragOverFile('root')
+        } else {
+          e.dataTransfer.dropEffect = 'none'
+        }
       } else {
-        e.dataTransfer.dropEffect = 'none'
+        if (file.type === 'directory' && draggedFile && file.path !== draggedFile.path) {
+          e.dataTransfer.dropEffect = 'move'
+          setDragOverFile(file.path)
+        } else {
+          e.dataTransfer.dropEffect = 'none'
+        }
       }
     }
   }
@@ -1168,13 +1228,85 @@ export default function FunctionCodeEditor() {
 
   const handleDrop = (e: React.DragEvent, targetFile: FileNode | null) => {
     e.preventDefault()
-    
-    // Only stop propagation if dropping on a specific file/folder
-    if (targetFile) {
-      e.stopPropagation()
-    }
+    e.stopPropagation()
     
     setDragOverFile(null)
+    
+    // Handle external file drops from filesystem
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      // Check if any directories are being dropped
+      if (hasDirectories(e.dataTransfer.files)) {
+        toast.error('Folders are not supported. Please import individual files only.')
+        return
+      }
+
+      const targetPath = targetFile?.type === 'directory' ? targetFile.path : ''
+      
+      // Process dropped files
+      processDroppedFiles(e.dataTransfer.files, targetPath).then(newNodes => {
+        if (newNodes.length === 0) {
+          toast.error('No files could be imported')
+          return
+        }
+        
+        // Check for duplicates at target location
+        const targetChildren = targetFile?.type === 'directory' ? targetFile.children || [] : files
+        const duplicates = newNodes.filter(node => 
+          targetChildren.some(existing => existing.name === node.name)
+        )
+        
+        if (duplicates.length > 0) {
+          toast.error(`Files/folders already exist: ${duplicates.map(d => d.name).join(', ')}`)
+          return
+        }
+        
+        // Add files to explorer
+        if (targetFile && targetFile.type === 'directory') {
+          const addToTarget = (filesList: FileNode[]): FileNode[] => {
+            return filesList.map(f => {
+              if (f.path === targetFile.path && f.type === 'directory') {
+                return {
+                  ...f,
+                  children: [...(f.children || []), ...newNodes]
+                }
+              } else if (f.type === 'directory' && f.children) {
+                return { ...f, children: addToTarget(f.children) }
+              }
+              return f
+            })
+          }
+          setFiles(prev => addToTarget(prev))
+          // Expand the target directory
+          setExpandedDirs(prev => new Set(prev).add(targetFile.path))
+        } else {
+          // Add to root
+          setFiles(prev => [...prev, ...newNodes])
+        }
+        
+        // Mark new files as modified
+        const getAllPaths = (nodes: FileNode[]): string[] => {
+          const paths: string[] = []
+          for (const node of nodes) {
+            if (node.type === 'file') {
+              paths.push(node.path)
+            } else if (node.children) {
+              paths.push(...getAllPaths(node.children))
+            }
+          }
+          return paths
+        }
+        
+        setModifiedFiles(prev => {
+          const newSet = new Set(prev)
+          getAllPaths(newNodes).forEach(path => newSet.add(path))
+          return newSet
+        })
+        
+        setHasChanges(true)
+        toast.success(`Imported ${newNodes.length} item(s)`)
+      })
+      return
+    }
     
     if (!draggedFile) {
       setDraggedFile(null)
