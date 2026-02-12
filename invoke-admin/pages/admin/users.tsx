@@ -257,7 +257,7 @@ export default function UsersPage() {
                     <div className="flex items-center space-x-2 ml-4">
                       <button
                         onClick={() => openEditModal(user)}
-                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors"
+                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors active:scale-95"
                         title="Edit User"
                       >
                         <Edit className="w-4 h-4" />
@@ -265,7 +265,7 @@ export default function UsersPage() {
                       <button
                         onClick={() => handleDeleteUser(user)}
                         disabled={currentUser && user.id === currentUser.id}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={currentUser && user.id === currentUser.id ? "Cannot delete yourself" : "Delete User"}
                       >
                         <Trash2 className="w-4 h-4" />

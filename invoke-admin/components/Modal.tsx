@@ -42,8 +42,8 @@ export default function Modal({
   if (!isOpen) return null;
 
   const modalContent = (
-    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4">
+    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4 animate-scaleIn">
         <h3 className="text-xl font-semibold text-gray-200 mb-4">{title}</h3>
         {description && (
           <p className="text-gray-400 text-sm mb-4">{description}</p>
@@ -53,14 +53,14 @@ export default function Modal({
           <button
             onClick={onCancel}
             disabled={loading}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
             disabled={loading || isLoading || confirmDisabled}
-            className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
               confirmVariant === 'danger'
                 ? 'bg-red-600 hover:bg-red-700'
                 : 'bg-blue-600 hover:bg-blue-700'

@@ -3,7 +3,7 @@ import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
-import { Settings, AlertCircle, CheckCircle, Plus, Trash2 } from 'lucide-react'
+import { Settings, AlertCircle, CheckCircle, Plus, Trash2, Loader } from 'lucide-react'
 import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
 import toast from 'react-hot-toast'
@@ -156,7 +156,10 @@ export default function GlobalSettings() {
       <ProtectedRoute>
         <Layout title="Global Settings">
           <div className="flex justify-center items-center h-64">
-            <div className="text-lg">Loading global settings...</div>
+            <div className="flex items-center gap-2 text-lg">
+              <Loader className="w-6 h-6 text-primary-500 animate-spin" />
+              <span className="text-gray-400 animate-pulse">Loading global settings...</span>
+            </div>
           </div>
         </Layout>
       </ProtectedRoute>

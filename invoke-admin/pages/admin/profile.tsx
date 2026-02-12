@@ -6,7 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter'
 import { useAuth } from '@/contexts/AuthContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
-import { Key, Save, Eye, EyeOff, Mail, User } from 'lucide-react'
+import { Key, Save, Eye, EyeOff, Mail, User, Loader } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ProfileSettings() {
@@ -204,7 +204,11 @@ export default function ProfileSettings() {
                       disabled={emailLoading || !emailForm.email || emailForm.email === user?.email}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                     >
-                      <Save className="w-4 h-4" />
+                      {emailLoading ? (
+                        <Loader className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
                       {emailLoading ? 'Updating Email...' : 'Update Email'}
                     </button>
                   </div>
@@ -307,7 +311,11 @@ export default function ProfileSettings() {
                       disabled={loading || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword || passwordForm.newPassword !== passwordForm.confirmPassword || passwordScore < 3}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
                     >
-                      <Save className="w-4 h-4" />
+                      {loading ? (
+                        <Loader className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
                       {loading ? 'Changing Password...' : 'Change Password'}
                     </button>
                   </div>

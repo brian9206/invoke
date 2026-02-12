@@ -11,7 +11,8 @@ import {
   Clock,
   TrendingUp,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Loader
 } from 'lucide-react'
 
 interface Stats {
@@ -127,7 +128,19 @@ export default function Dashboard() {
         <Layout title="Dashboard">
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-400">
-              {projectLoading ? 'Loading projects...' : !activeProject ? 'No project selected' : 'Loading dashboard...'}
+              {projectLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+                  <span className="animate-pulse">Loading projects...</span>
+                </div>
+              ) : !activeProject ? (
+                'No project selected'
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+                  <span className="animate-pulse">Loading dashboard...</span>
+                </div>
+              )}
             </div>
           </div>
         </Layout>

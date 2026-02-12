@@ -16,7 +16,8 @@ import {
   Search,
   Download,
   Upload,
-  AlertCircle
+  AlertCircle,
+  Loader
 } from 'lucide-react'
 
 interface KVItem {
@@ -289,7 +290,10 @@ export default function KVStore() {
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mx-auto mb-4"></div>
-              <p className="text-gray-400">Loading KV Store...</p>
+              <div className="flex items-center gap-2">
+                <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+                <p className="text-gray-400 animate-pulse">Loading KV Store...</p>
+              </div>
             </div>
           </div>
         </Layout>
@@ -599,14 +603,14 @@ export default function KVStore() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                             <button
                               onClick={() => handleEditItem(item)}
-                              className="text-primary-400 hover:text-primary-300 mr-3"
+                              className="text-primary-400 hover:text-primary-300 mr-3 transition-colors active:scale-95"
                               title="Edit"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteItem(item.key)}
-                            className="text-red-400 hover:text-red-300"
+                            className="text-red-400 hover:text-red-300 transition-colors active:scale-95"
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />

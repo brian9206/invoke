@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
-import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy } from 'lucide-react'
+import { Upload, FileText, AlertCircle, CheckCircle, Key, RefreshCw, Copy, Loader } from 'lucide-react'
 import { getFunctionBaseUrl, getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
@@ -410,7 +410,14 @@ export default function DeployFunction() {
                       : 'btn-primary'
                   }`}
                 >
-                  {uploading ? 'Uploading...' : 'Upload Function'}
+                  {uploading ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    'Upload Function'
+                  )}
                 </button>
               ) : (
                 <button
@@ -422,7 +429,14 @@ export default function DeployFunction() {
                       : 'btn-primary'
                   }`}
                 >
-                  {uploading ? 'Creating...' : 'Create Function'}
+                  {uploading ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Function'
+                  )}
                 </button>
               )}
             </div>

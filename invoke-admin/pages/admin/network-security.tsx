@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import NetworkPolicyEditor from '@/components/NetworkPolicyEditor';
 import PageHeader from '@/components/PageHeader';
-import { Shield, AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
+import { Shield, AlertCircle, CheckCircle2, XCircle, Loader } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -176,7 +176,10 @@ export default function NetworkSecurityPage() {
       <ProtectedRoute>
         <Layout title="Network Security">
           <div className="flex items-center justify-center h-64">
-            <div className="text-gray-400">Loading...</div>
+            <div className="flex items-center gap-2 text-gray-400">
+              <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+              <span className="animate-pulse">Loading...</span>
+            </div>
           </div>
         </Layout>
       </ProtectedRoute>

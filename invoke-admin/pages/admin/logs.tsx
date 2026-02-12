@@ -5,7 +5,7 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
-import { Activity, AlertCircle, Filter, Globe, Clock, User, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Activity, AlertCircle, Filter, Globe, Clock, User, ChevronLeft, ChevronRight, Loader } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 
 interface ExecutionLog {
@@ -125,7 +125,19 @@ export default function Logs() {
         <Layout title="Execution Logs">
           <div className="flex justify-center items-center h-64">
             <div className="text-gray-400">
-              {projectLoading ? 'Loading projects...' : !activeProject ? 'No project selected' : 'Loading execution logs...'}
+              {projectLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+                  <span className="animate-pulse">Loading projects...</span>
+                </div>
+              ) : !activeProject ? (
+                'No project selected'
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+                  <span className="animate-pulse">Loading execution logs...</span>
+                </div>
+              )}
             </div>
           </div>
         </Layout>
@@ -286,7 +298,7 @@ export default function Logs() {
                         <td className="py-3 px-4">
                           <button
                             onClick={() => router.push(`/admin/functions/${log.function_id}/execution-logs/${log.id}`)}
-                            className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
+                            className="text-blue-400 hover:text-blue-300 text-sm flex items-center transition-colors active:scale-95"
                           >
                             <Activity className="w-4 h-4 mr-1" />
                             View Details

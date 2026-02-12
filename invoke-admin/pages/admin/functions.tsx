@@ -4,7 +4,7 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import Modal from '@/components/Modal'
-import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye } from 'lucide-react'
+import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye, Loader } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
@@ -127,7 +127,10 @@ export default function Functions() {
       <ProtectedRoute>
         <Layout title="Functions">
           <div className="flex justify-center items-center h-64">
-            <div className="text-gray-400">Loading functions...</div>
+            <div className="flex flex-col items-center gap-3">
+              <Loader className="w-8 h-8 text-primary-500 animate-spin" />
+              <div className="text-gray-400 animate-pulse">Loading functions...</div>
+            </div>
           </div>
         </Layout>
       </ProtectedRoute>
@@ -257,7 +260,7 @@ export default function Functions() {
                       
                       <button
                         onClick={() => toggleFunction(func.id, func.is_active)}
-                        className={`p-2 rounded-lg transition-colors ${
+                        className={`p-2 rounded-lg transition-all active:scale-95 ${
                           func.is_active
                             ? 'bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50'
                             : 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
@@ -271,7 +274,7 @@ export default function Functions() {
                         href={functionUrls[func.id] || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors"
+                        className="p-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors active:scale-95"
                         title="Execute Function"
                       >
                         <ExternalLink className="w-4 h-4" />
@@ -279,7 +282,7 @@ export default function Functions() {
                       
                       <button
                         onClick={() => deleteFunction(func.id)}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors"
+                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors active:scale-95"
                         title="Delete Function"
                       >
                         <Trash2 className="w-4 h-4" />

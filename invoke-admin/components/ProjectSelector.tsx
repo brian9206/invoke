@@ -111,14 +111,15 @@ export default function ProjectSelector({
               onClick={() => setProjectDropdownOpen(false)}
             />
             {/* Dropdown */}
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
-              {userProjects.map((project) => (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto animate-slideInUp">
+              {userProjects.map((project, index) => (
                 <button
                   key={project.id}
                   onClick={() => handleProjectSelect(project)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-600 transition-colors flex items-center min-w-0 ${
+                  className={`w-full px-4 py-3 text-left hover:bg-gray-600 transition-all flex items-center min-w-0 animate-fadeIn ${
                     activeProject?.id === project.id ? 'bg-gray-600' : ''
                   }`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <div className="flex items-center space-x-3 min-w-0 flex-1">
                     {project.id === 'system' ? (
