@@ -21,7 +21,9 @@ import {
   FilePlus,
   FolderPlus,
   Pencil,
-  Code
+  Code,
+  Search,
+  Replace
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import toast from 'react-hot-toast'
@@ -73,6 +75,7 @@ export default function FunctionCodeEditor() {
   const [renameValue, setRenameValue] = useState('')
   const [deploying, setDeploying] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
   const hasFetchedRef = useRef(false)
   const editorRef = useRef<any>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -88,6 +91,14 @@ export default function FunctionCodeEditor() {
   const [searchResults, setSearchResults] = useState<Array<{file: FileNode, line: number, lineText: string, matchStart: number, matchEnd: number}>>([])
   const [selectedSearchIndex, setSelectedSearchIndex] = useState(0)
   const [isSearching, setIsSearching] = useState(false)
+  
+  // Find and Replace state
+  const [showFindReplace, setShowFindReplace] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [replaceValue, setReplaceValue] = useState('')
+  const [findReplaceResults, setFindReplaceResults] = useState<Array<{file: FileNode, line: number, lineText: string, matchStart: number, matchEnd: number}>>([])
+  const [selectedFindReplaceIndex, setSelectedFindReplaceIndex] = useState(0)
+  const [isFindReplaceSearching, setIsFindReplaceSearching] = useState(false)
   
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -149,6 +160,16 @@ export default function FunctionCodeEditor() {
         setSearchQuery('')
         setSearchResults([])
         setSelectedSearchIndex(0)
+      }
+      
+      // Ctrl+Shift+H or Cmd+Shift+H to open Find and Replace
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'H') {
+        e.preventDefault()
+        setShowFindReplace(true)
+        setFindQuery('')
+        setReplaceValue('')
+        setFindReplaceResults([])
+        setSelectedFindReplaceIndex(0)
       }
     }
 
@@ -361,6 +382,8 @@ export default function FunctionCodeEditor() {
     // Update the file in memory
     if (selectedFile) {
       updateFileContent(selectedFile, value || '')
+      // Mark file as modified
+      setModifiedFiles(prev => new Set([...prev, selectedFile.path]))
     }
   }
 
@@ -521,6 +544,13 @@ export default function FunctionCodeEditor() {
         setFiles(deleteFromFiles(files))
         setHasChanges(true)
         
+        // Remove from modified files set
+        setModifiedFiles(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(fileToDelete.path)
+          return newSet
+        })
+        
         // Close tab if file is open
         if (openTabs.find(tab => tab.path === fileToDelete.path)) {
           closeTab(fileToDelete.path)
@@ -558,6 +588,16 @@ export default function FunctionCodeEditor() {
       : newName
     
     setFiles(prev => updateFileNames(prev, file.path, newPath))
+    
+    // Update modified files set with new path if it was modified
+    if (modifiedFiles.has(file.path)) {
+      setModifiedFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(file.path)
+        newSet.add(newPath)
+        return newSet
+      })
+    }
     
     // Update selected file if it's the one being renamed
     if (selectedFile?.path === file.path) {
@@ -687,6 +727,7 @@ export default function FunctionCodeEditor() {
       if (result.success) {
         toast.success(`New version ${result.data.version} created successfully!`)
         setHasChanges(false)
+        setModifiedFiles(new Set())
         setFunctionData({
           ...functionData,
           versionId: result.data.versionId,
@@ -893,7 +934,7 @@ export default function FunctionCodeEditor() {
               results.push({
                 file,
                 line: lineIndex + 1,
-                lineText: lineText.trim(),
+                lineText: lineText,
                 matchStart: matchIndex,
                 matchEnd: matchIndex + query.length
               })
@@ -924,6 +965,154 @@ export default function FunctionCodeEditor() {
         editorRef.current.focus()
       }
     }, 100)
+  }
+
+  const searchInFilesForReplace = (query: string) => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    if (!query.trim()) {
+      setFindReplaceResults([])
+      setIsFindReplaceSearching(false)
+      return
+    }
+
+    setIsFindReplaceSearching(true)
+
+    // Debounce search by 300ms
+    searchTimeoutRef.current = setTimeout(() => {
+      const MAX_RESULTS = 1000
+      const results: Array<{file: FileNode, line: number, lineText: string, matchStart: number, matchEnd: number}> = []
+      const allFiles = getAllFiles(files)
+      const searchLower = query.toLowerCase()
+      let resultCount = 0
+
+      // Use early break when max results reached
+      for (const file of allFiles) {
+        if (file.content && resultCount < MAX_RESULTS) {
+          const lines = file.content.split('\n')
+          
+          for (let lineIndex = 0; lineIndex < lines.length && resultCount < MAX_RESULTS; lineIndex++) {
+            const lineText = lines[lineIndex]
+            const lineLower = lineText.toLowerCase()
+            let startIndex = 0
+            let matchIndex = lineLower.indexOf(searchLower, startIndex)
+            
+            while (matchIndex !== -1 && resultCount < MAX_RESULTS) {
+              results.push({
+                file,
+                line: lineIndex + 1,
+                lineText: lineText,
+                matchStart: matchIndex,
+                matchEnd: matchIndex + query.length
+              })
+              resultCount++
+              startIndex = matchIndex + 1
+              matchIndex = lineLower.indexOf(searchLower, startIndex)
+            }
+          }
+        }
+        
+        if (resultCount >= MAX_RESULTS) break
+      }
+
+      setFindReplaceResults(results)
+      setSelectedFindReplaceIndex(0)
+      setIsFindReplaceSearching(false)
+    }, 300)
+  }
+
+  const handleFindReplaceSelect = (result: typeof findReplaceResults[0]) => {
+    handleFileSelect(result.file)
+    // Navigate to the line in the editor
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.revealLineInCenter(result.line)
+        editorRef.current.setPosition({ lineNumber: result.line, column: result.matchStart + 1 })
+        editorRef.current.focus()
+      }
+    }, 100)
+  }
+
+  const handleReplaceOne = (result: typeof findReplaceResults[0]) => {
+    if (!selectedFile || selectedFile.path !== result.file.path) {
+      handleFileSelect(result.file)
+    }
+    
+    setTimeout(() => {
+      if (editorRef.current && selectedFile) {
+        const currentContent = editorContent
+        const lines = currentContent.split('\n')
+        const lineIndex = result.line - 1
+        
+        if (lineIndex >= 0 && lineIndex < lines.length) {
+          const line = lines[lineIndex]
+          const newLine = line.substring(0, result.matchStart) + replaceValue + line.substring(result.matchEnd)
+          lines[lineIndex] = newLine
+          const newContent = lines.join('\n')
+          
+          // Update the editor and mark as changed
+          setEditorContent(newContent)
+          selectedFile.content = newContent
+          setHasChanges(true)
+          
+          // Update the files tree
+          const updatedFiles = [...files]
+          setFiles(updatedFiles)
+          
+          // Re-search to update results
+          searchInFilesForReplace(findQuery)
+        }
+      }
+    }, 100)
+  }
+
+  const handleReplaceAll = () => {
+    if (findReplaceResults.length === 0) return
+    
+    // Group results by file
+    const fileMap = new Map<string, typeof findReplaceResults>()
+    for (const result of findReplaceResults) {
+      if (!fileMap.has(result.file.path)) {
+        fileMap.set(result.file.path, [])
+      }
+      fileMap.get(result.file.path)!.push(result)
+    }
+    
+    // Replace in each file
+    for (const [filePath, results] of fileMap) {
+      const file = getAllFiles(files).find(f => f.path === filePath)
+      if (file && file.content) {
+        let newContent = file.content
+        
+        // Sort results in reverse order to preserve indices
+        const sortedResults = [...results].sort((a, b) => b.matchStart - a.matchStart)
+        
+        for (const result of sortedResults) {
+          const lines = newContent.split('\n')
+          const lineIndex = result.line - 1
+          
+          if (lineIndex >= 0 && lineIndex < lines.length) {
+            const line = lines[lineIndex]
+            const newLine = line.substring(0, result.matchStart) + replaceValue + line.substring(result.matchEnd)
+            lines[lineIndex] = newLine
+            newContent = lines.join('\n')
+          }
+        }
+        
+        file.content = newContent
+        if (selectedFile && selectedFile.path === filePath) {
+          setEditorContent(newContent)
+        }
+      }
+    }
+    
+    setHasChanges(true)
+    setFindReplaceResults([])
+    setShowFindReplace(false)
+    toast.success(`Replaced ${findReplaceResults.length} occurrences`)
   }
 
   const handleDragStart = (e: React.DragEvent, file: FileNode) => {
@@ -1201,6 +1390,16 @@ export default function FunctionCodeEditor() {
     toast.success(`Moved "${draggedFile.name}" to "${targetFile.name}"`)
   }
 
+  const checkFolderHasModifiedFiles = (folder: FileNode): boolean => {
+    if (folder.type === 'file') {
+      return modifiedFiles.has(folder.path)
+    }
+    if (folder.children) {
+      return folder.children.some(child => checkFolderHasModifiedFiles(child))
+    }
+    return false
+  }
+
   const renderFileTree = (files: FileNode[], depth = 0): JSX.Element[] => {
     // Sort files: directories first, then files, alphabetically within each group
     const sortedFiles = [...files].sort((a, b) => {
@@ -1211,7 +1410,10 @@ export default function FunctionCodeEditor() {
       return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
     })
     
-    return sortedFiles.map((file) => (
+    return sortedFiles.map((file) => {
+      const isModified = file.type === 'file' ? modifiedFiles.has(file.path) : checkFolderHasModifiedFiles(file)
+      
+      return (
       <div key={file.path}>
         <div
           className={`flex items-center py-1 px-2 text-sm cursor-pointer rounded group ${
@@ -1274,32 +1476,9 @@ export default function FunctionCodeEditor() {
           ) : (
             <>
               <span className="truncate flex-1 pointer-events-none">{file.name}</span>
-              <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    startRename(file)
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => e.stopPropagation()}
-                  className="p-1 text-[#858585] hover:text-[#cccccc] text-xs"
-                  title="Rename"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDeleteFile(file)
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onDragStart={(e) => e.stopPropagation()}
-                  className="p-1 text-[#858585] hover:text-[#f48771] text-xs"
-                  title="Delete"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
+              {isModified && (
+                <span className="ml-1 text-[#f48771] font-bold text-lg leading-none">●</span>
+              )}
             </>
           )}
         </div>
@@ -1307,7 +1486,8 @@ export default function FunctionCodeEditor() {
           <div>{renderFileTree(file.children, depth + 1)}</div>
         )}
       </div>
-    ))
+    )
+    })
   }
 
   if (loading) {
@@ -1660,6 +1840,22 @@ export default function FunctionCodeEditor() {
                         setSelectedSearchIndex(0)
                       }
                     })
+                    
+                    // Register Find and Replace action
+                    editor.addAction({
+                      id: 'custom-find-replace',
+                      label: 'Find and Replace',
+                      keybindings: [
+                        monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyH
+                      ],
+                      run: () => {
+                        setShowFindReplace(true)
+                        setFindQuery('')
+                        setReplaceValue('')
+                        setFindReplaceResults([])
+                        setSelectedFindReplaceIndex(0)
+                      }
+                    })
                   }}
                 />
               ) : (
@@ -1673,7 +1869,35 @@ export default function FunctionCodeEditor() {
         </div>
         
         {/* Status Bar - Full Width */}
-        <div className="h-[22px] bg-[#007acc] flex items-center justify-end px-4 text-xs text-white">
+        <div className="h-[22px] bg-[#007acc] flex items-center justify-between px-4 text-xs text-white">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => {
+                setShowSearch(true)
+                setSearchQuery('')
+                setSearchResults([])
+                setSelectedSearchIndex(0)
+              }}
+              className="p-1 hover:bg-[#1177bb] rounded transition-colors"
+              title="Find in Files (Ctrl+Shift+F)"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setShowFindReplace(true)
+                setFindQuery('')
+                setReplaceValue('')
+                setFindReplaceResults([])
+                setSelectedFindReplaceIndex(0)
+              }}
+              className="p-1 hover:bg-[#1177bb] rounded transition-colors"
+              title="Find and Replace (Ctrl+Shift+H)"
+            >
+              <Replace className="w-4 h-4" />
+            </button>
+          </div>
+          
           <div className="flex items-center space-x-4">
             <button
               onClick={handleGoToLine}
@@ -1940,13 +2164,19 @@ export default function FunctionCodeEditor() {
                       {searchResults.length >= 1000 && <span className="ml-2 text-[#ffa500]">(showing first 1000)</span>}
                     </div>
                     {searchResults.map((result, index) => {
+                      const trimmedText = result.lineText.trim()
+                      const leadingWhitespace = result.lineText.length - trimmedText.length + (result.lineText.length - result.lineText.trimEnd().length)
+                      const leadingWhitespaceCount = result.lineText.search(/\S/)
+                      const adjustedStart = Math.max(0, result.matchStart - (leadingWhitespaceCount === -1 ? 0 : leadingWhitespaceCount))
+                      const adjustedEnd = Math.max(0, result.matchEnd - (leadingWhitespaceCount === -1 ? 0 : leadingWhitespaceCount))
+                      
                       const highlightedText = (
                         <>
-                          {result.lineText.substring(0, result.matchStart)}
+                          {trimmedText.substring(0, adjustedStart)}
                           <span className="bg-[#ffa500] text-black px-0.5">
-                            {result.lineText.substring(result.matchStart, result.matchEnd)}
+                            {trimmedText.substring(adjustedStart, adjustedEnd)}
                           </span>
-                          {result.lineText.substring(result.matchEnd)}
+                          {trimmedText.substring(adjustedEnd)}
                         </>
                       )
                       
@@ -1977,6 +2207,159 @@ export default function FunctionCodeEditor() {
                 ) : (
                   <div className="px-4 py-8 text-center text-[#858585] text-[13px]">
                     {searchQuery ? 'No results found' : 'Type to search in all files'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Find and Replace (Ctrl+Shift+H) - Monaco-style */}
+        {showFindReplace && (
+          <>
+            <div 
+              className="fixed inset-0 z-50"
+              onClick={() => setShowFindReplace(false)}
+            />
+            <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-[60] w-[700px] bg-[#252526] border border-[#454545] shadow-2xl">
+              {/* Find input */}
+              <div className="border-b border-[#454545]">
+                <input
+                  type="text"
+                  value={findQuery}
+                  onChange={(e) => {
+                    setFindQuery(e.target.value)
+                    searchInFilesForReplace(e.target.value)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowFindReplace(false)
+                      setFindQuery('')
+                      setReplaceValue('')
+                      setFindReplaceResults([])
+                    } else if (e.key === 'Enter' && findReplaceResults.length > 0) {
+                      handleFindReplaceSelect(findReplaceResults[selectedFindReplaceIndex])
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault()
+                      setSelectedFindReplaceIndex(prev => 
+                        Math.min(prev + 1, findReplaceResults.length - 1)
+                      )
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault()
+                      setSelectedFindReplaceIndex(prev => Math.max(prev - 1, 0))
+                    }
+                  }}
+                  placeholder="Find..."
+                  className="w-full px-4 py-3 bg-[#3c3c3c] text-[#cccccc] placeholder-[#858585] focus:outline-none text-[13px] font-mono"
+                  autoFocus
+                />
+              </div>
+
+              {/* Replace input */}
+              <div className="border-b border-[#454545]">
+                <input
+                  type="text"
+                  value={replaceValue}
+                  onChange={(e) => setReplaceValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setShowFindReplace(false)
+                      setFindQuery('')
+                      setReplaceValue('')
+                      setFindReplaceResults([])
+                    }
+                  }}
+                  placeholder="Replace with..."
+                  className="w-full px-4 py-3 bg-[#3c3c3c] text-[#cccccc] placeholder-[#858585] focus:outline-none text-[13px] font-mono"
+                />
+              </div>
+
+              {/* Replace buttons */}
+              <div className="px-4 py-2 bg-[#2d2d30] border-b border-[#454545] flex items-center space-x-2">
+                <button
+                  onClick={() => handleReplaceOne(findReplaceResults[selectedFindReplaceIndex])}
+                  disabled={findReplaceResults.length === 0}
+                  className="px-3 py-1 text-xs bg-[#0e639c] text-white hover:bg-[#1177bb] disabled:bg-[#2d2d30] disabled:text-[#656565] rounded"
+                  title="Replace"
+                >
+                  Replace
+                </button>
+                <button
+                  onClick={handleReplaceAll}
+                  disabled={findReplaceResults.length === 0}
+                  className="px-3 py-1 text-xs bg-[#0e639c] text-white hover:bg-[#1177bb] disabled:bg-[#2d2d30] disabled:text-[#656565] rounded"
+                  title="Replace All"
+                >
+                  Replace All ({findReplaceResults.length})
+                </button>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-[400px] overflow-y-auto bg-[#252526]">
+                {isFindReplaceSearching ? (
+                  <div className="px-4 py-8 text-center text-[#858585] text-[13px]">
+                    Searching...
+                  </div>
+                ) : findReplaceResults.length > 0 ? (
+                  <>
+                    <div className="px-4 py-2 bg-[#2d2d30] text-[#858585] text-[11px] border-b border-[#454545]">
+                      {findReplaceResults.length} result{findReplaceResults.length !== 1 ? 's' : ''} in {new Set(findReplaceResults.map(r => r.file.path)).size} file{new Set(findReplaceResults.map(r => r.file.path)).size !== 1 ? 's' : ''}
+                      {findReplaceResults.length >= 1000 && <span className="ml-2 text-[#ffa500]">(showing first 1000)</span>}
+                    </div>
+                    {findReplaceResults.map((result, index) => {
+                      const trimmedText = result.lineText.trim()
+                      const leadingWhitespaceCount = result.lineText.search(/\S/)
+                      const adjustedStart = Math.max(0, result.matchStart - (leadingWhitespaceCount === -1 ? 0 : leadingWhitespaceCount))
+                      const adjustedEnd = Math.max(0, result.matchEnd - (leadingWhitespaceCount === -1 ? 0 : leadingWhitespaceCount))
+                      
+                      const highlightedText = (
+                        <>
+                          {trimmedText.substring(0, adjustedStart)}
+                          <span className="bg-[#ffa500] text-black px-0.5">
+                            {trimmedText.substring(adjustedStart, adjustedEnd)}
+                          </span>
+                          {trimmedText.substring(adjustedEnd)}
+                        </>
+                      )
+                      
+                      return (
+                        <div
+                          key={`${result.file.path}-${result.line}-${index}`}
+                          onClick={() => handleFindReplaceSelect(result)}
+                          onMouseEnter={() => setSelectedFindReplaceIndex(index)}
+                          className={`px-3 py-2 cursor-pointer border-b border-[#1e1e1e] flex items-center justify-between group ${
+                            index === selectedFindReplaceIndex
+                              ? 'bg-[#094771]'
+                              : 'hover:bg-[#2a2d2e]'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center space-x-2 mb-1">
+                              <FileText className="w-3 h-3 text-[#858585] flex-shrink-0" />
+                              <span className="text-[#cccccc] text-[11px] font-mono">{result.file.path}</span>
+                              <span className="text-[#858585] text-[11px]">:</span>
+                              <span className="text-[#4ec9b0] text-[11px]">{result.line}</span>
+                            </div>
+                            <div className="text-[#cccccc] text-[12px] font-mono ml-5 truncate">
+                              {highlightedText}
+                            </div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleReplaceOne(result)
+                            }}
+                            className="px-2 py-1 text-xs bg-[#0e639c] text-white hover:bg-[#1177bb] rounded opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0"
+                          >
+                            Replace
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </>
+                ) : (
+                  <div className="px-4 py-8 text-center text-[#858585] text-[13px]">
+                    {findQuery ? 'No results found' : 'Type to find and replace'}
                   </div>
                 )}
               </div>
