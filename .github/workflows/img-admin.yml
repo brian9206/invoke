@@ -1,11 +1,14 @@
 name: Build and Push Admin Service
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+      - master
     paths:
       - 'invoke-admin/**'
+      - '.github/workflows/img-admin.yml'
 
 permissions:
   contents: read

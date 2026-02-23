@@ -1,11 +1,14 @@
 name: Build and Push Execution Service
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+      - master
     paths:
       - 'invoke-execution/**'
+      - '.github/workflows/img-execution.yml'
 
 permissions:
   contents: read

@@ -1,11 +1,14 @@
 name: Build and Push Scheduler Service
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+      - master
     paths:
       - 'invoke-scheduler/**'
+      - '.github/workflows/img-scheduler.yml'
 
 permissions:
   contents: read
