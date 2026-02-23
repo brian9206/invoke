@@ -186,21 +186,6 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         const fileBuffer = await fs.readFile(uploadedFile.path)
         const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-        // Check if this exact version already exists (same hash)
-        const existingVersion = await database.query(
-          'SELECT id, version FROM function_versions WHERE function_id = $1 AND package_hash = $2',
-          [functionId, hash]
-        )
-
-        if (existingVersion.rows.length > 0) {
-          // Clean up uploaded file
-          await fs.remove(uploadedFile.path)
-          return res.status(409).json({
-            success: false,
-            message: `This package already exists as version ${existingVersion.rows[0].version}`
-          })
-        }
-
         // Get next version number (simple integer increment)
         const versionResult = await database.query(`
           SELECT COALESCE(MAX(version), 0) + 1 as next_version 

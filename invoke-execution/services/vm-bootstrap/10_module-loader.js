@@ -46,7 +46,8 @@
         // Try exact path first
         if (fs().existsSync(requestedPath)) {
             const stat = fs().statSync(requestedPath);
-            if (!stat.isDirectory) {
+            console.log('stat:', stat);
+            if (!stat.isDirectory()) {
                 return requestedPath;
             }
         }
