@@ -67,10 +67,6 @@ function getBaseUrl() {
     return process.env.INVOKE_BASE_URL;
   }
 
-  if (process.env.EXECUTION_SERVICE_URL) {
-    return process.env.EXECUTION_SERVICE_URL;
-  }
-  
   const config = loadConfig();
   return config.baseUrl || 'http://localhost:3000';
 }
@@ -82,6 +78,10 @@ function getBaseUrl() {
 function getExecutionUrl() {
   if (process.env.INVOKE_EXECUTION_URL) {
     return process.env.INVOKE_EXECUTION_URL;
+  }
+
+  if (process.env.EXECUTION_SERVICE_URL) {
+    return process.env.EXECUTION_SERVICE_URL;
   }
   
   const config = loadConfig();

@@ -125,7 +125,7 @@ program
       console.log(`API Key: ${apiKey ? 'inv_***...' + apiKey.slice(-8) : chalk.yellow('Not set')}`)
       console.log(`API Key Source: ${process.env.INVOKE_API_KEY ? 'Environment Variable' : currentConfig.apiKey ? 'Config File' : 'None'}`)
       console.log(`Base URL: ${baseUrl}`)
-      console.log(`Base URL Source: ${(process.env.INVOKE_BASE_URL || process.env.EXECUTION_SERVICE_URL) ? 'Environment Variable' : currentConfig.baseUrl ? 'Config File' : 'Default'}`)
+      console.log(`Base URL Source: ${process.env.INVOKE_BASE_URL ? 'Environment Variable' : currentConfig.baseUrl ? 'Config File' : 'Default'}`)
       console.log(`Execution URL: ${executionUrl}`)
     } catch (error) {
       console.log(chalk.red('❌ Failed to load configuration:'), error.message)
