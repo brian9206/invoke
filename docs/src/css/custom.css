@@ -311,3 +311,8 @@ a {
   opacity: 0.5;
   margin-top: 3rem;
 }
+
+/* Mobile navbar sidebar backdrop fix */
+.navbar-sidebar__backdrop, .navbar-sidebar {
+  height: 100vh !important;
+}
