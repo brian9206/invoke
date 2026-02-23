@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { Pool } from 'pg'
 import { CronJob } from 'cron'
 
@@ -105,4 +105,4 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthAndMethods(['GET', 'PUT'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET', 'PUT'])(handler)

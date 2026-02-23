@@ -1,17 +1,17 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
     const { id: functionId } = req.query
-    const { versionId } = req.body
+    const { versionId, version_number } = req.body
 
-    if (!versionId) {
+    if (!versionId && !version_number) {
       return res.status(400).json({
         success: false,
-        message: 'Version ID is required'
+        message: 'Version ID or version number is required'
       })
     }
 
@@ -37,10 +37,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Verify that the version exists and belongs to the function
-    const versionResult = await database.query(
-      'SELECT id, version FROM function_versions WHERE id = $1 AND function_id = $2',
-      [versionId, functionId]
-    )
+    // Support both versionId (UUID) and version_number (integer)
+    let versionResult
+    if (versionId) {
+      versionResult = await database.query(
+        'SELECT id, version FROM function_versions WHERE id = $1 AND function_id = $2',
+        [versionId, functionId]
+      )
+    } else {
+      versionResult = await database.query(
+        'SELECT id, version FROM function_versions WHERE version = $1 AND function_id = $2',
+        [version_number, functionId]
+      )
+    }
 
     if (versionResult.rows.length === 0) {
       return res.status(404).json({
@@ -53,8 +62,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // Update the function's active version
     await database.query(
-      'UPDATE functions SET active_version_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [versionId, functionId]
+      'UPDATE functions SET active_version_id = $1, is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [version.id, functionId]
     )
 
     // Log the version switch
@@ -79,4 +88,4 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthAndMethods(['POST'])(handler)
+export default withAuthOrApiKeyAndMethods(['POST'])(handler)

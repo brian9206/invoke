@@ -270,6 +270,62 @@ Control outbound network access for security:
 
 ## Testing Deployments
 
+### Using Invoke CLI
+
+The easiest way to test your deployed functions is using the CLI:
+
+#### function:invoke
+
+Execute your function and see the response:
+
+```bash
+# Basic invocation
+node index.js function:invoke my-function
+
+# With query parameters
+node index.js function:invoke my-function --query name=Alice --query age=30
+
+# POST request with JSON body
+node index.js function:invoke my-function \
+  --method POST \
+  --body '{"name":"Alice","age":30}'
+
+# With custom headers
+node index.js function:invoke my-function \
+  --header "Authorization: Bearer token123" \
+  --header "X-Custom-Header: value"
+
+# POST with data file
+node index.js function:invoke my-function \
+  --method POST \
+  --data ./request-data.json
+
+# Access specific path
+node index.js function:invoke my-function --path /users/123
+```
+
+#### function:test
+
+Quick test with preset test cases:
+
+```bash
+# Run all test cases for a function
+node index.js function:test my-function
+
+# Run specific test case
+node index.js function:test my-function --test-case "User Login"
+
+# Interactive mode - choose test case
+node index.js function:test my-function --interactive
+```
+
+**Benefits:**
+- No need to construct URLs manually
+- Automatically handles authentication
+- Supports all HTTP methods (GET, POST, PUT, DELETE, PATCH)
+- Easy to script and automate
+- View formatted responses
+
 ### Using curl
 
 ```bash

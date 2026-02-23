@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import fs from 'fs-extra'
 import path from 'path'
@@ -157,7 +157,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 }
 
-export default withAuthAndMethods(['GET'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET'])(handler)
 
 async function readDirectoryRecursively(dirPath: string, relativePath = ''): Promise<any[]> {
   const files: any[] = []

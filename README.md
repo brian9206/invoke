@@ -31,6 +31,66 @@ The platform consists of 2 microservices with containerized deployment:
 - **Features**: Function metadata, versioning system, user management, execution history
 - **Technology**: PostgreSQL 15
 
+### 💻 invoke-cli (Command-Line Tool)
+- **Purpose**: CLI for function management with API key authentication
+- **Features**: Non-interactive commands for CI/CD, auto-zip upload, smart download, version management, environment variables, logs, function execution
+- **Technology**: Node.js, Commander.js, Axios
+- **Documentation**: [CLI README](./invoke-cli/README.md) | [Quick Start](./invoke-cli/QUICKSTART.md)
+
+## CLI Usage
+
+The Invoke CLI provides a complete command-line interface for managing functions, perfect for CI/CD pipelines and automation.
+
+### Quick Setup
+
+```bash
+# 1. Install CLI
+cd invoke-cli
+npm install
+npm link  # Optional: install globally
+
+# 2. Generate API key in Admin Panel (Profile Settings)
+
+# 3. Configure CLI
+invoke config:set --api-key YOUR_API_KEY
+
+# 4. Verify
+invoke auth:whoami
+```
+
+### Common Commands
+
+```bash
+# List all functions
+invoke functions:list
+
+# Create new function from directory (auto-zips)
+invoke functions:create ./my-function --name my-func --project PROJECT_ID
+
+# Upload new version with auto-switch
+invoke functions:versions:upload FUNC_ID ./updated-code --switch
+
+# Set environment variables
+invoke functions:env:set FUNC_ID DATABASE_URL "postgresql://..."
+
+# Execute function
+invoke functions:invoke FUNC_ID --data '{"test": true}'
+
+# View logs
+invoke functions:logs FUNC_ID --status error --limit 20
+```
+
+### Key Features
+
+- **🚫 Non-Interactive**: All commands use flags instead of prompts - perfect for CI/CD
+- **📦 Auto-Zip**: Automatically zips directories before upload
+- **⬇️ Smart Download**: Save as `.zip` or auto-extract to directory
+- **🔄 Version Management**: Upload, switch, delete, and download versions
+- **🔐 Role-Based Access**: API keys inherit user permissions
+- **📊 JSON Output**: All commands support `--output json` for scripting
+
+See the [CLI Quick Start Guide](./invoke-cli/QUICKSTART.md) for detailed examples and CI/CD integration.
+
 ## Quick Start with Docker
 
 ### Prerequisites

@@ -1,7 +1,7 @@
 export const runtime = 'nodejs';
 
 import { NextApiRequest, NextApiResponse } from 'next'
-import { AuthenticatedRequest, withAuthAndMethods } from '@/lib/middleware'
+import { AuthenticatedRequest, withAuthOrApiKeyAndMethods } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
 import fs from 'fs-extra'
@@ -205,7 +205,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 }
 
 // Wrap handler with auth middleware
-const guarded = withAuthAndMethods(['POST'])(handler as any)
+const guarded = withAuthOrApiKeyAndMethods(['POST'])(handler as any)
 
 export default async function adapter(req: NextApiRequest, res: NextApiResponse) {
   try {

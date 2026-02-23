@@ -133,6 +133,7 @@ export default function Login() {
       <Head>
         <title>Welcome to Invoke Admin</title>
         <meta name="description" content="Sign in to Invoke Admin Panel" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </Head>
       <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
         <div className="max-w-md w-full space-y-8">

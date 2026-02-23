@@ -57,9 +57,34 @@ Include `node_modules` in your function packages for third-party libraries.
 ### ⚡ High Performance
 Efficient execution with caching and resource pooling.
 
+### 🛠️ Powerful CLI
+Manage functions, versions, environment variables, and more from the command line.
+
+## Management Options
+
+### Web Admin Panel
+Access the full-featured web interface to manage functions, view logs, and monitor performance.
+
+### Command Line Interface (CLI)
+Use the Invoke CLI for powerful command-line management:
+
+```bash
+# Create and deploy a function
+invoke functions:create --name my-api ./my-function
+
+# Invoke a function
+invoke function:invoke my-api --method POST --data '{"hello": "world"}'
+
+# View execution logs
+invoke function:logs my-api --status error --limit 10
+```
+
+Learn more in the [CLI Documentation](/docs/cli/installation).
+
 ## What You'll Learn
 
 - [Quick Start](/docs/getting-started/quick-start) - Create your first function in 5 minutes
+- [CLI Reference](/docs/cli/installation) - Command-line interface documentation
 - [API Reference](/docs/api/globals) - Complete documentation of available APIs
 - [Guides](/docs/guides/http-requests) - Step-by-step tutorials for common tasks
 - [Examples](/docs/examples/hello-world) - Real-world function examples

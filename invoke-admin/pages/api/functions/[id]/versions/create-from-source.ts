@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import fs from 'fs-extra'
 import path from 'path'
 import * as tar from 'tar'
@@ -122,7 +122,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 }
 
-export default withAuthAndMethods(['POST'])(handler)
+export default withAuthOrApiKeyAndMethods(['POST'])(handler)
 
 async function writeFilesToDirectory(files: any[], baseDir: string): Promise<void> {
   for (const file of files) {

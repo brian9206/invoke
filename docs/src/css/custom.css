@@ -1,30 +1,313 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Modern, professional theme inspired by Invoke Admin
+ * Color palette: Blue/Cyan with dark mode support
  */
 
-/* You can override the default Infima variables here. */
 :root {
-  --ifm-color-primary: #2e8555;
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
+  /* Primary Color - Blue/Cyan theme */
+  --ifm-color-primary: #0ea5e9;
+  --ifm-color-primary-dark: #0284c7;
+  --ifm-color-primary-darker: #0369a1;
+  --ifm-color-primary-darkest: #075985;
+  --ifm-color-primary-light: #38bdf8;
+  --ifm-color-primary-lighter: #7dd3fc;
+  --ifm-color-primary-lightest: #bae6fd;
+  
+  /* Background Colors */
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f8fafc;
+  
+  /* Code */
   --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --docusaurus-highlighted-code-line-bg: rgba(14, 165, 233, 0.1);
+  
+  /* Navbar */
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.95);
+  --ifm-navbar-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  
+  /* Footer */
+  --ifm-footer-background-color: #1e293b;
+  --ifm-footer-color: #cbd5e1;
+  --ifm-footer-link-color: #94a3b8;
+  --ifm-footer-link-hover-color: #e0f2fe;
+  --ifm-footer-title-color: #f1f5f9;
+  
+  /* Typography */
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --ifm-heading-font-weight: 700;
+  --ifm-font-weight-semibold: 600;
+  
+  /* Shadows */
+  --ifm-global-shadow-lw: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --ifm-global-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --ifm-global-shadow-tl: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* Dark mode - Professional dark theme matching invoke-admin */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #38bdf8;
+  --ifm-color-primary-dark: #0ea5e9;
+  --ifm-color-primary-darker: #0284c7;
+  --ifm-color-primary-darkest: #0369a1;
+  --ifm-color-primary-light: #7dd3fc;
+  --ifm-color-primary-lighter: #bae6fd;
+  --ifm-color-primary-lightest: #e0f2fe;
+  
+  /* Dark backgrounds matching admin panel - slate theme */
+  --ifm-background-color: #0f172a;
+  --ifm-background-surface-color: #1e293b;
+  
+  /* Text colors for better readability on dark */
+  --ifm-font-color-base: #e2e8f0;
+  --ifm-color-content: #cbd5e1;
+  --ifm-color-content-secondary: #94a3b8;
+  --ifm-heading-color: #f1f5f9;
+  
+  /* Code blocks */
+  --ifm-code-background: #1e293b;
+  --docusaurus-highlighted-code-line-bg: rgba(56, 189, 248, 0.15);
+  
+  /* Navbar - deep dark */
+  --ifm-navbar-background-color: #0f172a;
+  --ifm-navbar-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+  
+  /* Sidebar */
+  --ifm-menu-color: #cbd5e1;
+  --ifm-menu-color-background-hover: rgba(56, 189, 248, 0.1);
+  --ifm-menu-color-background-active: rgba(56, 189, 248, 0.15);
+  
+  /* Footer */
+  --ifm-footer-background-color: #0f172a;
+  --ifm-footer-color: #cbd5e1;
+  --ifm-footer-link-color: #94a3b8;
+  --ifm-footer-link-hover-color: #38bdf8;
+  
+  /* Cards and surfaces */
+  --ifm-card-background-color: #1e293b;
+  --ifm-toc-border-color: rgba(148, 163, 184, 0.2);
+  
+  /* Shadows for depth */
+  --ifm-global-shadow-lw: 0 1px 3px 0 rgb(0 0 0 / 0.5);
+  --ifm-global-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+  --ifm-global-shadow-tl: 0 10px 15px -3px rgb(0 0 0 / 0.5);
+  
+  /* Borders */
+  --ifm-color-emphasis-300: rgba(148, 163, 184, 0.2);
+  --ifm-hr-border-color: rgba(148, 163, 184, 0.2);
+  
+  /* Dropdown and hover states */
+  --ifm-dropdown-background-color: #1e293b;
+  --ifm-dropdown-hover-background-color: #334155;
+}
+
+/* Global improvements */
+html {
+  scroll-behavior: smooth;
+}
+
+.navbar {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+[data-theme='dark'] .navbar {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  background: #0f172a;
+}
+
+/* Ensure dark theme for main content areas */
+[data-theme='dark'] main {
+  background: #0f172a;
+}
+
+[data-theme='dark'] .markdown {
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] article {
+  background: #0f172a;
+}
+
+/* Sidebar styling for dark theme */
+[data-theme='dark'] aside.theme-doc-sidebar-container {
+  background: #1e293b;
+  border-right: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+[data-theme='dark'] .menu__link {
+  color: #cbd5e1;
+}
+
+[data-theme='dark'] .menu__link:hover {
+  background: rgba(56, 189, 248, 0.1);
+  color: #38bdf8;
+}
+
+[data-theme='dark'] .menu__link--active {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+/* Table of contents dark theme */
+[data-theme='dark'] .table-of-contents {
+  border-left-color: rgba(56, 189, 248, 0.3);
+}
+
+[data-theme='dark'] .table-of-contents__link {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .table-of-contents__link--active {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+/* Breadcrumbs */
+[data-theme='dark'] .breadcrumbs__link {
+  color: #94a3b8;
+}
+
+[data-theme='dark'] .breadcrumbs__link:hover {
+  color: #38bdf8;
+}
+
+/* Button improvements */
+.button {
+  font-weight: 600;
+  border-radius: 0.75rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+/* Card styling */
+.card {
+  background: var(--ifm-card-background-color, var(--ifm-background-surface-color));
+  border-radius: 1rem;
+  box-shadow: var(--ifm-global-shadow-md);
+  transition: all 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--ifm-global-shadow-tl);
+}
+
+/* Improved code blocks */
+.prism-code {
+  border-radius: 0.75rem;
+  box-shadow: var(--ifm-global-shadow-md);
+}
+
+/* Table of contents */
+.table-of-contents {
+  border-left: 2px solid var(--ifm-color-primary-lighter);
+  padding-left: 0.5rem;
+}
+
+/* Smooth animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Badge styles */
+.badge {
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+}
+
+/* Link improvements */
+a {
+  transition: color 0.15s ease;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: 0.75rem;
+  box-shadow: var(--ifm-global-shadow-lw);
+}
+
+/* Dark theme admonitions */
+[data-theme='dark'] .admonition {
+  background: #1e293b;
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+/* Pagination */
+[data-theme='dark'] .pagination-nav__link {
+  background: #1e293b;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+}
+
+[data-theme='dark'] .pagination-nav__link:hover {
+  background: #334155;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+/* Search */
+[data-theme='dark'] .navbar__search-input {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* Code blocks in dark theme */
+[data-theme='dark'] code {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+[data-theme='dark'] pre code {
+  border: none;
+}
+
+/* Tables */
+[data-theme='dark'] table {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-theme='dark'] th {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-bottom: 2px solid rgba(56, 189, 248, 0.3);
+}
+
+[data-theme='dark'] td {
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+/* Blockquotes */
+[data-theme='dark'] blockquote {
+  border-left: 4px solid rgba(56, 189, 248, 0.5);
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+.footer__copyright {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  margin-top: 3rem;
 }

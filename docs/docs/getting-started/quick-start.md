@@ -150,17 +150,53 @@ Now explore:
 - [Response Object](/docs/api/response) - Learn about `res` API
 - [Examples](/docs/examples/hello-world) - More example functions
 
-## Using the CLI
+## Alternative: Using the CLI
 
-Alternatively, you can use the Invoke CLI:
+You can also manage functions using the [Invoke CLI](/docs/cli/installation):
+
+### Install the CLI
 
 ```bash
-# Create admin user
-cd invoke-cli
-node index.js user:create
-
-# Deploy a function (after setup)
-node index.js function:deploy --project my-project --function hello-function
+npm install -g invoke-cli
 ```
 
-See the main README for CLI setup instructions.
+### Configure with Your API Key
+
+```bash
+invoke config:set --api-key YOUR_API_KEY
+```
+
+### Create and Deploy in One Command
+
+```bash
+invoke functions:create \
+  --name hello \
+  --description "My first function" \
+  ./hello-function
+```
+
+The CLI will automatically:
+- Create the function
+- Package and upload the code
+- Activate the function
+
+### Invoke Your Function
+
+```bash
+# Test the function
+invoke function:test hello
+
+# Invoke with custom data
+invoke function:invoke hello \
+  --method GET \
+  --path "?name=Alice&count=3"
+```
+
+### View Logs
+
+```bash
+invoke function:logs hello --limit 10
+```
+
+Learn more in the [CLI Documentation](/docs/cli/installation).
+

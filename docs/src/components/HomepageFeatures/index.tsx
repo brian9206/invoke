@@ -5,52 +5,93 @@ import styles from './styles.module.css';
 
 type FeatureItem = {
   title: string;
-  Svg: React.ComponentType<React.ComponentProps<'svg'>>;
+  icon: string;
   description: ReactNode;
+  gradient: string;
 };
 
 const FeatureList: FeatureItem[] = [
   {
     title: 'Serverless Execution',
-    Svg: require('@site/static/img/undraw_docusaurus_mountain.svg').default,
+    icon: '⚡',
+    gradient: 'from-blue-500 to-cyan-500',
     description: (
       <>
         Write functions in Node.js and execute them in a secure, isolated VM environment.
-        No servers to manage, just code.
+        No servers to manage, automatic scaling, just focus on your code.
       </>
     ),
   },
   {
     title: 'Rich Built-in Modules',
-    Svg: require('@site/static/img/undraw_docusaurus_tree.svg').default,
+    icon: '📦',
+    gradient: 'from-cyan-500 to-teal-500',
     description: (
       <>
-        Access 24+ Node.js modules including crypto, http, websockets, and more.
-        Plus a powerful KV store for persistent data.
+        Access 24+ Node.js modules including crypto, http, websockets, timers, and more.
+        Plus a powerful KV store for persistent data with TTL support.
       </>
     ),
   },
   {
     title: 'Production Ready',
-    Svg: require('@site/static/img/undraw_docusaurus_react.svg').default,
+    icon: '🚀',
+    gradient: 'from-teal-500 to-blue-500',
     description: (
       <>
-        Express.js-compatible API, network policies, environment variables,
-        and comprehensive monitoring out of the box.
+        Express.js-compatible API, network security policies, environment variables,
+        comprehensive execution logs, and production-grade monitoring.
+      </>
+    ),
+  },
+  {
+    title: 'Secure by Default',
+    icon: '🔒',
+    gradient: 'from-purple-500 to-blue-500',
+    description: (
+      <>
+        Sandboxed VM execution with configurable network policies. Control exactly
+        which domains your functions can access with whitelist/blacklist rules.
+      </>
+    ),
+  },
+  {
+    title: 'Developer Friendly',
+    icon: '💻',
+    gradient: 'from-pink-500 to-purple-500',
+    description: (
+      <>
+        Intuitive CLI for local development and deployment. Test functions locally,
+        view logs in real-time, and manage everything from the command line.
+      </>
+    ),
+  },
+  {
+    title: 'Built for Scale',
+    icon: '📊',
+    gradient: 'from-orange-500 to-pink-500',
+    description: (
+      <>
+        Deploy unlimited functions with retention policies. Monitor execution metrics,
+        manage versions, and scale effortlessly with container-based architecture.
       </>
     ),
   },
 ];
 
-function Feature({title, Svg, description}: FeatureItem) {
+function Feature({title, icon, description, gradient}: FeatureItem) {
   return (
-    <div className={clsx('col col--4')}>
-      <div className="text--center">
-        <Svg className={styles.featureSvg} role="img" />
-      </div>
-      <div className="text--center padding-horiz--md">
-        <Heading as="h3">{title}</Heading>
-        <p>{description}</p>
+    <div className={clsx('col col--4', styles.feature)}>
+      <div className={styles.featureCard}>
+        <div className={clsx(styles.featureIcon, styles[gradient])}>
+          <span className={styles.iconEmoji}>{icon}</span>
+        </div>
+        <div className={styles.featureContent}>
+          <Heading as="h3" className={styles.featureTitle}>
+            {title}
+          </Heading>
+          <p className={styles.featureDescription}>{description}</p>
+        </div>
       </div>
     </div>
   );
@@ -60,6 +101,15 @@ export default function HomepageFeatures(): ReactNode {
   return (
     <section className={styles.features}>
       <div className="container">
+        <div className={styles.featuresHeader}>
+          <Heading as="h2" className={styles.featuresTitle}>
+            Everything You Need to Build Serverless Functions
+          </Heading>
+          <p className={styles.featuresSubtitle}>
+            A complete platform for deploying and managing Node.js serverless functions
+            with enterprise-grade security and monitoring.
+          </p>
+        </div>
         <div className="row">
           {FeatureList.map((props, idx) => (
             <Feature key={idx} {...props} />

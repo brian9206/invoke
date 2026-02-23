@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { Pool } from 'pg'
 import { Client as MinIOClient } from 'minio'
 import fs from 'fs-extra'
@@ -143,4 +143,4 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 }
 
-export default withAuthAndMethods(['GET'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET'])(handler)

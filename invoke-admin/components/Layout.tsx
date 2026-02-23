@@ -73,6 +73,7 @@ export default function Layout({ children, title }: LayoutProps) {
         {title && <title>{title} - Invoke Admin</title>}
         <meta name="description" content="Invoke Admin Panel - Manage serverless functions" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </Head>
 
       {/* Sign Out Confirmation Modal */}

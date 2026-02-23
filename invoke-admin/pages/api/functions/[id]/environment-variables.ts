@@ -1,6 +1,6 @@
 // API endpoints for managing function environment variables
 import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware';
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware';
 import db from '@/lib/database';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -259,4 +259,4 @@ async function handleDeleteEnvironmentVariable(req: NextApiRequest, res: NextApi
     }
 }
 
-export default withAuthAndMethods(['GET', 'PUT', 'POST', 'DELETE'])(handler);
+export default withAuthOrApiKeyAndMethods(['GET', 'PUT', 'POST', 'DELETE'])(handler);

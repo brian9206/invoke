@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Invoke Documentation',
   tagline: 'Build powerful serverless functions with ease',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.svg',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -55,7 +55,9 @@ const config: Config = {
   themeConfig: {
     image: 'img/docusaurus-social-card.jpg',
     colorMode: {
-      respectPrefersColorScheme: true,
+      defaultMode: 'dark',
+      respectPrefersColorScheme: false,
+      disableSwitch: false,
     },
     navbar: {
       title: 'Invoke',
@@ -63,12 +65,19 @@ const config: Config = {
         alt: 'Invoke Logo',
         src: 'img/logo.svg',
       },
+      hideOnScroll: true,
       items: [
         {
           type: 'docSidebar',
           sidebarId: 'gettingStartedSidebar',
           position: 'left',
           label: 'Getting Started',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'cliSidebar',
+          position: 'left',
+          label: 'CLI',
         },
         {
           type: 'docSidebar',
@@ -88,6 +97,11 @@ const config: Config = {
           position: 'left',
           label: 'Examples',
         },
+        {
+          type: 'html',
+          position: 'right',
+          value: '<a href="https://github.com/brian9206/invoke" class="navbar__item navbar__link" target="_blank" rel="noopener noreferrer">GitHub</a>',
+        },
       ],
     },
     footer: {
@@ -97,8 +111,12 @@ const config: Config = {
           title: 'Documentation',
           items: [
             {
-              label: 'Getting Started',
-              to: '/docs/intro',
+              label: 'Quick Start',
+              to: '/docs/getting-started/quick-start',
+            },
+            {
+              label: 'CLI Reference',
+              to: '/docs/cli/reference',
             },
             {
               label: 'API Reference',
@@ -111,24 +129,56 @@ const config: Config = {
           ],
         },
         {
-          title: 'Resources',
+          title: 'Guides',
           items: [
             {
-              label: 'Guides',
+              label: 'HTTP Requests',
               to: '/docs/guides/http-requests',
             },
+            {
+              label: 'Environment Variables',
+              to: '/docs/guides/environment-vars',
+            },
+            {
+              label: 'KV Store Usage',
+              to: '/docs/examples/kv-store-usage',
+            },
+            {
+              label: 'Cryptography',
+              to: '/docs/guides/cryptography',
+            },
+          ],
+        },
+        {
+          title: 'More',
+          items: [
             {
               label: 'Advanced Topics',
               to: '/docs/advanced/limitations',
             },
+            {
+              label: 'Best Practices',
+              to: '/docs/advanced/best-practices',
+            },
+            {
+              label: 'GitHub',
+              href: 'https://github.com/brian9206/invoke',
+            },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Invoke Documentation. Built with Docusaurus.`,
+      copyright: `Built with ⚡ by Brian · © ${new Date().getFullYear()} Invoke Documentation`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
+      additionalLanguages: ['bash', 'javascript', 'typescript', 'json', 'docker'],
+    },
+    docs: {
+      sidebar: {
+        hideable: true,
+        autoCollapseCategories: true,
+      },
     },
   } satisfies Preset.ThemeConfig,
 };

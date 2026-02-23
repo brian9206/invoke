@@ -5,7 +5,7 @@ import fs from 'fs-extra'
 import path from 'path'
 import * as tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
@@ -209,7 +209,7 @@ Returns a JSON object with a greeting message.
 }
 
 // Export an adapter that applies auth middleware
-const authWrapped = withAuthAndMethods(['POST'])(handler as any)
+const authWrapped = withAuthOrApiKeyAndMethods(['POST'])(handler as any)
 
 export default async function adapter(req: any, res: any) {
   return authWrapped(req, res)

@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
-const { createResponse } = require('@/lib/utils')
+const { createResponse, hashApiKey } = require('@/lib/utils')
 const database = require('@/lib/database')
 
 interface AuthenticatedRequest extends NextApiRequest {
@@ -85,48 +85,258 @@ export function withAuthAndMethods(allowedMethods: string[], authOptions?: { adm
   }
 }
 
+// Combine auth-or-apikey and method validation
+export function withAuthOrApiKeyAndMethods(allowedMethods: string[], authOptions?: { adminRequired?: boolean }) {
+  return function (handler: NextApiHandler) {
+    return withMethods(allowedMethods)(withAuthOrApiKey(handler, authOptions))
+  }
+}
+
 // Auth-only middleware for routes with special requirements (like multer)
 export async function authenticate(req: AuthenticatedRequest): Promise<{ success: boolean, user?: any, error?: string }> {
   try {
     await database.connect()
 
     const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return { success: false, error: 'No token provided' }
+    const apiKeyHeader = req.headers['x-api-key'] as string
+
+    // Try JWT authentication first
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+        
+        // Get fresh user data from database
+        const result = await database.query(
+          'SELECT id, username, email, is_admin FROM users WHERE id = $1',
+          [decoded.userId]
+        )
+
+        if (result.rows.length > 0) {
+          const user = result.rows[0]
+          const userData = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            isAdmin: user.is_admin
+          }
+
+          return { success: true, user: userData }
+        }
+      } catch (jwtError) {
+        // JWT invalid, will try API key next
+      }
     }
 
-    const token = authHeader.substring(7)
-    
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+    // Try API key authentication
+    let apiKey = null
+    if (authHeader && authHeader.startsWith('Bearer ') && !apiKey) {
+      // The bearer token might be an API key
+      apiKey = authHeader.substring(7)
+    } else if (apiKeyHeader) {
+      apiKey = apiKeyHeader
+    }
+
+    if (apiKey) {
+      const keyHash = hashApiKey(apiKey)
       
-      // Get fresh user data from database
-      const result = await database.query(
-        'SELECT id, username, email, is_admin FROM users WHERE id = $1',
-        [decoded.userId]
+      const keyResult = await database.query(
+        `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
+         FROM api_keys ak
+         JOIN users u ON ak.created_by = u.id
+         WHERE ak.key_hash = $1 AND ak.is_active = true`,
+        [keyHash]
       )
 
-      if (result.rows.length === 0) {
-        return { success: false, error: 'User not found' }
+      if (keyResult.rows.length > 0) {
+        const keyData = keyResult.rows[0]
+
+        // Update API key usage
+        await database.query(
+          'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
+          [keyData.id]
+        )
+
+        const userData = {
+          id: keyData.user_id,
+          username: keyData.username,
+          email: keyData.email,
+          isAdmin: keyData.is_admin
+        }
+
+        return { success: true, user: userData }
       }
-
-      const user = result.rows[0]
-      const userData = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        isAdmin: user.is_admin
-      }
-
-      return { success: true, user: userData }
-
-    } catch (jwtError) {
-      return { success: false, error: 'Invalid token' }
     }
+
+    return { success: false, error: 'No valid authentication provided' }
 
   } catch (error) {
     console.error('Auth middleware error:', error)
     return { success: false, error: 'Internal server error' }
+  }
+}
+
+// API Key authentication middleware
+export function withApiKeyAuth(handler: NextApiHandler) {
+  return async (req: AuthenticatedRequest, res: NextApiResponse) => {
+    try {
+      await database.connect()
+
+      // Check for API key in headers (Authorization: Bearer <key> or x-api-key: <key>)
+      const authHeader = req.headers.authorization
+      const apiKeyHeader = req.headers['x-api-key'] as string
+
+      let apiKey = null
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        apiKey = authHeader.substring(7)
+      } else if (apiKeyHeader) {
+        apiKey = apiKeyHeader
+      }
+
+      if (!apiKey) {
+        return res.status(401).json(createResponse(false, null, 'API key required', 401))
+      }
+
+      // Hash the incoming API key and lookup in database
+      const keyHash = hashApiKey(apiKey)
+      
+      const keyResult = await database.query(
+        `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
+         FROM api_keys ak
+         JOIN users u ON ak.created_by = u.id
+         WHERE ak.key_hash = $1`,
+        [keyHash]
+      )
+
+      if (keyResult.rows.length === 0) {
+        return res.status(401).json(createResponse(false, null, 'Invalid API key', 401))
+      }
+
+      const keyData = keyResult.rows[0]
+
+      if (!keyData.is_active) {
+        return res.status(401).json(createResponse(false, null, 'API key has been revoked', 401))
+      }
+
+      // Update last_used and usage_count
+      await database.query(
+        'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
+        [keyData.id]
+      )
+
+      // Attach user data to request (same format as JWT auth)
+      req.user = {
+        id: keyData.user_id,
+        username: keyData.username,
+        email: keyData.email,
+        isAdmin: keyData.is_admin
+      }
+
+      return handler(req, res)
+
+    } catch (error) {
+      console.error('API key auth middleware error:', error)
+      res.status(500).json(createResponse(false, null, 'Internal server error', 500))
+    }
+  }
+}
+
+// Combined auth middleware - accepts either JWT or API key
+export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
+  return async (req: AuthenticatedRequest, res: NextApiResponse) => {
+    try {
+      await database.connect()
+
+      const authHeader = req.headers.authorization
+      const apiKeyHeader = req.headers['x-api-key'] as string
+
+      let authenticatedUser = null
+
+      // Try JWT authentication first
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7)
+        
+        try {
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+          
+          const result = await database.query(
+            'SELECT id, username, email, is_admin FROM users WHERE id = $1',
+            [decoded.userId]
+          )
+
+          if (result.rows.length > 0) {
+            const user = result.rows[0]
+            authenticatedUser = {
+              id: user.id,
+              username: user.username,
+              email: user.email,
+              isAdmin: user.is_admin
+            }
+          }
+        } catch (jwtError) {
+          // JWT invalid, will try API key next
+        }
+      }
+
+      // If JWT auth failed, try API key authentication
+      if (!authenticatedUser) {
+        let apiKey = null
+        if (authHeader && authHeader.startsWith('Bearer ') && !authenticatedUser) {
+          // The bearer token wasn't a valid JWT, might be an API key
+          apiKey = authHeader.substring(7)
+        } else if (apiKeyHeader) {
+          apiKey = apiKeyHeader
+        }
+
+        if (apiKey) {
+          const keyHash = hashApiKey(apiKey)
+          
+          const keyResult = await database.query(
+            `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
+             FROM api_keys ak
+             JOIN users u ON ak.created_by = u.id
+             WHERE ak.key_hash = $1 AND ak.is_active = true`,
+            [keyHash]
+          )
+
+          if (keyResult.rows.length > 0) {
+            const keyData = keyResult.rows[0]
+
+            // Update API key usage
+            await database.query(
+              'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
+              [keyData.id]
+            )
+
+            authenticatedUser = {
+              id: keyData.user_id,
+              username: keyData.username,
+              email: keyData.email,
+              isAdmin: keyData.is_admin
+            }
+          }
+        }
+      }
+
+      // If neither authentication method worked
+      if (!authenticatedUser) {
+        return res.status(401).json(createResponse(false, null, 'Authentication required', 401))
+      }
+
+      req.user = authenticatedUser
+
+      // Check admin requirement if specified
+      if (options?.adminRequired && !req.user.isAdmin) {
+        return res.status(403).json(createResponse(false, null, 'Admin access required', 403))
+      }
+
+      return handler(req, res)
+
+    } catch (error) {
+      console.error('Auth or API key middleware error:', error)
+      res.status(500).json(createResponse(false, null, 'Internal server error', 500))
+    }
   }
 }
 
@@ -148,6 +358,26 @@ export async function getUserProjectRole(userId: number, projectId: string): Pro
 
 export async function getUserProjects(userId: number): Promise<any[]> {
   try {
+    // Check if user is admin
+    const userResult = await database.query(
+      'SELECT is_admin FROM users WHERE id = $1',
+      [userId]
+    )
+    
+    const isAdmin = userResult.rows.length > 0 && userResult.rows[0].is_admin
+    
+    // Admin users get all projects with 'owner' role
+    if (isAdmin) {
+      const result = await database.query(`
+        SELECT p.id, p.name, p.description, 'owner' as role
+        FROM projects p
+        WHERE p.is_active = true
+        ORDER BY p.name
+      `)
+      return result.rows
+    }
+    
+    // Regular users get only their assigned projects
     const result = await database.query(`
       SELECT p.id, p.name, p.description, pm.role
       FROM projects p

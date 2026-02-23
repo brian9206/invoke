@@ -36,8 +36,8 @@ async function initializeDatabase() {
             console.log('✅ Database initialization complete\n');
             return true;
         } catch (error) {
-            console.error('❌ Database initialization failed:', error);
-            throw error;
+            console.error('❌ Database initialization failed:', error, '\n', 'Server will not start without a database connection and successful migrations.');
+            process.exit(1); // Exit the process if initialization fails
         }
     })();
 

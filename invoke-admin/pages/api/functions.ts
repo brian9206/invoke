@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 
@@ -64,9 +64,58 @@ async function handler(req: AuthenticatedRequest, res: any) {
     return res.status(200).json(createResponse(true, result.rows, 'Functions retrieved successfully'))
 
   } else if (req.method === 'POST') {
-    // This would be handled by the upload endpoint
-    return res.status(405).json(createResponse(false, null, 'Use /api/functions/upload for file uploads', 405))
+    // Create function metadata (code uploaded separately via versions endpoint)
+    const { name, description, project_id, requires_api_key } = req.body
+
+    if (!name || !project_id) {
+      return res.status(400).json(createResponse(false, null, 'Name and project_id are required', 400))
+    }
+
+    // Check project access for non-admins
+    if (!req.user?.isAdmin) {
+      const userProjects = await getUserProjects(req.user!.id)
+      const hasAccess = userProjects.some(p => p.id === project_id)
+      if (!hasAccess) {
+        return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+      }
+    }
+
+    // Check if function name already exists
+    const existingResult = await database.query(
+      'SELECT id FROM functions WHERE name = $1',
+      [name]
+    )
+
+    if (existingResult.rows.length > 0) {
+      return res.status(409).json(createResponse(false, null, `Function with name "${name}" already exists`, 409))
+    }
+
+    // Generate function ID and API key if needed
+    const { v4: uuidv4 } = require('uuid')
+    const { generateApiKey } = require('@/lib/utils')
+    
+    const functionId = uuidv4()
+    const apiKey = requires_api_key ? generateApiKey() : null
+
+    // Create function
+    const result = await database.query(`
+      INSERT INTO functions (
+        id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, name, description, requires_api_key, api_key, is_active, project_id, created_at
+    `, [
+      functionId,
+      name,
+      description || '',
+      req.user!.id,
+      requires_api_key || false,
+      apiKey,
+      false, // Not active until code is uploaded
+      project_id
+    ])
+
+    return res.status(201).json(createResponse(true, result.rows[0], 'Function created successfully', 201))
   }
 }
 
-export default withAuthAndMethods(['GET', 'POST'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET', 'POST'])(handler)

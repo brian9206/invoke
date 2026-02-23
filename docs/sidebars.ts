@@ -26,6 +26,23 @@ const sidebars: SidebarsConfig = {
     },
   ],
   
+  cliSidebar: [
+    {
+      type: 'category',
+      label: 'CLI Reference',
+      items: [
+        'cli/installation',
+        'cli/configuration',
+        'cli/functions',
+        'cli/versions',
+        'cli/environment',
+        'cli/execution',
+        'cli/logs',
+        'cli/reference',
+      ],
+    },
+  ],
+  
   apiSidebar: [
     {
       type: 'category',

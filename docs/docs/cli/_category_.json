@@ -1,0 +1,8 @@
+{
+  "label": "CLI Reference",
+  "position": 3,
+  "link": {
+    "type": "generated-index",
+    "description": "Complete guide to the Invoke CLI for managing functions from the command line."
+  }
+}

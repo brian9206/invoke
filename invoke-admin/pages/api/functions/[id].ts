@@ -1,4 +1,4 @@
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
@@ -31,6 +31,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         f.description,
         f.is_active,
         f.created_at,
+        f.updated_at,
         f.last_executed,
         f.execution_count,
         f.requires_api_key,
@@ -38,7 +39,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         f.active_version_id,
         f.project_id,
         p.name as project_name,
-        fv.version,
+        fv.version as active_version,
         fv.file_size,
         fv.package_path,
         fv.package_hash,
@@ -197,4 +198,4 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 }
 
-export default withAuthAndMethods(['GET', 'PATCH', 'DELETE'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET', 'PATCH', 'DELETE'])(handler)

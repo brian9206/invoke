@@ -1,0 +1,16 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="32" height="32" rx="6" fill="#0f172a"/>
+  
+  <!-- Rocket icon (scaled lucide-react style) -->
+  <g transform="translate(9, 7) scale(1.1)">
+    <path d="M3 14c-1 .84-1.33 3.33-1.33 3.33s2.49-.33 3.33-1.33c.47-.56.47-1.42-.06-1.94A1.45 1.45 0 0 0 3 14z" 
+          fill="#38bdf8" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m8 10-2-2a14.67 14.67 0 0 1 1.33-2.63A8.59 8.59 0 0 1 14.67 1.33c0 1.82-.52 5-4 7.34A14.9 14.9 0 0 1 8 10z" 
+          fill="#0ea5e9" stroke="#0ea5e9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 8H2.67s.36-2.02 1.33-2.67C5.08 4.6 6.67 5.33 6.67 5.33" 
+          fill="#38bdf8" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 10v3.33s2.02-.36 2.67-1.33c.72-1.08 0-3.33 0-3.33" 
+          fill="#38bdf8" stroke="#38bdf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
