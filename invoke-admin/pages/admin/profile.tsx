@@ -507,7 +507,7 @@ export default function ProfileSettings() {
           {/* Create API Key Modal */}
           <Modal
             isOpen={showCreateKeyModal}
-            onClose={() => {
+            onCancel={() => {
               setShowCreateKeyModal(false)
               setNewKeyName('')
             }}
@@ -568,7 +568,7 @@ export default function ProfileSettings() {
           {/* Show Created API Key Modal */}
           <Modal
             isOpen={showKeyModal}
-            onClose={() => {
+            onCancel={() => {
               setShowKeyModal(false)
               setCreatedKey('')
             }}

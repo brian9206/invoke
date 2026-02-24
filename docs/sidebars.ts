@@ -37,6 +37,7 @@ const sidebars: SidebarsConfig = {
         'cli/versions',
         'cli/environment',
         'cli/execution',
+        'cli/local-run',
         'cli/logs',
         'cli/reference',
       ],

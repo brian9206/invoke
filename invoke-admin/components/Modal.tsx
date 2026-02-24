@@ -6,8 +6,8 @@ export interface ModalProps {
   title: string;
   description?: string | ReactNode;
   children?: ReactNode;
-  onCancel: () => void;
-  onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
+  onConfirm?: () => void | Promise<void>;
   cancelText?: string;
   confirmText?: string;
   confirmVariant?: 'default' | 'danger';
@@ -31,6 +31,7 @@ export default function Modal({
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {
+    if (!onConfirm) return;
     setIsLoading(true);
     try {
       await onConfirm();
@@ -49,26 +50,32 @@ export default function Modal({
           <p className="text-gray-400 text-sm mb-4">{description}</p>
         )}
         {children}
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {cancelText}
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={loading || isLoading || confirmDisabled}
-            className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-              confirmVariant === 'danger'
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {confirmText}
-          </button>
-        </div>
+        {(onCancel || onConfirm) && (
+          <div className="flex gap-3 mt-6">
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                disabled={loading}
+                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {cancelText}
+              </button>
+            )}
+            {onConfirm && (
+              <button
+                onClick={handleConfirm}
+                disabled={loading || isLoading || confirmDisabled}
+                className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  confirmVariant === 'danger'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {confirmText}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
