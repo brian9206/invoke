@@ -1,0 +1,50 @@
+name: Publish invoke-cli to npm
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'invoke-cli/package.json'
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Install from repo root to set up workspace symlinks so that
+      # the invoke-cli build script can resolve invoke-execution
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check if version already published
+        id: version_check
+        run: |
+          VERSION=$(node -p "require('./invoke-cli/package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if npm view invoke-cli@$VERSION version 2>/dev/null; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is already published, skipping."
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is not yet published, proceeding."
+          fi
+
+      - name: Publish to npm
+        if: steps.version_check.outputs.already_published == 'false'
+        run: npm publish
+        working-directory: invoke-cli
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

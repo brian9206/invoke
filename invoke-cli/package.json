@@ -2,14 +2,15 @@
   "name": "invoke-cli",
   "version": "1.0.0",
   "description": "CLI tool for managing Invoke functions, admin accounts, and API keys",
-  "main": "index.js",
+  "main": "dist/cli.js",
   "bin": {
     "invoke": "./dist/cli.js"
   },
   "scripts": {
     "start": "node index.js",
     "build": "node build.js",
-    "prepublishOnly": "npm run build"
+    "prepack": "npm pkg delete devDependencies.invoke-execution && npm run build",
+    "postpack": "npm pkg set devDependencies.invoke-execution=\"*\""
   },
   "files": [
     "dist/"
@@ -27,8 +28,8 @@
     "inquirer": "^12.11.1",
     "isolated-vm": "^6.0.2",
     "keyv": "^5.1.0",
-    "sandbox-fs": "^1.1.0",
     "pg": "^8.11.3",
+    "sandbox-fs": "^1.1.0",
     "table": "^6.8.1",
     "zxcvbn": "^4.4.2"
   },
@@ -45,5 +46,16 @@
     "functions"
   ],
   "author": "Brian Choi",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/brian9206/invoke"
+  },
+  "homepage": "https://brian9206.github.io/invoke/docs/cli/installation",
+  "bugs": {
+    "url": "https://github.com/brian9206/invoke/issues"
+  },
+  "engines": {
+    "node": ">=24"
+  }
 }

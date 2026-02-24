@@ -1,20 +1,8 @@
-# Invoke CLI
+# invoke-cli
 
-Command-line interface for managing Invoke serverless functions.
+Command-line interface for managing [Invoke](https://github.com/brian9206/invoke) serverless functions, admin accounts, and API keys.
 
-## Installation
-
-```bash
-cd invoke-cli
-npm install
-
-# Optional: Install globally
-npm install -g .
-```
-
-After global installation, use `invoke` instead of `node index.js`.
-
-
+For full documentation, see [https://brian9206.github.io/invoke/docs/cli/installation](https://brian9206.github.io/invoke/docs/cli/installation).
 
 ## License
 

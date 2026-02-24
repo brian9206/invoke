@@ -18,7 +18,7 @@ COPY ./database ./database
 
 # Copy invoke-cli into /cli directory and install dependencies
 COPY ./invoke-cli /cli
-RUN cd /cli && npm install --omit=dev && npm link
+RUN cd /cli && npm install --omit=dev && npm run build && npm link
 
 # Build Next.js application
 RUN npm run build

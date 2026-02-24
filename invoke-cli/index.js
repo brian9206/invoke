@@ -1723,6 +1723,15 @@ program
         const statusColor = result.statusCode >= 400 ? chalk.red : chalk.green;
         console.log('\n' + chalk.cyan('=== Response ==='));
         console.log(`Status: ${statusColor(result.statusCode)}`);
+        
+        if (result.headers) {
+          console.log('\n' + chalk.gray('Response Headers:'));
+          for (const [key, value] of Object.entries(result.headers)) {
+            console.log(`${key}: ${value}`);
+          }
+        }
+        
+        console.log('\n' + chalk.gray('Response Body:'));
         if (result.data !== undefined) {
           const body = Buffer.isBuffer(result.data) ? result.data.toString('utf8') : String(result.data);
           try { console.log(JSON.stringify(JSON.parse(body), null, 2)); }
