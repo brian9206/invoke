@@ -1,23 +1,29 @@
-# Invoke - Serverless Function Management Platform
+﻿# Invoke - Serverless Function Management Platform
 
 Invoke is a modern microservices-based serverless function management platform that allows you to deploy, manage, and execute serverless functions with advanced versioning, authentication, logging, and monitoring capabilities.
 
 ## Architecture
 
-The platform consists of 2 microservices with containerized deployment:
+The platform consists of several microservices with containerized deployment:
 
 ### 🚀 invoke-admin (Next.js)
-- **Port**: 3000
+- **Port**: 3000 (configurable via `ADMIN_PORT`)
 - **Purpose**: Admin panel with React frontend + API routes
 - **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, MinIO integration
-- **Technology**: Next.js 14.2.35, React, TypeScript, TailwindCSS, PostgreSQL, MinIO client
+- **Technology**: Next.js 16.x, React 19.x, TypeScript, TailwindCSS, PostgreSQL, MinIO client
 
 ### ⚡ invoke-execution (Express.js)
-- **Port**: 3001
+- **Port**: 3001 (configurable via `EXECUTION_PORT`)
 - **Purpose**: Function execution service with caching and package management
-- **Features**: Secure function execution, VM2 sandboxing, API key auth, distributed caching, async function support, MinIO integration
-- **Technology**: Express.js, VM2 sandboxing, PostgreSQL, MinIO client
+- **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
+- **Technology**: Express.js v5, isolated-vm sandboxing, PostgreSQL, MinIO client
 - **Scalable**: Yes (horizontal scaling supported)
+
+### ⏰ invoke-scheduler
+- **Port**: 8080 (internal)
+- **Purpose**: Cron/scheduled function execution
+- **Features**: Runs scheduled functions against the execution service at configured intervals
+- **Technology**: Node.js
 
 ### 🗄️ MinIO Object Storage
 - **Port**: 9000 (API), 9001 (Console)
@@ -31,604 +37,159 @@ The platform consists of 2 microservices with containerized deployment:
 - **Features**: Function metadata, versioning system, user management, execution history
 - **Technology**: PostgreSQL 15
 
-### 💻 invoke-cli (Command-Line Tool)
-- **Purpose**: CLI for function management with API key authentication
-- **Features**: Non-interactive commands for CI/CD, auto-zip upload, smart download, version management, environment variables, logs, function execution
-- **Technology**: Node.js, Commander.js, Axios
-- **Documentation**: [CLI README](./invoke-cli/README.md) | [Quick Start](./invoke-cli/QUICKSTART.md)
-
-## CLI Usage
-
-The Invoke CLI provides a complete command-line interface for managing functions, perfect for CI/CD pipelines and automation.
-
-### Quick Setup
-
-```bash
-# 1. Install CLI
-cd invoke-cli
-npm install
-npm link  # Optional: install globally
-
-# 2. Generate API key in Admin Panel (Profile Settings)
-
-# 3. Configure CLI
-invoke config:set --api-key YOUR_API_KEY
-
-# 4. Verify
-invoke auth:whoami
-```
-
-### Common Commands
-
-```bash
-# List all functions
-invoke functions:list
-
-# Create new function from directory (auto-zips)
-invoke functions:create ./my-function --name my-func --project PROJECT_ID
-
-# Upload new version with auto-switch
-invoke functions:versions:upload FUNC_ID ./updated-code --switch
-
-# Set environment variables
-invoke functions:env:set FUNC_ID DATABASE_URL "postgresql://..."
-
-# Execute function
-invoke functions:invoke FUNC_ID --data '{"test": true}'
-
-# View logs
-invoke functions:logs FUNC_ID --status error --limit 20
-```
-
-### Key Features
-
-- **🚫 Non-Interactive**: All commands use flags instead of prompts - perfect for CI/CD
-- **📦 Auto-Zip**: Automatically zips directories before upload
-- **⬇️ Smart Download**: Save as `.zip` or auto-extract to directory
-- **🔄 Version Management**: Upload, switch, delete, and download versions
-- **🔐 Role-Based Access**: API keys inherit user permissions
-- **📊 JSON Output**: All commands support `--output json` for scripting
-
-See the [CLI Quick Start Guide](./invoke-cli/QUICKSTART.md) for detailed examples and CI/CD integration.
-
 ## Quick Start with Docker
 
 ### Prerequisites
 - Docker and Docker Compose
 - Git
 
-### 1. Clone and Setup
+### 1. Clone and Configure
+
 ```bash
-git clone <your-repo>
+git clone https://github.com/brian9206/invoke.git
 cd invoke
 
-# Start all services with Docker Compose
+# Copy and edit the environment file
+cp .env.example .env
+```
+
+Edit `.env` and set a strong `JWT_SECRET` before starting.
+
+### 2. Start All Services
+
+```bash
 docker-compose up -d
 ```
 
-### 2. Initialize Database
-```bash
-# Run database schema
-docker exec -i postgres_container psql -U postgres -d invoke_db < database/schema.sql
-```
+The database schema is automatically applied on first run. The first admin user is created automatically on first launch.
 
-### 3. Create Admin User
-```bash
-cd cli && npm install
-node index.js user:create
-```
+### 3. Access Services
 
-### 4. Access Services
 - **Admin Panel**: http://localhost:3000
-- **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
 - **Execution Service**: http://localhost:3001
+- **MinIO Console**: http://localhost:9001
 
 ## Development Setup
 
 ### Prerequisites
-- Node.js 18+
-- PostgreSQL 14+
+- Node.js 24+
+- PostgreSQL 15
 - MinIO server
 - Git
 
 ### 1. Install Dependencies
+
 ```bash
-# Install dependencies for all services
-cd shared && npm install && cd ..
 cd invoke-execution && npm install && cd ..
 cd invoke-admin && npm install && cd ..
-cd cli && npm install && cd ..
 ```
 
 ### 2. Start Infrastructure
+
 ```bash
 # Start only database and MinIO
 docker-compose up postgres minio -d
 ```
 
 ### 3. Configure Environment
+
 ```bash
-# Environment files are pre-configured for Docker setup
-# For local development, adjust database and MinIO URLs as needed
+# Copy and configure per-service environment files
+cp invoke-admin/.env.example invoke-admin/.env
+cp invoke-execution/.env.example invoke-execution/.env
+# Edit each .env to point to localhost instead of Docker service hostnames
 ```
 
 ### 4. Start Services in Development
+
 ```bash
 # Terminal 1: Execution Service
 cd invoke-execution && npm run dev
 
-# Terminal 2: Admin Service (Next.js)
+# Terminal 2: Admin Panel (Next.js)
 cd invoke-admin && npm run dev
 ```
 
 ## VSCode Debugging
 
-The project includes VSCode debug configurations:
+The project includes VSCode debug configurations in `.vscode/launch.json`:
 
 ### Available Debug Configurations
-- **Debug Invoke Admin (Next.js)**: Debug the admin service
-- **Debug Invoke Execution Service**: Debug the execution service
+- **Debug Invoke Admin (Next.js)**: Launch the admin panel in dev mode with debugger attached (Node.js debug port 9229)
+- **Debug Invoke Execution Service**: Launch the execution service with debugger attached
+- **Attach to Invoke Admin**: Attach to an already-running admin process on port 9229
+- **Attach to Invoke Execution**: Attach to an already-running execution process on port 9230
+- **Debug Both Services**: Launch both services together via `scripts/debug-all.js`
+- **Debug All Services** *(compound)*: Simultaneously launches Admin and Execution debug configurations
 
 ### Usage
 1. Open the project in VSCode
 2. Go to Run and Debug panel (Ctrl+Shift+D)
-3. Select desired configuration
+3. Select the desired configuration from the dropdown
 4. Press F5 to start debugging
 
 ## Environment Configuration
 
-### Docker Environment (Default)
-All services are pre-configured to work with Docker Compose setup.
+All services are configured via environment variables. A root `.env.example` is provided for Docker Compose, and each service also has its own `.env.example` for local development.
 
-### Local Development Environment
+### Docker Environment (Default — root `.env`)
 
-#### Database Settings (All Services)
+#### Database
 ```env
-DB_HOST=localhost
+DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=invoke_db
 DB_USER=postgres
-DB_PASSWORD=postgres
+DB_PASSWORD=invoke_password_123
 ```
 
-#### MinIO Settings
+#### MinIO
 ```env
-MINIO_ENDPOINT=localhost
+MINIO_ROOT_USER=invoke-minio
+MINIO_ROOT_PASSWORD=invoke-minio-password-123
+MINIO_ACCESS_KEY=invoke-minio
+MINIO_SECRET_KEY=invoke-minio-password-123
+MINIO_ENDPOINT=minio
 MINIO_PORT=9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=invoke-packages
-MINIO_USE_SSL=false
-```
-## Function Versioning System
-
-Invoke now supports advanced function versioning with rollback capabilities:
-
-### Key Features
-- **Integer-based versioning**: Functions use simple integer versions (1, 2, 3...)
-- **Active version management**: Switch active versions instantly
-- **Version history**: Complete history of all function versions
-- **Rollback capability**: Switch back to any previous version
-- **Version deletion**: Remove inactive versions while preserving active ones
-- **MinIO cleanup**: Automatic cleanup of package files when versions are deleted
-
-### Versioning Workflow
-1. **Upload function**: Creates version 1
-2. **Update function**: Creates version 2, 3, etc.
-3. **Switch versions**: Activate any version instantly
-4. **View history**: See all versions with creation dates and authors
-5. **Delete versions**: Remove inactive versions to save storage
-
-## Usage Examples
-
-### 1. Deploy a Function via Admin Panel
-
-1. Login to admin panel at http://localhost:3000
-2. Navigate to "Upload Function"
-3. Create a function supporting both sync and async patterns:
-
-**Synchronous Function (index.js)**
-```javascript
-module.exports = (req, res) => {
-  const { name = 'World' } = req.query;
-  
-  console.log('Processing request for:', name);
-  
-  res.json({
-    message: `Hello, ${name}!`,
-    timestamp: new Date().toISOString(),
-    method: req.method,
-    version: '1.0'
-  });
-};
 ```
 
-**Asynchronous Function (index.js)**
-```javascript
-const fetch = require('node-fetch'); // If available in sandbox
+> `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` are the MinIO server credentials. `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` are the client access credentials used by the application services.
 
-module.exports = async (req, res) => {
-  const { name = 'World' } = req.query;
-  
-  console.log('Processing async request for:', name);
-  
-  // Simulate async operation
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  res.json({
-    message: `Hello async, ${name}!`,
-    timestamp: new Date().toISOString(),
-    method: req.method,
-    processed_at: Date.now()
-  });
-};
+#### Application
+```env
+JWT_SECRET=your_jwt_secret_change_in_production
+ADMIN_PORT=3000
+EXECUTION_PORT=3001
+EXECUTION_SERVICE_URL=http://execution:3001
 ```
 
-4. Package as `.tgz` file and upload via admin panel
-5. Note the function ID and version returned
-
-### 2. Manage Function Versions
-
-#### Access Versioning Page
-1. Go to Functions list
-2. Click on any function card (entire card is clickable)
-3. Navigate to "Versioning" tab
-4. Upload new versions, switch active versions, or delete old versions
-
-#### Version Operations
-- **Upload new version**: Drag & drop new .tgz file
-- **Switch active version**: Click "Activate" on any version
-- **Delete inactive version**: Click delete button (active version protected)
-- **View execution logs**: Click function name in logs to navigate to function details
-
-### 3. Execute Functions
-
-#### Simple GET Request
-```bash
-curl "http://localhost:3001/invoke/YOUR_FUNCTION_ID?name=John"
+#### Cloudflare Turnstile (CAPTCHA)
+```env
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 ```
 
-#### With API Key Authentication
-```bash
-curl -H "X-API-Key: your_api_key" \
-     "http://localhost:3001/invoke/YOUR_FUNCTION_ID?name=John"
+> The default keys always pass (test mode). Replace with real keys from https://dash.cloudflare.com/ for production.
+
+#### Execution Service Tuning
+```env
+EXECUTION_TIMEOUT=30000
+RATE_LIMIT=100
+MAX_CACHE_SIZE_GB=10
+CACHE_TTL_DAYS=7
+CACHE_DIR=/app/cache
 ```
 
-#### POST Request with JSON Body
-```bash
-curl -X POST \
-     -H "Content-Type: application/json" \
-     -H "X-API-Key: your_api_key" \
-     -d '{"name":"John","age":30}' \
-     "http://localhost:3001/invoke/YOUR_FUNCTION_ID"
+#### Scheduler
+```env
+SCHEDULER_INTERVAL=60000
+TZ=Asia/Hong_Kong
 ```
 
-### 4. Monitor Function Activity
+### Local Development Environment
 
-#### Dashboard Features
-- **Recent Activity**: Click activity cards to navigate to function details
-- **Execution Stats**: View success rates, response times, error counts
-- **Function Status**: Monitor active/inactive functions
-- **Quick Actions**: Direct links to upload, manage, logs, and API keys
-
-#### Logs and Monitoring
-- **Execution Logs**: Detailed execution history with full request/response data
-- **Console Output**: Capture console.log, console.warn, console.error from functions
-- **Error Tracking**: Detailed error messages and stack traces
-- **Performance Metrics**: Response times, execution counts, success rates
-
-## API Documentation
-
-### Updated Endpoints
-
-#### Function Versioning API
-```http
-# Get function versions
-GET /api/functions/:functionId/versions
-Authorization: Bearer <jwt_token>
-
-# Upload new version
-POST /api/functions/:functionId/versions
-Authorization: Bearer <jwt_token>
-Content-Type: multipart/form-data
-
-# Switch active version
-POST /api/functions/:functionId/switch-version
-Authorization: Bearer <jwt_token>
-{
-  "versionId": "version_id"
-}
-
-# Delete inactive version
-DELETE /api/functions/:functionId/versions/:versionId
-Authorization: Bearer <jwt_token>
-```
-
-#### Execution Logs API
-```http
-# Get execution logs with pagination
-GET /api/functions/:functionId/execution-logs?page=1&limit=20&filter=all
-Authorization: Bearer <jwt_token>
-
-# Get detailed log entry
-GET /api/functions/:functionId/execution-logs/:logId
-Authorization: Bearer <jwt_token>
-```
-
-#### Dashboard API
-```http
-# Get dashboard stats
-GET /api/dashboard/stats
-Authorization: Bearer <jwt_token>
-
-# Get recent activity (includes functionId for navigation)
-GET /api/dashboard/recent-activity
-Authorization: Bearer <jwt_token>
-```
-
-## Security Features
-
-### Enhanced Security
-- **VM2 Sandboxing**: Isolated execution environment
-- **Async Function Support**: Secure execution of both sync and async functions
-- **MinIO Integration**: Secure object storage with access control
-- **JWT Authentication**: Token-based admin authentication
-- **API Key Management**: Per-function optional authentication
-- **Input Sanitization**: XSS and injection protection
-- **Rate Limiting**: Configurable rate limits per function
-- **Execution Timeout**: Prevents runaway functions
-- **Memory Constraints**: Configurable memory limits
-
-### File Storage Security
-- **MinIO Access Control**: Bucket-level access restrictions
-- **Package Integrity**: SHA-256 hash verification
-- **Secure Upload**: Validation of package format and structure
-- **Automatic Cleanup**: Orphaned file cleanup on deletion
-
-## Monitoring & Logging
-
-### Database Schema (Updated)
-- **functions**: Function metadata with active_version_id reference
-- **function_versions**: Version history with package paths and metadata
-- **execution_logs**: Detailed execution history with console output
-- **users**: Admin user accounts with role management
-- **api_keys**: Authentication keys with usage tracking
-
-### Health and Monitoring
-- **Service Health**: Individual health endpoints for all services
-- **Database Monitoring**: Connection status and query performance
-- **MinIO Integration**: Storage health and usage metrics
-- **Cache Statistics**: Execution cache hit rates and performance
-- **Function Metrics**: Per-function execution statistics
-
-### Comprehensive Logging
-- **Execution Traces**: Complete request/response logging
-- **Console Capture**: Function console output (log, warn, error)
-- **Error Details**: Stack traces and error context
-- **Performance Data**: Execution times and resource usage
-- **User Activity**: Admin panel usage and function management actions
-
-## Scaling & Production Deployment
-
-### Container Orchestration
-```yaml
-# docker-compose.yml (Production)
-version: '3.8'
-services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: invoke_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    deploy:
-      replicas: 1
-
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
-    volumes:
-      - minio_data:/data
-    deploy:
-      replicas: 1
-
-  invoke-execution:
-    build: ./invoke-execution
-    environment:
-      DB_HOST: postgres
-      MINIO_ENDPOINT: minio
-    deploy:
-      replicas: 3  # Horizontal scaling
-    depends_on:
-      - postgres
-      - minio
-
-  invoke-admin:
-    build: ./invoke-admin
-    environment:
-      DB_HOST: postgres
-      MINIO_ENDPOINT: minio
-    deploy:
-      replicas: 2  # Horizontal scaling
-    depends_on:
-      - postgres
-      - minio
-```
-
-### Production Considerations
-1. **Load Balancing**: Use nginx or cloud load balancers for both services
-2. **Database**: PostgreSQL cluster with read replicas
-3. **Object Storage**: MinIO cluster or cloud storage (S3, Azure Blob)
-4. **Caching**: Redis for distributed caching (future enhancement)
-5. **Monitoring**: Prometheus, Grafana, ELK stack
-6. **Security**: HTTPS, VPN, firewall rules, secret management
-7. **Backup**: Database and object storage backup strategies
-8. **Scalability**: Both invoke-admin and invoke-execution support horizontal scaling
-
-## Function Development Guidelines
-
-### Supported Function Patterns
-```javascript
-// Pattern 1: Synchronous function
-module.exports = (req, res) => {
-  console.log('Sync function called');
-  res.json({ message: 'Hello World', sync: true });
-};
-
-// Pattern 2: Asynchronous function
-module.exports = async (req, res) => {
-  console.log('Async function called');
-  await new Promise(resolve => setTimeout(resolve, 100));
-  res.json({ message: 'Hello Async World', async: true });
-};
-
-// Pattern 3: Promise-returning function
-module.exports = (req, res) => {
-  return new Promise(async (resolve) => {
-    await someAsyncOperation();
-    res.json({ message: 'Promise-based response' });
-    resolve();
-  });
-};
-
-// Pattern 4: Mixed sync/async operations
-module.exports = async (req, res) => {
-  console.log('Processing request...'); // Sync operation
-  
-  const data = await fetchExternalData(); // Async operation
-  const processed = processData(data); // Sync operation
-  
-  res.json({ 
-    result: processed,
-    timestamp: new Date().toISOString()
-  });
-};
-```
-
-### Request/Response Objects
-```javascript
-// Request object structure
-{
-  method: 'GET|POST|PUT|DELETE',
-  body: {}, // Parsed JSON body (POST requests)
-  query: {}, // URL query parameters
-  headers: {}, // Filtered HTTP headers
-  params: { functionId: 'uuid' },
-  url: '/invoke/functionId?param=value',
-  ip: '127.0.0.1' // Client IP address
-}
-
-// Response object methods
-{
-  status(code),              // Set HTTP status code
-  json(data),               // Send JSON response
-  send(data),               // Send raw response
-  setHeader(name, value),   // Set response header
-  redirect(url),            // Send redirect response
-  cookie(name, value, options) // Set cookie
-}
-```
-
-### Package Structure
-```
-function-package.tgz
-├── index.js          # Main entry point (required)
-├── package.json      # Package metadata (optional)
-├── lib/             # Additional modules (optional)
-│   └── utils.js
-└── config/          # Configuration files (optional)
-    └── settings.json
-```
-
-### Best Practices
-1. **Error Handling**: Always wrap async operations in try-catch
-2. **Timeouts**: Functions timeout after 30 seconds by default
-3. **Memory Usage**: Keep memory usage under 128MB per function
-4. **Logging**: Use console.log/warn/error for debugging
-5. **Dependencies**: Limited to approved modules for security
-6. **Response Format**: Always send proper JSON responses
-7. **Async Operations**: Properly await all async operations
-
-## Troubleshooting
-
-### Common Issues and Solutions
-
-#### Docker Compose Issues
-```bash
-# Check service status
-docker-compose ps
-
-# View service logs
-docker-compose logs invoke-admin
-docker-compose logs invoke-execution
-docker-compose logs postgres
-docker-compose logs minio
-
-# Restart specific service
-docker-compose restart invoke-admin
-
-# Rebuild and restart
-docker-compose up --build -d
-```
-
-#### Database Issues
-```bash
-# Access database directly
-docker exec -it postgres_container psql -U postgres -d invoke_db
-
-# Check function versions
-SELECT f.name, fv.version, fv.created_at 
-FROM functions f 
-JOIN function_versions fv ON f.active_version_id = fv.id;
-
-# Reset database
-docker-compose down
-docker volume rm invoke_postgres_data
-docker-compose up -d
-```
-
-#### MinIO Storage Issues
-```bash
-# Access MinIO console
-# Visit http://localhost:9001
-# Login: minioadmin/minioadmin
-
-# Check bucket contents
-# Navigate to 'invoke-packages' bucket
-
-# Reset MinIO data
-docker-compose down
-docker volume rm invoke_minio_data
-docker-compose up -d
-```
-
-#### Function Execution Issues
-- **Syntax Errors**: Check function code syntax and structure
-- **Async Issues**: Ensure proper async/await usage
-- **Module Not Found**: Use only approved modules in sandbox
-- **Timeout**: Functions must complete within 30 seconds
-- **Memory Errors**: Reduce memory usage or optimize code
-
-#### Admin Panel Issues
-- **Login Failed**: Check user exists and password is correct
-- **Version Switch Failed**: Ensure target version exists and is valid
-- **Upload Failed**: Verify .tgz format and index.js presence
-- **Navigation Issues**: Clear browser cache and cookies
-
-### Debug Mode
-```bash
-# Enable debug logging
-export DEBUG=invoke:*
-
-# Start services with debug
-cd invoke-execution && DEBUG=invoke:* npm run dev
-cd invoke-admin && DEBUG=invoke:* npm run dev
-```
+For local development, use `DB_HOST=localhost` and `MINIO_ENDPOINT=localhost` in each service's `.env` file.
 
 ## Contributing
 
@@ -652,7 +213,5 @@ MIT License - see LICENSE file for details.
 ## Support
 
 - **Issues**: GitHub Issues for bugs and feature requests
-- **Documentation**: See inline code documentation
-- **CLI Help**: `cd cli && node index.js --help`
+- **Documentation**: Visit [http://brian9206.github.io/invoke](http://brian9206.github.io/invoke)
 - **Admin Guide**: Access admin panel for visual management
-- **API Reference**: See API documentation section above
