@@ -1,22 +1,31 @@
-const fs = require('fs-extra');
 const path = require('path');
-const db = require('./database');
-const cache = require('./cache');
 const ExecutionContext = require('./execution-context');
 const { getInstance: getIsolatePool } = require('./isolate-pool');
-const { createProjectKV } = require('./kv-store');
 
 /**
  * ExecutionEngine - Singleton class managing function execution with isolated-vm
  * Orchestrates isolate pool, VFS, module loading, and execution
  */
 class ExecutionEngine {
-    constructor() {
+    /**
+     * @param {Object} [options]
+     * @param {function(string): import('keyv')} [options.kvStoreFactory]         - Override KV store creation. Receives projectId, returns Keyv instance.
+     * @param {function(string): Promise<Object>} [options.metadataProvider]     - Override function metadata fetch. Receives functionId.
+     * @param {function(string): Promise<Object>} [options.envVarsProvider]      - Override env vars fetch. Receives functionId.
+     * @param {function(string): Promise<Object>} [options.networkPoliciesProvider] - Override network policies fetch. Receives projectId.
+     */
+    constructor(options = {}) {
         this.isolatePool = null;
         this.initialized = false;
-        
+
         // Configuration
         this.functionTimeout = parseInt(process.env.FUNCTION_TIMEOUT_MS || '30000', 10);
+
+        // Injectable providers — defaults are null; must be provided by caller or execution-service.js
+        this.kvStoreFactory = options.kvStoreFactory || null;
+        this.metadataProvider = options.metadataProvider || null;
+        this.envVarsProvider = options.envVarsProvider || null;
+        this.networkPoliciesProvider = options.networkPoliciesProvider || null;
     }
     
     /**
@@ -26,8 +35,13 @@ class ExecutionEngine {
         if (this.initialized) {
             return;
         }
-        
-        console.log('[ExecutionEngine] Initializing...');
+
+        // Guard against missing providers
+        const missing = ['kvStoreFactory', 'metadataProvider', 'envVarsProvider', 'networkPoliciesProvider']
+            .filter(k => !this[k]);
+        if (missing.length) {
+            throw new Error(`[ExecutionEngine] Missing required providers: ${missing.join(', ')}. Pass them via the constructor options.`);
+        }
         
         // Get isolate pool instance
         this.isolatePool = getIsolatePool();
@@ -36,7 +50,6 @@ class ExecutionEngine {
         await this.isolatePool.initialize();
         
         this.initialized = true;
-        console.log('[ExecutionEngine] Initialization complete');
     }
     
     /**
@@ -59,18 +72,18 @@ class ExecutionEngine {
         
         try {
             // Fetch function metadata (includes package_hash)
-            const metadata = await fetchFunctionMetadata(functionId);
+            const metadata = await this.metadataProvider(functionId);
             const packageHash = metadata.package_hash;
             const projectId = metadata.project_id;
-            
+
             // Fetch environment variables
-            const envVars = await fetchEnvironmentVariables(functionId);
-            
+            const envVars = await this.envVarsProvider(functionId);
+
             // Fetch network security policies for the project
-            const networkPolicies = await fetchNetworkPolicies(projectId);
-            
+            const networkPolicies = await this.networkPoliciesProvider(projectId);
+
             // Create project-scoped KV store
-            const kvStore = createProjectKV(projectId, db.pool);
+            const kvStore = this.kvStoreFactory(projectId);
             
             // Acquire isolate from pool
             const acquired = await this.isolatePool.acquire();
@@ -232,164 +245,11 @@ class ExecutionEngine {
      * Shutdown the execution engine
      */
     async shutdown() {
-        console.log('[ExecutionEngine] Shutting down...');
-        
         if (this.isolatePool) {
             await this.isolatePool.shutdown();
         }
         
         this.initialized = false;
-        console.log('[ExecutionEngine] Shutdown complete');
-    }
-}
-
-// Create singleton instance
-const executionEngine = new ExecutionEngine();
-
-/**
- * Fetch function metadata from database
- * @param {string} functionId - Function ID
- * @returns {Object} Function metadata
- */
-async function fetchFunctionMetadata(functionId) {
-    const query = `
-        SELECT 
-            f.id, 
-            f.name, 
-            f.project_id,
-            f.is_active,
-            f.created_at, 
-            f.updated_at,
-            fv.version,
-            fv.package_path,
-            fv.package_hash,
-            fv.file_size
-        FROM functions f
-        LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-        WHERE f.id = $1 AND f.is_active = true
-    `;
-    
-    const result = await db.query(query, [functionId]);
-    
-    if (result.rows.length === 0) {
-        throw new Error('Function not found');
-    }
-    
-    return result.rows[0];
-}
-
-/**
- * Fetch environment variables for a function
- * @param {string} functionId - Function ID
- * @returns {Object} Environment variables as key-value pairs
- */
-async function fetchEnvironmentVariables(functionId) {
-    try {
-        const result = await db.query(`
-            SELECT variable_name, variable_value 
-            FROM function_environment_variables 
-            WHERE function_id = $1
-        `, [functionId]);
-        
-        const envVars = {};
-        for (const row of result.rows) {
-            envVars[row.variable_name] = row.variable_value;
-        }
-        
-        return envVars;
-    } catch (err) {
-        console.error('Error fetching environment variables:', err);
-        return {};
-    }
-}
-
-/**
- * Fetch network security policies (global and project-specific)
- * @param {string} projectId - Project UUID
- * @returns {Object} Object with globalRules and projectRules arrays
- */
-async function fetchNetworkPolicies(projectId) {
-    try {
-        // Fetch global network policies
-        const globalResult = await db.query(`
-            SELECT action, target_type, target_value, description, priority
-            FROM global_network_policies
-            ORDER BY priority ASC
-        `);
-        
-        // Fetch project-specific network policies
-        const projectResult = await db.query(`
-            SELECT action, target_type, target_value, description, priority
-            FROM project_network_policies
-            WHERE project_id = $1
-            ORDER BY priority ASC
-        `, [projectId]);
-        
-        return {
-            globalRules: globalResult.rows,
-            projectRules: projectResult.rows
-        };
-    } catch (err) {
-        console.error('Error fetching network policies:', err);
-        // Return empty arrays - will be handled by NetworkPolicy class (default deny)
-        return {
-            globalRules: [],
-            projectRules: []
-        };
-    }
-}
-
-/**
- * Get function package with caching
- * @param {string} functionId - Function ID
- * @returns {Object} Package information
- */
-async function getFunctionPackage(functionId) {
-    // Acquire lock to prevent concurrent cache operations
-    const releaseLock = await cache.acquireLock(functionId);
-    
-    try {
-        // Get function metadata from database first
-        const functionData = await fetchFunctionMetadata(functionId);
-        
-        // Check cache with hash verification
-        const cacheResult = await cache.checkCache(functionId, functionData.package_hash, functionData.version);
-        
-        if (cacheResult.cached && cacheResult.valid) {
-            await cache.updateAccessStats(functionId);
-            return {
-                tempDir: cacheResult.extractedPath,
-                indexPath: path.join(cacheResult.extractedPath, 'index.js'),
-                fromCache: true
-            };
-        }
-        
-        // If cache exists but is invalid, remove it before downloading
-        if (cacheResult.cached && !cacheResult.valid) {
-            console.log(`🧹 Removing invalid cache for ${functionId}`);
-            await cache.removeFromCache(functionId);
-        }
-        
-        console.log(`Downloading package for function ${functionId}`);
-        
-        // Download and cache package with package_path from function_versions table
-        // Note: cachePackageFromPath will NOT acquire its own lock since we already have it
-        const extractedPath = await cache.cachePackageFromPathNoLock(functionId, functionData.version, functionData.package_hash, functionData.file_size || 0, functionData.package_path);
-        
-        return {
-            tempDir: extractedPath,
-            indexPath: path.join(extractedPath, 'index.js'),
-            fromCache: false
-        };
-        
-    } catch (error) {
-        console.error('Error getting function package:', error.message);
-        if (error.message.includes('not found')) {
-            throw new Error('Function not found');
-        }
-        throw new Error(`Failed to get function: ${error.message}`);
-    } finally {
-        releaseLock();
     }
 }
 
@@ -452,15 +312,7 @@ function createExecutionContext(method = 'POST', body = {}, query = {}, headers 
     };
 }
 
-// Export main execution function and helpers
 module.exports = {
-    executeFunction: (...args) => executionEngine.executeFunction(...args),
+    ExecutionEngine,
     createExecutionContext,
-    fetchEnvironmentVariables,
-    fetchNetworkPolicies,
-    getFunctionPackage,
-    fetchFunctionMetadata,
-    getMetrics: () => executionEngine.getMetrics(),
-    shutdown: () => executionEngine.shutdown(),
-    initialize: () => executionEngine.initialize()
 };

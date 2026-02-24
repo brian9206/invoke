@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 9
 ---
 
 # Command Reference
@@ -494,6 +494,51 @@ invoke function:schedule:disable <id>
 
 **Arguments:**
 - `<id>` - Function ID or name
+
+---
+
+## Local Runner
+
+### `run`
+
+Run a function locally using the same isolated-vm sandbox as the execution service. No server or network connection is required.
+
+```bash
+invoke run [path]
+```
+
+**Arguments:**
+- `[path]` - Directory containing the function's `index.js` (default: `.`)
+
+**Options:**
+- `-m, --method <method>` - HTTP method (default: `GET`)
+- `-p, --path <urlpath>` - Request URL path (default: `/`)
+- `-d, --data <json>` - Request body as a JSON string
+- `-H, --header <key:value>` - Request header, repeatable
+- `-e, --env <file>` - `.env` file to load (default: `<path>/.env`)
+- `--kv-file <file>` - JSON file for persistent KV storage (default: in-memory)
+
+**Examples:**
+```bash
+# Run the function in the current directory
+invoke run
+
+# Run with a POST request and JSON body
+invoke run ./my-function --method POST --data '{"key": "value"}'
+
+# Run with a custom path and headers
+invoke run ./my-function \
+  --path /users/42 \
+  --header "Authorization: Bearer token123"
+
+# Persist KV state across runs
+invoke run ./my-function --kv-file ./local-kv.json
+
+# Use a custom env file
+invoke run ./my-function --env .env.staging
+```
+
+See [Local Function Runner](./local-run) for full documentation.
 
 ---
 

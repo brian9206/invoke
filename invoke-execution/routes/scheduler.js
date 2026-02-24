@@ -5,7 +5,7 @@ const cache = require('../services/cache')
 const path = require('path')
 const fs = require('fs-extra')
 const { CronJob } = require('cron')
-const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution')
+const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution-service')
 const { logExecution } = require('../services/utils')
 
 // Utility function to calculate next execution time based on cron expression

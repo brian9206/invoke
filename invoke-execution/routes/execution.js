@@ -4,7 +4,7 @@ const path = require('path');
 const { logExecution } = require('../services/utils');
 const db = require('../services/database');
 const cache = require('../services/cache');
-const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution');
+const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution-service');
 
 const router = express.Router();
 

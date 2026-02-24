@@ -1,0 +1,14 @@
+{
+  "name": "invoke",
+  "description": "Invoke Serverless Management Platform",
+  "author": "Brian Choi",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "invoke-cli",
+    "invoke-admin",
+    "invoke-execution",
+    "invoke-execution-bundler",
+    "invoke-scheduler"
+  ]
+}

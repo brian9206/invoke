@@ -13,6 +13,7 @@ class IsolatePool {
         this.maxPoolSize = parseInt(process.env.ISOLATE_MAX_POOL_SIZE || '20', 10);
         this.memoryLimit = parseInt(process.env.ISOLATE_MEMORY_LIMIT_MB || '128', 10);
         this.idleTimeout = parseInt(process.env.ISOLATE_IDLE_TIMEOUT_MS || '300000', 10); // 5 minutes
+        this.suppressLogging = process.env.ISOLATE_SUPPRESS_LOGGING === 'true';
         
         // Pool state
         this.isolates = []; // { isolate, compiledScript, status: 'idle'|'in-use', lastUsed: timestamp }
@@ -57,7 +58,7 @@ class IsolatePool {
      * Initialize the pool and start async warm-up
      */
     async initialize() {
-        console.log(`[IsolatePool] Initializing with base size: ${this.basePoolSize}, max size: ${this.maxPoolSize}`);
+        if (!this.suppressLogging) console.log(`[IsolatePool] Initializing with base size: ${this.basePoolSize}, max size: ${this.maxPoolSize}`);
         
         // Start warm-up and wait for it to complete
         await this._warmUp();
@@ -70,7 +71,7 @@ class IsolatePool {
      * Warm up the pool by pre-creating base pool size isolates
      */
     async _warmUp() {
-        console.log('[IsolatePool] Starting warm-up...');
+        if (!this.suppressLogging) console.log('[IsolatePool] Starting warm-up...');
         
         const promises = [];
         for (let i = 0; i < this.basePoolSize; i++) {
@@ -80,7 +81,7 @@ class IsolatePool {
         await Promise.all(promises);
         
         this.warmupComplete = true;
-        console.log(`[IsolatePool] Warm-up complete. ${this.isolates.length} isolates ready.`);
+        if (!this.suppressLogging) console.log(`[IsolatePool] Warm-up complete. ${this.isolates.length} isolates ready.`);
     }
     
     /**
@@ -250,7 +251,7 @@ class IsolatePool {
      * @param {number} timeoutMs - Maximum time to wait for active executions (default 30s)
      */
     async shutdown(timeoutMs = 30000) {
-        console.log('[IsolatePool] Starting graceful shutdown...');
+        if (!this.suppressLogging) console.log('[IsolatePool] Starting graceful shutdown...');
         this.isShuttingDown = true;
         
         // Clear cleanup interval
@@ -282,7 +283,7 @@ class IsolatePool {
             this._disposeIsolate(entry);
         }
         
-        console.log('[IsolatePool] Shutdown complete');
+        if (!this.suppressLogging) console.log('[IsolatePool] Shutdown complete');
     }
 }
 

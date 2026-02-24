@@ -4,11 +4,16 @@
   "description": "CLI tool for managing Invoke functions, admin accounts, and API keys",
   "main": "index.js",
   "bin": {
-    "invoke": "./index.js"
+    "invoke": "./dist/cli.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "node build.js",
+    "prepublishOnly": "npm run build"
   },
+  "files": [
+    "dist/"
+  ],
   "dependencies": {
     "adm-zip": "^0.5.10",
     "archiver": "^6.0.1",
@@ -20,9 +25,16 @@
     "dotenv": "^16.3.1",
     "form-data": "^4.0.0",
     "inquirer": "^12.11.1",
+    "isolated-vm": "^6.0.2",
+    "keyv": "^5.1.0",
+    "sandbox-fs": "^1.1.0",
     "pg": "^8.11.3",
     "table": "^6.8.1",
     "zxcvbn": "^4.4.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "invoke-execution": "*"
   },
   "keywords": [
     "invoke",

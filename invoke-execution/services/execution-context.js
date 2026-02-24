@@ -93,6 +93,11 @@ class ExecutionContext {
             if (process.env.REDIRECT_OUTPUT === 'true') {
                 console[data.level || 'log'](`[Function ${this.functionId}] ${data.message.map(arg => String(arg)).join(' ')}`);
             }
+            else if (process.env.REDIRECT_OUTPUT === 'no-func-id') {
+                const level = data.level || 'log';
+                const readableLevel = level === 'log' ? 'info' : level;
+                console[level](`[${readableLevel.toUpperCase().substring(0, 3)}] ${data.message.map(arg => String(arg)).join(' ')}`);
+            }
         }));
 
         await this.context.global.set('_consoleClear', new ivm.Reference(() => {

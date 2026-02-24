@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         // Import ExecutionEngine to get metrics
-        const { getMetrics } = require('../services/execution');
+        const { getMetrics } = require('../services/execution-service');
         
         const metrics = getMetrics();
         

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Website - Invoke Function</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Welcome to Your Static Website</h1>
+            <p class="subtitle">Powered by Invoke Serverless Functions</p>
+        </header>
+        
+        <main>
+            <section class="card">
+                <h2>What is this?</h2>
+                <p>This is a sample static website served as an Invoke function. It demonstrates how you can deploy and host static HTML, CSS, and JavaScript files using the Invoke platform.</p>
+            </section>
+            
+            <section class="card">
+                <h2>Features</h2>
+                <ul>
+                    <li>✅ Serves HTML, CSS, and JavaScript files</li>
+                    <li>✅ Proper content-type headers</li>
+                    <li>✅ Security with directory traversal prevention</li>
+                    <li>✅ 404 error handling</li>
+                    <li>✅ Cache control headers</li>
+                </ul>
+            </section>
+            
+            <section class="card">
+                <h2>Interactive Demo</h2>
+                <p>Click the button below to test JavaScript functionality:</p>
+                <button id="demoButton" class="btn">Click Me!</button>
+                <p id="output" class="output"></p>
+            </section>
+            
+            <section class="card">
+                <h2>Get Started</h2>
+                <p>To deploy your own static website:</p>
+                <ol>
+                    <li>Copy this sample function</li>
+                    <li>Add your HTML, CSS, and JS files to the <code>public/</code> directory</li>
+                    <li>Upload the function to Invoke</li>
+                    <li>Access your website via the function URL</li>
+                </ol>
+            </section>
+        </main>
+        
+        <footer>
+            <p>Made with ❤️ for the Invoke Platform</p>
+        </footer>
+    </div>
+    
+    <script src="./app.js"></script>
+</body>
+</html>
