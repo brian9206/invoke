@@ -1,41 +1,8 @@
 ﻿# Invoke - Serverless Function Management Platform
 
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://brianchoi.me/invoke/)
+
 Invoke is a modern microservices-based serverless function management platform that allows you to deploy, manage, and execute serverless functions with advanced versioning, authentication, logging, and monitoring capabilities.
-
-## Architecture
-
-The platform consists of several microservices with containerized deployment:
-
-### 🚀 invoke-admin (Next.js)
-- **Port**: 3000 (configurable via `ADMIN_PORT`)
-- **Purpose**: Admin panel with React frontend + API routes
-- **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, MinIO integration
-- **Technology**: Next.js 16.x, React 19.x, TypeScript, TailwindCSS, PostgreSQL, MinIO client
-
-### ⚡ invoke-execution (Express.js)
-- **Port**: 3001 (configurable via `EXECUTION_PORT`)
-- **Purpose**: Function execution service with caching and package management
-- **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
-- **Technology**: Express.js v5, isolated-vm sandboxing, PostgreSQL, MinIO client
-- **Scalable**: Yes (horizontal scaling supported)
-
-### ⏰ invoke-scheduler
-- **Port**: 8080 (internal)
-- **Purpose**: Cron/scheduled function execution
-- **Features**: Runs scheduled functions against the execution service at configured intervals
-- **Technology**: Node.js
-
-### 🗄️ MinIO Object Storage
-- **Port**: 9000 (API), 9001 (Console)
-- **Purpose**: Function package storage
-- **Features**: S3-compatible storage, versioned packages, web console
-- **Technology**: MinIO server
-
-### 🐘 PostgreSQL Database
-- **Port**: 5432
-- **Purpose**: Metadata and execution logs
-- **Features**: Function metadata, versioning system, user management, execution history
-- **Technology**: PostgreSQL 15
 
 ## Quick Start with Docker
 
@@ -205,6 +172,41 @@ For local development, use `DB_HOST=localhost` and `MINIO_ENDPOINT=localhost` in
 3. Add tests for new features
 4. Update documentation
 5. Ensure backward compatibility
+
+## Architecture
+
+The platform consists of several microservices with containerized deployment:
+
+### 🚀 invoke-admin (Next.js)
+- **Port**: 3000 (configurable via `ADMIN_PORT`)
+- **Purpose**: Admin panel with React frontend + API routes
+- **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, MinIO integration
+- **Technology**: Next.js 16.x, React 19.x, TypeScript, TailwindCSS, PostgreSQL, MinIO client
+
+### ⚡ invoke-execution (Express.js)
+- **Port**: 3001 (configurable via `EXECUTION_PORT`)
+- **Purpose**: Function execution service with caching and package management
+- **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
+- **Technology**: Express.js v5, isolated-vm sandboxing, PostgreSQL, MinIO client
+- **Scalable**: Yes (horizontal scaling supported)
+
+### ⏰ invoke-scheduler
+- **Port**: 8080 (internal)
+- **Purpose**: Cron/scheduled function execution
+- **Features**: Runs scheduled functions against the execution service at configured intervals
+- **Technology**: Node.js
+
+### 🗄️ MinIO Object Storage
+- **Port**: 9000 (API), 9001 (Console)
+- **Purpose**: Function package storage
+- **Features**: S3-compatible storage, versioned packages, web console
+- **Technology**: MinIO server
+
+### 🐘 PostgreSQL Database
+- **Port**: 5432
+- **Purpose**: Metadata and execution logs
+- **Features**: Function metadata, versioning system, user management, execution history
+- **Technology**: PostgreSQL 15
 
 ## License
 
