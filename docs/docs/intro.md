@@ -70,7 +70,7 @@ Use the Invoke CLI for powerful command-line management:
 
 ```bash
 # Create and deploy a function
-invoke functions:create --name my-api ./my-function
+invoke function:create --name my-api ./my-function
 
 # Invoke a function
 invoke function:invoke my-api --method POST --data '{"hello": "world"}'

@@ -114,12 +114,12 @@ invoke function:get <id> [options]
 
 ---
 
-### `functions:create`
+### `function:create`
 
 Create a new function with code.
 
 ```bash
-invoke functions:create [options] <path>
+invoke function:create [options] <path>
 ```
 
 **Arguments:**
