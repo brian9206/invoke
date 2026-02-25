@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 const archiver = require('archiver');
 const AdmZip = require('adm-zip');
+const ignore = require('ignore');
 
 /**
  * Prepare a file or directory for upload
@@ -59,12 +60,49 @@ function createZipFromDirectory(sourceDir, outputPath) {
     });
 
     archive.pipe(output);
-    
-    // Add all files from the directory
-    archive.directory(sourceDir, false);
+
+    // Check for .invokeignore and filter files accordingly
+    const ignorePath = path.join(sourceDir, '.invokeignore');
+    if (fs.existsSync(ignorePath)) {
+      const patterns = fs.readFileSync(ignorePath, 'utf8')
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l && !l.startsWith('#'));
+      const ig = ignore().add(patterns);
+      const allFiles = walkDir(sourceDir, sourceDir);
+      const kept = ig.filter(allFiles);
+      for (const relFile of kept) {
+        if (relFile === '.invokeignore') continue;
+        archive.file(path.join(sourceDir, relFile), { name: relFile });
+      }
+    } else {
+      // No ignore file — include everything
+      archive.directory(sourceDir, false);
+    }
     
     archive.finalize();
   });
+}
+
+/**
+ * Recursively collect relative file paths under a directory
+ * @param {string} dir - Current directory being walked
+ * @param {string} baseDir - Root directory (for computing relative paths)
+ * @returns {string[]}
+ */
+function walkDir(dir, baseDir) {
+  const results = [];
+  for (const entry of fs.readdirSync(dir)) {
+    const fullPath = path.join(dir, entry);
+    const relPath = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+    const stat = fs.statSync(fullPath);
+    if (stat.isDirectory()) {
+      results.push(...walkDir(fullPath, baseDir));
+    } else {
+      results.push(relPath);
+    }
+  }
+  return results;
 }
 
 /**

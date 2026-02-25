@@ -25,6 +25,7 @@
     "commander": "^11.1.0",
     "dotenv": "^16.3.1",
     "form-data": "^4.0.0",
+    "ignore": "^5.3.2",
     "inquirer": "^12.11.1",
     "isolated-vm": "^6.0.2",
     "keyv": "^5.1.0",

@@ -52,6 +52,44 @@ async function resolveFunctionId(nameOrId) {
 }
 
 /**
+ * Find a function by name within a specific project.
+ * @param {string} name - Function name
+ * @param {string} projectId - Project ID
+ * @returns {Promise<object|null>} - Function object or null if not found
+ */
+async function findFunctionByNameAndProject(name, projectId) {
+  try {
+    const data = await api.get('/api/functions', { project_id: projectId })
+    if (!data.success) return null
+    const functions = data.data
+    return functions.find(fn => fn.name === name && fn.project_id === projectId) || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a project name or ID to a UUID.
+ * @param {string} nameOrId - Project name or UUID
+ * @returns {Promise<string>} - Resolved UUID
+ */
+async function resolveProjectId(nameOrId) {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (uuidPattern.test(nameOrId)) return nameOrId
+
+  try {
+    const data = await api.get('/api/auth/me')
+    if (!data.success) throw new Error('Failed to fetch projects: ' + data.message)
+    const projects = data.data.projects || []
+    const match = projects.find(p => p.name === nameOrId)
+    if (!match) throw new Error(`Project not found with name: "${nameOrId}"`)
+    return match.id
+  } catch (error) {
+    throw new Error(`Failed to resolve project: ${error.message}`)
+  }
+}
+
+/**
  * Invoke CLI - Command Line Interface for Invoke Administration
  * 
  * Features:
@@ -246,13 +284,13 @@ program
 program
   .command('function:list')
   .description('List functions')
-  .option('--project <id>', 'Filter by project ID')
+  .option('--project <id>', 'Filter by project ID or name')
   .option('--output <format>', 'Output format (table|json)', 'table')
   .action(async (options) => {
     try {
       const params = {}
       if (options.project) {
-        params.project_id = options.project
+        params.project_id = await resolveProjectId(options.project)
       }
       
       const data = await api.get('/api/functions', { params })
@@ -342,12 +380,14 @@ program
   .description('Create a new function')
   .argument('<path>', 'Path to function directory or zip file')
   .requiredOption('--name <name>', 'Function name')
-  .requiredOption('--project <id>', 'Project ID')
+  .requiredOption('--project <id>', 'Project ID or name')
   .option('--description <text>', 'Function description')
   .option('--requires-api-key', 'Require API key for invocation', false)
   .option('--output <format>', 'Output format (table|json)', 'table')
   .action(async (functionPath, options) => {
     try {
+      options.project = await resolveProjectId(options.project)
+
       // Step 1: Create function metadata
       if (options.output !== 'json') {
         console.log(chalk.cyan('Creating function...'))
@@ -907,6 +947,121 @@ program
       }
     } catch (error) {
       console.log(chalk.red('❌ Failed to upload version:'), error.message)
+      process.exit(1)
+    }
+  })
+
+program
+  .command('function:deploy')
+  .description('Create a function if it does not exist, then upload and activate a new version (smart upsert)')
+  .argument('[path]', 'Path to function directory or zip file')
+  .requiredOption('--name <name>', 'Function name')
+  .requiredOption('--project <id>', 'Project ID or name')
+  .option('--description <text>', 'Function description (used on creation only)')
+  .option('--requires-api-key', 'Require API key for invocation (used on creation only)', false)
+  .option('--output <format>', 'Output format (table|json)', 'table')
+  .action(async (functionPath, options) => {
+    functionPath = functionPath || '.';
+
+    try {
+      options.project = await resolveProjectId(options.project)
+
+      // Step 1: Check if the function already exists
+      let functionId
+      let created = false
+
+      const existing = await findFunctionByNameAndProject(options.name, options.project)
+
+      if (existing) {
+        functionId = existing.id
+        if (options.output !== 'json') {
+          console.log(chalk.cyan(`Found existing function "${options.name}" (${functionId}). Deploying new version...`))
+        }
+      } else {
+        // Step 1b: Create the function
+        if (options.output !== 'json') {
+          console.log(chalk.cyan(`Function "${options.name}" not found. Creating...`))
+        }
+
+        const createData = await api.post('/api/functions', {
+          name: options.name,
+          project_id: options.project,
+          description: options.description || '',
+          requires_api_key: options.requiresApiKey
+        })
+
+        if (!createData.success) {
+          console.log(chalk.red('\u274c Failed to create function: ' + createData.message))
+          process.exit(1)
+        }
+
+        functionId = createData.data.id
+        created = true
+
+        if (options.output !== 'json') {
+          console.log(chalk.green(`\u2705 Function created with ID: ${functionId}`))
+        }
+      }
+
+      // Step 2: Upload code
+      if (options.output !== 'json') {
+        console.log(chalk.cyan('Uploading code...'))
+      }
+
+      const { filePath, cleanup } = await fileUtils.prepareUpload(functionPath)
+
+      try {
+        const form = new FormData()
+        form.append('file', fs.createReadStream(filePath))
+
+        const uploadData = await api.post(`/api/functions/${functionId}/versions`, form, {
+          headers: form.getHeaders()
+        })
+
+        if (!uploadData.success) {
+          console.log(chalk.red('\u274c Upload failed: ' + uploadData.message))
+          process.exit(1)
+        }
+
+        const versionNumber = uploadData.data.version
+
+        if (options.output !== 'json') {
+          console.log(chalk.green(`\u2705 Code uploaded as version ${versionNumber}`))
+          console.log(chalk.cyan('Activating...'))
+        }
+
+        // Step 3: Activate the new version
+        const switchData = await api.post(`/api/functions/${functionId}/switch-version`, {
+          version_number: versionNumber
+        })
+
+        if (!switchData.success && options.output !== 'json') {
+          console.log(chalk.yellow(`\u26a0\ufe0f  Deployed but activation failed: ${switchData.message}`))
+        }
+
+        if (options.output === 'json') {
+          console.log(JSON.stringify({
+            id: functionId,
+            name: options.name,
+            version: versionNumber,
+            created,
+            is_active: switchData.success
+          }, null, 2))
+        } else {
+          const action = created ? 'created and deployed' : 'deployed to'
+          console.log(chalk.green(`\u2705 Function ${action} version ${versionNumber}`))
+          console.log(chalk.cyan(`\n\u26a1 Deploy complete!\n`))
+          console.log(`ID:      ${functionId}`)
+          console.log(`Name:    ${options.name}`)
+          console.log(`Version: ${versionNumber}`)
+          console.log(`Action:  ${created ? 'Created + deployed' : 'Updated (new version deployed)'}`)
+          console.log(`Status:  ${switchData.success ? 'Active' : 'Inactive'}`)
+        }
+      } finally {
+        if (cleanup) cleanup()
+      }
+    } catch (error) {
+      console.log(chalk.red('\u274c Deploy failed:'), error.message)
       process.exit(1)
     }
   })
