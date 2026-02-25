@@ -89,31 +89,31 @@ module.exports = function(req, res) {
 
 ### List Items
 ```bash
-curl http://localhost:3001/execute/{projectId}/api
+curl http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 ### Get Single Item
 ```bash
-curl http://localhost:3001/execute/{projectId}/api/1
+curl http://<your invoke-execution URL>/invoke/{functionId}/1
 ```
 
 ### Create Item
 ```bash
-curl -X POST http://localhost:3001/execute/{projectId}/api \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{"name":"New Item","description":"A new item"}'
 ```
 
 ### Update Item
 ```bash
-curl -X PUT http://localhost:3001/execute/{projectId}/api/1 \
+curl -X PUT http://<your invoke-execution URL>/invoke/{functionId}/1 \
   -H "Content-Type: application/json" \
   -d '{"name":"Updated Item"}'
 ```
 
 ### Delete Item
 ```bash
-curl -X DELETE http://localhost:3001/execute/{projectId}/api/1
+curl -X DELETE http://<your invoke-execution URL>/invoke/{functionId}/1
 ```
 
 ## with KV Store Persistence

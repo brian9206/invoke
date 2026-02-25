@@ -76,7 +76,7 @@ module.exports = async function(req, res) {
 
 **Hash a password:**
 ```bash
-curl -X POST http://localhost:3001/execute/{projectId}/hash \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{"action":"hash","password":"mySecurePass123"}'
 ```
@@ -92,7 +92,7 @@ curl -X POST http://localhost:3001/execute/{projectId}/hash \
 
 **Verify a password:**
 ```bash
-curl -X POST http://localhost:3001/execute/{projectId}/hash \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{
     "action":"verify",
@@ -151,14 +151,14 @@ module.exports = async function(req, res) {
 
 **Hash data:**
 ```bash
-curl -X POST http://localhost:3001/execute/{projectId}/integrity \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{"action":"hash","data":"Important file contents","algorithm":"sha256"}'
 ```
 
 **Verify integrity:**
 ```bash
-curl -X POST http://localhost:3001/execute/{projectId}/integrity \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{
     "action":"verify",
@@ -254,7 +254,7 @@ function makeAuthenticatedRequest(userId, secret, path, method, body) {
         .update(message)
         .digest('hex');
     
-    return fetch(`http://localhost:3001/execute/{projectId}${path}`, {
+    return fetch(`http://<your invoke-execution URL>/invoke/{functionId}${path}`, {
         method,
         headers: {
             'Content-Type': 'application/json',

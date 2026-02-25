@@ -473,20 +473,20 @@ module.exports = async function(req, res) {
 
 ```bash
 # GET request
-curl http://localhost:3001/execute/{projectId}/function
+curl http://<your invoke-execution URL>/invoke/{functionId}
 
 # POST with JSON
-curl -X POST http://localhost:3001/execute/{projectId}/function \
+curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Content-Type: application/json" \
   -d '{"key":"value"}'
 
 # With headers
-curl http://localhost:3001/execute/{projectId}/function \
+curl http://<your invoke-execution URL>/invoke/{functionId} \
   -H "Authorization: Bearer token" \
   -H "Custom-Header: value"
 
 # With query params
-curl "http://localhost:3001/execute/{projectId}/function?param1=value1&param2=value2"
+curl "http://<your invoke-execution URL>/invoke/{functionId}?param1=value1&param2=value2"
 ```
 
 ### Test Different Scenarios

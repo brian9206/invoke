@@ -1,6 +1,6 @@
 {
   "name": "invoke-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool for managing Invoke functions, admin accounts, and API keys",
   "main": "dist/cli.js",
   "bin": {

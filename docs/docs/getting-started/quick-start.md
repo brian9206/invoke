@@ -2,142 +2,133 @@
 
 Get started with Invoke by creating your first serverless function in under 5 minutes!
 
+:::tip Using UI
+Check out [Alternative: Deploy via Admin Panel](#alternative-deploy-via-admin-panel) section to learn more about deploying function with Web GUI.
+:::
+
 ## Prerequisites
 
 - Access to an Invoke instance (admin panel at http://localhost:3000)
+- [Invoke CLI](/docs/cli/installation) installed: `npm install -g invoke-cli`
 - Basic knowledge of JavaScript/Node.js
 
 ## Step 1: Create a Project
 
 1. Log in to the Invoke admin panel
 2. Click **"Create Project"**
-3. Enter a project name (e.g., "my-first-project")
+3. Enter a project name (e.g., "Default Project")
 4. Click **"Create"**
 
-## Step 2: Create a Function
-
-Create a new directory for your function:
+## Step 2: Configure the CLI
 
 ```bash
-mkdir hello-function
+invoke config:set --api-key YOUR_API_KEY
+invoke config:set --base-url http://localhost:3000
+```
+
+## Step 3: Scaffold Your Function
+
+Use `invoke init` to create a new function directory with a ready-to-run hello world template:
+
+```bash
+invoke init hello-function \
+  --name hello \
+  --description "My first function" \
+  --project "Default Project"
 cd hello-function
 ```
 
-Create an `index.js` file:
+This generates two files:
 
-```javascript
-module.exports = function(req, res) {
-    res.json({
-        message: 'Hello from Invoke!',
-        timestamp: new Date().toISOString(),
-        method: req.method,
-        path: req.path
-    });
-};
+```
+hello-function/
+├── index.js       # Hello World handler
+└── package.json   # Pre-configured with start/deploy/test scripts
 ```
 
-Create a `package.json` file:
+The generated `index.js`:
 
-```json
-{
-  "name": "hello-function",
-  "version": "1.0.0",
-  "main": "index.js"
+```javascript
+const crypto = require('crypto');
+
+module.exports = async function(req, res) {
+    const { name = 'World' } = req.query;
+
+    res.setHeader('x-powered-by', 'Invoke');
+
+    const resp = await fetch('http://httpbin.org/json');
+    const fetchedData = await resp.json();
+
+    res.json({
+        message: `Hello, ${name}!`,
+        name: {
+            base64: Buffer.from(name).toString('base64'),
+            sha256: crypto.createHash('sha256').update(name).digest('hex')
+        },
+        fetchedData,
+        timestamp: Date.now()
+    });
 }
 ```
 
-## Step 3: Package Your Function
-
-Create a zip file containing your function:
+## Step 4: Deploy Your Function
 
 ```bash
-# On Windows (PowerShell)
-Compress-Archive -Path index.js,package.json -DestinationPath function.zip
-
-# On Linux/Mac
-zip function.zip index.js package.json
+invoke function:deploy --name hello --project "Default Project"
 ```
 
-## Step 4: Deploy via Admin Panel
+The CLI will:
+1. Create the function record in your project (if it doesn't exist yet)
+2. Package and upload the code
+3. Automatically activate the function
 
-1. In the admin panel, go to your project
-2. Click **"Upload Function"**
-3. Select your `function.zip` file
-4. Enter a function name (e.g., "hello")
-5. Click **"Deploy"**
+Example output:
+```
+Function "hello" not found. Creating...
+✅ Function created with ID: cd23cc1f-936f-445e-b2ba-dd8306b8dc01
+Uploading code...
+✅ Code uploaded as version 1
+Activating...
+✅ Function deployed successfully
+```
 
 ## Step 5: Test Your Function
 
 You'll receive an endpoint URL like:
 
 ```
-http://localhost:3001/execute/{projectId}/{functionName}
+http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 Test it with curl:
 
 ```bash
-curl http://localhost:3001/execute/{projectId}/hello
+curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice"
 ```
 
 Response:
 
 ```json
 {
-  "message": "Hello from Invoke!",
-  "timestamp": "2026-02-10T12:34:56.789Z",
-  "method": "GET",
-  "path": "/"
+  "message": "Hello, Alice!",
+  "name": {
+    "base64": "QWxpY2U=",
+    "sha256": "3bc51062973c458d5a6f2d8d64a023246354ad7e064b1e4e009ec8a0699a3043"
+  },
+  "fetchedData": { "...": "..." },
+  "timestamp": 1740484496789
 }
 ```
 
-## Step 6: Make It Dynamic
+## Step 6: Iterate
 
-Update your `index.js` to use query parameters:
-
-```javascript
-module.exports = function(req, res) {
-    const name = req.query.name || 'World';
-    const count = parseInt(req.query.count) || 1;
-    
-    const greetings = Array(count).fill(null).map(() => 
-        `Hello, ${name}!`
-    );
-    
-    res.json({
-        greetings,
-        timestamp: new Date().toISOString()
-    });
-};
-```
-
-Re-package and deploy (Invoke supports versioning):
+Edit `index.js`, then redeploy — `function:deploy` is a smart upsert that creates a new version each time:
 
 ```bash
-# Create new zip
-zip function.zip index.js package.json
-
-# Upload as a new version in the admin panel
+invoke function:deploy --name hello --project "Default Project"
 ```
 
-Test with parameters:
-
-```bash
-curl "http://localhost:3001/execute/{projectId}/hello?name=Alice&count=3"
-```
-
-Response:
-
-```json
-{
-  "greetings": [
-    "Hello, Alice!",
-    "Hello, Alice!",
-    "Hello, Alice!"
-  ],
-  "timestamp": "2026-02-10T12:35:00.123Z"
-}
-```
+Learn more in the [CLI Documentation](/docs/cli/installation).
 
 ## Next Steps
 
@@ -148,55 +139,38 @@ Now explore:
 - [Function Anatomy](/docs/getting-started/function-anatomy) - Understand function structure
 - [Request Object](/docs/api/request) - Learn about `req` API
 - [Response Object](/docs/api/response) - Learn about `res` API
+- [CLI Reference](/docs/cli/reference) - All available CLI commands
 - [Examples](/docs/examples/hello-world) - More example functions
 
-## Alternative: Using the CLI
+## Alternative: Deploy via Admin Panel
 
-You can also manage functions using the [Invoke CLI](/docs/cli/installation):
+Prefer a UI? The admin panel can scaffold and deploy a Hello World function for you in one click — no local files or CLI needed.
 
-### Install the CLI
+### Step 1: Open the Deploy Page
 
-```bash
-npm install -g invoke-cli
+Navigate to **Deploy** in the sidebar, or go to:
+```
+http://<your invoke-admin URL>/admin/deploy
 ```
 
-### Configure with Your API Key
+### Step 2: Switch to "Create From Template"
 
-```bash
-invoke config:set --api-key YOUR_API_KEY
-```
+At the top of the form, select the **Create From Template** tab (next to "Upload Package").
 
-### Create and Deploy in One Command
+### Step 3: Fill in the Details
 
-```bash
-invoke functions:create \
-  --name hello \
-  --description "My first function" \
-  ./hello-function
-```
+- **Function Name** *(required)* — e.g. `hello`
+- **Description** *(optional)* — e.g. `My first function`
+- **Require API key** *(optional)* — check if you want to protect the endpoint
 
-The CLI will automatically:
-- Create the function
-- Package and upload the code
-- Activate the function
+### Step 4: Deploy
 
-### Invoke Your Function
+Click **Deploy**. Invoke will:
+1. Generate a Hello World `index.js` and `package.json`
+2. Package and upload them automatically
+3. Activate the function immediately
 
-```bash
-# Test the function
-invoke function:test hello
+You'll be redirected to the function detail page where you can view the endpoint URL, edit the code, and monitor executions.
 
-# Invoke with custom data
-invoke function:invoke hello \
-  --method GET \
-  --path "?name=Alice&count=3"
-```
 
-### View Logs
-
-```bash
-invoke function:logs hello --limit 10
-```
-
-Learn more in the [CLI Documentation](/docs/cli/installation).
 

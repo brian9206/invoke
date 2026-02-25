@@ -16,22 +16,12 @@ Invoke supports two deployment methods:
 Your function needs at minimum:
 
 - `index.js` - Main function file
-- `package.json` - Package metadata
 
 ```javascript
 // index.js
 module.exports = async function(req, res) {
     res.json({ message: 'Hello from Invoke!' });
 };
-```
-
-```json
-// package.json
-{
-  "name": "my-function",
-  "version": "1.0.0",
-  "main": "index.js"
-}
 ```
 
 ### 2. Install Dependencies (Optional)
@@ -113,13 +103,13 @@ After upload, you can configure:
 Your function is now live! The admin panel shows your endpoint:
 
 ```
-http://localhost:3001/execute/{projectId}/{functionName}
+http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 Test it:
 
 ```bash
-curl http://localhost:3001/execute/abc123/user-api
+curl http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 ## Deploying via CLI
@@ -142,37 +132,31 @@ node index.js user:create
 ### Deploy Command
 
 ```bash
-node index.js function:deploy \
-  --project my-project \
-  --name user-api \
-  --file function.zip \
-  --description "User API function"
+invoke function:deploy [path] --name <name> --project <project>
 ```
 
-### CLI Options
+**Arguments:**
+- `[path]` — Path to function directory or zip file (default: `.`)
 
+**Required options:**
+- `--name <name>` — Function name
+- `--project <id>` — Project ID or name
+
+**Options:**
+- `--description <text>` — Function description (used on first creation only)
+- `--requires-api-key` — Require API key for invocation (creation only)
+- `--output <format>` — Output format: `table` or `json`
+
+**Examples:**
 ```bash
-Options:
-  --project, -p     Project ID or name (required)
-  --name, -n        Function name (required)
-  --file, -f        Path to function.zip (required)
-  --description, -d Function description
-  --env, -e         Environment variables (key=value)
-  --memory, -m      Memory limit in MB (default: 256)
-  --timeout, -t     Timeout in seconds (default: 30)
-```
+# Deploy current directory
+invoke function:deploy --name user-api --project "my-project"
 
-### Example with Environment Variables
+# Deploy a specific path
+invoke function:deploy ./my-function --name user-api --project "my-project" --description "User API function"
 
-```bash
-node index.js function:deploy \
-  --project my-project \
-  --name api-function \
-  --file function.zip \
-  --env API_KEY=secret123 \
-  --env DEBUG=true \
-  --memory 512 \
-  --timeout 60
+# Deploy a zip file
+invoke function:deploy function.zip --name user-api --project "my-project"
 ```
 
 ## Versioning
@@ -211,12 +195,9 @@ Set environment variables for your function:
 
 **CLI:**
 ```bash
-node index.js function:deploy \
-  --project my-project \
-  --name my-function \
-  --file function.zip \
-  --env DATABASE_URL=postgresql://... \
-  --env API_SECRET=abc123
+# Set environment variables using the env commands
+invoke function:env:set my-function DATABASE_URL "postgresql://..."
+invoke function:env:set my-function API_SECRET "abc123"
 ```
 
 **Access in function:**
@@ -231,27 +212,21 @@ module.exports = function(req, res) {
 
 ### Memory Limits
 
-Adjust memory allocation (default: 256 MB):
+Memory limits are configured per-function in the admin panel:
 
-```bash
-node index.js function:deploy \
-  --project my-project \
-  --name memory-intensive \
-  --file function.zip \
-  --memory 1024
-```
+1. Navigate to your function
+2. Click **"Settings"**
+3. Adjust **Memory Limit**
+4. Save changes
 
 ### Timeout Settings
 
-Set maximum execution time (default: 30 seconds):
+Execution timeouts are also configured in the admin panel:
 
-```bash
-node index.js function:deploy \
-  --project my-project \
-  --name long-running \
-  --file function.zip \
-  --timeout 120
-```
+1. Navigate to your function
+2. Click **"Settings"**
+3. Adjust **Timeout**
+4. Save changes
 
 ## Network Policies
 
@@ -330,26 +305,26 @@ node index.js function:test my-function --interactive
 
 ```bash
 # GET request
-curl http://localhost:3001/execute/{projectId}/{functionName}
+curl http://<your invoke-execution URL>/invoke/{functionId}
 
 # GET with query parameters
-curl "http://localhost:3001/execute/{projectId}/{functionName}?name=Alice&age=30"
+curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice&age=30"
 
 # POST with JSON
 curl -X POST \
   -H "Content-Type: application/json" \
   -d '{"key":"value"}' \
-  http://localhost:3001/execute/{projectId}/{functionName}
+  http://<your invoke-execution URL>/invoke/{functionId}
 
 # With API key (if required)
 curl -H "X-API-Key: your-api-key" \
-  http://localhost:3001/execute/{projectId}/{functionName}
+  http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 ### Using Postman/Insomnia
 
 1. Create new request
-2. Set URL: `http://localhost:3001/execute/{projectId}/{functionName}`
+2. Set URL: `http://<your invoke-execution URL>/invoke/{functionId}`
 3. Set method: GET, POST, etc.
 4. Add headers/body as needed
 5. Send request
@@ -387,14 +362,12 @@ jobs:
       
       - name: Deploy to Invoke
         run: |
-          cd invoke-cli
-          npm install
-          node index.js function:deploy \
-            --project ${{ secrets.PROJECT_ID }} \
+          npm install -g invoke-cli
+          invoke function:deploy ./my-function \
             --name my-function \
-            --file ../function.zip
+            --project ${{ secrets.PROJECT_ID }}
         env:
-          INVOKE_API_URL: ${{ secrets.INVOKE_API_URL }}
+          INVOKE_BASE_URL: ${{ secrets.INVOKE_API_URL }}
           INVOKE_API_KEY: ${{ secrets.INVOKE_API_KEY }}
 ```
 

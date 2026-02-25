@@ -22,6 +22,8 @@ require('./commands/config-clear').register(program)
 
 require('./commands/whoami').register(program)
 
+require('./commands/init').register(program)
+
 require('./commands/project-list').register(program)
 
 require('./commands/function-list').register(program)

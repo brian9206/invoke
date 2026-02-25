@@ -39,6 +39,50 @@ invoke config:show
 
 ---
 
+## Scaffolding Commands
+
+### `init`
+
+Scaffold a new function directory from the hello world template.
+
+```bash
+invoke init <path> [options]
+```
+
+**Arguments:**
+- `<path>` - Directory to create
+
+**Options:**
+- `--name <name>` - Function name (required)
+- `--description <text>` - Function description
+- `--project <project>` - Project name used in the generated deploy script (default: `Default Project`)
+
+**Examples:**
+```bash
+# Minimal
+invoke init hello-function --name hello
+
+# With all options
+invoke init hello-function --name hello --description "My first function" --project "my-project"
+```
+
+**Generated files:**
+```
+hello-function/
+├── index.js       # Hello World handler using crypto + fetch
+└── package.json   # Pre-configured with start/deploy/test scripts
+```
+
+:::tip
+After scaffolding, deploy with:
+```bash
+cd hello-function
+invoke function:deploy --name hello --project "my-project"
+```
+:::
+
+---
+
 ## Function Management Commands
 
 ### `function:list`
@@ -88,6 +132,47 @@ invoke functions:create [options] <path>
 - `--active <value>` - Set active status: `true` or `false`
 - `--requires-api-key <value>` - Require API key: `true` or `false`
 - `--output <format>` - Output format: `table` or `json`
+
+---
+
+### `function:deploy`
+
+Deploy a function — creates it if it doesn't exist, then uploads and activates a new version (smart upsert).
+
+```bash
+invoke function:deploy [path] [options]
+```
+
+**Arguments:**
+- `[path]` - Path to function directory or zip file (default: `.`)
+
+**Required Options:**
+- `--name <name>` - Function name
+- `--project <id>` - Project ID or name
+
+**Options:**
+- `--description <text>` - Function description (used on first creation only)
+- `--requires-api-key` - Require API key for invocation (creation only)
+- `--output <format>` - Output format: `table` or `json` (default: table)
+
+**Examples:**
+```bash
+# Deploy current directory
+invoke function:deploy --name hello --project "my-project"
+
+# Deploy a specific path
+invoke function:deploy ./hello-function --name hello --project "my-project"
+
+# Full scaffold + deploy workflow
+invoke init hello-function --name hello --project "my-project"
+cd hello-function
+invoke function:deploy --name hello --project "my-project"
+```
+
+The CLI will:
+1. Check if the function exists; create it if not
+2. Upload the code (auto-zips directories)
+3. Automatically activate the new version
 
 ---
 

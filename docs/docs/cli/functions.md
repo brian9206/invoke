@@ -8,38 +8,76 @@ Manage your serverless functions using the Invoke CLI.
 
 ## Creating Functions
 
-### Create a Function
+### Scaffold and Deploy (Recommended)
 
-Create a new function with metadata and code:
+The quickest way to create and deploy a new function:
 
 ```bash
-invoke functions:create \
+# 1. Scaffold a new function directory
+invoke init my-api --name my-api --description "REST API handler" --project "my-project"
+
+# 2. Enter the directory
+cd my-api
+
+# 3. Deploy (creates on first run, updates on subsequent runs)
+invoke function:deploy --name my-api --project "my-project"
+```
+
+### Deploy a Function (Smart Upsert)
+
+`function:deploy` is the primary deployment command. It creates the function if it doesn't exist, then uploads and activates a new version in one step:
+
+```bash
+invoke function:deploy [path] --name <name> --project <project>
+```
+
+**Arguments:**
+- `[path]` - Path to function directory or zip file (default: `.`)
+
+**Required options:**
+- `--name` (required): Function name
+- `--project` (required): Project ID or name
+
+**Options:**
+- `--description`: Function description (used on first creation only)
+- `--requires-api-key`: Require API key for invocation (creation only)
+- `--output`: Output format (`table`/`json`)
+
+**Examples:**
+```bash
+# Deploy current directory
+invoke function:deploy --name my-api --project "my-project"
+
+# Deploy a specific path
+invoke function:deploy ./my-api --name my-api --project "my-project"
+
+# Deploy with API key requirement
+invoke function:deploy --name secure-api --project "my-project" --requires-api-key
+```
+
+The CLI will:
+1. Check if the function exists; create it if not
+2. Upload the code (auto-zips directories)
+3. Automatically activate the new version
+
+### Create a Function (Low-level)
+
+For more control, use `function:create` to create the function record and upload code separately:
+
+```bash
+invoke function:create \
   --name my-api \
   --description "REST API handler" \
-  --project-id abc123 \
+  --project abc123 \
   ./my-function
 ```
 
 **Options:**
 - `--name` (required): Function name
 - `--description`: Function description
-- `--project-id`: Project ID (defaults to default project)
-- `--active`: Set active status (`true`/`false`, default: `true`)
+- `--project`: Project ID (defaults to default project)
 - `--requires-api-key`: Require API key for execution
 - `--output`: Output format (`table`/`json`)
-
-**Example with API key:**
-```bash
-invoke functions:create \
-  --name secure-api \
-  --requires-api-key true \
-  ./secure-function
-```
-
-The CLI will:
-1. Create the function metadata
-2. Upload the code (auto-zips directories)
-3. Automatically activate the function
 
 ## Listing Functions
 

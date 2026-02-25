@@ -11,47 +11,45 @@ const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
 const minioService = require('@/lib/minio')
 
-// Hello World function template
-const helloWorldTemplate = `module.exports = async (req, res) => {
-  console.log('Hello World function called');
-  
-  try {
-    // Handle different request methods
-    const inputData = req.method === 'GET' ? req.query : req.body;
-    
-    const response = {
-      success: true,
-      message: \`Hello, \${inputData.name || 'World'}!\`,
-      timestamp: new Date().toISOString(),
-      method: req.method,
-      data: inputData
-    };
-    
-    console.log('Response:', response);
-    res.json(response);
-    
-  } catch (error) {
-    console.error('Error in Hello World function:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      timestamp: new Date().toISOString()
+// Hello World function template (mirrors samples/hello-world)
+const helloWorldTemplate = `const crypto = require('crypto');
+
+module.exports = async function(req, res) {
+    const { name = 'World' } = req.query;
+
+    res.setHeader('x-powered-by', 'Invoke');
+
+    const resp = await fetch('http://httpbin.org/json');
+    console.log('status is ', resp.status)
+    const fetchedData = await resp.json();
+
+    res.json({
+        message: \`Hello, \${name}!\`,
+        name: {
+            base64: Buffer.from(name).toString('base64'),
+            sha256: crypto.createHash('sha256').update(name).digest('hex')
+        },
+        fetchedData,
+        timestamp: Date.now()
     });
-  }
-};
+}
 `
 
-const packageJsonTemplate = {
-  "name": "hello-world-function",
-  "version": "1.0.0",
-  "description": "A simple Hello World function",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "keywords": ["hello", "world", "function", "invoke"],
-  "author": "Invoke Platform",
-  "license": "MIT"
+function buildPackageJson(name: string, description: string) {
+  return {
+    name,
+    version: "1.0.0",
+    description,
+    license: "UNLICENSED",
+    private: true,
+    type: "commonjs",
+    main: "index.js",
+    scripts: {
+      start: "invoke run",
+      deploy: `invoke function:deploy --name ${name} --project "Default Project"`,
+      test: `invoke function:test ${name} --path ?name=World`
+    }
+  }
 }
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -104,7 +102,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
       // Create function files
       await fs.writeFile(path.join(tempDir, 'index.js'), helloWorldTemplate)
-      await fs.writeFile(path.join(tempDir, 'package.json'), JSON.stringify(packageJsonTemplate, null, 2))
+      await fs.writeFile(path.join(tempDir, 'package.json'), JSON.stringify(buildPackageJson(functionName, functionDescription), null, 2))
       
       // Create README
       const readmeContent = `# ${functionName}

@@ -49,12 +49,8 @@ node index.js
 ```
 
 ### As Invoke Function
-Deploy and call via HTTP:
-```bash
-curl -X POST http://localhost:3000/api/functions/invoke \
-  -H "Content-Type: application/json" \
-  -d '{"functionId": "zlib-test-function"}'
-```
+
+Deploy and call via HTTP
 
 ## Expected Output
 

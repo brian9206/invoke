@@ -15,7 +15,7 @@ module.exports = function(req, res) {
 
 **Test:**
 ```bash
-curl http://localhost:3001/execute/{projectId}/hello
+curl http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 **Response:**
@@ -42,7 +42,7 @@ module.exports = function(req, res) {
 
 **Test:**
 ```bash
-curl "http://localhost:3001/execute/{projectId}/hello?name=Alice&greeting=Hi"
+curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice&greeting=Hi"
 ```
 
 **Response:**

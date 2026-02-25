@@ -8,7 +8,7 @@ The Invoke CLI is a powerful command-line interface for managing serverless func
 
 ## Prerequisites
 
-- Node.js 14 or higher
+- Node.js 24 or higher
 - npm or yarn
 - An Invoke account with API key
 

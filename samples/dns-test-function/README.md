@@ -48,10 +48,6 @@ Tests that all DNS error code constants are exposed:
 
 Deploy this function to your Invoke instance and send a request:
 
-```bash
-curl http://localhost:3000/execute/dns-test-function
-```
-
 ## Response Format
 
 The function returns a JSON object with the following structure:

@@ -44,10 +44,6 @@ This function tests the comprehensive TLS module implementation for the Invoke V
 
 Deploy this function and call it to get a comprehensive report of TLS functionality:
 
-```bash
-curl http://localhost:3000/tls-test-function
-```
-
 The response includes detailed test results showing:
 - Module loading status
 - Certificate store functionality
