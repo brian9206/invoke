@@ -2,7 +2,7 @@
 
 Command-line interface for managing [Invoke](https://github.com/brian9206/invoke) serverless functions, admin accounts, and API keys.
 
-For full documentation, see [https://brian9206.github.io/invoke/docs/cli/installation](https://brian9206.github.io/invoke/docs/cli/installation).
+For full documentation, see [https://brianchoi.me/invoke/docs/cli/installation](https://brianchoi.me/invoke/docs/cli/installation).
 
 ## License
 

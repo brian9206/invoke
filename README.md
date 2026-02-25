@@ -213,5 +213,5 @@ MIT License - see LICENSE file for details.
 ## Support
 
 - **Issues**: GitHub Issues for bugs and feature requests
-- **Documentation**: Visit [http://brian9206.github.io/invoke](http://brian9206.github.io/invoke)
+- **Documentation**: Visit [http://brianchoi.me/invoke](http://brianchoi.me/invoke)
 - **Admin Guide**: Access admin panel for visual management
