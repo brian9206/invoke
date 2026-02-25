@@ -77,7 +77,13 @@ function register(program) {
         kvStoreFactory: createLocalKVFactory(options.kvFile),
         metadataProvider: async () => ({ package_hash: 'local', project_id: 'local' }),
         envVarsProvider: async () => envVars,
-        networkPoliciesProvider: async () => ({ globalRules: [], projectRules: [] }),
+        networkPoliciesProvider: async () => ({ 
+          globalRules: [
+            { action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0', priority: 1 },
+            { action: 'allow', target_type: 'cidr', target_value: '::/0', priority: 2 },
+          ], 
+          projectRules: [] 
+        }),
       })
 
       try {

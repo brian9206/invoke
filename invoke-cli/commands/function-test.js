@@ -114,16 +114,16 @@ function register(program) {
             params: { limit: 5, page: 1 }
           })
 
-          if (logsData.success && logsData.data.length > 0) {
+          if (logsData.success && logsData.data.logs && logsData.data.logs.length > 0) {
             const tableData = [['Time', 'Status', 'Duration']]
 
-            logsData.data.forEach(log => {
-              const status = log.execution_status === 'success' ? chalk.green('✅') : chalk.red('❌')
+            logsData.data.logs.forEach(log => {
+              const status = log.status_code < 400 ? chalk.green('✅') : chalk.red('❌')
 
               tableData.push([
                 new Date(log.executed_at).toLocaleString(),
-                status + ' ' + log.execution_status,
-                log.execution_time ? `${log.execution_time}ms` : 'N/A'
+                status + ' ' + log.status_code,
+                log.execution_time_ms ? `${log.execution_time_ms}ms` : 'N/A'
               ])
             })
 
@@ -135,6 +135,22 @@ function register(program) {
           console.log(chalk.red(`❌ Failed after ${duration}ms`))
           console.log(chalk.red('\n💥 Error:\n'))
           console.log(execError.response?.data || execError.message)
+
+          // Fetch logs to show the actual error details
+          try {
+            const logsData = await api.get(`/api/functions/${id}/logs`, {
+              params: { limit: 1, page: 1 }
+            })
+
+            const latestLog = logsData.success && logsData.data.logs && logsData.data.logs[0]
+            if (latestLog && latestLog.error_message) {
+              console.log(chalk.red('\n📋 Error Log:\n'))
+              console.log(latestLog.error_message)
+            }
+          } catch (_) {
+            // ignore log fetch errors
+          }
+
           process.exit(1)
         }
       } catch (error) {

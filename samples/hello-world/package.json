@@ -2,14 +2,13 @@
   "name": "hello-world",
   "version": "1.0.0",
   "description": "My first Invoke serverless function",
-  "license": "ISC",
+  "license": "UNLICENSED",
+  "private": true,
   "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "start": "invoke run",
-    "deploy": "invoke function:deploy --name hello-world --project \"Default Project\" ."
-  },
-  "devDependencies": {
-    "invoke-cli": "^1.0.0"
+    "deploy": "invoke function:deploy --name hello-world --project \"Default Project\"",
+    "test": "invoke function:test hello-world --path ?name=World"
   }
 }

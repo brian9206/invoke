@@ -974,7 +974,8 @@ class BuiltinBridge {
                         listener.applySync(undefined, safeArgs, { arguments: { copy: true } });
                     }
                 } catch (err) {
-                    // Event listener errors should not crash
+                    // Ignore errors caused by isolate being disposed (normal cleanup)
+                    if (err && err.message && err.message.includes('Isolated is disposed')) return;
                     console.error('Error in socket event listener for', event, ':', err);
                 }
             });
@@ -1027,6 +1028,8 @@ class BuiltinBridge {
                         listener.applySync(undefined, safeArgs, { arguments: { copy: true } });
                     }
                 } catch (err) {
+                    // Ignore errors caused by isolate being disposed (normal cleanup)
+                    if (err && err.message && err.message.includes('Isolated is disposed')) return;
                     console.error('Error in socket event listener for', event, ':', err);
                 }
             });
