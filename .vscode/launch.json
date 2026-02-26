@@ -69,6 +69,44 @@
       ]
     },
     {
+      "name": "Debug Invoke Gateway Service",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/invoke-gateway/server.js",
+      "cwd": "${workspaceFolder}/invoke-gateway",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3002",
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "invoke_db",
+        "DB_USER": "postgres",
+        "DB_PASSWORD": "invoke_password_123",
+        "EXECUTION_SERVICE_URL": "http://localhost:3001",
+        "CACHE_REFRESH_INTERVAL": "30000"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "restart": true
+    },
+    {
+      "name": "Attach to Invoke Gateway",
+      "type": "node",
+      "request": "attach",
+      "port": 9231,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}/invoke-gateway",
+      "remoteRoot": "${workspaceFolder}/invoke-gateway",
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ]
+    },
+    {
       "name": "Debug Both Services",
       "type": "node",
       "request": "launch",
@@ -84,7 +122,8 @@
       "name": "Debug All Services",
       "configurations": [
         "Debug Invoke Admin (Next.js)",
-        "Debug Invoke Execution Service"
+        "Debug Invoke Execution Service",
+        "Debug Invoke Gateway Service"
       ]
     }
   ]

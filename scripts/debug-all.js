@@ -27,6 +27,19 @@ const executionService = spawn('node', ['--inspect=9230', 'server.js'], {
   env: { ...env, PORT: '3001' }
 });
 
+// Start Invoke Gateway Service
+console.log('🔀 Starting Invoke Gateway Service on port 3002...');
+const gatewayService = spawn('node', ['--inspect=9231', 'server.js'], {
+  cwd: path.join(__dirname, '../invoke-gateway'),
+  stdio: 'inherit',
+  env: {
+    ...env,
+    PORT: '3002',
+    EXECUTION_SERVICE_URL: 'http://localhost:3001',
+    CACHE_REFRESH_INTERVAL: '30000',
+  }
+});
+
 // Start Invoke Admin Panel
 console.log('🌐 Starting Invoke Admin Panel...');
 const adminPanel = spawn('npm', ['run', 'dev'], {
@@ -39,6 +52,7 @@ const adminPanel = spawn('npm', ['run', 'dev'], {
 process.on('SIGINT', () => {
   console.log('\n🛑 Shutting down services...');
   executionService.kill('SIGINT');
+  gatewayService.kill('SIGINT');
   adminPanel.kill('SIGINT');
   process.exit(0);
 });
@@ -46,6 +60,7 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   console.log('\n🛑 Shutting down services...');
   executionService.kill('SIGTERM');
+  gatewayService.kill('SIGTERM');
   adminPanel.kill('SIGTERM');
   process.exit(0);
 });
@@ -54,12 +69,17 @@ executionService.on('close', (code) => {
   console.log(`⚠️  Execution service exited with code ${code}`);
 });
 
+gatewayService.on('close', (code) => {
+  console.log(`⚠️  Gateway service exited with code ${code}`);
+});
+
 adminPanel.on('close', (code) => {
   console.log(`⚠️  Admin panel exited with code ${code}`);
 });
 
-console.log('\n✅ Both services are starting up...');
+console.log('\n✅ All services are starting up...');
 console.log('📊 Admin Panel: http://localhost:3000 (or next available port)');
 console.log('🔧 Execution Service: http://localhost:3001');
-console.log('🐛 Debug ports: Admin (9229), Execution (9230)');
+console.log('🔀 Gateway Service: http://localhost:3002');
+console.log('🐛 Debug ports: Admin (9229), Execution (9230), Gateway (9231)');
 console.log('\nPress Ctrl+C to stop all services\n');

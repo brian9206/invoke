@@ -34,6 +34,7 @@ The database schema is automatically applied on first run. The first admin user 
 
 - **Admin Panel**: http://localhost:3000
 - **Execution Service**: http://localhost:3001
+- **API Gateway**: http://localhost:3002
 - **MinIO Console**: http://localhost:9001
 
 ## Development Setup
@@ -180,7 +181,7 @@ The platform consists of several microservices with containerized deployment:
 ### 🚀 invoke-admin (Next.js)
 - **Port**: 3000 (configurable via `ADMIN_PORT`)
 - **Purpose**: Admin panel with React frontend + API routes
-- **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, MinIO integration
+- **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, API gateway configuration, MinIO integration
 - **Technology**: Next.js 16.x, React 19.x, TypeScript, TailwindCSS, PostgreSQL, MinIO client
 
 ### ⚡ invoke-execution (Express.js)
@@ -189,6 +190,13 @@ The platform consists of several microservices with containerized deployment:
 - **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
 - **Technology**: Express.js v5, isolated-vm sandboxing, PostgreSQL, MinIO client
 - **Scalable**: Yes (horizontal scaling supported)
+
+### 🌐 invoke-gateway (Express.js)
+- **Port**: 3002 (configurable via `GATEWAY_PORT`)
+- **Purpose**: API gateway that exposes deployed functions as public HTTP endpoints
+- **Features**: Route-based proxying to execution service, per-route authentication (Basic Auth, Bearer JWT, API Key), CORS policies, allowed methods enforcement, real-IP forwarding, in-memory route cache with instant PostgreSQL NOTIFY invalidation, custom domain and project-slug URL patterns
+- **Technology**: Express.js, PostgreSQL (pg-notify), Node.js HTTP/HTTPS proxy
+- **Scalable**: Yes (stateless; route cache refreshes independently per instance)
 
 ### ⏰ invoke-scheduler
 - **Port**: 8080 (internal)
@@ -205,7 +213,7 @@ The platform consists of several microservices with containerized deployment:
 ### 🐘 PostgreSQL Database
 - **Port**: 5432
 - **Purpose**: Metadata and execution logs
-- **Features**: Function metadata, versioning system, user management, execution history
+- **Features**: Function metadata, versioning system, user management, execution history, API gateway route and auth method configuration
 - **Technology**: PostgreSQL 15
 
 ## License

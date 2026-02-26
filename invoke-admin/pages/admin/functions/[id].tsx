@@ -104,7 +104,7 @@ export default function FunctionDetails() {
     schedule_cron: ''
   })
   const [saving, setSaving] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [regeneratingKey, setRegeneratingKey] = useState(false)
   
   // Retention settings state
@@ -139,6 +139,11 @@ export default function FunctionDetails() {
   const [logsPageSize, setLogsPageSize] = useState(10)
   const [logsFilter, setLogsFilter] = useState<'all' | 'success' | 'error'>('all')
   
+  // Gateway routes state
+  const [gatewayRoutes, setGatewayRoutes] = useState<{ id: string; routePath: string; isActive: boolean }[]>([])
+  const [gatewayDomain, setGatewayDomain] = useState<string>('')
+  const [gatewayCustomDomain, setGatewayCustomDomain] = useState<string>('')
+
   // Environment Variables state
   const [environmentVariables, setEnvironmentVariables] = useState<EnvironmentVariable[]>([])
   const [envVarsLoading, setEnvVarsLoading] = useState(false)
@@ -173,6 +178,41 @@ export default function FunctionDetails() {
       getFunctionUrl(functionData.id).then(setFunctionUrl)
     }
   }, [functionData?.id])
+
+  // Fetch gateway routes for this function
+  useEffect(() => {
+    if (!functionData?.project_id || !functionData?.id) return
+    const projectId = functionData.project_id
+    const fnId = functionData.id
+
+    const fetchGatewayRoutes = async () => {
+      try {
+        const [settingsRes, routesRes, configRes] = await Promise.all([
+          authenticatedFetch('/api/admin/global-settings'),
+          authenticatedFetch(`/api/gateway/routes?projectId=${projectId}`),
+          authenticatedFetch(`/api/gateway/config?projectId=${projectId}`),
+        ])
+        const [settingsData, routesData, configData] = await Promise.all([
+          settingsRes.json(),
+          routesRes.json(),
+          configRes.json(),
+        ])
+
+        if (settingsData.success) {
+          setGatewayDomain(settingsData.data?.api_gateway_domain?.value || '')
+        }
+        if (configData.success) {
+          setGatewayCustomDomain(configData.data?.customDomain || '')
+        }
+        if (routesData.success) {
+          const matching = (routesData.data as any[]).filter((r: any) => r.functionId === fnId)
+          setGatewayRoutes(matching.map((r: any) => ({ id: r.id, routePath: r.routePath, isActive: r.isActive })))
+        }
+      } catch (_) {}
+    }
+
+    fetchGatewayRoutes()
+  }, [functionData?.project_id, functionData?.id])
   const [logsLoading, setLogsLoading] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -347,8 +387,8 @@ export default function FunctionDetails() {
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopiedUrl(text)
+      setTimeout(() => setCopiedUrl(null), 2000)
     } catch (error) {
       console.error('Failed to copy:', error)
     }
@@ -895,14 +935,52 @@ export default function FunctionDetails() {
                       onClick={() => copyToClipboard(functionUrl)}
                       className="bg-primary-600 hover:bg-primary-700 px-3 py-2 rounded-r transition-colors"
                     >
-                      {copied ? (
+                      {copiedUrl === functionUrl ? (
                         <Check className="w-4 h-4 text-white" />
                       ) : (
                         <Copy className="w-4 h-4 text-white" />
                       )}
                     </button>
                   </div>
-                  
+
+                  {/* API Gateway Routes */}
+                  {gatewayRoutes.length > 0 && (() => {
+                    const projectSlug = functionData!.project_name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                    const gatewayFull = gatewayDomain
+                      ? (gatewayDomain.startsWith('http') ? gatewayDomain.replace(/\/+$/, '') : `https://${gatewayDomain.replace(/\/+$/, '')}`)
+                      : ''
+                    const customFull = gatewayCustomDomain
+                      ? (gatewayCustomDomain.startsWith('http') ? gatewayCustomDomain.replace(/\/+$/, '') : `https://${gatewayCustomDomain.replace(/\/+$/, '')}`)
+                      : ''
+
+                    const urls: string[] = []
+                    gatewayRoutes.forEach(route => {
+                      if (gatewayFull) urls.push(`${gatewayFull}/${projectSlug}${route.routePath}`)
+                      if (customFull) urls.push(`${customFull}${route.routePath}`)
+                    })
+
+                    return urls.map(url => (
+                      <div key={url} className="flex">
+                        <input
+                          type="text"
+                          value={url}
+                          readOnly
+                          className="flex-1 bg-gray-800 border border-gray-600 rounded-l px-3 py-2 text-sm text-gray-300 font-mono min-w-px"
+                        />
+                        <button
+                          onClick={() => copyToClipboard(url)}
+                          className="bg-primary-600 hover:bg-primary-700 px-3 py-2 rounded-r transition-colors"
+                        >
+                          {copiedUrl === url ? (
+                            <Check className="w-4 h-4 text-white" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-white" />
+                          )}
+                        </button>
+                      </div>
+                    ))
+                  })()}
+
                   <p className="text-xs text-gray-500">
                     Use this URL to execute your function via HTTP requests
                   </p>

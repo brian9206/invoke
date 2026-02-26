@@ -369,7 +369,7 @@ export async function getUserProjects(userId: number): Promise<any[]> {
     // Admin users get all projects with 'owner' role
     if (isAdmin) {
       const result = await database.query(`
-        SELECT p.id, p.name, p.description, 'owner' as role
+        SELECT p.id, p.name, p.description, p.slug, 'owner' as role
         FROM projects p
         WHERE p.is_active = true
         ORDER BY p.name
@@ -379,7 +379,7 @@ export async function getUserProjects(userId: number): Promise<any[]> {
     
     // Regular users get only their assigned projects
     const result = await database.query(`
-      SELECT p.id, p.name, p.description, pm.role
+      SELECT p.id, p.name, p.description, p.slug, pm.role
       FROM projects p
       JOIN project_memberships pm ON p.id = pm.project_id
       WHERE pm.user_id = $1 AND p.is_active = true

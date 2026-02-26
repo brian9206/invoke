@@ -4,6 +4,7 @@ import Head from 'next/head'
 import { useRouter } from 'next/router'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
+import { useFeatureFlags } from '@/contexts/FeatureFlagsContext'
 import ProjectSelector from '@/components/ProjectSelector'
 import Modal from '@/components/Modal'
 import {
@@ -18,7 +19,8 @@ import {
   LogOut,
   User,
   Database,
-  Shield
+  Shield,
+  Globe
 } from 'lucide-react'
 
 interface LayoutProps {
@@ -32,11 +34,13 @@ interface NavItem {
   icon: React.ComponentType<any>
   active: boolean
   adminOnly?: boolean
+  featureFlag?: boolean  // when false, item is hidden
 }
 
 export default function Layout({ children, title }: LayoutProps) {
   const { user, logout } = useAuth()
   const { activeProject, setActiveProject, userProjects, loading, isProjectLocked } = useProject()
+  const { gatewayEnabled } = useFeatureFlags()
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [showSignOutModal, setShowSignOutModal] = React.useState(false)
@@ -48,6 +52,7 @@ export default function Layout({ children, title }: LayoutProps) {
         { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
         { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
         { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
+        { name: 'API Gateway', href: '/admin/api-gateway', icon: Globe, active: router.pathname === '/admin/api-gateway', featureFlag: gatewayEnabled },
         { name: 'Execution Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
       ]
     },
@@ -123,7 +128,10 @@ export default function Layout({ children, title }: LayoutProps) {
 
         <nav className="mt-2">
           {navigationGroups.map((group, groupIndex) => {
-            const visibleItems = group.items.filter(item => !item.adminOnly || reqUserIsAdmin());
+            const visibleItems = group.items.filter(item =>
+            (item.featureFlag === undefined || item.featureFlag) &&
+            (!item.adminOnly || reqUserIsAdmin())
+          );
             
             if (visibleItems.length === 0) return null;
             

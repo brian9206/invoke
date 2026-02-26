@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import { Settings, AlertCircle, CheckCircle, Plus, Trash2, Loader } from 'lucide-react'
 import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
+import { useSetFeatureFlags } from '@/contexts/FeatureFlagsContext'
 import toast from 'react-hot-toast'
 
 interface GlobalSettings {
@@ -14,6 +15,7 @@ interface GlobalSettings {
   enabled: { value: string; description: string }
   function_base_url: { value: string; description: string }
   kv_storage_limit_bytes: { value: string; description: string }
+  api_gateway_domain: { value: string; description: string }
 }
 
 interface CleanupResult {
@@ -23,6 +25,7 @@ interface CleanupResult {
 
 export default function GlobalSettings() {
   const { lockProject, unlockProject, userProjects } = useProject()
+  const setFeatureFlags = useSetFeatureFlags()
   const hasLockedProject = useRef(false)
   const [settings, setSettings] = useState<GlobalSettings | null>(null)
   const [loading, setLoading] = useState(true)
@@ -37,6 +40,9 @@ export default function GlobalSettings() {
   const [retentionEnabled, setRetentionEnabled] = useState(true)
   const [functionBaseUrl, setFunctionBaseUrl] = useState('https://localhost:3001/invoke')
   const [kvStorageLimitGB, setKvStorageLimitGB] = useState('1')
+  const [apiGatewayDomain, setApiGatewayDomain] = useState('')
+  const [apiGatewayDomainProtocol, setApiGatewayDomainProtocol] = useState<'http' | 'https'>('https')
+  const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false)
 
   useEffect(() => {
     fetchSettings()
@@ -75,6 +81,17 @@ export default function GlobalSettings() {
         const kvLimitBytes = parseInt(data.data.kv_storage_limit_bytes?.value || '1073741824')
         const kvLimitGB = (kvLimitBytes / (1024 * 1024 * 1024)).toFixed(2)
         setKvStorageLimitGB(kvLimitGB)
+        const raw = data.data.api_gateway_domain?.value || ''
+        if (raw.startsWith('http://')) {
+          setApiGatewayDomainProtocol('http')
+          setApiGatewayDomain(raw.slice(7))
+        } else if (raw.startsWith('https://')) {
+          setApiGatewayDomainProtocol('https')
+          setApiGatewayDomain(raw.slice(8))
+        } else {
+          setApiGatewayDomain(raw)
+        }
+        setApiGatewayEnabled(raw.trim() !== '')
       }
     } catch (error) {
       console.error('Error fetching settings:', error)
@@ -86,6 +103,12 @@ export default function GlobalSettings() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (apiGatewayEnabled && !apiGatewayDomain.trim()) {
+      toast.error('Please enter a gateway domain URL or disable the API Gateway.')
+      return
+    }
+
     setSaving(true)
     setMessage('')
 
@@ -100,7 +123,8 @@ export default function GlobalSettings() {
           value: parseInt(retentionValue),
           enabled: retentionEnabled,
           function_base_url: functionBaseUrl,
-          kv_storage_limit_bytes: Math.floor(parseFloat(kvStorageLimitGB) * 1024 * 1024 * 1024)
+          kv_storage_limit_bytes: Math.floor(parseFloat(kvStorageLimitGB) * 1024 * 1024 * 1024),
+          api_gateway_domain: apiGatewayEnabled && apiGatewayDomain ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : ''
         })
       })
 
@@ -109,6 +133,7 @@ export default function GlobalSettings() {
       if (data.success) {
         toast.success('Settings saved successfully!')
         clearFunctionBaseUrlCache() // Clear cache so other pages get updated URL
+        setFeatureFlags({ gatewayEnabled: apiGatewayEnabled && !!apiGatewayDomain })
         fetchSettings() // Refresh
       } else {
         toast.error('Failed to save settings: ' + data.message)
@@ -292,12 +317,68 @@ export default function GlobalSettings() {
                 </div>
               </div>
 
+              {/* API Gateway Domain */}
+              <div className="border-t border-gray-700 pt-6 mt-6">
+                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  API Gateway Settings
+                </h3>
+
+                {/* Enable toggle */}
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={apiGatewayEnabled}
+                      onChange={(e) => setApiGatewayEnabled(e.target.checked)}
+                      className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
+                    />
+                    <span className="text-sm font-medium text-gray-300">Enable API Gateway</span>
+                  </label>
+                  <p className="mt-1 text-sm text-gray-500">
+                    When enabled, the API Gateway page appears in the sidebar for all users.
+                  </p>
+                </div>
+
+                <div className={apiGatewayEnabled ? '' : 'opacity-50 pointer-events-none'}>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Default Gateway Domain
+                  </label>
+                  <div className="flex rounded-md overflow-hidden border-2 border-gray-600 focus-within:border-primary-500 bg-gray-800">
+                    <select
+                      value={apiGatewayDomainProtocol}
+                      onChange={(e) => setApiGatewayDomainProtocol(e.target.value as 'http' | 'https')}
+                      disabled={!apiGatewayEnabled}
+                      className="bg-gray-700 text-gray-300 sm:text-sm px-2 py-2 border-r border-gray-600 focus:outline-none shrink-0"
+                    >
+                      <option value="https">https://</option>
+                      <option value="http">http://</option>
+                    </select>
+                    <input
+                      type="text"
+                      value={apiGatewayDomain}
+                      onChange={(e) => setApiGatewayDomain(e.target.value)}
+                      disabled={!apiGatewayEnabled}
+                      placeholder="api.example.com"
+                      className="flex-1 bg-transparent sm:text-sm text-gray-100 px-3 py-2 focus:outline-none"
+                    />
+                  </div>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Domain used for the default gateway URL pattern:{' '}
+                    <code className="bg-gray-700 px-1 rounded">
+                      {apiGatewayDomainProtocol}://{apiGatewayDomain || 'api.example.com'}/&lt;project-slug&gt;/&lt;route&gt;
+                    </code>
+                  </p>
+                </div>
+              </div>
+
               {/* Submit Button */}
               <div className="flex justify-between items-center pt-4 border-t border-gray-700">
                 <button
                   type="submit"
-                  disabled={saving}
-                  className="btn-primary flex items-center"
+                  disabled={saving || (apiGatewayEnabled && !apiGatewayDomain.trim())}
+                  className="btn-primary flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={apiGatewayEnabled && !apiGatewayDomain.trim() ? 'Enter a gateway domain URL or disable the API Gateway' : undefined}
                 >
                   {saving ? 'Saving...' : 'Save Settings'}
                 </button>

@@ -8,7 +8,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const result = await database.query(`
       SELECT setting_key, setting_value, description
       FROM global_settings 
-      WHERE setting_key LIKE 'log_retention%' OR setting_key = 'function_base_url' OR setting_key = 'kv_storage_limit_bytes'
+      WHERE setting_key LIKE 'log_retention%'
+         OR setting_key = 'function_base_url'
+         OR setting_key = 'kv_storage_limit_bytes'
+         OR setting_key = 'api_gateway_domain'
       ORDER BY setting_key
     `)
 
@@ -19,6 +22,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         key = 'function_base_url'
       } else if (row.setting_key === 'kv_storage_limit_bytes') {
         key = 'kv_storage_limit_bytes'
+      } else if (row.setting_key === 'api_gateway_domain') {
+        key = 'api_gateway_domain'
       } else {
         key = row.setting_key.replace('log_retention_', '')
       }
@@ -37,7 +42,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
     
     // Update global settings
-    const { type, value, enabled, function_base_url, kv_storage_limit_bytes } = req.body
+    const { type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain } = req.body
 
     const queries = []
     
@@ -73,6 +78,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
       queries.push(database.query(
         'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
         [kv_storage_limit_bytes.toString(), 'kv_storage_limit_bytes']
+      ))
+    }
+
+    if (api_gateway_domain !== undefined) {
+      queries.push(database.query(
+        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
+        [api_gateway_domain, 'api_gateway_domain']
       ))
     }
 

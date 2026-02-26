@@ -13,6 +13,7 @@ export interface ModalProps {
   confirmVariant?: 'default' | 'danger';
   loading?: boolean;
   confirmDisabled?: boolean;
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export default function Modal({
@@ -27,7 +28,9 @@ export default function Modal({
   confirmVariant = 'default',
   loading = false,
   confirmDisabled = false,
+  size = 'md',
 }: ModalProps) {
+  const sizeClass = size === 'lg' ? 'max-w-2xl' : size === 'sm' ? 'max-w-sm' : 'max-w-md';
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -44,7 +47,7 @@ export default function Modal({
 
   const modalContent = (
     <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
-      <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4 animate-scaleIn">
+      <div className={`bg-gray-800 border border-gray-700 rounded-xl p-6 ${sizeClass} w-full mx-4 animate-scaleIn`}>
         <h3 className="text-xl font-semibold text-gray-200 mb-4">{title}</h3>
         {description && (
           <p className="text-gray-400 text-sm mb-4">{description}</p>
