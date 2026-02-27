@@ -12,6 +12,42 @@ const cache = require('./cache');
 const { createProjectKV } = require('./kv-store');
 
 // ---------------------------------------------------------------------------
+// In-memory TTL caches for env vars and network policies
+// Invalidated immediately via pg LISTEN/NOTIFY; TTL is a safety-net fallback.
+// ---------------------------------------------------------------------------
+
+const ENV_VAR_TTL_MS = 60_000;
+const NETWORK_POLICY_TTL_MS = 60_000;
+
+/** @type {Map<string, { data: object, expiresAt: number }>} keyed by functionId */
+const envVarCache = new Map();
+
+/**
+ * Keyed by projectId, plus the special key '__global__' for global rules.
+ * @type {Map<string, { data: object, expiresAt: number }>}
+ */
+const networkPolicyCache = new Map();
+
+/**
+ * Evict the env-var cache entry for a specific function.
+ * Called by the pg NOTIFY listener when function_environment_variables changes.
+ * @param {string} functionId
+ */
+function invalidateEnvVarCache(functionId) {
+    envVarCache.delete(functionId);
+}
+
+/**
+ * Evict network-policy cache entries.
+ * Called by the pg NOTIFY listener when network policy tables change.
+ * @param {string|null} projectId  Pass null to flush only the global-rules entry.
+ */
+function invalidateNetworkPolicyCache(projectId) {
+    networkPolicyCache.delete('__global__');
+    if (projectId) networkPolicyCache.delete(projectId);
+}
+
+// ---------------------------------------------------------------------------
 // Metadata & configuration providers
 // ---------------------------------------------------------------------------
 
@@ -49,10 +85,17 @@ async function fetchFunctionMetadata(functionId) {
 
 /**
  * Fetch environment variables for a function.
+ * Results are cached in-memory for up to ENV_VAR_TTL_MS and invalidated
+ * immediately by the pg NOTIFY listener when the table changes.
  * @param {string} functionId
  * @returns {Promise<Object>} key→value pairs
  */
 async function fetchEnvironmentVariables(functionId) {
+    const cached = envVarCache.get(functionId);
+    if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+    }
+
     try {
         const result = await db.query(`
             SELECT variable_name, variable_value 
@@ -64,6 +107,8 @@ async function fetchEnvironmentVariables(functionId) {
         for (const row of result.rows) {
             envVars[row.variable_name] = row.variable_value;
         }
+
+        envVarCache.set(functionId, { data: envVars, expiresAt: Date.now() + ENV_VAR_TTL_MS });
         return envVars;
     } catch (err) {
         console.error('Error fetching environment variables:', err);
@@ -73,28 +118,48 @@ async function fetchEnvironmentVariables(functionId) {
 
 /**
  * Fetch network security policies (global + project-specific).
+ * Both the global rules and per-project rules are cached independently so
+ * a change to one project's policies doesn't bust the global-rules cache.
+ * Each entry is invalidated immediately by the pg NOTIFY listener.
  * @param {string} projectId
  * @returns {Promise<{ globalRules: Object[], projectRules: Object[] }>}
  */
 async function fetchNetworkPolicies(projectId) {
     try {
-        const globalResult = await db.query(`
-            SELECT action, target_type, target_value, description, priority
-            FROM global_network_policies
-            ORDER BY priority ASC
-        `);
+        const now = Date.now();
 
-        const projectResult = await db.query(`
-            SELECT action, target_type, target_value, description, priority
-            FROM project_network_policies
-            WHERE project_id = $1
-            ORDER BY priority ASC
-        `, [projectId]);
+        // --- global rules (cached under '__global__') ---
+        let globalRules;
+        const cachedGlobal = networkPolicyCache.get('__global__');
+        if (cachedGlobal && cachedGlobal.expiresAt > now) {
+            globalRules = cachedGlobal.data;
+        } else {
+            const globalResult = await db.query(`
+                SELECT action, target_type, target_value, description, priority
+                FROM global_network_policies
+                ORDER BY priority ASC
+            `);
+            globalRules = globalResult.rows;
+            networkPolicyCache.set('__global__', { data: globalRules, expiresAt: now + NETWORK_POLICY_TTL_MS });
+        }
 
-        return {
-            globalRules: globalResult.rows,
-            projectRules: projectResult.rows,
-        };
+        // --- project-specific rules (cached under projectId) ---
+        let projectRules;
+        const cachedProject = networkPolicyCache.get(projectId);
+        if (cachedProject && cachedProject.expiresAt > now) {
+            projectRules = cachedProject.data;
+        } else {
+            const projectResult = await db.query(`
+                SELECT action, target_type, target_value, description, priority
+                FROM project_network_policies
+                WHERE project_id = $1
+                ORDER BY priority ASC
+            `, [projectId]);
+            projectRules = projectResult.rows;
+            networkPolicyCache.set(projectId, { data: projectRules, expiresAt: now + NETWORK_POLICY_TTL_MS });
+        }
+
+        return { globalRules, projectRules };
     } catch (err) {
         console.error('Error fetching network policies:', err);
         return { globalRules: [], projectRules: [] };
@@ -179,4 +244,6 @@ module.exports = {
     fetchNetworkPolicies,
     getFunctionPackage,
     createDefaultKVFactory,
+    invalidateEnvVarCache,
+    invalidateNetworkPolicyCache,
 };

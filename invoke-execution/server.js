@@ -13,6 +13,11 @@ const {
   initialize: initializeExecutionEngine,
   shutdown: shutdownExecutionEngine,
 } = require("./services/execution-service");
+const executionPgNotify = require("./services/execution-pg-notify");
+const {
+  invalidateEnvVarCache,
+  invalidateNetworkPolicyCache,
+} = require("./services/function-providers");
 
 // Routes
 const executionRoutes = require("./routes/execution");
@@ -220,6 +225,17 @@ class ExecutionServer {
       // Connect to database
       await database.connect();
 
+      // Start pg LISTEN/NOTIFY for in-memory cache invalidation
+      await executionPgNotify.connect((payload) => {
+        if (payload.table === 'function_environment_variables') {
+          invalidateEnvVarCache(payload.function_id);
+        } else if (payload.table === 'project_network_policies') {
+          invalidateNetworkPolicyCache(payload.project_id);
+        } else if (payload.table === 'global_network_policies') {
+          invalidateNetworkPolicyCache(null);
+        }
+      });
+
       // Initialize cache service
       await cache.initialize();
 
@@ -272,6 +288,9 @@ class ExecutionServer {
         console.log("⚡ HTTP server stopped");
       });
     }
+
+    // Stop pg NOTIFY listener before closing the pool
+    await executionPgNotify.stop();
 
     // Shutdown execution engine (waits 30s for active executions)
     console.log("🛑 Shutting down execution engine...");
