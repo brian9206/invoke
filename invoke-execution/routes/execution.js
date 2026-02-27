@@ -5,6 +5,7 @@ const { logExecution } = require('../services/utils');
 const db = require('../services/database');
 const cache = require('../services/cache');
 const { executeFunction, createExecutionContext, getFunctionPackage } = require('../services/execution-service');
+const { gatewayAuth } = require('../middleware/gateway-auth');
 
 const router = express.Router();
 
@@ -100,7 +101,7 @@ async function authenticateApiKey(req, res, next) {
  * GET /invoke/:functionId
  * Execute a function with GET parameters
  */
-router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
+router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req, res) => {
     const startTime = Date.now();
     let tempDir = null;
 
@@ -113,7 +114,7 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
         tempDir = packageInfo.tempDir;
 
         // Create execution context with packageDir for sanitized console logging
-        const executionContext = createExecutionContext(req.method, {}, queryParams, filterHeaders(headers), { functionId }, req, packageInfo.tempDir);
+        const executionContext = createExecutionContext(req.method, req.body ?? {}, queryParams, filterHeaders(headers), { functionId }, req, packageInfo.tempDir);
 
         // Execute the function
         const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
@@ -131,16 +132,16 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, authenticateApiKey, async (req, res) => {
         }
         
         const requestInfo = {
-            requestSize: JSON.stringify(queryParams).length,
+            requestSize: req.body ? JSON.stringify(req.body).length : 0,
             responseSize: responseSize,
-            clientIp: req.ip,
+            clientIp: req.trustedClientIp,
             userAgent: req.headers['user-agent'],
             consoleOutput: result.logs || [],
             requestHeaders: req.headers,
             responseHeaders: result.headers || {},
             requestMethod: req.method,
             requestUrl: req.url,
-            requestBody: JSON.stringify(queryParams),
+            requestBody: req.body ? JSON.stringify(req.body) : '',
             responseBody: result.data  // Pass Buffer directly, not stringified
         };
         
@@ -234,6 +235,7 @@ function filterHeaders(headers) {
     delete filtered['authorization'];
     delete filtered['host'];
     delete filtered['x-forwarded-for'];
+    delete filtered['x-invoke-data'];
     
     // Filter out auth-token cookie from Cookie header
     if (filtered['cookie']) {

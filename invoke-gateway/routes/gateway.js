@@ -1,13 +1,9 @@
 const express = require('express');
-const http = require('http');
-const https = require('https');
-const { URL } = require('url');
 const { resolveRoute, getDefaultDomain } = require('../services/route-cache');
 const { authenticate } = require('../services/auth');
+const { executionClient, buildGatewayHeaders, buildInvokeUrl } = require('../services/execution-client');
 
 const router = express.Router();
-
-const EXECUTION_SERVICE_URL = process.env.EXECUTION_SERVICE_URL || 'http://localhost:3001';
 
 // Headers to strip before forwarding to execution service
 const STRIPPED_REQUEST_HEADERS = new Set([
@@ -18,6 +14,7 @@ const STRIPPED_REQUEST_HEADERS = new Set([
   'x-forwarded-host',
   'x-forwarded-proto',
   'x-real-ip',
+  'x-invoke-data',
   'connection',
   'transfer-encoding',
   'te',
@@ -86,24 +83,6 @@ function applyCors(req, res, corsSettings) {
 }
 
 /**
- * Build the upstream URL for the execution service.
- */
-function buildUpstreamUrl(functionId, routeParams, originalQuery, pathSuffix) {
-  // Append any unmatched path suffix so e.g. route "/test" + request "/test/abc" → /invoke/<id>/abc
-  const suffix = pathSuffix || '';
-  const base = `${EXECUTION_SERVICE_URL}/invoke/${functionId}${suffix}`;
-  const merged = Object.assign({}, originalQuery);
-
-  // Route params take precedence over query params with same name
-  for (const [key, value] of Object.entries(routeParams)) {
-    merged[key] = String(value);
-  }
-
-  const qs = new URLSearchParams(merged).toString();
-  return qs ? `${base}?${qs}` : base;
-}
-
-/**
  * Normalize an IP address: strip IPv4-mapped IPv6 prefix (::ffff:x.x.x.x → x.x.x.x).
  */
 function normalizeIp(ip) {
@@ -112,77 +91,71 @@ function normalizeIp(ip) {
 }
 
 /**
- * Proxy the request to the execution service and pipe the response back.
+ * Proxy the request to the execution service and stream the response back.
+ * Uses the shared executionClient (axios) so all execution-service calls go
+ * through one place.
  */
-function proxyRequest(req, res, upstreamUrl) {
-  return new Promise((resolve, reject) => {
-    const parsed = new URL(upstreamUrl);
-    const isHttps = parsed.protocol === 'https:';
-    const lib = isHttps ? https : http;
-
-    // Build filtered headers
-    const forwardHeaders = {};
-    for (const [key, value] of Object.entries(req.headers)) {
-      if (!STRIPPED_REQUEST_HEADERS.has(key.toLowerCase())) {
-        forwardHeaders[key] = value;
-      }
+async function proxyRequest(req, res, functionId, { pathSuffix, routeParams, query }) {
+  // Build filtered forward-headers (strip hop-by-hop and sensitive auth headers)
+  const forwardHeaders = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (!STRIPPED_REQUEST_HEADERS.has(key.toLowerCase())) {
+      forwardHeaders[key] = value;
     }
+  }
 
-    // Real client IP — use Express's req.ip (respects trust proxy setting) and
-    // the direct socket address for building the forwarding chain.
-    const socketIp = normalizeIp(req.socket.remoteAddress);
-    const clientIp = normalizeIp(req.ip) || socketIp;
+  // Real client IP chain
+  const socketIp = normalizeIp(req.socket.remoteAddress);
+  const clientIp = normalizeIp(req.ip) || socketIp;
+  const ips = (req.ips && req.ips.length > 0) ? req.ips.map(normalizeIp) : [clientIp];
 
-    // Build x-forwarded-for chain: when behind a trusted proxy req.ips contains
-    // the full chain [client, ...intermediaries]; otherwise just use clientIp.
-    const ips = (req.ips && req.ips.length > 0)
-      ? req.ips.map(normalizeIp)
-      : [clientIp];
-    forwardHeaders['x-forwarded-for'] = ips.join(', ');
+  forwardHeaders['x-forwarded-for'] = ips.join(', ');
+  forwardHeaders['x-real-ip'] = ips[0];
+  forwardHeaders['x-forwarded-host'] = req.hostname;
+  forwardHeaders['x-forwarded-proto'] = req.protocol;
 
-    // x-real-ip: the original client IP (first in the chain)
-    forwardHeaders['x-real-ip'] = ips[0];
+  // Merge gateway identity headers (x-gateway-request + signed x-invoke-data JWT)
+  const headers = { ...forwardHeaders, ...buildGatewayHeaders(ips[0]) };
 
-    forwardHeaders['x-forwarded-host'] = req.hostname;
-    forwardHeaders['x-forwarded-proto'] = req.protocol;
-    forwardHeaders['x-gateway-request'] = '1';
+  // Merge route path params on top of query params (params take precedence)
+  const merged = Object.assign({}, query);
+  for (const [key, value] of Object.entries(routeParams)) {
+    merged[key] = String(value);
+  }
 
-    const options = {
-      hostname: parsed.hostname,
-      port: parsed.port || (isHttps ? 443 : 80),
-      path: parsed.pathname + (parsed.search || ''),
-      method: req.method,
-      headers: forwardHeaders,
-    };
+  const url = buildInvokeUrl(functionId, pathSuffix, merged);
 
-    const proxyReq = lib.request(options, (proxyRes) => {
-      // Copy status
-      res.status(proxyRes.statusCode || 200);
+  // Request body: pass through the raw buffer if present, otherwise re-serialise
+  let data;
+  if (req.body && Buffer.isBuffer(req.body)) {
+    data = req.body;
+  } else if (req.body) {
+    data = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  }
 
-      // Copy response headers (filtered)
-      for (const [key, value] of Object.entries(proxyRes.headers)) {
-        if (!STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
-          res.setHeader(key, value);
-        }
-      }
+  const response = await executionClient({
+    method: req.method,
+    url,
+    headers,
+    data,
+    responseType: 'stream',
+    decompress: false,        // forward Content-Encoding as-is; don't double-decode
+    validateStatus: () => true, // forward all status codes rather than throwing
+  });
 
-      // Pipe body
-      proxyRes.pipe(res, { end: true });
-      proxyRes.on('end', resolve);
-    });
-
-    proxyReq.on('error', reject);
-
-    // Forward request body
-    if (req.body && Buffer.isBuffer(req.body)) {
-      proxyReq.write(req.body);
-    } else if (req.body) {
-      // body-parser already parsed it; re-serialize
-      const bodyStr = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
-      proxyReq.write(bodyStr);
+  // Copy status and filtered response headers to the client
+  res.status(response.status);
+  for (const [key, value] of Object.entries(response.headers)) {
+    if (!STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+      res.setHeader(key, value);
     }
+  }
 
-    proxyReq.end();
+  // Stream response body back to the client
+  await new Promise((resolve, reject) => {
+    response.data.pipe(res, { end: true });
+    response.data.on('end', resolve);
+    response.data.on('error', reject);
   });
 }
 
@@ -214,7 +187,7 @@ router.all('/{*path}', async (req, res) => {
     if (wasPreflight) return;
 
     // Validate authentication
-    const authResult = authenticate(req, route.authMethods);
+    const authResult = await authenticate(req, route.authMethods, route.authLogic);
     if (!authResult.authenticated) {
       if (authResult.realm) {
         res.set('WWW-Authenticate', `Basic realm="${authResult.realm}"`);
@@ -227,11 +200,12 @@ router.all('/{*path}', async (req, res) => {
       return res.status(502).json({ success: false, message: 'No upstream function configured for this route' });
     }
 
-    // Build upstream URL (merging path params + query params + path suffix)
-    const upstreamUrl = buildUpstreamUrl(route.functionId, params, req.query, resolved.pathSuffix);
-
-    // Proxy to execution service
-    await proxyRequest(req, res, upstreamUrl);
+    // Build upstream URL and proxy to execution service
+    await proxyRequest(req, res, route.functionId, {
+      pathSuffix: resolved.pathSuffix,
+      routeParams: params,
+      query: req.query,
+    });
 
   } catch (err) {
     console.error('[Gateway] Request error:', err.message);

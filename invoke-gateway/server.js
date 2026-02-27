@@ -30,6 +30,10 @@ async function validateEnvironment() {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
+
+  if (!process.env.INTERNAL_GATEWAY_SECRET) {
+    console.warn('[Gateway] WARNING: INTERNAL_GATEWAY_SECRET is not set. Requests to invoke-execution will not carry a signed x-invoke-data token. Set this variable in both gateway and execution to enable trusted header verification.');
+  }
 }
 
 async function main() {

@@ -21,6 +21,9 @@ function validateConfig(type: string, config: any): string | null {
     for (const key of config.apiKeys) {
       if (typeof key !== 'string' || !key.trim()) return 'each apiKey must be a non-empty string'
     }
+  } else if (type === 'middleware') {
+    if (!config.functionId || typeof config.functionId !== 'string' || !config.functionId.trim())
+      return 'middleware config requires a non-empty functionId string'
   } else {
     return `unknown type: ${type}`
   }
@@ -81,8 +84,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json(createResponse(false, null, 'name is required', 400))
     }
-    if (!['basic_auth', 'bearer_jwt', 'api_key'].includes(type)) {
-      return res.status(400).json(createResponse(false, null, 'type must be basic_auth, bearer_jwt, or api_key', 400))
+    if (!['basic_auth', 'bearer_jwt', 'api_key', 'middleware'].includes(type)) {
+      return res.status(400).json(createResponse(false, null, 'type must be basic_auth, bearer_jwt, api_key, or middleware', 400))
     }
     const configError = validateConfig(type, config)
     if (configError) {

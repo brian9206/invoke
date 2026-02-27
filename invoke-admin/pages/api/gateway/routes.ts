@@ -28,6 +28,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
          gr.allowed_methods,
          gr.sort_order,
          gr.is_active,
+         gr.auth_logic,
          gr.created_at,
          gr.updated_at,
          f.name AS function_name,
@@ -40,7 +41,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
          COALESCE(
            json_agg(
              json_build_object('id', am.id, 'name', am.name, 'type', am.type)
-             ORDER BY am.name
+             ORDER BY ram.sort_order ASC, am.name ASC
            ) FILTER (WHERE am.id IS NOT NULL),
            '[]'
          ) AS auth_methods
@@ -52,7 +53,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
        LEFT JOIN api_gateway_auth_methods am ON am.id = ram.auth_method_id
        WHERE gc.project_id = $1
        GROUP BY gr.id, f.name, gs.cors_enabled, gs.cors_allowed_origins,
-                gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials
+                gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials,
+                gr.auth_logic
        ORDER BY gr.sort_order ASC, gr.created_at ASC`,
       [projectId]
     )
@@ -77,6 +79,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       },
       authMethodIds: (row.auth_methods || []).map((m: any) => m.id),
       authMethodNames: (row.auth_methods || []).map((m: any) => m.name),
+      authLogic: (row.auth_logic as string) || 'or',
     }))
 
     return res.json(createResponse(true, routes, 'Routes retrieved'))
@@ -87,7 +90,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    const { routePath, functionId, allowedMethods, corsSettings, authMethodIds } = req.body
+    const { routePath, functionId, allowedMethods, corsSettings, authMethodIds, authLogic } = req.body
 
     if (!routePath || typeof routePath !== 'string') {
       return res.status(400).json(createResponse(false, null, 'routePath is required', 400))
@@ -115,10 +118,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const route = await database.transaction(async (client: any) => {
       const routeResult = await client.query(
         `INSERT INTO api_gateway_routes
-           (gateway_config_id, route_path, function_id, allowed_methods, sort_order)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, route_path, function_id, allowed_methods, sort_order, is_active, created_at`,
-        [configId, routePath, functionId || null, allowedMethods || ['GET', 'POST'], nextOrder]
+           (gateway_config_id, route_path, function_id, allowed_methods, sort_order, auth_logic)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, route_path, function_id, allowed_methods, sort_order, is_active, auth_logic, created_at`,
+        [configId, routePath, functionId || null, allowedMethods || ['GET', 'POST'], nextOrder, authLogic === 'and' ? 'and' : 'or']
       )
       const newRoute = routeResult.rows[0]
 
@@ -138,13 +141,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
         ]
       )
 
-      // Link auth methods
+      // Link auth methods (order reflects execution order via sort_order)
       const methodIds: string[] = Array.isArray(authMethodIds) ? authMethodIds : []
-      for (const authMethodId of methodIds) {
+      for (let i = 0; i < methodIds.length; i++) {
         await client.query(
-          `INSERT INTO api_gateway_route_auth_methods (route_id, auth_method_id)
-           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-          [newRoute.id, authMethodId]
+          `INSERT INTO api_gateway_route_auth_methods (route_id, auth_method_id, sort_order)
+           VALUES ($1, $2, $3) ON CONFLICT (route_id, auth_method_id) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
+          [newRoute.id, methodIds[i], i]
         )
       }
 

@@ -55,7 +55,7 @@ interface CorsSettings {
 interface AuthMethod {
   id: string
   name: string
-  type: 'basic_auth' | 'bearer_jwt' | 'api_key'
+  type: 'basic_auth' | 'bearer_jwt' | 'api_key' | 'middleware'
   config: {
     // basic_auth
     credentials?: { username: string; password: string }[]
@@ -64,6 +64,8 @@ interface AuthMethod {
     jwtSecret?: string
     // api_key
     apiKeys?: string[]
+    // middleware
+    functionId?: string
   }
   createdAt: string
   updatedAt: string
@@ -82,6 +84,7 @@ interface GatewayRoute {
   corsSettings: CorsSettings
   authMethodIds: string[]
   authMethodNames: string[]
+  authLogic: 'or' | 'and'
 }
 
 interface GatewayConfig {
@@ -121,6 +124,7 @@ const defaultRoute = (): Omit<GatewayRoute, 'id' | 'functionName' | 'createdAt' 
   corsSettings: defaultCors(),
   authMethodIds: [],
   authMethodNames: [],
+  authLogic: 'or',
 })
 
 // ─── Sortable Row Component ──────────────────────────────────────────────────
@@ -215,12 +219,17 @@ function SortableRouteRow({
         {(!route.authMethodNames || route.authMethodNames.length === 0) ? (
           <span className="text-gray-500">—</span>
         ) : (
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {route.authMethodNames.map((name) => (
               <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
                 {name}
               </span>
             ))}
+            {route.authMethodNames.length > 1 && (
+              <span className="text-xs text-gray-500 ml-1">
+                ({route.authLogic === 'and' ? 'All match' : 'Any match'})
+              </span>
+            )}
           </div>
         )}
       </td>
@@ -331,8 +340,11 @@ function RouteEditorModal({
   const [isActive, setIsActive] = useState(true)
   const [cors, setCors] = useState<CorsSettings>(defaultCors())
   const [selectedAuthMethodIds, setSelectedAuthMethodIds] = useState<string[]>([])
+  const [authLogic, setAuthLogic] = useState<'or' | 'and'>('or')
   const [corsOpen, setCorsOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const authDndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   useEffect(() => {
     if (isOpen && route) {
@@ -342,6 +354,7 @@ function RouteEditorModal({
       setIsActive(route.isActive !== undefined ? route.isActive : true)
       setCors(route.corsSettings ? { ...route.corsSettings } : defaultCors())
       setSelectedAuthMethodIds(route.authMethodIds ? [...route.authMethodIds] : [])
+      setAuthLogic(route.authLogic || 'or')
       setCorsOpen(route.corsSettings?.enabled || false)
     }
   }, [isOpen, route])
@@ -375,17 +388,12 @@ function RouteEditorModal({
         isActive,
         corsSettings: cors,
         authMethodIds: selectedAuthMethodIds,
+        authLogic,
       })
       onClose()
     } finally {
       setSaving(false)
     }
-  }
-
-  const toggleAuthMethod = (id: string) => {
-    setSelectedAuthMethodIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    )
   }
 
   return (
@@ -594,46 +602,170 @@ function RouteEditorModal({
                 <span className="text-primary-400">Authentication</span> tab.
               </div>
             ) : (
-              <div className="space-y-1.5 rounded-md border border-gray-700 bg-gray-800/50 p-3">
-                {/* No auth option */}
-                <label className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-gray-700/50">
-                  <input
-                    type="checkbox"
-                    checked={selectedAuthMethodIds.length === 0}
-                    onChange={() => setSelectedAuthMethodIds([])}
-                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-300">No auth <span className="text-gray-500">(public)</span></span>
-                </label>
-                <div className="border-t border-gray-700 my-1" />
-                {authMethods.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 hover:bg-gray-700/50">
-                    <input
-                      type="checkbox"
-                      checked={selectedAuthMethodIds.includes(m.id)}
-                      onChange={() => toggleAuthMethod(m.id)}
-                      className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
-                    />
-                    <span className="flex-1 text-sm text-gray-200">{m.name}</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded border font-mono ${
-                      m.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
-                      m.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
-                      'bg-green-900/40 text-green-300 border-green-700'
-                    }`}>
-                      {m.type === 'basic_auth' ? 'Basic' : m.type === 'bearer_jwt' ? 'JWT' : 'API Key'}
-                    </span>
-                  </label>
-                ))}
+              <div className="space-y-2">
+                {/* Selected methods – DnD sortable execution order */}
+                {selectedAuthMethodIds.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-gray-600 bg-gray-800/30 px-4 py-3 text-xs text-gray-500 text-center">
+                    No auth <span className="text-gray-400 font-medium">(public)</span> — add a method below to require authentication
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-gray-700 bg-gray-800/50 p-3 space-y-1.5">
+                    {selectedAuthMethodIds.length > 1 && (
+                      <p className="text-xs text-gray-500 pb-1">Drag to set execution order</p>
+                    )}
+                    <DndContext
+                      sensors={authDndSensors}
+                      collisionDetection={closestCenter}
+                      modifiers={[restrictToVerticalAxis]}
+                      onDragEnd={(event: DragEndEvent) => {
+                        const { active, over } = event
+                        if (over && active.id !== over.id) {
+                          setSelectedAuthMethodIds((prev) => {
+                            const oldIdx = prev.indexOf(active.id as string)
+                            const newIdx = prev.indexOf(over.id as string)
+                            return arrayMove(prev, oldIdx, newIdx)
+                          })
+                        }
+                      }}
+                    >
+                      <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
+                        {selectedAuthMethodIds.map((id) => {
+                          const m = authMethods.find((x) => x.id === id)
+                          if (!m) return null
+                          return (
+                            <SortableAuthMethodItem
+                              key={m.id}
+                              method={m}
+                              showHandle={selectedAuthMethodIds.length > 1}
+                              onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((x) => x !== id))}
+                            />
+                          )
+                        })}
+                      </SortableContext>
+                    </DndContext>
+                  </div>
+                )}
+
+                {/* Available (unselected) methods */}
+                {authMethods.some((m) => !selectedAuthMethodIds.includes(m.id)) && (
+                  <div className="rounded-md border border-gray-700 bg-gray-800/30 p-3 space-y-1">
+                    <p className="text-xs text-gray-500 pb-0.5">Add method</p>
+                    {authMethods
+                      .filter((m) => !selectedAuthMethodIds.includes(m.id))
+                      .map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setSelectedAuthMethodIds((prev) => [...prev, m.id])}
+                          className="w-full flex items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-700/50 text-left"
+                        >
+                          <Plus className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
+                          <span className="flex-1 text-sm text-gray-300">{m.name}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded border font-mono ${
+                            m.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
+                            m.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
+                            m.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
+                            'bg-green-900/40 text-green-300 border-green-700'
+                          }`}>
+                            {m.type === 'basic_auth' ? 'Basic' : m.type === 'bearer_jwt' ? 'JWT' : m.type === 'middleware' ? 'Middleware' : 'API Key'}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
             {selectedAuthMethodIds.length > 1 && (
-              <p className="mt-1 text-xs text-gray-500">
-                Multiple methods selected — any one passing grants access (OR logic).
-              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-gray-400">Logic:</span>
+                <div className="flex rounded-md overflow-hidden border border-gray-600 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setAuthLogic('or')}
+                    className={`px-3 py-1 transition-colors ${
+                      authLogic === 'or'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    Any match
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthLogic('and')}
+                    className={`px-3 py-1 transition-colors border-l border-gray-600 ${
+                      authLogic === 'and'
+                        ? 'bg-primary-600 text-white'
+                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    All match
+                  </button>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {authLogic === 'or' ? 'Access granted if any method passes' : 'All methods must pass'}
+                </span>
+              </div>
             )}
           </div>
       </div>
     </Modal>
+  )
+}
+
+// ─── Sortable Auth Method Item (inside RouteEditorModal) ─────────────────────
+
+function SortableAuthMethodItem({
+  method,
+  showHandle,
+  onRemove,
+}: {
+  method: AuthMethod
+  showHandle: boolean
+  onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: method.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+  const typeColors =
+    method.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
+    method.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
+    method.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
+    'bg-green-900/40 text-green-300 border-green-700'
+  const typeLabel =
+    method.type === 'basic_auth' ? 'Basic' :
+    method.type === 'bearer_jwt' ? 'JWT' :
+    method.type === 'middleware' ? 'Middleware' : 'API Key'
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded px-2 py-1.5 bg-gray-700/60 border border-gray-600"
+    >
+      {showHandle ? (
+        <button
+          type="button"
+          className="text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+          title="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      ) : (
+        <span className="w-3.5 h-3.5 flex-shrink-0" />
+      )}
+      <span className="flex-1 text-sm text-gray-200">{method.name}</span>
+      <span className={`text-xs px-1.5 py-0.5 rounded border font-mono ${typeColors}`}>{typeLabel}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-gray-500 hover:text-red-400 flex-shrink-0 ml-1"
+        title="Remove"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+    </div>
   )
 }
 
@@ -643,26 +775,30 @@ const AUTH_TYPE_LABELS: Record<string, string> = {
   basic_auth: 'Basic Auth',
   bearer_jwt: 'Bearer JWT',
   api_key: 'API Key',
+  middleware: 'Middleware',
 }
 
 function AuthMethodModal({
   isOpen,
   method,
+  functions,
   onSave,
   onClose,
 }: {
   isOpen: boolean
   method: Partial<AuthMethod> | null
+  functions: FunctionOption[]
   onSave: (data: { name: string; type: string; config: any }) => Promise<void>
   onClose: () => void
 }) {
   const [name, setName] = useState('')
-  const [type, setType] = useState<'basic_auth' | 'bearer_jwt' | 'api_key'>('bearer_jwt')
+  const [type, setType] = useState<'basic_auth' | 'bearer_jwt' | 'api_key' | 'middleware'>('bearer_jwt')
   const [jwtSecret, setJwtSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
   const [apiKeys, setApiKeys] = useState<string[]>([])
   const [credentials, setCredentials] = useState<{ username: string; password: string }[]>([])
   const [realm, setRealm] = useState('')
+  const [middlewareFunctionId, setMiddlewareFunctionId] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -673,6 +809,7 @@ function AuthMethodModal({
       setApiKeys(method.config?.apiKeys ? [...method.config.apiKeys] : [])
       setCredentials(method.config?.credentials ? method.config.credentials.map((c) => ({ ...c })) : [])
       setRealm(method.config?.realm || '')
+      setMiddlewareFunctionId(method.config?.functionId || '')
       setShowSecret(false)
     }
   }, [isOpen, method])
@@ -686,6 +823,7 @@ function AuthMethodModal({
     if (type === 'basic_auth') return { credentials, ...(realm.trim() ? { realm: realm.trim() } : {}) }
     if (type === 'bearer_jwt') return { jwtSecret }
     if (type === 'api_key') return { apiKeys }
+    if (type === 'middleware') return { functionId: middlewareFunctionId }
     return {}
   }
 
@@ -696,6 +834,7 @@ function AuthMethodModal({
     if (type === 'basic_auth' && credentials.some((c) => !c.username.trim() || !c.password.trim())) {
       toast.error('All credentials must have a username and password'); return
     }
+    if (type === 'middleware' && !middlewareFunctionId) { toast.error('A function must be selected'); return }
     setSaving(true)
     try {
       await onSave({ name: name.trim(), type, config: buildConfig() })
@@ -741,6 +880,7 @@ function AuthMethodModal({
             <option value="bearer_jwt">Bearer JWT</option>
             <option value="api_key">API Key</option>
             <option value="basic_auth">Basic Auth</option>
+            <option value="middleware">Middleware</option>
           </select>
           {method?.id && <p className="mt-1 text-xs text-gray-500">Type cannot be changed after creation.</p>}
         </div>
@@ -837,6 +977,32 @@ function AuthMethodModal({
                 If set, unauthenticated responses include <code className="bg-gray-700 px-1 rounded">WWW-Authenticate: Basic realm="…"</code>.
               </p>
             </div>
+          </div>
+        )}
+        {/* Middleware config */}
+        {type === 'middleware' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Function <span className="text-red-400">*</span>
+            </label>
+            {functions.length === 0 ? (
+              <p className="text-xs text-gray-500">No functions deployed in this project.</p>
+            ) : (
+              <select
+                value={middlewareFunctionId}
+                onChange={(e) => setMiddlewareFunctionId(e.target.value)}
+                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                <option value="">Select a function…</option>
+                {functions.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              The function receives <code className="bg-gray-700 px-1 rounded">{'{ path, query, headers }'}</code> and must return{' '}
+              <code className="bg-gray-700 px-1 rounded">{'{"allow": true}'}</code> to grant access.
+            </p>
           </div>
         )}
       </div>
@@ -1292,10 +1458,12 @@ export default function ApiGatewayPage() {
                             <span className={`shrink-0 text-xs px-2 py-1 rounded border font-mono ${
                               m.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
                               m.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
+                              m.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
                               'bg-green-900/40 text-green-300 border-green-700'
                             }`}>
                               {m.type === 'basic_auth' ? 'Basic Auth' :
-                               m.type === 'bearer_jwt' ? 'Bearer JWT' : 'API Key'}
+                               m.type === 'bearer_jwt' ? 'Bearer JWT' :
+                               m.type === 'middleware' ? 'Middleware' : 'API Key'}
                             </span>
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-100 truncate">{m.name}</p>
@@ -1303,6 +1471,7 @@ export default function ApiGatewayPage() {
                                 {m.type === 'basic_auth' && `${m.config.credentials?.length ?? 0} credential${(m.config.credentials?.length ?? 0) !== 1 ? 's' : ''}`}
                                 {m.type === 'bearer_jwt' && 'JWT secret configured'}
                                 {m.type === 'api_key' && `${m.config.apiKeys?.length ?? 0} key${(m.config.apiKeys?.length ?? 0) !== 1 ? 's' : ''}`}
+                                {m.type === 'middleware' && (functions.find((f) => f.id === m.config.functionId)?.name || 'Function configured')}
                               </p>
                             </div>
                           </div>
@@ -1480,6 +1649,7 @@ export default function ApiGatewayPage() {
         <AuthMethodModal
           isOpen={authMethodModalOpen}
           method={editingAuthMethod}
+          functions={functions}
           onSave={handleSaveAuthMethod}
           onClose={() => { setAuthMethodModalOpen(false); setEditingAuthMethod(null) }}
         />

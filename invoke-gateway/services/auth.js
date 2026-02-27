@@ -1,16 +1,23 @@
 const jwt = require('jsonwebtoken');
+const { executionClient, buildGatewayHeaders, buildInvokeUrl } = require('./execution-client');
+
+const MIDDLEWARE_TIMEOUT_MS = 5000;
 
 /**
  * Gateway-level authentication validators.
  *
  * Auth methods are now named, reusable configs stored per project.
- * A route may have 0 or more auth methods — OR logic: any passing method
- * grants access.  0 methods = public (always passes).
+ * A route may have 0 or more auth methods.
+ * authLogic controls how multiple methods are evaluated:
+ *   'or'  (default) — any passing method grants access
+ *   'and'           — all methods must pass
+ * 0 methods = public (always passes).
  *
  * Supported types:
  *   - basic_auth:  HTTP Basic credentials checked against config.credentials[]
  *   - bearer_jwt:  JWT signed with config.jwtSecret; expired tokens are rejected
  *   - api_key:     Key sent via x-api-key header, Authorization: Bearer, or ?api_key
+ *   - middleware:  Invokes a project function with request metadata; pass if { allow: true }
  */
 
 // ─── Extraction helpers ───────────────────────────────────────────────────────
@@ -102,24 +109,87 @@ function validateApiKey(req, config) {
   return { authenticated: false, error: 'Invalid API key' };
 }
 
+/**
+ * Invoke a project function as an auth middleware.
+ * POSTs request metadata (path, query, headers — no body) to the execution service.
+ * Returns { authenticated: true } if the function responds with { allow: true }.
+ */
+async function validateMiddleware(req, config) {
+  const functionId = config.functionId;
+  if (!functionId) {
+    return { authenticated: false };
+  }
+
+  try {
+    const { data } = await executionClient.post(
+      buildInvokeUrl(functionId),
+      { path: req.path, query: req.query, headers: req.headers },
+      {
+        headers: buildGatewayHeaders(req.ip || ''),
+        timeout: MIDDLEWARE_TIMEOUT_MS,
+        validateStatus: () => true,
+      },
+    );
+
+    if (data && data.allow === true) {
+      return { authenticated: true };
+    }
+    return { authenticated: false };
+  } catch (err) {
+    console.error('[Gateway] Middleware auth error:', err.message);
+    return { authenticated: false };
+  }
+}
+
 // ─── Main authenticate function ───────────────────────────────────────────────
 
 /**
- * Authenticate a request against a route's auth methods (OR logic).
+ * Authenticate a request against a route's auth methods.
  *
  * @param {object} req          - Express request
  * @param {Array}  authMethods  - Array of { type, config } objects from route cache
- * @returns {{ authenticated: boolean, error?: string }}
+ * @param {string} authLogic    - 'or' (any passing = allow) or 'and' (all must pass)
+ * @returns {Promise<{ authenticated: boolean, realm?: string }>}
  */
-function authenticate(req, authMethods) {
+async function authenticate(req, authMethods, authLogic = 'or') {
   // No auth methods = public
   if (!authMethods || authMethods.length === 0) {
     return { authenticated: true };
   }
 
-  let firstError = null;
   let firstRealm = null;
 
+  if (authLogic === 'and') {
+    // AND logic: every method must pass
+    for (const method of authMethods) {
+      let result;
+
+      switch (method.type) {
+        case 'basic_auth':
+          result = validateBasicAuth(req, method.config);
+          break;
+        case 'bearer_jwt':
+          result = validateBearerJwt(req, method.config);
+          break;
+        case 'api_key':
+          result = validateApiKey(req, method.config);
+          break;
+        case 'middleware':
+          result = await validateMiddleware(req, method.config);
+          break;
+        default:
+          result = { authenticated: false };
+      }
+
+      if (!result.authenticated) {
+        if (result.realm) firstRealm = result.realm;
+        return { authenticated: false, realm: firstRealm };
+      }
+    }
+    return { authenticated: true };
+  }
+
+  // OR logic (default): first passing method grants access
   for (const method of authMethods) {
     let result;
 
@@ -133,12 +203,14 @@ function authenticate(req, authMethods) {
       case 'api_key':
         result = validateApiKey(req, method.config);
         break;
+      case 'middleware':
+        result = await validateMiddleware(req, method.config);
+        break;
       default:
-        result = { authenticated: false, error: `Unknown auth type: ${method.type}` };
+        result = { authenticated: false };
     }
 
     if (result.authenticated) return { authenticated: true };
-    if (!firstError) firstError = result.error;
     if (!firstRealm && result.realm) firstRealm = result.realm;
   }
 

@@ -71,6 +71,7 @@ async function refresh() {
         gr.allowed_methods,
         gr.sort_order,
         gr.is_active,
+        gr.auth_logic,
         gs.cors_enabled,
         gs.cors_allowed_origins,
         gs.cors_allowed_headers,
@@ -80,6 +81,7 @@ async function refresh() {
         COALESCE(
           json_agg(
             json_build_object('type', am.type, 'config', am.config)
+            ORDER BY ram.sort_order ASC, am.created_at ASC
           ) FILTER (WHERE am.id IS NOT NULL),
           '[]'
         ) AS auth_methods
@@ -93,7 +95,7 @@ async function refresh() {
       GROUP BY gc.id, gc.project_id, gc.custom_domain, gc.enabled,
                p.name, p.slug,
                gr.id, gr.route_path, gr.function_id, gr.allowed_methods,
-               gr.sort_order, gr.is_active,
+               gr.sort_order, gr.is_active, gr.auth_logic,
                gs.cors_enabled, gs.cors_allowed_origins, gs.cors_allowed_headers,
                gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials
       ORDER BY gc.id, gr.sort_order ASC, gr.created_at ASC
@@ -155,6 +157,7 @@ async function refresh() {
             allowCredentials: row.cors_allow_credentials || false,
           },
           authMethods: Array.isArray(row.auth_methods) ? row.auth_methods : [],
+          authLogic: row.auth_logic || 'or',
         };
 
         newProjectSlugMap[projectSlug].routes.push(routeEntry);

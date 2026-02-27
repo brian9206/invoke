@@ -59,6 +59,7 @@ services:
       - EXECUTION_TIMEOUT=${EXECUTION_TIMEOUT}
       - CACHE_TTL_DAYS=${CACHE_TTL_DAYS}
       - MAX_CACHE_SIZE_GB=${MAX_CACHE_SIZE_GB}
+      - INTERNAL_GATEWAY_SECRET=${INTERNAL_GATEWAY_SECRET}
     volumes:
       - execution_cache:/app/cache
     depends_on:
@@ -124,6 +125,7 @@ services:
       - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
       - CACHE_REFRESH_INTERVAL=${CACHE_REFRESH_INTERVAL}
       - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_GATEWAY_SECRET=${INTERNAL_GATEWAY_SECRET}
     depends_on:
       postgres:
         condition: service_healthy

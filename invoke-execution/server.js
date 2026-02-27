@@ -213,6 +213,10 @@ class ExecutionServer {
         "MINIO_SECRET_KEY",
       ]);
 
+      if (!process.env.INTERNAL_GATEWAY_SECRET) {
+        console.warn("⚠️  WARNING: INTERNAL_GATEWAY_SECRET is not set. Gateway token verification is disabled — requests to /invoke will not be authenticated against invoke-gateway. Set this variable in both execution and gateway for trusted header verification.");
+      }
+
       // Connect to database
       await database.connect();
 
