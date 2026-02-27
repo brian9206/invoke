@@ -37,6 +37,7 @@ function gatewayAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, secret, { algorithms: ['HS256'] });
     req.trustedClientIp = payload.clientIp || req.ip;
+    req.isFromGateway = true;
     next();
   } catch (err) {
     return res.status(403).json({

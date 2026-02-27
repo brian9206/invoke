@@ -28,6 +28,32 @@ async function authenticateApiKey(req, res, next) {
             });
         }
         
+        // If request came through the gateway (x-invoke-data JWT was verified),
+        // skip function-level API key enforcement — the gateway already authenticated the caller.
+        if (req.isFromGateway) {
+            const functionResult = await db.query(`
+                SELECT 
+                    f.*,
+                    fv.version,
+                    fv.package_path,
+                    fv.file_size,
+                    fv.package_hash
+                FROM functions f
+                LEFT JOIN function_versions fv ON f.active_version_id = fv.id
+                WHERE f.id = $1 AND f.is_active = true
+            `, [functionId]);
+
+            if (functionResult.rows.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Function not found'
+                });
+            }
+
+            req.functionInfo = functionResult.rows[0];
+            return next();
+        }
+
         // Get API key from Authorization header (Bearer token) or query parameter
         let apiKey = null;
         
@@ -70,7 +96,7 @@ async function authenticateApiKey(req, res, next) {
         const functionInfo = functionResult.rows[0];
 
         // Check if API key is required and validate it
-        if (functionInfo.api_key_required && functionInfo.api_key) {
+        if (functionInfo.requires_api_key && functionInfo.api_key) {
             if (!apiKey) {
                 return res.status(401).json({
                     success: false,
