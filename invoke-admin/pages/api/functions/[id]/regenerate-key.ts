@@ -22,16 +22,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Verify function exists and requires API key
-    const functionResult = await database.query(
-      'SELECT id, requires_api_key FROM functions WHERE id = $1',
-      [id]
-    )
+    const { FunctionModel } = database.models;
+    const fn = await FunctionModel.findByPk(id, { attributes: ['id', 'requires_api_key'] });
 
-    if (functionResult.rows.length === 0) {
+    if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
-    if (!functionResult.rows[0].requires_api_key) {
+    if (!fn.requires_api_key) {
       return res.status(400).json(createResponse(false, null, 'Function does not require API key', 400))
     }
 
@@ -39,16 +37,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const newApiKey = generateApiKey()
 
     // Update function with new API key
-    const updateResult = await database.query(`
-      UPDATE functions 
-      SET api_key = $1, updated_at = NOW() 
-      WHERE id = $2 
-      RETURNING id, api_key
-    `, [newApiKey, id])
+    const [, updatedRows] = await FunctionModel.update(
+      { api_key: newApiKey, updated_at: new Date() },
+      { where: { id }, returning: true }
+    );
 
     return res.status(200).json(createResponse(true, {
-      id: updateResult.rows[0].id,
-      api_key: updateResult.rows[0].api_key
+      id: updatedRows[0].id,
+      api_key: updatedRows[0].api_key
     }, 'API key regenerated successfully', 200))
 
   } catch (error) {

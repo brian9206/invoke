@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
@@ -24,7 +25,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
   if (req.method === 'GET') {
     // Get function details with active version information
-    const result = await database.query(`
+    const [functionData] = await database.sequelize.query(`
       SELECT 
         f.id,
         f.name,
@@ -48,13 +49,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
       LEFT JOIN function_versions fv ON f.active_version_id = fv.id
       LEFT JOIN projects p ON f.project_id = p.id
       WHERE f.id = $1
-    `, [id])
+    `, { bind: [id], type: QueryTypes.SELECT }) as any[];
 
-      if (result.rows.length === 0) {
+      if (!functionData) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
-
-      const functionData = result.rows[0]
       // Verify project membership for non-admins
       if (!req.user?.isAdmin && functionData.project_id) {
         const access = await checkProjectDeveloperAccess(req.user!.id, functionData.project_id, false)
@@ -70,11 +69,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       // Check project access for non-admins (developer can update basic info, owner can update all)
       if (!req.user?.isAdmin) {
-        const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
-        if (functionResult.rows.length === 0) {
+        const { FunctionModel } = database.models;
+        const fn0 = await FunctionModel.findByPk(id, { attributes: ['project_id'] });
+        if (!fn0) {
           return res.status(404).json(createResponse(false, null, 'Function not found', 404))
         }
-        const projectId = functionResult.rows[0].project_id
+        const projectId = fn0.project_id;
         if (projectId) {
           const access = await checkProjectDeveloperAccess(userId, projectId, false)
           if (!access.allowed) {
@@ -106,12 +106,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
         // If enabling API key requirement and no key exists, generate one
         if (requires_api_key) {
-          const existingResult = await database.query(
-            'SELECT api_key FROM functions WHERE id = $1',
-            [id]
-          )
+          const { FunctionModel } = database.models;
+          const existingRecord = await FunctionModel.findByPk(id, { attributes: ['api_key'] });
           
-          if (existingResult.rows.length > 0 && !existingResult.rows[0].api_key) {
+          if (existingRecord && !existingRecord.api_key) {
             updateFields.push(`api_key = $${paramCount}`)
             updateValues.push(generateApiKey())
             paramCount++
@@ -142,35 +140,37 @@ async function handler(req: AuthenticatedRequest, res: any) {
         RETURNING *
       `
 
-      const fn = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
-      if (fn.rows.length === 0) {
+      const { FunctionModel: FnModel } = database.models;
+      const fnCheck = await FnModel.findByPk(id, { attributes: ['project_id'] });
+      if (!fnCheck) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
       if (!req.user?.isAdmin) {
-        const projectId = fn.rows[0].project_id
+        const projectId = fnCheck.project_id;
         const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
         if (!access.allowed) {
           return res.status(403).json(createResponse(false, null, access.message || 'Insufficient project permissions', 403))
         }
       }
 
-      const updateResult = await database.query(updateQuery, updateValues)
+      const [updatedResult] = await database.sequelize.query(updateQuery, { bind: updateValues, type: QueryTypes.SELECT }) as any[];
 
-      if (updateResult.rows.length === 0) {
+      if (!updatedResult) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
 
-      return res.status(200).json(createResponse(true, updateResult.rows[0], 'Function updated successfully', 200))
+      return res.status(200).json(createResponse(true, updatedResult, 'Function updated successfully', 200))
 
 
     } else if (req.method === 'DELETE') {
       // Check project access for non-admins
       if (!req.user?.isAdmin) {
-        const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [id])
-        if (functionResult.rows.length === 0) {
+        const { FunctionModel } = database.models;
+        const fnForDelete = await FunctionModel.findByPk(id, { attributes: ['project_id'] });
+        if (!fnForDelete) {
           return res.status(404).json(createResponse(false, null, 'Function not found', 404))
         }
-        const projectId = functionResult.rows[0].project_id
+        const projectId = fnForDelete.project_id;
         if (projectId) {
           const access = await checkProjectDeveloperAccess(userId, projectId, false)
           if (!access.allowed) {

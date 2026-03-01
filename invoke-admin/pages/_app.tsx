@@ -42,11 +42,10 @@ App.getInitialProps = async (appContext: AppContext): Promise<AppInitialProps & 
   if (typeof window === 'undefined') {
     try {
       const database = require('@/lib/database')
-      await database.connect()
-      const result = await database.query(
-        `SELECT setting_value FROM global_settings WHERE setting_key = 'api_gateway_domain'`
-      )
-      const value: string = result.rows[0]?.setting_value || ''
+      const setting = await database.models.GlobalSetting.findOne({
+        where: { setting_key: 'api_gateway_domain' },
+      })
+      const value: string = setting?.setting_value || ''
       gatewayEnabled = value.trim() !== ''
     } catch (_) {
       // On error keep false — the sidebar item stays hidden rather than broken

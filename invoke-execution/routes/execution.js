@@ -31,26 +31,20 @@ async function authenticateApiKey(req, res, next) {
         // If request came through the gateway (x-invoke-data JWT was verified),
         // skip function-level API key enforcement — the gateway already authenticated the caller.
         if (req.isFromGateway) {
-            const functionResult = await db.query(`
-                SELECT 
-                    f.*,
-                    fv.version,
-                    fv.package_path,
-                    fv.file_size,
-                    fv.package_hash
-                FROM functions f
-                LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-                WHERE f.id = $1 AND f.is_active = true
-            `, [functionId]);
+            const { Function: FunctionModel, FunctionVersion } = db.models;
+            const func = await FunctionModel.findOne({
+                where: { id: functionId, is_active: true },
+                include: [{ model: FunctionVersion, as: 'activeVersion' }],
+            });
 
-            if (functionResult.rows.length === 0) {
+            if (!func) {
                 return res.status(404).json({
                     success: false,
                     message: 'Function not found'
                 });
             }
 
-            req.functionInfo = functionResult.rows[0];
+            req.functionInfo = func.get({ plain: true });
             return next();
         }
 
@@ -74,26 +68,20 @@ async function authenticateApiKey(req, res, next) {
         }
 
         // Get function metadata with active version to check if API key is required
-        const functionResult = await db.query(`
-            SELECT 
-                f.*,
-                fv.version,
-                fv.package_path,
-                fv.file_size,
-                fv.package_hash
-            FROM functions f
-            LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-            WHERE f.id = $1 AND f.is_active = true
-        `, [functionId]);
+        const { Function: FunctionModel, FunctionVersion } = db.models;
+        const func = await FunctionModel.findOne({
+            where: { id: functionId, is_active: true },
+            include: [{ model: FunctionVersion, as: 'activeVersion' }],
+        });
 
-        if (functionResult.rows.length === 0) {
+        if (!func) {
             return res.status(404).json({
                 success: false,
                 message: 'Function not found'
             });
         }
 
-        const functionInfo = functionResult.rows[0];
+        const functionInfo = func.get({ plain: true });
 
         // Check if API key is required and validate it
         if (functionInfo.requires_api_key && functionInfo.api_key) {

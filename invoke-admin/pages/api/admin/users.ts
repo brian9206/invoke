@@ -1,3 +1,4 @@
+import { QueryTypes, Op } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired } from '@/lib/middleware';
 const database = require('@/lib/database');
@@ -22,7 +23,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Get all users with their project counts
 async function getUsers(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const result = await database.query(`
+    const users = await database.sequelize.query(`
       SELECT 
         u.id, 
         u.username, 
@@ -35,9 +36,9 @@ async function getUsers(req: NextApiRequest, res: NextApiResponse) {
       LEFT JOIN project_memberships pm ON u.id = pm.user_id
       GROUP BY u.id, u.username, u.email, u.is_admin, u.created_at, u.last_login
       ORDER BY u.created_at DESC
-    `);
+    `, { type: QueryTypes.SELECT });
     
-    res.json({ users: result.rows });
+    res.json({ users });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -62,13 +63,14 @@ async function createUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    // Check if user already exists
-    const existingUser = await database.query(
-      'SELECT id FROM users WHERE username = $1 OR email = $2',
-      [username, email]
-    );
+    const { User } = database.models;
 
-    if (existingUser.rows.length > 0) {
+    // Check if user already exists
+    const existingUser = await User.findOne({
+      where: { [Op.or]: [{ username }, { email }] },
+      attributes: ['id']
+    });
+    if (existingUser) {
       return res.status(400).json({ error: 'Username or email already exists' });
     }
 
@@ -76,16 +78,12 @@ async function createUser(req: NextApiRequest, res: NextApiResponse) {
     const passwordHash = await bcrypt.hash(password, 12);
 
     // Create user
-    const result = await database.query(
-      `INSERT INTO users (username, email, password_hash, is_admin) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, username, email, is_admin, created_at`,
-      [username, email, passwordHash, is_admin]
-    );
+    const userRecord = await User.create({ username, email, password_hash: passwordHash, is_admin });
+    const user = userRecord.get({ plain: true });
+    // Remove password_hash from response
+    const { password_hash: _, ...safeUser } = user;
 
-    const user = result.rows[0];
-    
-    res.status(201).json({ user });
+    res.status(201).json({ user: safeUser });
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ error: 'Failed to create user' });
@@ -118,24 +116,12 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    let updateQuery = 'UPDATE users SET updated_at = NOW()';
-    const values = [];
-    let valueIndex = 1;
+    const { User } = database.models;
+    const updateFields: Record<string, any> = { updated_at: new Date() };
 
-    if (username) {
-      updateQuery += `, username = $${valueIndex++}`;
-      values.push(username);
-    }
-
-    if (email) {
-      updateQuery += `, email = $${valueIndex++}`;
-      values.push(email);
-    }
-
-    if (typeof is_admin === 'boolean') {
-      updateQuery += `, is_admin = $${valueIndex++}`;
-      values.push(is_admin);
-    }
+    if (username) updateFields.username = username;
+    if (email) updateFields.email = email;
+    if (typeof is_admin === 'boolean') updateFields.is_admin = is_admin;
 
     if (password) {
       // Validate password strength
@@ -146,22 +132,18 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
           score: passwordValidation.score 
         });
       }
-      
       const passwordHash = await bcrypt.hash(password, 12);
-      updateQuery += `, password_hash = $${valueIndex++}`;
-      values.push(passwordHash);
+      updateFields.password_hash = passwordHash;
     }
 
-    updateQuery += ` WHERE id = $${valueIndex} RETURNING id, username, email, is_admin, updated_at`;
-    values.push(id);
+    const [affectedCount] = await User.update(updateFields, { where: { id } });
 
-    const result = await database.query(updateQuery, values);
-
-    if (result.rows.length === 0) {
+    if (affectedCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: result.rows[0] });
+    const updatedUser = await User.findByPk(id, { attributes: ['id', 'username', 'email', 'is_admin', 'updated_at'] });
+    res.json({ user: updatedUser!.get({ plain: true }) });
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({ error: 'Failed to update user' });
@@ -187,45 +169,41 @@ async function deleteUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    // Check if user has deployed functions
-    const functionsResult = await database.query(
-      'SELECT COUNT(*) as count FROM functions WHERE deployed_by = $1',
-      [id]
-    );
+    const { User, FunctionModel } = database.models;
 
-    if (parseInt(functionsResult.rows[0].count) > 0) {
+    // Check if user has deployed functions
+    const functionCount = await FunctionModel.count({ where: { deployed_by: id } });
+
+    if (functionCount > 0) {
       return res.status(400).json({ 
         error: 'Cannot delete user who has deployed functions. Please reassign or delete functions first.' 
       });
     }
 
     // Check if user is the sole owner of any projects
-    const soleOwnerResult = await database.query(`
+    const soleOwnerProjects = await database.sequelize.query(`
       SELECT p.id, p.name 
       FROM projects p
       WHERE p.id IN (
         SELECT pm.project_id 
         FROM project_memberships pm 
-        WHERE pm.user_id = $1 AND pm.role = 'owner'
+        WHERE pm.user_id = :userId AND pm.role = 'owner'
         GROUP BY pm.project_id
         HAVING COUNT(CASE WHEN role = 'owner' THEN 1 END) = 1
       )
-    `, [id]);
+    `, { replacements: { userId: id }, type: QueryTypes.SELECT });
 
-    if (soleOwnerResult.rows.length > 0) {
+    if (soleOwnerProjects.length > 0) {
       return res.status(400).json({ 
         error: 'Cannot delete user who is the sole owner of projects. Please assign another owner first.',
-        projects: soleOwnerResult.rows
+        projects: soleOwnerProjects
       });
     }
 
     // Delete user (memberships will cascade)
-    const result = await database.query(
-      'DELETE FROM users WHERE id = $1 RETURNING id, username',
-      [id]
-    );
+    const deletedCount = await User.destroy({ where: { id } });
 
-    if (result.rows.length === 0) {
+    if (deletedCount === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 

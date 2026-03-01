@@ -28,15 +28,13 @@ async function getSecurityPolicies(
   res: NextApiResponse
 ) {
   try {
-    const result = await database.query(
-      `SELECT id, action, target_type, target_value, description, priority
-       FROM project_network_policies
-       WHERE project_id = $1
-       ORDER BY priority ASC`,
-      [projectId]
-    );
-
-    res.json({ rules: result.rows });
+    const { ProjectNetworkPolicy } = database.models;
+    const rules = await ProjectNetworkPolicy.findAll({
+      where: { project_id: projectId },
+      attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
+      order: [['priority', 'ASC']]
+    });
+    res.json({ rules: rules.map((r: any) => r.get({ plain: true })) });
   } catch (error) {
     console.error('Error fetching security policies:', error);
     res.status(500).json({ error: 'Failed to fetch security policies' });
@@ -101,38 +99,25 @@ async function updateSecurityPolicies(
   }
 
   try {
-    // Use a transaction to delete old rules and insert new ones
-    await database.query('BEGIN');
-
-    // Delete existing rules for this project
-    await database.query(
-      'DELETE FROM project_network_policies WHERE project_id = $1',
-      [projectId]
-    );
-
-    // Insert new rules with sequential priorities
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      await database.query(
-        `INSERT INTO project_network_policies 
-         (project_id, action, target_type, target_value, description, priority)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          projectId,
-          rule.action,
-          rule.target_type,
-          rule.target_value,
-          rule.description || null,
-          i + 1, // Sequential priority starting from 1
-        ]
-      );
-    }
-
-    await database.query('COMMIT');
-
+    await database.sequelize.transaction(async (t: any) => {
+      const { ProjectNetworkPolicy } = database.models;
+      // Delete existing rules for this project
+      await ProjectNetworkPolicy.destroy({ where: { project_id: projectId }, transaction: t });
+      // Insert new rules with sequential priorities
+      for (let i = 0; i < rules.length; i++) {
+        const rule = rules[i];
+        await ProjectNetworkPolicy.create({
+          project_id: projectId,
+          action: rule.action,
+          target_type: rule.target_type,
+          target_value: rule.target_value,
+          description: rule.description || null,
+          priority: i + 1
+        }, { transaction: t });
+      }
+    });
     res.json({ success: true, message: 'Security policies updated successfully' });
   } catch (error) {
-    await database.query('ROLLBACK');
     console.error('Error updating security policies:', error);
     res.status(500).json({ error: 'Failed to update security policies' });
   }

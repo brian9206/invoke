@@ -29,20 +29,21 @@ export async function checkProjectAccess(
   }
 
   try {
-    const result = await database.query(
-      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2',
-      [userId, projectId]
-    );
+    const { ProjectMembership } = database.models;
+    const membership = await ProjectMembership.findOne({
+      where: { user_id: userId, project_id: projectId },
+      attributes: ['role'],
+    });
 
-    if (result.rows.length === 0) {
+    if (!membership) {
       return { allowed: false, canWrite: false, message: 'Access denied: not a member of this project' };
     }
 
-    const role = result.rows[0].role;
+    const role = membership.role;
     return {
       allowed: true,
       canWrite: role === 'owner' || role === 'developer',
-      role
+      role,
     };
   } catch (error) {
     console.error('Error checking project access:', error);
@@ -68,12 +69,13 @@ export async function checkProjectOwnerAccess(
   }
 
   try {
-    const result = await database.query(
-      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2 AND role = $3',
-      [userId, projectId, 'owner']
-    );
+    const { ProjectMembership } = database.models;
+    const membership = await ProjectMembership.findOne({
+      where: { user_id: userId, project_id: projectId, role: 'owner' },
+      attributes: ['id'],
+    });
 
-    if (result.rows.length === 0) {
+    if (!membership) {
       return { allowed: false, message: 'Only project owners can perform this action' };
     }
 
@@ -101,16 +103,17 @@ export async function checkProjectDeveloperAccess(
   }
 
   try {
-    const result = await database.query(
-      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2',
-      [userId, projectId]
-    );
+    const { ProjectMembership } = database.models;
+    const membership = await ProjectMembership.findOne({
+      where: { user_id: userId, project_id: projectId },
+      attributes: ['role'],
+    });
 
-    if (result.rows.length === 0) {
+    if (!membership) {
       return { allowed: false, message: 'Access denied: not a member of this project' };
     }
 
-    const role = result.rows[0].role;
+    const role = membership.role;
     if (role !== 'owner' && role !== 'developer') {
       return { allowed: false, message: 'Developer or owner role required' };
     }

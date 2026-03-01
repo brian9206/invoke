@@ -116,29 +116,27 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
     const database = require('./database');
     
     try {
-        await database.query(`
-            INSERT INTO execution_logs (
-                function_id, status_code, execution_time_ms, 
-                request_size, response_size, error_message, client_ip, user_agent
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        `, [
-            functionId, 
-            statusCode, 
-            executionTime, 
-            requestInfo.requestSize || 0,
-            requestInfo.responseSize || 0,
-            error,
-            requestInfo.clientIp || null,
-            requestInfo.userAgent || null
-        ]);
+        const { ExecutionLog, Function: FunctionModel } = database.models;
+
+        await ExecutionLog.create({
+            function_id: functionId,
+            status_code: statusCode,
+            execution_time_ms: executionTime,
+            request_size: requestInfo.requestSize || 0,
+            response_size: requestInfo.responseSize || 0,
+            error_message: error,
+            client_ip: requestInfo.clientIp || null,
+            user_agent: requestInfo.userAgent || null
+        });
 
         // Update function execution count
-        await database.query(`
-            UPDATE functions 
-            SET execution_count = execution_count + 1, last_executed = NOW()
-            WHERE id = $1
-        `, [functionId]);
+        await FunctionModel.update(
+            {
+                execution_count: database.sequelize.literal('execution_count + 1'),
+                last_executed: new Date()
+            },
+            { where: { id: functionId } }
+        );
 
     } catch (dbError) {
         console.error('Failed to log execution:', dbError);

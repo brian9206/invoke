@@ -9,7 +9,7 @@
  *   npm run db:migrate                   - Run via npm script
  */
 
-const { Pool } = require('pg');
+const { createDatabase } = require('invoke-shared');
 const MigrationManager = require('../lib/migration-manager');
 
 // Load environment variables from .env if available
@@ -25,40 +25,32 @@ async function main() {
 
     console.log('🗃️  Invoke Database Migration Tool\n');
 
-    // Create database connection pool
-    const pool = new Pool({
-        user: process.env.DB_USER || 'postgres',
-        host: process.env.DB_HOST || 'localhost',
-        database: process.env.DB_NAME || 'invoke_db',
-        password: process.env.DB_PASSWORD || 'postgres',
-        port: process.env.DB_PORT || 5432,
-    });
+    // Create Sequelize connection
+    console.log('📡 Connecting to database...');
+    const sequelize = createDatabase();
+    try {
+        await sequelize.authenticate();
+        console.log(`✅ Connected to ${process.env.DB_NAME || 'invoke_db'}\n`);
+    } catch (err) {
+        throw new Error(`Cannot connect to database: ${err.message}`);
+    }
 
     try {
-        // Test connection
-        console.log('📡 Connecting to database...');
-        const client = await pool.connect();
-        console.log(`✅ Connected to ${process.env.DB_NAME || 'invoke_db'}\n`);
-        client.release();
-
-        const migrationManager = new MigrationManager(pool);
+        const migrationManager = new MigrationManager(sequelize);
 
         if (showStatus) {
-            // Show migration status
             await showMigrationStatus(migrationManager);
+        } else if (args.includes('--down') || args.includes('-d')) {
+            await migrationManager.migrateDown();
+            console.log('\n✅ Rolled back last migration');
         } else {
-            // Run migrations
             await migrationManager.runMigrations();
         }
 
         console.log('\n✅ Migration tool completed successfully');
         process.exit(0);
-    } catch (error) {
-        console.error('\n❌ Migration tool failed:', error.message);
-        console.error(error.stack);
-        process.exit(1);
     } finally {
-        await pool.end();
+        await sequelize.close();
     }
 }
 
@@ -75,16 +67,11 @@ async function showMigrationStatus(migrationManager) {
 
     if (status.migrations.length > 0) {
         console.log(`\n📋 Migrations:\n`);
-        
         for (const migration of status.migrations) {
-            const statusIcon = migration.applied ? '✅' : '⏳';
-            const appliedText = migration.applied 
-                ? `Applied: ${new Date(migration.appliedAt).toISOString()}`
-                : 'Pending';
-            
-            console.log(`   ${statusIcon} [${migration.version}] ${migration.name}`);
-            console.log(`      Status: ${appliedText}`);
-            console.log(`      File: ${migration.filename}\n`);
+            const icon = migration.applied ? '✅' : '⏳';
+            const label = migration.applied ? 'Applied' : 'Pending';
+            console.log(`   ${icon} ${migration.name}`);
+            console.log(`      Status: ${label}\n`);
         }
     }
 
@@ -103,4 +90,8 @@ process.on('SIGTERM', () => {
 });
 
 // Run main function
-main();
+main().catch((error) => {
+    console.error('\n❌ Migration tool failed:', error.message);
+    console.error(error.stack);
+    process.exit(1);
+});

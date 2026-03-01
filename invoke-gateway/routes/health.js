@@ -1,13 +1,12 @@
 const express = require('express');
 const { getStatus } = require('../services/route-cache');
-const { isConnected } = require('../services/pg-notify-listener');
 const database = require('../services/database');
 
 const router = express.Router();
 
 router.get('/health', async (req, res) => {
   try {
-    await database.query('SELECT 1');
+    await database.sequelize.authenticate();
     const cacheStatus = getStatus();
     res.json({
       status: 'ok',
@@ -15,7 +14,6 @@ router.get('/health', async (req, res) => {
       cache: {
         lastRefreshed: cacheStatus.lastRefreshed,
         projectCount: cacheStatus.projectCount,
-        notifyConnected: isConnected(),
       },
     });
   } catch (err) {

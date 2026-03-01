@@ -50,13 +50,12 @@ async function getProjectStorageUsage(projectId, kvStore) {
  */
 async function getStorageLimit() {
   try {
-    const result = await database.query(
-      `SELECT setting_value FROM global_settings WHERE setting_key = 'kv_storage_limit_bytes'`
-    );
-    if (result.rows.length === 0) {
+    const { GlobalSetting } = database.models;
+    const setting = await GlobalSetting.findOne({ where: { setting_key: 'kv_storage_limit_bytes' } });
+    if (!setting) {
       return 1073741824; // Default 1GB if not set
     }
-    return parseInt(result.rows[0].setting_value);
+    return parseInt(setting.setting_value);
   } catch (error) {
     console.error('Error fetching KV storage limit:', error);
     return 1073741824; // Default 1GB on error

@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
@@ -20,7 +21,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   if (req.method === 'GET') {
-    const result = await database.query(
+    const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
+    const routeRows = await database.sequelize.query(
       `SELECT
          gr.id,
          gr.route_path,
@@ -56,10 +58,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
                 gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials,
                 gr.auth_logic
        ORDER BY gr.sort_order ASC, gr.created_at ASC`,
-      [projectId]
-    )
+      { bind: [projectId], type: QueryTypes.SELECT }
+    ) as any[];
 
-    const routes = result.rows.map((row: any) => ({
+    const routes = routeRows.map((row: any) => ({
       id: row.id,
       routePath: row.route_path,
       functionId: row.function_id,
@@ -97,62 +99,49 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Ensure gateway config exists for this project (auto-create disabled config if needed)
-    const configResult = await database.query(
-      `INSERT INTO api_gateway_configs (project_id, enabled)
-       VALUES ($1, false)
-       ON CONFLICT (project_id) DO UPDATE SET project_id = EXCLUDED.project_id
-       RETURNING id`,
-      [projectId]
-    )
-    const configId = configResult.rows[0].id
+    const [cfgPost] = await ApiGatewayConfig.findOrCreate({
+      where: { project_id: projectId },
+      defaults: { enabled: false }
+    });
+    const configId = cfgPost.id;
 
     // Check max sort_order to append new route at end
-    const orderResult = await database.query(
-      `SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order
-       FROM api_gateway_routes WHERE gateway_config_id = $1`,
-      [configId]
-    )
-    const nextOrder = orderResult.rows[0].next_order
+    const maxOrder = await ApiGatewayRoute.max('sort_order', { where: { gateway_config_id: configId } });
+    const nextOrder = ((maxOrder as number) ?? -1) + 1;
 
     // Create route + settings in a transaction
-    const route = await database.transaction(async (client: any) => {
-      const routeResult = await client.query(
-        `INSERT INTO api_gateway_routes
-           (gateway_config_id, route_path, function_id, allowed_methods, sort_order, auth_logic)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id, route_path, function_id, allowed_methods, sort_order, is_active, auth_logic, created_at`,
-        [configId, routePath, functionId || null, allowedMethods || ['GET', 'POST'], nextOrder, authLogic === 'and' ? 'and' : 'or']
-      )
-      const newRoute = routeResult.rows[0]
+    const { ApiGatewayRouteSettings, ApiGatewayRouteAuthMethod } = database.models;
+    const route = await database.sequelize.transaction(async (t: any) => {
+      const newRoute = await ApiGatewayRoute.create({
+        gateway_config_id: configId,
+        route_path: routePath,
+        function_id: functionId || null,
+        allowed_methods: allowedMethods || ['GET', 'POST'],
+        sort_order: nextOrder,
+        auth_logic: authLogic === 'and' ? 'and' : 'or'
+      }, { transaction: t });
 
-      await client.query(
-        `INSERT INTO api_gateway_route_settings
-           (route_id, cors_enabled, cors_allowed_origins, cors_allowed_headers,
-            cors_expose_headers, cors_max_age, cors_allow_credentials)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [
-          newRoute.id,
-          corsSettings?.enabled ?? false,
-          corsSettings?.allowedOrigins ?? [],
-          corsSettings?.allowedHeaders ?? [],
-          corsSettings?.exposeHeaders ?? [],
-          corsSettings?.maxAge ?? 86400,
-          corsSettings?.allowCredentials ?? false,
-        ]
-      )
+      await ApiGatewayRouteSettings.create({
+        route_id: newRoute.id,
+        cors_enabled: corsSettings?.enabled ?? false,
+        cors_allowed_origins: corsSettings?.allowedOrigins ?? [],
+        cors_allowed_headers: corsSettings?.allowedHeaders ?? [],
+        cors_expose_headers: corsSettings?.exposeHeaders ?? [],
+        cors_max_age: corsSettings?.maxAge ?? 86400,
+        cors_allow_credentials: corsSettings?.allowCredentials ?? false,
+      }, { transaction: t });
 
       // Link auth methods (order reflects execution order via sort_order)
       const methodIds: string[] = Array.isArray(authMethodIds) ? authMethodIds : []
       for (let i = 0; i < methodIds.length; i++) {
-        await client.query(
-          `INSERT INTO api_gateway_route_auth_methods (route_id, auth_method_id, sort_order)
-           VALUES ($1, $2, $3) ON CONFLICT (route_id, auth_method_id) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
-          [newRoute.id, methodIds[i], i]
-        )
+        await ApiGatewayRouteAuthMethod.upsert(
+          { route_id: newRoute.id, auth_method_id: methodIds[i], sort_order: i },
+          { transaction: t }
+        );
       }
 
-      return newRoute
-    })
+      return newRoute.get({ plain: true });
+    });
 
     return res.status(201).json(createResponse(true, {
       id: route.id,

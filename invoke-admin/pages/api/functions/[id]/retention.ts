@@ -9,33 +9,30 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     if (req.method === 'GET') {
       // Get function retention settings
-      const result = await database.query(`
-        SELECT retention_type, retention_value, retention_enabled 
-        FROM functions 
-        WHERE id = $1
-      `, [id])
+      const { FunctionModel } = database.models;
+      const fn = await FunctionModel.findByPk(id, {
+        attributes: ['retention_type', 'retention_value', 'retention_enabled']
+      });
 
-      if (result.rows.length === 0) {
+      if (!fn) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
 
-      const func = result.rows[0]
-      
       res.json(createResponse(true, {
-        retention_type: func.retention_type,
-        retention_value: func.retention_value,
-        retention_enabled: func.retention_enabled || false
+        retention_type: fn.retention_type,
+        retention_value: fn.retention_value,
+        retention_enabled: fn.retention_enabled || false
       }, 'Function retention settings retrieved successfully'))
 
     } else if (req.method === 'PUT') {
       // Update function retention settings
       const { retention_type, retention_value, retention_enabled } = req.body
+      const { FunctionModel } = database.models;
 
-      await database.query(`
-        UPDATE functions 
-        SET retention_type = $1, retention_value = $2, retention_enabled = $3
-        WHERE id = $4
-      `, [retention_type, retention_value, retention_enabled, id])
+      await FunctionModel.update(
+        { retention_type, retention_value, retention_enabled },
+        { where: { id } }
+      );
 
       res.json(createResponse(true, null, 'Function retention settings updated successfully'))
 

@@ -1,4 +1,5 @@
 const { match } = require('path-to-regexp');
+const { QueryTypes } = require('sequelize');
 const database = require('./database');
 
 /**
@@ -55,9 +56,9 @@ function compilePattern(routePath) {
 async function refresh() {
   try {
     // Fetch domain setting and routes in parallel
-    const [domainResult, routesResult] = await Promise.all([
-      database.query(`SELECT setting_value FROM global_settings WHERE setting_key = 'api_gateway_domain'`),
-      database.query(`
+    const [domainRows, routeRows] = await Promise.all([
+      database.sequelize.query(`SELECT setting_value FROM global_settings WHERE setting_key = 'api_gateway_domain'`, { type: QueryTypes.SELECT }),
+      database.sequelize.query(`
       SELECT
         gc.id            AS config_id,
         gc.project_id,
@@ -99,20 +100,18 @@ async function refresh() {
                gs.cors_enabled, gs.cors_allowed_origins, gs.cors_allowed_headers,
                gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials
       ORDER BY gc.id, gr.sort_order ASC, gr.created_at ASC
-    `),
+    `, { type: QueryTypes.SELECT }),
     ]);
 
     // Update default gateway domain from DB (overrides env var)
-    if (domainResult.rows.length > 0 && domainResult.rows[0].setting_value) {
-      defaultGatewayDomain = domainResult.rows[0].setting_value;
+    if (domainRows.length > 0 && domainRows[0].setting_value) {
+      defaultGatewayDomain = domainRows[0].setting_value;
     }
-
-    const result = routesResult;
 
     const newCustomDomainMap = {};
     const newProjectSlugMap = {};
 
-    for (const row of result.rows) {
+    for (const row of routeRows) {
       const projectSlug = row.project_slug;
       const customDomain = row.custom_domain;
 

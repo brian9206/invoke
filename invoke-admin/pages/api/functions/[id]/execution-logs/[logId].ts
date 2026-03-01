@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -8,17 +9,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
         const { id: functionId, logId } = req.query
         // Verify function exists
-        const functionResult = await database.query(
-            'SELECT id, name FROM functions WHERE id = $1',
-            [functionId]
-        )
+        const { FunctionModel } = database.models;
+        const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
-        if (functionResult.rows.length === 0) {
+        if (!fn) {
             return res.status(404).json(createResponse(false, null, 'Function not found', 404))
         }
 
         // Get detailed execution log
-        const result = await database.query(`
+        const [log] = await database.sequelize.query(`
             SELECT 
                 el.*,
                 f.name as function_name,
@@ -30,13 +29,11 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             LEFT JOIN projects p ON f.project_id = p.id
             LEFT JOIN function_versions fv ON f.active_version_id = fv.id
             WHERE el.id = $1 AND el.function_id = $2
-        `, [logId, functionId])
+        `, { bind: [logId, functionId], type: QueryTypes.SELECT }) as any[];
 
-        if (result.rows.length === 0) {
+        if (!log) {
             return res.status(404).json(createResponse(false, null, 'Execution log not found', 404))
         }
-
-        const log = result.rows[0]
         // Verify project membership for non-admins
         if (!req.user?.isAdmin) {
             const access = await checkProjectDeveloperAccess(req.user!.id, log.project_id, false)

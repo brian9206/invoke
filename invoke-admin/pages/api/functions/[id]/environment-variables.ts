@@ -1,7 +1,7 @@
 // API endpoints for managing function environment variables
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware';
-import db from '@/lib/database';
+const database = require('@/lib/database');
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { id: functionId } = req.query;
@@ -15,12 +15,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // Verify function exists
     try {
-        const functionCheck = await db.query(
-            'SELECT id FROM functions WHERE id = $1',
-            [functionId]
-        );
+        const { FunctionModel } = database.models;
+        const fn = await FunctionModel.findByPk(functionId, { attributes: ['id'] });
 
-        if (functionCheck.rows.length === 0) {
+        if (!fn) {
             return res.status(404).json({
                 success: false,
                 message: 'Function not found'
@@ -59,22 +57,16 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
 async function handleGetEnvironmentVariables(req: NextApiRequest, res: NextApiResponse, functionId: string) {
     try {
-        const result = await db.query(`
-            SELECT 
-                id,
-                variable_name,
-                variable_value,
-                description,
-                created_at,
-                updated_at
-            FROM function_environment_variables 
-            WHERE function_id = $1 
-            ORDER BY variable_name ASC
-        `, [functionId]);
+        const { FunctionEnvironmentVariable } = database.models;
+        const rows = await FunctionEnvironmentVariable.findAll({
+            where: { function_id: functionId },
+            attributes: ['id', 'variable_name', 'variable_value', 'description', 'created_at', 'updated_at'],
+            order: [['variable_name', 'ASC']]
+        });
 
         res.status(200).json({
             success: true,
-            data: result.rows
+            data: rows.map((r: any) => r.get({ plain: true }))
         });
     } catch (error) {
         console.error('Error fetching environment variables:', error);
@@ -120,26 +112,23 @@ async function handleUpdateEnvironmentVariables(req: NextApiRequest, res: NextAp
     }
 
     try {
-        await db.transaction(async (client) => {
+        await database.sequelize.transaction(async (t: any) => {
+            const { FunctionEnvironmentVariable } = database.models;
             // Delete existing environment variables for this function
-            await client.query(
-                'DELETE FROM function_environment_variables WHERE function_id = $1',
-                [functionId]
-            );
+            await FunctionEnvironmentVariable.destroy({
+                where: { function_id: functionId },
+                transaction: t
+            });
 
             // Insert new environment variables
             if (variables.length > 0) {
                 for (const variable of variables) {
-                    await client.query(`
-                        INSERT INTO function_environment_variables 
-                        (function_id, variable_name, variable_value, description) 
-                        VALUES ($1, $2, $3, $4)
-                    `, [
-                        functionId,
-                        variable.variable_name,
-                        String(variable.variable_value),
-                        variable.description || null
-                    ]);
+                    await FunctionEnvironmentVariable.create({
+                        function_id: functionId,
+                        variable_name: variable.variable_name,
+                        variable_value: String(variable.variable_value),
+                        description: variable.description || null
+                    }, { transaction: t });
                 }
             }
         });
@@ -151,7 +140,7 @@ async function handleUpdateEnvironmentVariables(req: NextApiRequest, res: NextAp
     } catch (error) {
         console.error('Error updating environment variables:', error);
         
-        if (error.code === '23505') { // Unique constraint violation
+        if ((error as any).name === 'SequelizeUniqueConstraintError' || (error as any).parent?.code === '23505') {
             res.status(400).json({
                 success: false,
                 message: 'Duplicate variable name found'
@@ -191,16 +180,13 @@ async function handleAddEnvironmentVariable(req: NextApiRequest, res: NextApiRes
     }
 
     try {
-        await db.query(`
-            INSERT INTO function_environment_variables 
-            (function_id, variable_name, variable_value, description) 
-            VALUES ($1, $2, $3, $4)
-        `, [
-            functionId,
+        const { FunctionEnvironmentVariable } = database.models;
+        await FunctionEnvironmentVariable.create({
+            function_id: functionId,
             variable_name,
-            String(variable_value),
-            description || null
-        ]);
+            variable_value: String(variable_value),
+            description: description || null
+        });
 
         res.status(201).json({
             success: true,
@@ -209,7 +195,7 @@ async function handleAddEnvironmentVariable(req: NextApiRequest, res: NextApiRes
     } catch (error) {
         console.error('Error adding environment variable:', error);
         
-        if (error.code === '23505') { // Unique constraint violation
+        if ((error as any).name === 'SequelizeUniqueConstraintError' || (error as any).parent?.code === '23505') {
             res.status(400).json({
                 success: false,
                 message: 'Variable with this name already exists'
@@ -234,12 +220,12 @@ async function handleDeleteEnvironmentVariable(req: NextApiRequest, res: NextApi
     }
 
     try {
-        const result = await db.query(
-            'DELETE FROM function_environment_variables WHERE function_id = $1 AND variable_name = $2',
-            [functionId, variable_name]
-        );
+        const { FunctionEnvironmentVariable } = database.models;
+        const deletedCount = await FunctionEnvironmentVariable.destroy({
+            where: { function_id: functionId, variable_name }
+        });
 
-        if (result.rowCount === 0) {
+        if (deletedCount === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Environment variable not found'

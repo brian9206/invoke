@@ -25,11 +25,12 @@ async function initializeDatabase() {
     initializationPromise = (async () => {
         try {
             console.log('🚀 Initializing database on server startup...');
-            await database.connect();
-            
+            await database.sequelize.authenticate();
+            console.log('✅ Database connected successfully');
+
             // Run database migrations
             const MigrationManager = require('./migration-manager');
-            const migrationManager = new MigrationManager(database.pool);
+            const migrationManager = new MigrationManager(database.sequelize);
             await migrationManager.runMigrations();
             
             initialized = true;

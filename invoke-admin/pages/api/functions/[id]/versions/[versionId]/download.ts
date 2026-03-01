@@ -1,28 +1,13 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-import { Pool } from 'pg'
-import { Client as MinIOClient } from 'minio'
 import fs from 'fs-extra'
 import path from 'path'
 import * as tar from 'tar'
 import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
 const { createResponse } = require('@/lib/utils')
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'invoke_db',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'invoke_password_123'
-})
-
-const minioClient = new MinIOClient({
-  endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-  port: parseInt(process.env.MINIO_PORT || '9000'),
-  useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_ACCESS_KEY || 'invoke-minio',
-  secretKey: process.env.MINIO_SECRET_KEY || 'invoke-minio-password-123',
-})
+const database = require('@/lib/database')
+const minioService = require('@/lib/minio')
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id: functionId, versionId } = req.query
@@ -32,109 +17,107 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
+    // Initialize MinIO service
+    if (!minioService.initialized) {
+      await minioService.initialize()
+    }
+
     // Get version info from database
-    const client = await pool.connect()
+    const [versionInfo] = await database.sequelize.query(`
+      SELECT 
+        fv.package_path,
+        fv.version,
+        f.name
+      FROM function_versions fv
+      JOIN functions f ON fv.function_id = f.id
+      WHERE fv.id = $1 AND f.id = $2
+    `, { bind: [versionId, functionId], type: QueryTypes.SELECT }) as any[];
+
+    if (!versionInfo) {
+      return res.status(404).json({ error: 'Version not found' })
+    }
+
+    const objectKey = versionInfo.package_path
+    const functionName = versionInfo.name
+    const versionNumber = versionInfo.version
+
+    // Stream file from MinIO
+    const bucketName = 'invoke-packages'
+    
     try {
-      const versionResult = await client.query(`
-        SELECT 
-          fv.package_path,
-          fv.version,
-          f.name
-        FROM function_versions fv
-        JOIN functions f ON fv.function_id = f.id
-        WHERE fv.id = $1 AND f.id = $2
-      `, [versionId, functionId])
-
-      if (versionResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Version not found' })
-      }
-
-      const version = versionResult.rows[0]
-      const objectKey = version.package_path
-      const functionName = version.name
-      const versionNumber = version.version
-
-      // Stream file from MinIO
-      const bucketName = 'invoke-packages'
+      const stat = await minioService.client.statObject(bucketName, objectKey)
+      
+      // Create temp directory for processing
+      const tempBaseDir = process.env.TEMP_DIR || './.cache'
+      await fs.ensureDir(tempBaseDir)
+      const tempDir = path.join(tempBaseDir, `download-${versionId}`)
+      await fs.ensureDir(tempDir)
       
       try {
-        const stat = await minioClient.statObject(bucketName, objectKey)
+        // Download tgz file from MinIO
+        const tgzPath = path.join(tempDir, 'package.tgz')
+        await minioService.client.fGetObject(bucketName, objectKey, tgzPath)
         
-        // Create temp directory for processing
-        const tempBaseDir = process.env.TEMP_DIR || './.cache'
-        await fs.ensureDir(tempBaseDir)
-        const tempDir = path.join(tempBaseDir, `download-${versionId}`)
-        await fs.ensureDir(tempDir)
+        // Extract tgz to temp directory
+        const extractDir = path.join(tempDir, 'extracted')
+        await fs.ensureDir(extractDir)
+        await tar.x({
+          file: tgzPath,
+          cwd: extractDir
+        })
         
-        try {
-          // Download tgz file from MinIO
-          const tgzPath = path.join(tempDir, 'package.tgz')
-          await minioClient.fGetObject(bucketName, objectKey, tgzPath)
-          
-          // Extract tgz to temp directory
-          const extractDir = path.join(tempDir, 'extracted')
-          await fs.ensureDir(extractDir)
-          await tar.x({
-            file: tgzPath,
-            cwd: extractDir
-          })
-          
-          // Create zip archive
-          const zipPath = path.join(tempDir, 'package.zip')
-          const output = fs.createWriteStream(zipPath)
-          const archive = archiver('zip', {
-            zlib: { level: 9 } // Best compression
-          })
-          
-          // Pipe archive to output
-          archive.pipe(output)
-          
-          // Add all files from extracted directory to zip
-          archive.directory(extractDir, false)
-          
-          // Finalize the archive
-          await archive.finalize()
-          
-          // Wait for the output stream to close
-          await new Promise<void>((resolve, reject) => {
-            output.on('close', resolve)
-            output.on('error', reject)
-          })
-          
-          // Get zip file stats
-          const zipStats = await fs.stat(zipPath)
-          
-          // Set headers for zip file download
-          res.setHeader('Content-Type', 'application/zip')
-          res.setHeader('Content-Disposition', `attachment; filename="${functionName}-v${versionNumber}.zip"`)
-          res.setHeader('Content-Length', zipStats.size)
+        // Create zip archive
+        const zipPath = path.join(tempDir, 'package.zip')
+        const output = fs.createWriteStream(zipPath)
+        const archive = archiver('zip', {
+          zlib: { level: 9 } // Best compression
+        })
+        
+        // Pipe archive to output
+        archive.pipe(output)
+        
+        // Add all files from extracted directory to zip
+        archive.directory(extractDir, false)
+        
+        // Finalize the archive
+        await archive.finalize()
+        
+        // Wait for the output stream to close
+        await new Promise<void>((resolve, reject) => {
+          output.on('close', resolve)
+          output.on('error', reject)
+        })
+        
+        // Get zip file stats
+        const zipStats = await fs.stat(zipPath)
+        
+        // Set headers for zip file download
+        res.setHeader('Content-Type', 'application/zip')
+        res.setHeader('Content-Disposition', `attachment; filename="${functionName}-v${versionNumber}.zip"`)
+        res.setHeader('Content-Length', zipStats.size)
 
-          // Stream zip file to response
-          const zipStream = fs.createReadStream(zipPath)
-          zipStream.pipe(res)
-          
-          // Clean up temp files after streaming
-          zipStream.on('end', async () => {
-            try {
-              await fs.remove(tempDir)
-            } catch (cleanupError) {
-              console.error('Cleanup error:', cleanupError)
-            }
-          })
-          
-        } catch (processingError) {
-          console.error('File processing error:', processingError)
-          await fs.remove(tempDir)
-          return res.status(500).json({ error: 'Failed to process package file' })
-        }
+        // Stream zip file to response
+        const zipStream = fs.createReadStream(zipPath)
+        zipStream.pipe(res)
         
-      } catch (minioError) {
-        console.error('MinIO error:', minioError)
-        return res.status(404).json({ error: 'Package file not found' })
+        // Clean up temp files after streaming
+        zipStream.on('end', async () => {
+          try {
+            await fs.remove(tempDir)
+          } catch (cleanupError) {
+            console.error('Cleanup error:', cleanupError)
+          }
+        })
+        
+      } catch (processingError) {
+        console.error('File processing error:', processingError)
+        await fs.remove(tempDir)
+        return res.status(500).json({ error: 'Failed to process package file' })
       }
-
-    } finally {
-      client.release()
+      
+    } catch (minioError) {
+      console.error('MinIO error:', minioError)
+      return res.status(404).json({ error: 'Package file not found' })
     }
 
   } catch (error) {

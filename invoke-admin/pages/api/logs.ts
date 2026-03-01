@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
@@ -38,18 +39,18 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Get total count for pagination (with filter)
-  const countResult = await database.query(`
+  const [countRow] = await database.sequelize.query(`
     SELECT COUNT(*) as total
     FROM execution_logs el
     LEFT JOIN functions f ON el.function_id = f.id
     ${whereClause}
-  `, queryParams)
-  const totalCount = parseInt(countResult.rows[0].total)
+  `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
+  const totalCount = parseInt(countRow.total)
   const totalPages = Math.ceil(totalCount / limit)
 
   // Get execution logs with function names (paginated and filtered)
   const paginationParams = [...queryParams, limit, offset]
-  const result = await database.query(`
+  const logRows = await database.sequelize.query(`
     SELECT 
       el.*,
       f.name as function_name
@@ -58,10 +59,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     ${whereClause}
     ORDER BY el.executed_at DESC
     LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-  `, paginationParams)
+  `, { bind: paginationParams, type: QueryTypes.SELECT }) as any[];
 
   const paginationData = {
-    logs: result.rows,
+    logs: logRows,
     pagination: {
       currentPage: page,
       totalPages,

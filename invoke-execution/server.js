@@ -6,18 +6,28 @@ const rateLimit = require("express-rate-limit");
 const slowDown = require("express-slow-down");
 require("dotenv").config();
 
-const { validateEnvironment } = require("./services/utils");
-const database = require("./services/database");
-const cache = require("./services/cache");
+const { createNotifyListener } = require('invoke-shared');
+const { validateEnvironment } = require('./services/utils');
+const database = require('./services/database');
+const cache = require('./services/cache');
 const {
   initialize: initializeExecutionEngine,
   shutdown: shutdownExecutionEngine,
-} = require("./services/execution-service");
-const executionPgNotify = require("./services/execution-pg-notify");
+} = require('./services/execution-service');
 const {
   invalidateEnvVarCache,
   invalidateNetworkPolicyCache,
-} = require("./services/function-providers");
+} = require('./services/function-providers');
+
+const executionPgNotify = createNotifyListener('execution_cache_invalidated', {
+  parsePayload: (raw) => (typeof raw === 'string' ? JSON.parse(raw) : (raw || {})),
+  getDebounceKey: (payload) =>
+    payload.table === 'function_environment_variables'
+      ? `function_environment_variables:${payload.function_id}`
+      : payload.table === 'project_network_policies'
+        ? `project_network_policies:${payload.project_id}`
+        : 'global_network_policies',
+});
 
 // Routes
 const executionRoutes = require("./routes/execution");
@@ -221,9 +231,6 @@ class ExecutionServer {
       if (!process.env.INTERNAL_GATEWAY_SECRET) {
         console.warn("⚠️  WARNING: INTERNAL_GATEWAY_SECRET is not set. Gateway token verification is disabled — requests to /invoke will not be authenticated against invoke-gateway. Set this variable in both execution and gateway for trusted header verification.");
       }
-
-      // Connect to database
-      await database.connect();
 
       // Start pg LISTEN/NOTIFY for in-memory cache invalidation
       await executionPgNotify.connect((payload) => {

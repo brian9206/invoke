@@ -1,5 +1,6 @@
 export const runtime = 'nodejs';
 
+import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { AuthenticatedRequest, withAuthOrApiKeyAndMethods } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -51,8 +52,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   let uploadedFile: any = null
 
   try {
-    await database.connect()
-
     // At this point multer has already parsed the multipart form and populated req.body and req.file
     uploadedFile = (req as any).file
     if (!uploadedFile) {
@@ -75,12 +74,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Check if function already exists by name - reject duplicates for new uploads
-    const existingResult = await database.query(
-      'SELECT id, name FROM functions WHERE name = $1',
-      [functionName]
-    )
+    const { FunctionModel, FunctionVersion } = database.models;
+    const existingFn = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] });
 
-    if (existingResult.rows.length > 0) {
+    if (existingFn) {
       return res.status(409).json(createResponse(false, null, `Function with name "${functionName}" already exists. Use the update function feature to modify existing functions.`, 409))
     }
 
@@ -126,43 +123,32 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     console.log(`✅ Package uploaded to MinIO: ${uploadResult.objectName}`)
 
     // Insert new function (without version-specific columns)
-    const functionResult = await database.query(`
-      INSERT INTO functions (
-        id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, name
-    `, [
-      functionId, functionName, description, req.user!.id, requiresApiKey, apiKey, true, projectId
-    ])
+    await FunctionModel.create({
+      id: functionId,
+      name: functionName,
+      description,
+      deployed_by: req.user!.id,
+      requires_api_key: requiresApiKey,
+      api_key: apiKey,
+      is_active: true,
+      project_id: projectId
+    });
 
     // Create first version record
-    const versionResult = await database.query(`
-      INSERT INTO function_versions (
-        function_id, 
-        version, 
-        package_path, 
-        file_size, 
-        package_hash,
-        created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, version
-    `, [
-      functionId,
-      version, // Integer version
-      uploadResult.objectName, // Use the actual MinIO object path
-      uploadResult.size,
-      uploadResult.hash,
-      req.user!.id
-    ])
-    console.log(`✅ Version record created with ID: ${versionResult.rows[0].id}`)
+    const firstVersion = await FunctionVersion.create({
+      function_id: functionId,
+      version,
+      package_path: uploadResult.objectName,
+      file_size: uploadResult.size,
+      package_hash: uploadResult.hash,
+      created_by: req.user!.id
+    });
+    console.log(`✅ Version record created with ID: ${firstVersion.id}`)
 
     // Update function to reference the active version
     console.log(`🔗 Setting active version for function ${functionId}`)
-    await database.query(
-      'UPDATE functions SET active_version_id = $1 WHERE id = $2',
-      [versionResult.rows[0].id, functionId]
-    )
-    console.log(`✅ Active version set to: ${versionResult.rows[0].id}`)
+    await FunctionModel.update({ active_version_id: firstVersion.id }, { where: { id: functionId } });
+    console.log(`✅ Active version set to: ${firstVersion.id}`)
     
     console.log(`✅ Created new function ${functionName} version ${version}`)
 
@@ -173,7 +159,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Return function details with version info
-    const finalResult = await database.query(`
+    const [finalData] = await database.sequelize.query(`
       SELECT 
         f.*,
         fv.version,
@@ -182,9 +168,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       FROM functions f
       LEFT JOIN function_versions fv ON f.active_version_id = fv.id
       WHERE f.id = $1
-    `, [functionId])
+    `, { bind: [functionId], type: QueryTypes.SELECT }) as any[];
 
-    return res.status(201).json(createResponse(true, finalResult.rows[0], 
+    return res.status(201).json(createResponse(true, finalData, 
       'Function uploaded successfully', 201))
 
   } catch (error) {

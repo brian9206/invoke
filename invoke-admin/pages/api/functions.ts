@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
@@ -59,9 +60,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       `
       params = [req.user!.id, projectIds]
     }
-    const result = await database.query(query, params)
+    const functions = await database.sequelize.query(query, { bind: params, type: QueryTypes.SELECT });
 
-    return res.status(200).json(createResponse(true, result.rows, 'Functions retrieved successfully'))
+    return res.status(200).json(createResponse(true, functions, 'Functions retrieved successfully'))
 
   } else if (req.method === 'POST') {
     // Create function metadata (code uploaded separately via versions endpoint)
@@ -81,12 +82,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Check if function name already exists
-    const existingResult = await database.query(
-      'SELECT id FROM functions WHERE name = $1',
-      [name]
-    )
+    const { FunctionModel } = database.models;
+    const existing = await FunctionModel.findOne({ where: { name }, attributes: ['id'] });
 
-    if (existingResult.rows.length > 0) {
+    if (existing) {
       return res.status(409).json(createResponse(false, null, `Function with name "${name}" already exists`, 409))
     }
 
@@ -98,23 +97,18 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const apiKey = requires_api_key ? generateApiKey() : null
 
     // Create function
-    const result = await database.query(`
-      INSERT INTO functions (
-        id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING id, name, description, requires_api_key, api_key, is_active, project_id, created_at
-    `, [
-      functionId,
+    const fn = await FunctionModel.create({
+      id: functionId,
       name,
-      description || '',
-      req.user!.id,
-      requires_api_key || false,
-      apiKey,
-      false, // Not active until code is uploaded
+      description: description || '',
+      deployed_by: req.user!.id,
+      requires_api_key: requires_api_key || false,
+      api_key: apiKey,
+      is_active: false,
       project_id
-    ])
+    });
 
-    return res.status(201).json(createResponse(true, result.rows[0], 'Function created successfully', 201))
+    return res.status(201).json(createResponse(true, fn.get({ plain: true }), 'Function created successfully', 201))
   }
 }
 

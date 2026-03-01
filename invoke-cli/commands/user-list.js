@@ -8,15 +8,13 @@ function register(program) {
     .description('List all admin users')
     .action(async () => {
       try {
-        await database.connect()
+        const { User } = database.models
+        const users = await User.findAll({
+          attributes: ['id', 'username', 'email', 'is_admin', 'created_at', 'last_login'],
+          order: [['created_at', 'DESC']]
+        })
 
-        const result = await database.query(`
-          SELECT id, username, email, is_admin, created_at, last_login
-          FROM users
-          ORDER BY created_at DESC
-        `)
-
-        if (result.rows.length === 0) {
+        if (users.length === 0) {
           console.log(chalk.yellow('📭 No users found'))
           return
         }
@@ -27,7 +25,7 @@ function register(program) {
           ['ID', 'Username', 'Email', 'Admin', 'Created', 'Last Login']
         ]
 
-        result.rows.forEach(user => {
+        users.forEach(user => {
           tableData.push([
             user.id.toString(),
             user.username,

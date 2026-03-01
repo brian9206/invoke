@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize';
 import { NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
 const database = require('@/lib/database');
@@ -26,7 +27,7 @@ async function getProjectMembers(req: AuthenticatedRequest, res: NextApiResponse
   }
 
   try {
-    const result = await database.query(`
+    const members = await database.sequelize.query(`
       SELECT 
         pm.id,
         pm.role,
@@ -38,11 +39,11 @@ async function getProjectMembers(req: AuthenticatedRequest, res: NextApiResponse
       FROM project_memberships pm
       JOIN users u ON pm.user_id = u.id
       LEFT JOIN users creator ON pm.created_by = creator.id
-      WHERE pm.project_id = $1
+      WHERE pm.project_id = :projectId
       ORDER BY pm.created_at ASC
-    `, [projectId]);
+    `, { replacements: { projectId }, type: QueryTypes.SELECT });
 
-    res.json({ members: result.rows });
+    res.json({ members });
   } catch (error) {
     console.error('Error fetching project members:', error);
     res.status(500).json({ error: 'Failed to fetch project members' });
@@ -63,44 +64,45 @@ async function addProjectMember(req: AuthenticatedRequest, res: NextApiResponse)
   }
 
   try {
+    const { User, Project, ProjectMembership } = database.models;
+
     // Check if user exists
-    const userResult = await database.query('SELECT id, username FROM users WHERE id = $1', [userId]);
-    if (userResult.rows.length === 0) {
+    const userRecord = await User.findByPk(userId, { attributes: ['id', 'username'] });
+    if (!userRecord) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     // Check if project exists
-    const projectResult = await database.query('SELECT id, name FROM projects WHERE id = $1', [projectId]);
-    if (projectResult.rows.length === 0) {
+    const projectRecord = await Project.findByPk(projectId, { attributes: ['id', 'name'] });
+    if (!projectRecord) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
     // Check if membership already exists
-    const existingMembership = await database.query(
-      'SELECT id FROM project_memberships WHERE project_id = $1 AND user_id = $2',
-      [projectId, userId]
-    );
-
-    if (existingMembership.rows.length > 0) {
+    const existingMembership = await ProjectMembership.findOne({
+      where: { project_id: projectId, user_id: userId },
+      attributes: ['id']
+    });
+    if (existingMembership) {
       return res.status(400).json({ error: 'User is already a member of this project' });
     }
 
     // Add membership
-    const result = await database.query(
-      `INSERT INTO project_memberships (project_id, user_id, role, created_by)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, role, created_at`,
-      [projectId, userId, role, createdBy]
-    );
-
-    const membership = result.rows[0];
-    const user = userResult.rows[0];
+    const membership = await ProjectMembership.create({
+      project_id: projectId,
+      user_id: userId,
+      role,
+      created_by: createdBy
+    });
+    const membershipData = membership.get({ plain: true });
 
     res.status(201).json({
       membership: {
-        ...membership,
+        id: membershipData.id,
+        role: membershipData.role,
+        created_at: membershipData.created_at,
         user_id: userId,
-        username: user.username
+        username: userRecord.username
       }
     });
   } catch (error) {
@@ -122,19 +124,17 @@ async function updateMemberRole(req: AuthenticatedRequest, res: NextApiResponse)
   }
 
   try {
-    const result = await database.query(
-      `UPDATE project_memberships 
-       SET role = $1 
-       WHERE id = $2
-       RETURNING id, role, project_id, user_id`,
-      [role, membershipId]
+    const { ProjectMembership } = database.models;
+    const [affectedCount, updatedRows] = await ProjectMembership.update(
+      { role },
+      { where: { id: membershipId }, returning: true }
     );
 
-    if (result.rows.length === 0) {
+    if (affectedCount === 0) {
       return res.status(404).json({ error: 'Membership not found' });
     }
 
-    res.json({ membership: result.rows[0] });
+    res.json({ membership: updatedRows[0].get({ plain: true }) });
   } catch (error) {
     console.error('Error updating member role:', error);
     res.status(500).json({ error: 'Failed to update member role' });
@@ -150,26 +150,24 @@ async function removeMember(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    // Get membership info before deletion
-    const membershipResult = await database.query(
-      'SELECT project_id, user_id, role FROM project_memberships WHERE id = $1',
-      [membershipId]
-    );
+    const { ProjectMembership } = database.models;
 
-    if (membershipResult.rows.length === 0) {
+    // Get membership info before deletion
+    const membership = await ProjectMembership.findByPk(membershipId, {
+      attributes: ['id', 'project_id', 'user_id', 'role']
+    });
+
+    if (!membership) {
       return res.status(404).json({ error: 'Membership not found' });
     }
 
-    const membership = membershipResult.rows[0];
-
     // Check if this is the last owner
     if (membership.role === 'owner') {
-      const ownerCount = await database.query(
-        'SELECT COUNT(*) as count FROM project_memberships WHERE project_id = $1 AND role = $2',
-        [membership.project_id, 'owner']
-      );
+      const ownerCount = await ProjectMembership.count({
+        where: { project_id: membership.project_id, role: 'owner' }
+      });
 
-      if (parseInt(ownerCount.rows[0].count) <= 1) {
+      if (ownerCount <= 1) {
         return res.status(400).json({ 
           error: 'Cannot remove the last owner from project. Please assign another owner first.' 
         });
@@ -177,7 +175,7 @@ async function removeMember(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Delete membership
-    await database.query('DELETE FROM project_memberships WHERE id = $1', [membershipId]);
+    await membership.destroy();
 
     res.json({ success: true, message: 'Member removed successfully' });
   } catch (error) {

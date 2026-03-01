@@ -18,12 +18,14 @@ async function deleteFunction(functionId) {
   }
 
   // Delete function record (cascade deletes versions)
-  const deleteResult = await database.query('DELETE FROM functions WHERE id = $1 RETURNING *', [functionId])
+  const { Function: FunctionModel } = database.models;
+  const fn = await FunctionModel.findByPk(functionId);
 
-  if (deleteResult.rows.length === 0) {
+  if (!fn) {
     throw new Error('Function not found')
   }
 
+  await fn.destroy();
   return deletedPackages
 }
 

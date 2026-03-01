@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
@@ -12,12 +13,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   // Verify function exists
-  const functionResult = await database.query(
-    'SELECT id FROM functions WHERE id = $1',
-    [id]
-  )
+  const { FunctionModel } = database.models;
+  const fn = await FunctionModel.findByPk(id, { attributes: ['id'] });
 
-  if (functionResult.rows.length === 0) {
+  if (!fn) {
     return res.status(404).json(createResponse(false, null, 'Function not found', 404))
   }
 
@@ -39,15 +38,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // 'all' status means no additional filter
 
     // Get total count for pagination (with filter)
-    const countResult = await database.query(`
+    const [countData] = await database.sequelize.query(`
       SELECT COUNT(*) as total 
       FROM execution_logs 
       ${whereClause}
-    `, queryParams)
-    const totalCount = parseInt(countResult.rows[0]?.total || 0)
+    `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
+    const totalCount = parseInt((countData as any)?.total || 0)
     const totalPages = Math.ceil(totalCount / limit)
 
-    const logsResult = await database.query(`
+    const logs = await database.sequelize.query(`
       SELECT 
         id,
         status_code,
@@ -62,10 +61,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       ${whereClause}
       ORDER BY executed_at DESC 
       LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-    `, [...queryParams, limit, offset])
+    `, { bind: [...queryParams, limit, offset], type: QueryTypes.SELECT });
 
     return res.status(200).json(createResponse(true, {
-      logs: logsResult.rows,
+      logs,
       pagination: {
         currentPage: page,
         totalPages,

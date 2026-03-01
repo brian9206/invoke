@@ -22,13 +22,11 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   try {
     // Fetch global policies from database
-    const globalResult = await database.query(
-      `SELECT id, action, target_type, target_value, description, priority
-       FROM global_network_policies
-       ORDER BY priority ASC`
-    );
-
-    const globalRules = globalResult.rows;
+    const { GlobalNetworkPolicy } = database.models;
+    const globalRules = (await GlobalNetworkPolicy.findAll({
+      attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
+      order: [['priority', 'ASC']]
+    })).map((r: any) => r.get({ plain: true }));
 
     // Prepend global rules to the provided rules
     const combinedRules = [...globalRules, ...rules];

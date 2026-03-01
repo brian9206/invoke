@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
 const database = require('@/lib/database');
@@ -20,7 +21,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Get all projects with member counts
 async function getProjects(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const result = await database.query(`
+    const projects = await database.sequelize.query(`
       SELECT 
         p.id, 
         p.name, 
@@ -37,9 +38,9 @@ async function getProjects(req: NextApiRequest, res: NextApiResponse) {
       LEFT JOIN functions f ON p.id = f.project_id
       GROUP BY p.id, p.name, p.description, p.is_active, p.kv_storage_limit_bytes, p.created_at, u.username
       ORDER BY p.created_at DESC
-    `);
+    `, { type: QueryTypes.SELECT });
     
-    res.json({ projects: result.rows });
+    res.json({ projects });
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });
@@ -56,46 +57,43 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    // Check if project name already exists
-    const existingProject = await database.query(
-      'SELECT id FROM projects WHERE name = $1',
-      [name]
-    );
+    const { Project, ProjectMembership, ProjectNetworkPolicy, GlobalSetting } = database.models;
 
-    if (existingProject.rows.length > 0) {
+    // Check if project name already exists
+    const existingProject = await Project.findOne({ where: { name }, attributes: ['id'] });
+    if (existingProject) {
       return res.status(400).json({ error: 'Project name already exists' });
     }
 
     // Get default KV storage limit from global settings
-    const limitResult = await database.query(
-      `SELECT setting_value FROM global_settings WHERE setting_key = 'kv_storage_limit_bytes'`
-    );
-    const defaultLimit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].setting_value) : 1073741824;
+    const limitRecord = await GlobalSetting.findOne({
+      where: { setting_key: 'kv_storage_limit_bytes' },
+      attributes: ['setting_value']
+    });
+    const defaultLimit = limitRecord ? parseInt(limitRecord.setting_value) : 1073741824;
 
     // Create project
-    const projectResult = await database.query(
-      `INSERT INTO projects (name, description, created_by, kv_storage_limit_bytes) 
-       VALUES ($1, $2, $3, $4) 
-       RETURNING id, name, description, created_at, kv_storage_limit_bytes`,
-      [name, description || null, userId, defaultLimit]
-    );
-
-    const project = projectResult.rows[0];
+    const projectRecord = await Project.create({
+      name,
+      description: description || null,
+      created_by: userId,
+      kv_storage_limit_bytes: defaultLimit
+    });
+    const project = projectRecord.get({ plain: true });
 
     // Add creator as owner
-    await database.query(
-      `INSERT INTO project_memberships (project_id, user_id, role, created_by)
-       VALUES ($1, $2, 'owner', $3)`,
-      [project.id, userId, userId]
-    );
+    await ProjectMembership.create({
+      project_id: project.id,
+      user_id: userId,
+      role: 'owner',
+      created_by: userId
+    });
 
     // Add default allow all security policies (IPv4 and IPv6)
-    await database.query(
-      `INSERT INTO project_network_policies (project_id, action, target_type, target_value, description, priority)
-       VALUES ($1, 'allow', 'cidr', '0.0.0.0/0', 'Allow all public IPv4', 1),
-              ($1, 'allow', 'cidr', '::/0', 'Allow all public IPv6', 2)`,
-      [project.id]
-    );
+    await ProjectNetworkPolicy.bulkCreate([
+      { project_id: project.id, action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0', description: 'Allow all public IPv4', priority: 1 },
+      { project_id: project.id, action: 'allow', target_type: 'cidr', target_value: '::/0', description: 'Allow all public IPv6', priority: 2 }
+    ]);
 
     res.status(201).json({ project });
   } catch (error) {
@@ -113,19 +111,23 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const result = await database.query(
-      `UPDATE projects 
-       SET name = $1, description = $2, is_active = $3, kv_storage_limit_bytes = $4, updated_at = NOW()
-       WHERE id = $5
-       RETURNING id, name, description, is_active, kv_storage_limit_bytes, updated_at`,
-      [name, description || null, is_active ?? true, kv_storage_limit_bytes ?? 1073741824, id]
+    const { Project } = database.models;
+    const [affectedCount, updatedRows] = await Project.update(
+      {
+        name,
+        description: description || null,
+        is_active: is_active ?? true,
+        kv_storage_limit_bytes: kv_storage_limit_bytes ?? 1073741824,
+        updated_at: new Date()
+      },
+      { where: { id }, returning: true }
     );
 
-    if (result.rows.length === 0) {
+    if (affectedCount === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    res.json({ project: result.rows[0] });
+    res.json({ project: updatedRows[0].get({ plain: true }) });
   } catch (error) {
     console.error('Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
@@ -141,18 +143,20 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
+    const { FunctionModel, Project } = database.models;
+
     // Get all functions for the project
-    const functionsResult = await database.query(
-      'SELECT id FROM functions WHERE project_id = $1',
-      [id]
-    );
+    const functions = await FunctionModel.findAll({
+      where: { project_id: id },
+      attributes: ['id']
+    });
 
     const { deleteFunction } = require('@/lib/delete-utils')
     let totalDeletedPackages = 0
 
     // Delete each function using centralized helper (removes MinIO packages and DB rows)
-    for (const fnRow of functionsResult.rows) {
-      const functionId = fnRow.id
+    for (const fn of functions) {
+      const functionId = fn.id
       try {
         const deleted = await deleteFunction(functionId)
         totalDeletedPackages += deleted || 0
@@ -163,16 +167,13 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Delete project (memberships will cascade)
-    const result = await database.query(
-      'DELETE FROM projects WHERE id = $1 RETURNING id',
-      [id]
-    );
+    const deletedCount = await Project.destroy({ where: { id } });
 
-    if (result.rows.length === 0) {
+    if (deletedCount === 0) {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    res.json({ success: true, message: `Project deleted successfully (removed ${functionsResult.rows.length} functions and ${totalDeletedPackages} MinIO packages)` });
+    res.json({ success: true, message: `Project deleted successfully (removed ${functions.length} functions and ${totalDeletedPackages} MinIO packages)` });
   } catch (error) {
     console.error('Error deleting project:', error);
     res.status(500).json({ error: 'Failed to delete project' });

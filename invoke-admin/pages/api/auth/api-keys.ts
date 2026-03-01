@@ -6,19 +6,17 @@ const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    await database.connect()
+    const { ApiKey } = database.models
 
     if (req.method === 'GET') {
       // List user's API keys (without showing the actual keys)
-      const result = await database.query(
-        `SELECT id, name, created_at, last_used, usage_count, is_active 
-         FROM api_keys 
-         WHERE created_by = $1
-         ORDER BY created_at DESC`,
-        [req.user!.id]
-      )
+      const keys = await ApiKey.findAll({
+        where: { created_by: req.user!.id },
+        attributes: ['id', 'name', 'created_at', 'last_used', 'usage_count', 'is_active'],
+        order: [['created_at', 'DESC']],
+      })
 
-      return res.status(200).json(createResponse(true, result.rows, 'API keys retrieved'))
+      return res.status(200).json(createResponse(true, keys.map((k: any) => k.get({ plain: true })), 'API keys retrieved'))
     }
 
     if (req.method === 'POST') {
@@ -37,14 +35,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       const keyHash = hashApiKey(apiKey)
 
       // Store the hashed key in the database
-      const result = await database.query(
-        `INSERT INTO api_keys (key_hash, name, created_by, is_active, usage_count)
-         VALUES ($1, $2, $3, $4, 0)
-         RETURNING id, name, created_at, is_active`,
-        [keyHash, name.trim(), req.user!.id, true]
-      )
+      const newKey = await ApiKey.create({
+        key_hash: keyHash,
+        name: name.trim(),
+        created_by: req.user!.id,
+        is_active: true,
+        usage_count: 0,
+      })
 
-      const keyData = result.rows[0]
+      const keyData = { id: newKey.id, name: newKey.name, created_at: newKey.created_at, is_active: newKey.is_active }
 
       // Return the plaintext key ONLY once (never stored)
       return res.status(201).json(createResponse(true, {

@@ -7,6 +7,7 @@
  */
 
 const path = require('path');
+const { Op } = require('sequelize');
 const db = require('./database');
 const cache = require('./cache');
 const { createProjectKV } = require('./kv-store');
@@ -57,30 +58,30 @@ function invalidateNetworkPolicyCache(projectId) {
  * @returns {Promise<Object>}
  */
 async function fetchFunctionMetadata(functionId) {
-    const query = `
-        SELECT 
-            f.id, 
-            f.name, 
-            f.project_id,
-            f.is_active,
-            f.created_at, 
-            f.updated_at,
-            fv.version,
-            fv.package_path,
-            fv.package_hash,
-            fv.file_size
-        FROM functions f
-        LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-        WHERE f.id = $1 AND f.is_active = true
-    `;
+    const { Function: FunctionModel, FunctionVersion } = db.models;
 
-    const result = await db.query(query, [functionId]);
+    const func = await FunctionModel.findOne({
+        where: { id: functionId, is_active: true },
+        include: [{ model: FunctionVersion, as: 'activeVersion' }],
+    });
 
-    if (result.rows.length === 0) {
+    if (!func) {
         throw new Error('Function not found');
     }
 
-    return result.rows[0];
+    const fv = func.activeVersion;
+    return {
+        id: func.id,
+        name: func.name,
+        project_id: func.project_id,
+        is_active: func.is_active,
+        created_at: func.created_at,
+        updated_at: func.updated_at,
+        version: fv ? fv.version : null,
+        package_path: fv ? fv.package_path : null,
+        package_hash: fv ? fv.package_hash : null,
+        file_size: fv ? fv.file_size : null,
+    };
 }
 
 /**
@@ -97,14 +98,13 @@ async function fetchEnvironmentVariables(functionId) {
     }
 
     try {
-        const result = await db.query(`
-            SELECT variable_name, variable_value 
-            FROM function_environment_variables 
-            WHERE function_id = $1
-        `, [functionId]);
+        const { FunctionEnvironmentVariable } = db.models;
+        const rows = await FunctionEnvironmentVariable.findAll({
+            where: { function_id: functionId },
+        });
 
         const envVars = {};
-        for (const row of result.rows) {
+        for (const row of rows) {
             envVars[row.variable_name] = row.variable_value;
         }
 
@@ -128,18 +128,19 @@ async function fetchNetworkPolicies(projectId) {
     try {
         const now = Date.now();
 
+        const { GlobalNetworkPolicy, ProjectNetworkPolicy } = db.models;
+
         // --- global rules (cached under '__global__') ---
         let globalRules;
         const cachedGlobal = networkPolicyCache.get('__global__');
         if (cachedGlobal && cachedGlobal.expiresAt > now) {
             globalRules = cachedGlobal.data;
         } else {
-            const globalResult = await db.query(`
-                SELECT action, target_type, target_value, description, priority
-                FROM global_network_policies
-                ORDER BY priority ASC
-            `);
-            globalRules = globalResult.rows;
+            const globalRows = await GlobalNetworkPolicy.findAll({
+                attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
+                order: [['priority', 'ASC']],
+            });
+            globalRules = globalRows.map(r => r.get({ plain: true }));
             networkPolicyCache.set('__global__', { data: globalRules, expiresAt: now + NETWORK_POLICY_TTL_MS });
         }
 
@@ -149,13 +150,12 @@ async function fetchNetworkPolicies(projectId) {
         if (cachedProject && cachedProject.expiresAt > now) {
             projectRules = cachedProject.data;
         } else {
-            const projectResult = await db.query(`
-                SELECT action, target_type, target_value, description, priority
-                FROM project_network_policies
-                WHERE project_id = $1
-                ORDER BY priority ASC
-            `, [projectId]);
-            projectRules = projectResult.rows;
+            const projectRows = await ProjectNetworkPolicy.findAll({
+                where: { project_id: projectId },
+                attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
+                order: [['priority', 'ASC']],
+            });
+            projectRules = projectRows.map(r => r.get({ plain: true }));
             networkPolicyCache.set(projectId, { data: projectRules, expiresAt: now + NETWORK_POLICY_TTL_MS });
         }
 

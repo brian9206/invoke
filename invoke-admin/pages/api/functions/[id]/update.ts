@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
@@ -44,8 +45,6 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
   let uploadedFile: any = null
 
   try {
-    await database.connect()
-
     const { id: functionId } = req.query
 
     if (!functionId || typeof functionId !== 'string') {
@@ -61,16 +60,14 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     const userId = authResult.user!.id
 
     // Check if function exists
-    const functionResult = await database.query(
+    const [existingFunction] = await database.sequelize.query(
       'SELECT * FROM functions WHERE id = $1',
-      [functionId]
-    )
+      { bind: [functionId], type: QueryTypes.SELECT }
+    ) as any[];
 
-    if (functionResult.rows.length === 0) {
+    if (!existingFunction) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
-
-    const existingFunction = functionResult.rows[0]
 
     // Check project access (developer role required for function updates)
     if (!authResult.user?.isAdmin) {
@@ -146,14 +143,14 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     console.log(`✅ Package uploaded to MinIO: ${uploadResult.objectName}`)
 
     // Update function in database (only version, file_size, package_hash)
-    await database.query(`
+    await database.sequelize.query(`
       UPDATE functions 
       SET version = $1, 
           file_size = $2, 
           package_hash = $3,
           updated_at = NOW()
       WHERE id = $4
-    `, [newVersion, uploadResult.size, uploadResult.hash, functionId])
+    `, { bind: [newVersion, uploadResult.size, uploadResult.hash, functionId] });
     
     console.log(`✅ Updated function ${existingFunction.name} to version ${newVersion}`)
 
@@ -164,12 +161,12 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Return updated function details
-    const updatedFunctionResult = await database.query(
+    const [updatedFunction] = await database.sequelize.query(
       'SELECT * FROM functions WHERE id = $1',
-      [functionId]
-    )
+      { bind: [functionId], type: QueryTypes.SELECT }
+    ) as any[];
 
-    return res.status(200).json(createResponse(true, updatedFunctionResult.rows[0], 
+    return res.status(200).json(createResponse(true, updatedFunction, 
       'Function package updated successfully', 200))
 
   } catch (error) {

@@ -29,6 +29,7 @@
     "inquirer": "^12.11.1",
     "isolated-vm": "^6.0.2",
     "keyv": "^5.1.0",
+    "invoke-shared": "*",
     "pg": "^8.11.3",
     "sandbox-fs": "^1.1.0",
     "table": "^6.8.1",

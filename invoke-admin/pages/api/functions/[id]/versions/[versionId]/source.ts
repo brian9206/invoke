@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import fs from 'fs-extra'
@@ -16,28 +17,25 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-
-    await database.connect()
-    
     // Initialize MinIO service
     if (!minioService.initialized) {
       await minioService.initialize()
     }
 
     // Get version details
-    const versionResult = await database.query(`
+    const versionRows = await database.sequelize.query(`
       SELECT fv.*, f.name as function_name, f.project_id, p.name as project_name
       FROM function_versions fv
       JOIN functions f ON fv.function_id = f.id
       LEFT JOIN projects p ON f.project_id = p.id
       WHERE fv.id = $1 AND fv.function_id = $2
-    `, [versionId, functionId])
+    `, { bind: [versionId, functionId], type: QueryTypes.SELECT }) as any[];
 
-    if (versionResult.rows.length === 0) {
+    if (!versionRows.length) {
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
     }
 
-    const versionData = versionResult.rows[0]
+    const versionData = versionRows[0]
     // Verify project membership for non-admins
     if (!req.user?.isAdmin) {
       const access = await checkProjectDeveloperAccess(req.user!.id, versionData.project_id, false)

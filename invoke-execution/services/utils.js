@@ -172,38 +172,34 @@ async function logExecution(functionId, executionTime, statusCode, error = null,
             }
         }
         
-        await database.query(`
-            INSERT INTO execution_logs (
-                function_id, status_code, execution_time_ms, 
-                request_size, response_size, error_message, client_ip, user_agent,
-                console_logs, request_headers, response_headers,
-                request_body, response_body, request_method, request_url
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-        `, [
-            functionId, 
-            statusCode, 
-            executionTime, 
-            requestInfo.requestSize || 0,
-            requestInfo.responseSize || 0,
-            error,
-            requestInfo.clientIp || null,
-            requestInfo.userAgent || null,
-            JSON.stringify(requestInfo.consoleOutput || []),
-            JSON.stringify(requestInfo.requestHeaders || {}),
-            JSON.stringify(requestInfo.responseHeaders || {}),
-            requestInfo.requestBody || '',
-            responseBodyLog,
-            requestInfo.requestMethod || 'POST',
-            requestInfo.requestUrl || ''
-        ]);
+        const { ExecutionLog, Function: FunctionModel } = database.models;
 
-        // Update function execution count
-        await database.query(`
-            UPDATE functions 
-            SET execution_count = execution_count + 1, last_executed = NOW()
-            WHERE id = $1
-        `, [functionId]);
+        await ExecutionLog.create({
+            function_id: functionId,
+            status_code: statusCode,
+            execution_time_ms: executionTime,
+            request_size: requestInfo.requestSize || 0,
+            response_size: requestInfo.responseSize || 0,
+            error_message: error,
+            client_ip: requestInfo.clientIp || null,
+            user_agent: requestInfo.userAgent || null,
+            console_logs: requestInfo.consoleOutput || [],
+            request_headers: requestInfo.requestHeaders || {},
+            response_headers: requestInfo.responseHeaders || {},
+            request_body: requestInfo.requestBody || '',
+            response_body: responseBodyLog,
+            request_method: requestInfo.requestMethod || 'POST',
+            request_url: requestInfo.requestUrl || '',
+        });
+
+        // Update function execution count atomically
+        await FunctionModel.update(
+            {
+                execution_count: database.sequelize.literal('execution_count + 1'),
+                last_executed: new Date(),
+            },
+            { where: { id: functionId } }
+        );
 
     } catch (dbError) {
         console.error('Failed to log execution:', dbError);

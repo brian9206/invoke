@@ -1,0 +1,15 @@
+{
+  "name": "invoke-shared",
+  "version": "1.0.0",
+  "description": "Shared Sequelize models and database utilities for Invoke services",
+  "main": "index.js",
+  "author": "Brian Choi",
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "pg-listen": "^1.7.0",
+    "sequelize": "^6.37.7",
+    "umzug": "^3.8.2"
+  }
+}

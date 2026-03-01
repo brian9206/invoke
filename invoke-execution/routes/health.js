@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const database = require('../services/database');
 const minioService = require('../services/minio');
 const cache = require('../services/cache');
@@ -16,7 +17,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         // Check database connectivity
-        await database.query('SELECT 1');
+        await database.sequelize.authenticate();
         
         // Check MinIO connectivity
         let minioStatus = 'unknown';
@@ -64,7 +65,9 @@ router.get('/detailed', async (req, res) => {
     
     try {
         // Check database
-        const dbResult = await database.query('SELECT COUNT(*) as log_count FROM execution_logs WHERE executed_at > NOW() - INTERVAL \'1 hour\'');
+        const recentCount = await database.models.ExecutionLog.count({
+            where: { executed_at: { [Op.gt]: new Date(Date.now() - 3600 * 1000) } },
+        });
         
         // Check MinIO and get detailed info
         let minioInfo = { status: 'unknown' };
@@ -122,7 +125,7 @@ router.get('/detailed', async (req, res) => {
             checks: {
                 database: {
                     status: 'connected',
-                    recentExecutions: parseInt(dbResult.rows[0].log_count)
+                    recentExecutions: recentCount
                 },
                 minio: minioInfo,
                 cache: cacheInfo,

@@ -79,12 +79,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const functionDescription = description || 'Hello World function'
 
     // Check if function already exists by name
-    const existingResult = await database.query(
-      'SELECT id, name FROM functions WHERE name = $1',
-      [functionName]
-    )
+    const { FunctionModel, FunctionVersion } = database.models;
+    const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] });
 
-    if (existingResult.rows.length > 0) {
+    if (existing) {
       return res.status(409).json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
     }
 
@@ -153,27 +151,33 @@ Returns a JSON object with a greeting message.
       console.log(`Successfully uploaded to MinIO: ${minioObjectName}`)
 
       // Create function record first (without active_version_id)
-      const insertResult = await database.query(
-        `INSERT INTO functions (id, name, description, deployed_by, requires_api_key, api_key, is_active, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, true, $7) RETURNING *`,
-        [functionId, functionName, functionDescription, userId, requiresApiKey || false, apiKey || null, projectId || null]
-      )
+      await FunctionModel.create({
+        id: functionId,
+        name: functionName,
+        description: functionDescription,
+        deployed_by: userId,
+        requires_api_key: requiresApiKey || false,
+        api_key: apiKey || null,
+        is_active: true,
+        project_id: projectId || null
+      });
 
       // Generate a separate version ID
       const versionId = require('crypto').randomUUID()
 
       // Create version record
-      await database.query(
-        `INSERT INTO function_versions (id, function_id, version, file_size, package_hash, created_by, package_path)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [versionId, functionId, version, stats.size, hash, userId, minioObjectName]
-      )
+      await FunctionVersion.create({
+        id: versionId,
+        function_id: functionId,
+        version,
+        file_size: stats.size,
+        package_hash: hash,
+        created_by: userId,
+        package_path: minioObjectName
+      });
 
       // Update function to set active_version_id
-      await database.query(
-        `UPDATE functions SET active_version_id = $1 WHERE id = $2`,
-        [versionId, functionId]
-      )
+      await FunctionModel.update({ active_version_id: versionId }, { where: { id: functionId } });
 
       // Clean up temporary files
       await fs.remove(tempDir)

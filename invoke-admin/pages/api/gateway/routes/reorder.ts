@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
@@ -27,25 +28,26 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
   // Verify all routes belong to this project
   const ids = order.map((o) => o.id)
-  const verifyResult = await database.query(
+  const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
+  const verifyRows = await database.sequelize.query(
     `SELECT gr.id FROM api_gateway_routes gr
      JOIN api_gateway_configs gc ON gc.id = gr.gateway_config_id
      WHERE gr.id = ANY($1::uuid[]) AND gc.project_id = $2`,
-    [ids, projectId]
-  )
-  if (verifyResult.rows.length !== ids.length) {
+    { bind: [ids, projectId], type: QueryTypes.SELECT }
+  ) as any[];
+  if (verifyRows.length !== ids.length) {
     return res.status(403).json(createResponse(false, null, 'One or more route IDs do not belong to this project', 403))
   }
 
   // Batch update sort_order in a transaction
-  await database.transaction(async (client: any) => {
+  await database.sequelize.transaction(async (t: any) => {
     for (const item of order) {
-      await client.query(
-        `UPDATE api_gateway_routes SET sort_order = $1, updated_at = NOW() WHERE id = $2`,
-        [item.sortOrder, item.id]
-      )
+      await ApiGatewayRoute.update(
+        { sort_order: item.sortOrder, updated_at: new Date() },
+        { where: { id: item.id }, transaction: t }
+      );
     }
-  })
+  });
 
   return res.json(createResponse(true, null, 'Route order updated'))
 }

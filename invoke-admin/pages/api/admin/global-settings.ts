@@ -1,3 +1,4 @@
+import { Op } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
@@ -5,18 +6,22 @@ const database = require('@/lib/database')
 async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
     // Get global settings
-    const result = await database.query(`
-      SELECT setting_key, setting_value, description
-      FROM global_settings 
-      WHERE setting_key LIKE 'log_retention%'
-         OR setting_key = 'function_base_url'
-         OR setting_key = 'kv_storage_limit_bytes'
-         OR setting_key = 'api_gateway_domain'
-      ORDER BY setting_key
-    `)
+    const { GlobalSetting } = database.models;
+    const rows = await GlobalSetting.findAll({
+      where: {
+        [Op.or]: [
+          { setting_key: { [Op.like]: 'log_retention%' } },
+          { setting_key: 'function_base_url' },
+          { setting_key: 'kv_storage_limit_bytes' },
+          { setting_key: 'api_gateway_domain' }
+        ]
+      },
+      attributes: ['setting_key', 'setting_value', 'description'],
+      order: [['setting_key', 'ASC']]
+    });
 
-    const settings = {}
-    result.rows.forEach(row => {
+    const settings: Record<string, any> = {}
+    rows.map((r: any) => r.get({ plain: true })).forEach((row: any) => {
       let key
       if (row.setting_key === 'function_base_url') {
         key = 'function_base_url'
@@ -44,47 +49,48 @@ async function handler(req: AuthenticatedRequest, res: any) {
     // Update global settings
     const { type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain } = req.body
 
-    const queries = []
-    
+    const { GlobalSetting } = database.models;
+    const queries: Promise<[number]>[] = []
+
     if (type !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [type, 'log_retention_type']
+      queries.push(GlobalSetting.update(
+        { setting_value: type, updated_at: new Date() },
+        { where: { setting_key: 'log_retention_type' } }
       ))
     }
-    
+
     if (value !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [value.toString(), 'log_retention_value']
+      queries.push(GlobalSetting.update(
+        { setting_value: value.toString(), updated_at: new Date() },
+        { where: { setting_key: 'log_retention_value' } }
       ))
     }
-    
+
     if (enabled !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [enabled.toString(), 'log_retention_enabled']
+      queries.push(GlobalSetting.update(
+        { setting_value: enabled.toString(), updated_at: new Date() },
+        { where: { setting_key: 'log_retention_enabled' } }
       ))
     }
-    
+
     if (function_base_url !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [function_base_url, 'function_base_url']
+      queries.push(GlobalSetting.update(
+        { setting_value: function_base_url, updated_at: new Date() },
+        { where: { setting_key: 'function_base_url' } }
       ))
     }
-    
+
     if (kv_storage_limit_bytes !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [kv_storage_limit_bytes.toString(), 'kv_storage_limit_bytes']
+      queries.push(GlobalSetting.update(
+        { setting_value: kv_storage_limit_bytes.toString(), updated_at: new Date() },
+        { where: { setting_key: 'kv_storage_limit_bytes' } }
       ))
     }
 
     if (api_gateway_domain !== undefined) {
-      queries.push(database.query(
-        'UPDATE global_settings SET setting_value = $1, updated_at = NOW() WHERE setting_key = $2',
-        [api_gateway_domain, 'api_gateway_domain']
+      queries.push(GlobalSetting.update(
+        { setting_value: api_gateway_domain, updated_at: new Date() },
+        { where: { setting_key: 'api_gateway_domain' } }
       ))
     }
 
@@ -93,9 +99,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     const results = await Promise.all(queries)
-    
+
     // Check if any rows were actually updated
-    const totalRowsUpdated = results.reduce((sum, result) => sum + (result.rowCount || 0), 0)
+    const totalRowsUpdated = results.reduce((sum: number, result: [number]) => sum + (result[0] || 0), 0)
     
     if (totalRowsUpdated === 0) {
       return res.status(404).json(createResponse(false, null, 'No settings were found to update. Please ensure the global_settings table is properly initialized.', 404))

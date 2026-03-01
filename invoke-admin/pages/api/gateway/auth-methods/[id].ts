@@ -24,30 +24,26 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Verify auth method belongs to this project
-  const ownerCheck = await database.query(
-    `SELECT am.id FROM api_gateway_auth_methods am
-     JOIN api_gateway_configs gc ON gc.id = am.gateway_config_id
-     WHERE am.id = $1 AND gc.project_id = $2`,
-    [id, projectId]
-  )
-  if (ownerCheck.rows.length === 0) {
+  const { ApiGatewayConfig, ApiGatewayAuthMethod } = database.models;
+  const ownerCheck = await ApiGatewayAuthMethod.findOne({
+    where: { id },
+    include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }]
+  });
+  if (!ownerCheck) {
     return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
   }
 
   if (req.method === 'GET') {
-    const result = await database.query(
-      `SELECT id, name, type, config, created_at, updated_at
-       FROM api_gateway_auth_methods WHERE id = $1`,
-      [id]
-    )
-    const row = result.rows[0]
+    const method = await ApiGatewayAuthMethod.findByPk(id, {
+      attributes: ['id', 'name', 'type', 'config', 'created_at', 'updated_at']
+    });
     return res.json(createResponse(true, {
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      config: row.config,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      id: method.id,
+      name: method.name,
+      type: method.type,
+      config: method.config,
+      createdAt: method.created_at,
+      updatedAt: method.updated_at,
     }, 'Auth method retrieved'))
   }
 
@@ -59,11 +55,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { name, type, config } = req.body
 
     // Get current values for partial update
-    const current = await database.query(
-      `SELECT name, type, config FROM api_gateway_auth_methods WHERE id = $1`,
-      [id]
-    )
-    const cur = current.rows[0]
+    const cur = await ApiGatewayAuthMethod.findByPk(id, { attributes: ['name', 'type', 'config'] });
 
     const newName = name !== undefined ? (typeof name === 'string' ? name.trim() : null) : cur.name
     const newType = type !== undefined ? type : cur.type
@@ -80,12 +72,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(400).json(createResponse(false, null, `Invalid config: ${configError}`, 400))
     }
 
-    await database.query(
-      `UPDATE api_gateway_auth_methods
-       SET name = $1, type = $2, config = $3, updated_at = NOW()
-       WHERE id = $4`,
-      [newName, newType, JSON.stringify(newConfig), id]
-    )
+    await ApiGatewayAuthMethod.update(
+      { name: newName, type: newType, config: newConfig, updated_at: new Date() },
+      { where: { id } }
+    );
 
     return res.json(createResponse(true, null, 'Auth method updated'))
   }
@@ -95,7 +85,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    await database.query('DELETE FROM api_gateway_auth_methods WHERE id = $1', [id])
+    await ApiGatewayAuthMethod.destroy({ where: { id } });
     return res.json(createResponse(true, null, 'Auth method deleted'))
   }
 }

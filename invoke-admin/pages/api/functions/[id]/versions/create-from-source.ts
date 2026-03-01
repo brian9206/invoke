@@ -24,22 +24,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Verify function exists
-    const functionResult = await database.query(
-      'SELECT id, name FROM functions WHERE id = $1',
-      [functionId]
-    )
+    const { FunctionModel, FunctionVersion } = database.models;
+    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
-    if (functionResult.rows.length === 0) {
+    if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
     // Get next version number
-    const versionResult = await database.query(
-      'SELECT MAX(version) as max_version FROM function_versions WHERE function_id = $1',
-      [functionId]
-    )
-
-    const nextVersion = (versionResult.rows[0]?.max_version || 0) + 1
+    const maxVersion = await FunctionVersion.max('version', { where: { function_id: functionId } });
+    const nextVersion = ((maxVersion as number) || 0) + 1;
     const newVersionId = uuidv4()
 
     // Get temp directory from environment or use default
@@ -80,18 +74,19 @@ async function handler(req: AuthenticatedRequest, res: any) {
       })
 
       // Create version record
-      await database.query(
-        `INSERT INTO function_versions (id, function_id, version, file_size, package_hash, created_by, package_path)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [newVersionId, functionId, nextVersion, stats.size, hash, userId, minioObjectName]
-      )
+      await FunctionVersion.create({
+        id: newVersionId,
+        function_id: functionId,
+        version: nextVersion,
+        file_size: stats.size,
+        package_hash: hash,
+        created_by: userId,
+        package_path: minioObjectName
+      });
 
       // If setActive is true, update the function's active version
       if (setActive) {
-        await database.query(
-          'UPDATE functions SET active_version_id = $1 WHERE id = $2',
-          [newVersionId, functionId]
-        )
+        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } });
       }
 
       // Clean up temporary files
