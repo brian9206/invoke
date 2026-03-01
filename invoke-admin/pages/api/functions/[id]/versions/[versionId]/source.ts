@@ -6,7 +6,7 @@ import path from 'path'
 import AdmZip from 'adm-zip'
 import * as tar from 'tar'
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
@@ -17,9 +17,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     // Get version details
@@ -70,11 +70,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
     
     try {
-      console.log('Attempting to download from MinIO:', objectKey)
-      const bucketName = process.env.MINIO_BUCKET || 'invoke-packages'
+      console.log('Attempting to download from S3:', objectKey)
+      const bucketName = process.env.S3_BUCKET || 'invoke-packages'
       
-      // Use getObject and write to file instead of fGetObject to avoid range issues
-      const stream = await minioService.client.getObject(bucketName, objectKey)
+      // Use getObjectStream and write to file
+      const stream = await s3Service.getObjectStream(bucketName, objectKey)
       const writeStream = fs.createWriteStream(tempFilePath)
       
       await new Promise<void>((resolve, reject) => {

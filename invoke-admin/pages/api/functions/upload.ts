@@ -12,7 +12,7 @@ import archiver from 'archiver'
 import { v4 as uuidv4 } from 'uuid'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 import runMiddleware from '@/lib/multer'
 
 // Configure multer for file uploads
@@ -118,9 +118,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     }
 
-    // Upload to MinIO and get hash
-    const uploadResult = await minioService.uploadPackage(functionId, version, packagePath)
-    console.log(`✅ Package uploaded to MinIO: ${uploadResult.objectName}`)
+    // Upload to S3 and get hash
+    const uploadResult = await s3Service.uploadPackage(functionId, version, packagePath)
+    console.log(`✅ Package uploaded: ${uploadResult.objectName}`)
 
     // Insert new function (without version-specific columns)
     await FunctionModel.create({

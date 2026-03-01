@@ -8,7 +8,7 @@ import crypto from 'crypto'
 import path from 'path'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
 const upload = multer({
@@ -129,13 +129,13 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         // Delete the version record
         await versionRecord.destroy();
 
-        // Delete the package from MinIO
+        // Delete the package from S3
         try {
-          await minioService.deletePackage(functionId, version)
-          console.log(`✓ Deleted MinIO package for function ${functionId} version ${version}`)
-        } catch (minioError) {
-          console.error('Error deleting package from MinIO:', minioError)
-          // Continue even if MinIO deletion fails
+          await s3Service.deletePackage(functionId, version)
+          console.log(`✓ Deleted S3 package for function ${functionId} version ${version}`)
+        } catch (s3Error) {
+          console.error('Error deleting package from S3:', s3Error)
+          // Continue even if S3 deletion fails
         }
 
         return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))
@@ -228,8 +228,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           }
         }
 
-        // Store file in MinIO using consistent version-based naming
-        await minioService.uploadPackage(functionId, nextVersion, packagePath)
+        // Store file in S3 using consistent version-based naming
+        await s3Service.uploadPackage(functionId, nextVersion, packagePath)
 
         // Create new version record (not active by default)
         const newVersion = await FnVersion.create({

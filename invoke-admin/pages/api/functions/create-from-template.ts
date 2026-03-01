@@ -9,7 +9,7 @@ import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middlewa
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 
 // Hello World function template (mirrors samples/hello-world)
 const helloWorldTemplate = `const crypto = require('crypto');
@@ -56,9 +56,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const userId = req.user!.id
 
   try {
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     const { name, description, requiresApiKey, apiKey, projectId } = req.body
@@ -139,10 +139,10 @@ Returns a JSON object with a greeting message.
       const crypto = require('crypto')
       const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-      // Upload to MinIO
+      // Upload to S3
       const minioObjectName = `functions/${functionId}/v${version}.tgz`
-      const bucketName = process.env.MINIO_BUCKET || 'invoke-packages'
-      await minioService.client.fPutObject(bucketName, minioObjectName, tgzPath, {
+      const bucketName = process.env.S3_BUCKET || 'invoke-packages'
+      await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
         'Version': version.toString()

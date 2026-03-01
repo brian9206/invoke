@@ -5,7 +5,7 @@ import * as tar from 'tar'
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
@@ -18,9 +18,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     // Verify function exists
@@ -64,10 +64,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
       const fileBuffer = await fs.readFile(tgzPath)
       const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-      // Upload to MinIO
+      // Upload to S3
       const minioObjectName = `functions/${functionId}/v${nextVersion}.tgz`
-      const bucketName = process.env.MINIO_BUCKET || 'invoke-packages'
-      await minioService.client.fPutObject(bucketName, minioObjectName, tgzPath, {
+      const bucketName = process.env.S3_BUCKET || 'invoke-packages'
+      await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
         'Version': nextVersion.toString()

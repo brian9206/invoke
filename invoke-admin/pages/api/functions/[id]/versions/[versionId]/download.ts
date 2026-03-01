@@ -7,7 +7,7 @@ import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id: functionId, versionId } = req.query
@@ -17,9 +17,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     // Get version info from database
@@ -45,7 +45,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const bucketName = 'invoke-packages'
     
     try {
-      const stat = await minioService.client.statObject(bucketName, objectKey)
+      const stat = await s3Service.statObject(bucketName, objectKey)
       
       // Create temp directory for processing
       const tempBaseDir = process.env.TEMP_DIR || './.cache'
@@ -56,7 +56,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       try {
         // Download tgz file from MinIO
         const tgzPath = path.join(tempDir, 'package.tgz')
-        await minioService.client.fGetObject(bucketName, objectKey, tgzPath)
+        await s3Service.fGetObject(bucketName, objectKey, tgzPath)
         
         // Extract tgz to temp directory
         const extractDir = path.join(tempDir, 'extracted')

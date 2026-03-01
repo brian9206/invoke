@@ -1,5 +1,5 @@
 const database = require('./database')
-const minioService = require('./minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('./utils')
 
 /**
@@ -11,9 +11,9 @@ async function deleteFunction(functionId) {
 
   try {
     // Attempt to delete all packages in MinIO for this function
-    deletedPackages = await minioService.deleteAllPackagesForFunction(functionId)
+    deletedPackages = await s3Service.deleteAllPackagesForFunction(functionId)
   } catch (err) {
-    console.error(`deleteFunction: failed to remove MinIO packages for ${functionId}:`, err)
+    console.error(`deleteFunction: failed to remove S3 packages for ${functionId}:`, err)
     // continue to delete DB rows even if MinIO cleanup fails
   }
 

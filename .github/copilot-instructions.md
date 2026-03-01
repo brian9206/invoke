@@ -3,6 +3,7 @@
 ## Project Structure
 
 This is an npm workspaces monorepo. All services resolve `invoke-shared` from the `shared/` package.
+Please ignore any code inside `.next/`, `dist/`, `.cache/` directories when scanning across the project — that is just build output or cached stuff.
 
 ---
 
@@ -230,3 +231,7 @@ const result = await database.models.Function.findOne({
 const config = database.getConnectionConfig();
 const uri = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
 ```
+
+## Verify changes
+
+Please do **not** try to start or stop any running services. Just tell the user what commands to run to verify changes.

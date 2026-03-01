@@ -1,7 +1,7 @@
 const express = require('express');
 const { Op } = require('sequelize');
 const database = require('../services/database');
-const minioService = require('../services/minio');
+const { s3Service } = require('invoke-shared');
 const cache = require('../services/cache');
 
 const router = express.Router();
@@ -19,10 +19,10 @@ router.get('/', async (req, res) => {
         // Check database connectivity
         await database.sequelize.authenticate();
         
-        // Check MinIO connectivity
+        // Check S3 connectivity
         let minioStatus = 'unknown';
         try {
-            await minioService.getClient().listBuckets();
+            await s3Service.listBuckets();
             minioStatus = 'connected';
         } catch (error) {
             minioStatus = 'disconnected';
@@ -69,14 +69,13 @@ router.get('/detailed', async (req, res) => {
             where: { executed_at: { [Op.gt]: new Date(Date.now() - 3600 * 1000) } },
         });
         
-        // Check MinIO and get detailed info
+        // Check S3 connectivity and get detailed info
         let minioInfo = { status: 'unknown' };
         try {
-            const client = minioService.getClient();
-            const buckets = await client.listBuckets();
+            const buckets = await s3Service.listBuckets();
             minioInfo = {
                 status: 'connected',
-                buckets: buckets.map(b => b.name)
+                buckets: buckets.map(b => b.Name)
             };
         } catch (error) {
             minioInfo = {

@@ -8,7 +8,7 @@ import * as tar from 'tar'
 
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
 const upload = multer({
@@ -138,9 +138,9 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
       }
     }
 
-    // Upload package to MinIO
-    const uploadResult = await minioService.uploadPackage(functionId, newVersion, packagePath)
-    console.log(`✅ Package uploaded to MinIO: ${uploadResult.objectName}`)
+    // Upload package to S3
+    const uploadResult = await s3Service.uploadPackage(functionId, newVersion, packagePath)
+    console.log(`✅ Package uploaded: ${uploadResult.objectName}`)
 
     // Update function in database (only version, file_size, package_hash)
     await database.sequelize.query(`

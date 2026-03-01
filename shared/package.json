@@ -6,6 +6,7 @@
   "author": "Brian Choi",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
     "pg-listen": "^1.7.0",
