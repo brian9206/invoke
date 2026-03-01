@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { resolveJwksUri, getSigningKey } = require('./jwks-manager');
 const { executionClient, buildGatewayHeaders, buildInvokeUrl } = require('./execution-client');
 
 const MIDDLEWARE_TIMEOUT_MS = 5000;
@@ -14,10 +15,12 @@ const MIDDLEWARE_TIMEOUT_MS = 5000;
  * 0 methods = public (always passes).
  *
  * Supported types:
- *   - basic_auth:  HTTP Basic credentials checked against config.credentials[]
- *   - bearer_jwt:  JWT signed with config.jwtSecret; expired tokens are rejected
- *   - api_key:     Key sent via x-api-key header, Authorization: Bearer, or ?api_key
- *   - middleware:  Invokes a project function with request metadata; pass if { allow: true }
+ *   - basic_auth:    HTTP Basic credentials checked against config.credentials[]
+ *   - bearer_jwt:    JWT verified against a secret or JWKS endpoint (see jwtMode)
+ *                    jwtMode values: fixed_secret | microsoft | google | github |
+ *                                    jwks_endpoint | oidc_discovery
+ *   - api_key:       Key sent via x-api-key header, Authorization: Bearer, or ?api_key
+ *   - middleware:    Invokes a project function with request metadata; pass if { allow: true }
  */
 
 // ─── Extraction helpers ───────────────────────────────────────────────────────
@@ -73,17 +76,51 @@ function validateBasicAuth(req, config) {
   return { authenticated: false, error: 'Invalid credentials', realm: config.realm || null };
 }
 
-function validateBearerJwt(req, config) {
+async function validateBearerJwt(req, config) {
   const token = extractBearerToken(req.headers.authorization);
   if (!token) {
     return { authenticated: false, error: 'No bearer token provided' };
   }
-  const secret = config.jwtSecret;
-  if (!secret) {
-    return { authenticated: false, error: 'No JWT secret configured for this auth method' };
+
+  const mode = config.jwtMode || 'fixed_secret';
+
+  // ── Fixed secret (HMAC) ──────────────────────────────────────────────────
+  if (mode === 'fixed_secret') {
+    const secret = config.jwtSecret;
+    if (!secret) {
+      return { authenticated: false, error: 'No JWT secret configured for this auth method' };
+    }
+    try {
+      const payload = jwt.verify(token, secret);
+      return { authenticated: true, payload };
+    } catch (err) {
+      return { authenticated: false, error: `Invalid token: ${err.message}` };
+    }
   }
+
+  // ── JWKS-based modes ─────────────────────────────────────────────────────
   try {
-    const payload = jwt.verify(token, secret);
+    // Decode header without verification to extract kid
+    const decoded = jwt.decode(token, { complete: true });
+    if (!decoded || !decoded.header) {
+      return { authenticated: false, error: 'Malformed JWT: cannot decode header' };
+    }
+    const kid = decoded.header.kid;
+
+    // Resolve JWKS URI (provider-specific or user-supplied)
+    const jwksUri = await resolveJwksUri(config);
+
+    // Fetch the matching public key
+    const signingKey = await getSigningKey(jwksUri, kid);
+
+    // Build verify options (asymmetric algorithms only to prevent confusion attacks)
+    const verifyOptions = {
+      algorithms: ['RS256', 'RS384', 'RS512', 'ES256', 'ES384', 'ES512', 'PS256', 'PS384', 'PS512'],
+    };
+    if (config.audience) verifyOptions.audience = config.audience;
+    if (config.issuer)   verifyOptions.issuer   = config.issuer;
+
+    const payload = jwt.verify(token, signingKey, verifyOptions);
     return { authenticated: true, payload };
   } catch (err) {
     return { authenticated: false, error: `Invalid token: ${err.message}` };
@@ -169,7 +206,7 @@ async function authenticate(req, authMethods, authLogic = 'or') {
           result = validateBasicAuth(req, method.config);
           break;
         case 'bearer_jwt':
-          result = validateBearerJwt(req, method.config);
+          result = await validateBearerJwt(req, method.config);
           break;
         case 'api_key':
           result = validateApiKey(req, method.config);
@@ -198,7 +235,7 @@ async function authenticate(req, authMethods, authLogic = 'or') {
         result = validateBasicAuth(req, method.config);
         break;
       case 'bearer_jwt':
-        result = validateBearerJwt(req, method.config);
+        result = await validateBearerJwt(req, method.config);
         break;
       case 'api_key':
         result = validateApiKey(req, method.config);

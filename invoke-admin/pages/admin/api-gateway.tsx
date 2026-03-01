@@ -61,7 +61,13 @@ interface AuthMethod {
     credentials?: { username: string; password: string }[]
     realm?: string
     // bearer_jwt
+    jwtMode?: 'fixed_secret' | 'microsoft' | 'google' | 'github' | 'jwks_endpoint' | 'oidc_discovery'
     jwtSecret?: string
+    tenantId?: string
+    jwksUrl?: string
+    oidcUrl?: string
+    audience?: string
+    issuer?: string
     // api_key
     apiKeys?: string[]
     // middleware
@@ -667,7 +673,7 @@ function RouteEditorModal({
                             m.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
                             'bg-green-900/40 text-green-300 border-green-700'
                           }`}>
-                            {m.type === 'basic_auth' ? 'Basic' : m.type === 'bearer_jwt' ? 'JWT' : m.type === 'middleware' ? 'Middleware' : 'API Key'}
+                            {m.type === 'basic_auth' ? 'Basic' : m.type === 'bearer_jwt' ? (jwtModeShortLabel(m.config?.jwtMode) ? `JWT · ${jwtModeShortLabel(m.config?.jwtMode)}` : 'JWT') : m.type === 'middleware' ? 'Middleware' : 'API Key'}
                           </span>
                         </button>
                       ))}
@@ -713,6 +719,28 @@ function RouteEditorModal({
   )
 }
 
+// ─── JWT mode helpers ────────────────────────────────────────────────────────
+
+const JWT_MODE_LABELS: Record<string, string> = {
+  microsoft:      'Microsoft (Entra ID / Azure AD)',
+  google:         'Google',
+  github:         'GitHub',
+  jwks_endpoint:  'Custom (JWKS Endpoint)',
+  oidc_discovery: 'Custom (OIDC Discovery)',
+  fixed_secret:   'Custom (Fixed Secret)',
+}
+
+function jwtModeShortLabel(mode?: string): string | null {
+  switch (mode) {
+    case 'microsoft':      return 'MS'
+    case 'google':         return 'Google'
+    case 'github':         return 'GitHub'
+    case 'jwks_endpoint':  return 'JWKS'
+    case 'oidc_discovery': return 'OIDC'
+    default:               return null // fixed_secret or missing → just 'JWT'
+  }
+}
+
 // ─── Sortable Auth Method Item (inside RouteEditorModal) ─────────────────────
 
 function SortableAuthMethodItem({
@@ -731,9 +759,10 @@ function SortableAuthMethodItem({
     method.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
     method.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
     'bg-green-900/40 text-green-300 border-green-700'
+  const jwtSub = method.type === 'bearer_jwt' ? jwtModeShortLabel(method.config?.jwtMode) : null
   const typeLabel =
     method.type === 'basic_auth' ? 'Basic' :
-    method.type === 'bearer_jwt' ? 'JWT' :
+    method.type === 'bearer_jwt' ? (jwtSub ? `JWT · ${jwtSub}` : 'JWT') :
     method.type === 'middleware' ? 'Middleware' : 'API Key'
 
   return (
@@ -793,11 +822,21 @@ function AuthMethodModal({
 }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<'basic_auth' | 'bearer_jwt' | 'api_key' | 'middleware'>('bearer_jwt')
+  // bearer_jwt
+  const [jwtMode, setJwtMode] = useState('fixed_secret')
   const [jwtSecret, setJwtSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
+  const [tenantId, setTenantId] = useState('')
+  const [jwksUrl, setJwksUrl] = useState('')
+  const [oidcUrl, setOidcUrl] = useState('')
+  const [audience, setAudience] = useState('')
+  const [issuer, setIssuer] = useState('')
+  // api_key
   const [apiKeys, setApiKeys] = useState<string[]>([])
+  // basic_auth
   const [credentials, setCredentials] = useState<{ username: string; password: string }[]>([])
   const [realm, setRealm] = useState('')
+  // middleware
   const [middlewareFunctionId, setMiddlewareFunctionId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -805,7 +844,13 @@ function AuthMethodModal({
     if (isOpen && method) {
       setName(method.name || '')
       setType(method.type || 'bearer_jwt')
+      setJwtMode(method.config?.jwtMode || 'fixed_secret')
       setJwtSecret(method.config?.jwtSecret || '')
+      setTenantId(method.config?.tenantId || '')
+      setJwksUrl(method.config?.jwksUrl || '')
+      setOidcUrl(method.config?.oidcUrl || '')
+      setAudience(method.config?.audience || '')
+      setIssuer(method.config?.issuer || '')
       setApiKeys(method.config?.apiKeys ? [...method.config.apiKeys] : [])
       setCredentials(method.config?.credentials ? method.config.credentials.map((c) => ({ ...c })) : [])
       setRealm(method.config?.realm || '')
@@ -821,7 +866,16 @@ function AuthMethodModal({
 
   const buildConfig = () => {
     if (type === 'basic_auth') return { credentials, ...(realm.trim() ? { realm: realm.trim() } : {}) }
-    if (type === 'bearer_jwt') return { jwtSecret }
+    if (type === 'bearer_jwt') {
+      const cfg: Record<string, string> = { jwtMode }
+      if (jwtMode === 'fixed_secret') cfg.jwtSecret = jwtSecret
+      else if (jwtMode === 'microsoft') cfg.tenantId = tenantId
+      else if (jwtMode === 'jwks_endpoint') cfg.jwksUrl = jwksUrl
+      else if (jwtMode === 'oidc_discovery') cfg.oidcUrl = oidcUrl
+      if (audience.trim()) cfg.audience = audience.trim()
+      if (issuer.trim()) cfg.issuer = issuer.trim()
+      return cfg
+    }
     if (type === 'api_key') return { apiKeys }
     if (type === 'middleware') return { functionId: middlewareFunctionId }
     return {}
@@ -829,7 +883,12 @@ function AuthMethodModal({
 
   const handleSave = async () => {
     if (!name.trim()) { toast.error('Name is required'); return }
-    if (type === 'bearer_jwt' && !jwtSecret.trim()) { toast.error('JWT secret is required'); return }
+    if (type === 'bearer_jwt') {
+      if (jwtMode === 'fixed_secret' && !jwtSecret.trim()) { toast.error('JWT secret is required'); return }
+      if (jwtMode === 'microsoft' && !tenantId.trim()) { toast.error('Tenant ID is required for Microsoft mode'); return }
+      if (jwtMode === 'jwks_endpoint' && !jwksUrl.trim()) { toast.error('JWKS URL is required'); return }
+      if (jwtMode === 'oidc_discovery' && !oidcUrl.trim()) { toast.error('OIDC Discovery URL is required'); return }
+    }
     if (type === 'basic_auth' && credentials.length === 0) { toast.error('At least one credential is required'); return }
     if (type === 'basic_auth' && credentials.some((c) => !c.username.trim() || !c.password.trim())) {
       toast.error('All credentials must have a username and password'); return
@@ -887,27 +946,154 @@ function AuthMethodModal({
 
         {/* Bearer JWT config */}
         {type === 'bearer_jwt' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">JWT Secret <span className="text-red-400">*</span></label>
-            <div className="relative">
-              <input
-                type={showSecret ? 'text' : 'password'}
-                value={jwtSecret}
-                onChange={(e) => setJwtSecret(e.target.value)}
-                placeholder="Enter signing secret"
-                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 pr-10 font-mono focus:ring-primary-500 focus:border-primary-500"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSecret((s) => !s)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+          <div className="space-y-4">
+            {/* JWT Mode selector */}
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1">JWT Mode</label>
+              <select
+                value={jwtMode}
+                onChange={(e) => setJwtMode(e.target.value)}
+                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
               >
-                {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
+                {Object.entries(JWT_MODE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Tokens sent as <code className="bg-gray-700 px-1 rounded">Authorization: Bearer &lt;token&gt;</code> are
-              validated against this secret. Expired tokens are always rejected.
+
+            {/* Microsoft: Tenant ID */}
+            {jwtMode === 'microsoft' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Tenant ID <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={tenantId}
+                  onChange={(e) => setTenantId(e.target.value)}
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Found in Azure Portal → App registrations → Directory (tenant) ID.
+                </p>
+              </div>
+            )}
+
+            {/* Google: no additional fields */}
+            {jwtMode === 'google' && (
+              <p className="text-xs text-gray-500 rounded-md bg-gray-900 border border-gray-700 px-3 py-2">
+                Validates tokens signed by Google's public keys (e.g. Google Sign-In, Google Workspace).
+                No additional configuration required.
+              </p>
+            )}
+
+            {/* GitHub: no additional fields */}
+            {jwtMode === 'github' && (
+              <p className="text-xs text-gray-500 rounded-md bg-gray-900 border border-gray-700 px-3 py-2">
+                Validates GitHub Actions OIDC tokens issued by{' '}
+                <code className="bg-gray-700 px-1 rounded">token.actions.githubusercontent.com</code>.
+                No additional configuration required.
+              </p>
+            )}
+
+            {/* Custom JWKS Endpoint */}
+            {jwtMode === 'jwks_endpoint' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">JWKS URL <span className="text-red-400">*</span></label>
+                <input
+                  type="url"
+                  value={jwksUrl}
+                  onChange={(e) => setJwksUrl(e.target.value)}
+                  placeholder="https://example.com/.well-known/jwks.json"
+                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  URL to a JSON Web Key Set (JWKS) document containing public keys.
+                </p>
+              </div>
+            )}
+
+            {/* Custom OIDC Discovery */}
+            {jwtMode === 'oidc_discovery' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">OIDC Discovery URL <span className="text-red-400">*</span></label>
+                <input
+                  type="url"
+                  value={oidcUrl}
+                  onChange={(e) => setOidcUrl(e.target.value)}
+                  placeholder="https://example.com/.well-known/openid-configuration"
+                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  URL to an OpenID Connect discovery document. The JWKS URI is extracted automatically.
+                </p>
+              </div>
+            )}
+
+            {/* Fixed secret (HMAC) */}
+            {jwtMode === 'fixed_secret' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">JWT Secret <span className="text-red-400">*</span></label>
+                <div className="relative">
+                  <input
+                    type={showSecret ? 'text' : 'password'}
+                    value={jwtSecret}
+                    onChange={(e) => setJwtSecret(e.target.value)}
+                    placeholder="Enter HMAC signing secret"
+                    className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 pr-10 font-mono focus:ring-primary-500 focus:border-primary-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret((s) => !s)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                  >
+                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Tokens signed with this HMAC secret are accepted. Expired tokens are always rejected.
+                </p>
+              </div>
+            )}
+
+            {/* Optional claim validation — all modes */}
+            <div className="space-y-3 pt-1 border-t border-gray-700">
+              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-1">Claim Validation <span className="font-normal normal-case">(optional)</span></p>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Audience (aud)</label>
+                <input
+                  type="text"
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  placeholder="https://api.myapp.com"
+                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  If set, rejects tokens where <code className="bg-gray-700 px-1 rounded">aud</code> does not match.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">Issuer (iss)</label>
+                <input
+                  type="text"
+                  value={issuer}
+                  onChange={(e) => setIssuer(e.target.value)}
+                  placeholder={
+                    jwtMode === 'microsoft' ? 'https://login.microsoftonline.com/{tenantId}/v2.0' :
+                    jwtMode === 'google'    ? 'https://accounts.google.com' :
+                    jwtMode === 'github'    ? 'https://token.actions.githubusercontent.com' :
+                    'https://issuer.example.com'
+                  }
+                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  If set, rejects tokens where <code className="bg-gray-700 px-1 rounded">iss</code> does not match.
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Tokens sent as <code className="bg-gray-700 px-1 rounded">Authorization: Bearer &lt;token&gt;</code> are validated.
+              Expired tokens are always rejected.
             </p>
           </div>
         )}
@@ -1469,7 +1655,7 @@ export default function ApiGatewayPage() {
                               <p className="text-sm font-medium text-gray-100 truncate">{m.name}</p>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {m.type === 'basic_auth' && `${m.config.credentials?.length ?? 0} credential${(m.config.credentials?.length ?? 0) !== 1 ? 's' : ''}`}
-                                {m.type === 'bearer_jwt' && 'JWT secret configured'}
+                                {m.type === 'bearer_jwt' && (m.config.jwtMode ? JWT_MODE_LABELS[m.config.jwtMode] ?? 'Bearer JWT' : 'Fixed secret')}
                                 {m.type === 'api_key' && `${m.config.apiKeys?.length ?? 0} key${(m.config.apiKeys?.length ?? 0) !== 1 ? 's' : ''}`}
                                 {m.type === 'middleware' && (functions.find((f) => f.id === m.config.functionId)?.name || 'Function configured')}
                               </p>
