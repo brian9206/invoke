@@ -24,7 +24,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Verify function exists
-    const { FunctionModel, FunctionVersion } = database.models;
+    const { Function: FunctionModel, FunctionVersion } = database.models;
     const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
     if (!fn) {

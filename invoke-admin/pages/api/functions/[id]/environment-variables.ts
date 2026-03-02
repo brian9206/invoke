@@ -15,7 +15,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // Verify function exists
     try {
-        const { FunctionModel } = database.models;
+        const { Function: FunctionModel } = database.models;
         const fn = await FunctionModel.findByPk(functionId, { attributes: ['id'] });
 
         if (!fn) {

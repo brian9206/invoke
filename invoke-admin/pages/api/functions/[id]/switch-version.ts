@@ -16,7 +16,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Check project access for non-admins
-    const { FunctionModel, FunctionVersion } = database.models;
+    const { Function: FunctionModel, FunctionVersion } = database.models;
     if (!req.user?.isAdmin) {
       const fn = await FunctionModel.findByPk(functionId, { attributes: ['project_id'] });
       if (!fn) {

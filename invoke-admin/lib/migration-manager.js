@@ -19,12 +19,14 @@ class MigrationManager {
     constructor(sequelize) {
         this.sequelize = sequelize;
 
-        const migrationsPath = process.env.MIGRATIONS_DIR
-            || path.resolve(__dirname, '../../shared/migrations');
+        const migrationsPath = (process.env.MIGRATIONS_DIR
+            || path.resolve(process.cwd(), '../shared/migrations'))
+            .replace(/\\/g, '/');
 
+        console.log('🔧 Initializing MigrationManager with migrations path:', migrationsPath);
         this.umzug = new Umzug({
             migrations: {
-                glob: path.join(migrationsPath, '*.js'),
+                glob: `${migrationsPath}/*.js`,
             },
             context: {
                 queryInterface: sequelize.getQueryInterface(),

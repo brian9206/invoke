@@ -24,6 +24,11 @@ export async function checkProjectAccess(
   projectId: string,
   isAdmin: boolean
 ): Promise<ProjectAccessResult> {
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(projectId)) {
+    return { allowed: false, canWrite: false, message: 'Invalid project ID' };
+  }
+
   if (isAdmin) {
     return { allowed: true, canWrite: true };
   }

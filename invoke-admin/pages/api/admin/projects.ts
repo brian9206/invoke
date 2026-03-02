@@ -143,7 +143,7 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { FunctionModel, Project } = database.models;
+    const { Function: FunctionModel, Project } = database.models;
 
     // Get all functions for the project
     const functions = await FunctionModel.findAll({

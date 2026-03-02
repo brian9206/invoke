@@ -69,6 +69,18 @@ All 15 models live in `shared/models/`. Each file exports a function `(sequelize
 
 Associations are defined via `Model.associate(models)` in each model file and wired up by `initModels()`.
 
+### ⚠️ Function Model Naming
+
+The Function model is registered as `Function` in `database.models` (not `FunctionModel`). Because `Function` is a reserved word in JavaScript, always destructure it with an alias:
+
+```js
+// ✅ Correct
+const { Function: FunctionModel } = database.models;
+
+// ❌ Wrong — FunctionModel will be undefined
+const { FunctionModel } = database.models;
+```
+
 ---
 
 ## Migration System
@@ -87,13 +99,13 @@ Migrations run **automatically** when `invoke-admin` starts, via `invoke-admin/l
 
 ```bash
 ls shared/migrations/
-# Currently: 001 through 007. Next is 008.
+# Currently: 001 through 009. Next is 010.
 ```
 
 #### Step 2: Create the migration file
 
 ```bash
-touch shared/migrations/008_your_description.js
+touch shared/migrations/010_your_description.js
 ```
 
 #### Step 3: Write the migration
@@ -101,19 +113,20 @@ touch shared/migrations/008_your_description.js
 ```js
 'use strict';
 
-/** @type {import('sequelize').QueryInterface} */
 module.exports = {
-  async up(queryInterface, Sequelize) {
+  async up({ context: { queryInterface } }) {
     // Use queryInterface methods:
     //   createTable, addColumn, removeColumn, addIndex, addConstraint, etc.
     // For triggers/functions, use queryInterface.sequelize.query() (DDL only).
   },
 
-  async down(queryInterface, Sequelize) {
+  async down({ context: { queryInterface } }) {
     // Reverse the up() changes.
   },
 };
 ```
+
+> **Important:** This project uses **Umzug v3**. Migration functions receive a single `{ context }` argument — NOT `(queryInterface, Sequelize)`. Always destructure as `{ context: { queryInterface } }`. Using the old v2 signature will silently fail with `Cannot read properties of undefined (reading 'query')`.
 
 #### Step 4: Update the model (if schema changed)
 
@@ -122,13 +135,16 @@ If you added/removed a column or table, update the corresponding model in `share
 #### Step 5: Test
 
 ```bash
-# Restart invoke-admin — migrations run on startup
+# Run migrations directly (recommended — avoids Next.js hot-reload race conditions)
+cd invoke-admin && node scripts/migrate.js
+
+# Or restart invoke-admin to apply on startup
 cd invoke-admin && npm run dev
 ```
 
 ### Migration Rules
 
-1. **NEVER modify an existing migration file** — create a new one unless user told to modify the existing one. If you are in Plan mode, please ask the user if they want to modify an existing migration or create a new one.
+1. **NEVER modify an existing migration file** — create a new one unless user told to modify the existing one. If you are in Plan mode, please ask the user if they want to modify an existing migration or create a new one. (If you need to modify existing migrations, please run `npm run db:migrate --down` to roll back, then `npm run db:migrate --up` after changes.)
 2. **NEVER delete a migration file** — they are historical records.
 3. **Use sequential numbering** — `008`, `009`, `010`, etc.
 4. **Always include a `down()` method** — for rollback capability.

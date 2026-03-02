@@ -13,7 +13,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   // Verify function exists
-  const { FunctionModel } = database.models;
+  const { Function: FunctionModel } = database.models;
   const fn = await FunctionModel.findByPk(id, { attributes: ['id'] });
 
   if (!fn) {

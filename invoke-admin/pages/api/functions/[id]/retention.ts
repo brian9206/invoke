@@ -9,7 +9,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     if (req.method === 'GET') {
       // Get function retention settings
-      const { FunctionModel } = database.models;
+      const { Function: FunctionModel } = database.models;
       const fn = await FunctionModel.findByPk(id, {
         attributes: ['retention_type', 'retention_value', 'retention_enabled']
       });
@@ -27,7 +27,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     } else if (req.method === 'PUT') {
       // Update function retention settings
       const { retention_type, retention_value, retention_enabled } = req.body
-      const { FunctionModel } = database.models;
+      const { Function: FunctionModel } = database.models;
 
       await FunctionModel.update(
         { retention_type, retention_value, retention_enabled },

@@ -65,13 +65,12 @@ async function getStorageLimit() {
 /**
  * Create a project-scoped KV store with quota enforcement
  * @param {string} projectId - The project UUID
- * @param {object} dbPool - PostgreSQL connection pool
  * @returns {object} Keyv-compatible KV store interface
  */
-function createProjectKV(projectId, dbPool) {
-  // Build PostgreSQL connection string from pool config
-  const config = dbPool.options;
-  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
+function createProjectKV(projectId) {
+  // Build PostgreSQL connection string from shared service database config
+  const config = database.getConnectionConfig();
+  const connectionString = `postgresql://${config.user}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${config.database}`;
   
   // Create Keyv instance with PostgreSQL backend and project namespace
   const keyv = new Keyv({

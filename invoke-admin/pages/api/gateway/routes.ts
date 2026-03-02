@@ -99,6 +99,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Ensure gateway config exists for this project (auto-create disabled config if needed)
+    const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
     const [cfgPost] = await ApiGatewayConfig.findOrCreate({
       where: { project_id: projectId },
       defaults: { enabled: false }

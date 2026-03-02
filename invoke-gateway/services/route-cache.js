@@ -1,5 +1,4 @@
 const { match } = require('path-to-regexp');
-const { QueryTypes } = require('sequelize');
 const database = require('./database');
 
 /**
@@ -55,72 +54,60 @@ function compilePattern(routePath) {
  */
 async function refresh() {
   try {
-    // Fetch domain setting and routes in parallel
-    const [domainRows, routeRows] = await Promise.all([
-      database.sequelize.query(`SELECT setting_value FROM global_settings WHERE setting_key = 'api_gateway_domain'`, { type: QueryTypes.SELECT }),
-      database.sequelize.query(`
-      SELECT
-        gc.id            AS config_id,
-        gc.project_id,
-        gc.custom_domain,
-        gc.enabled,
-        p.name           AS project_name,
-        COALESCE(p.slug, lower(regexp_replace(p.name, '[^a-zA-Z0-9]+', '-', 'g'))) AS project_slug,
-        gr.id            AS route_id,
-        gr.route_path,
-        gr.function_id,
-        gr.allowed_methods,
-        gr.sort_order,
-        gr.is_active,
-        gr.auth_logic,
-        gs.cors_enabled,
-        gs.cors_allowed_origins,
-        gs.cors_allowed_headers,
-        gs.cors_expose_headers,
-        gs.cors_max_age,
-        gs.cors_allow_credentials,
-        COALESCE(
-          json_agg(
-            json_build_object('type', am.type, 'config', am.config)
-            ORDER BY ram.sort_order ASC, am.created_at ASC
-          ) FILTER (WHERE am.id IS NOT NULL),
-          '[]'
-        ) AS auth_methods
-      FROM api_gateway_configs gc
-      JOIN projects p ON p.id = gc.project_id
-      LEFT JOIN api_gateway_routes gr ON gr.gateway_config_id = gc.id AND gr.is_active = true
-      LEFT JOIN api_gateway_route_settings gs ON gs.route_id = gr.id
-      LEFT JOIN api_gateway_route_auth_methods ram ON ram.route_id = gr.id
-      LEFT JOIN api_gateway_auth_methods am ON am.id = ram.auth_method_id
-      WHERE gc.enabled = true
-      GROUP BY gc.id, gc.project_id, gc.custom_domain, gc.enabled,
-               p.name, p.slug,
-               gr.id, gr.route_path, gr.function_id, gr.allowed_methods,
-               gr.sort_order, gr.is_active, gr.auth_logic,
-               gs.cors_enabled, gs.cors_allowed_origins, gs.cors_allowed_headers,
-               gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials
-      ORDER BY gc.id, gr.sort_order ASC, gr.created_at ASC
-    `, { type: QueryTypes.SELECT }),
+    const {
+      GlobalSetting,
+      ApiGatewayConfig,
+      ApiGatewayRoute,
+      ApiGatewayRouteSettings,
+      ApiGatewayAuthMethod,
+      Project,
+    } = database.models;
+
+    const [domainSetting, configs] = await Promise.all([
+      GlobalSetting.findOne({ where: { setting_key: 'api_gateway_domain' } }),
+      ApiGatewayConfig.findAll({
+        where: { enabled: true },
+        include: [
+          { model: Project },
+          {
+            model: ApiGatewayRoute,
+            required: false,
+            include: [
+              { model: ApiGatewayRouteSettings, as: 'settings', required: false },
+              {
+                model: ApiGatewayAuthMethod,
+                as: 'authMethods',
+                through: { attributes: ['sort_order'] },
+                required: false,
+              },
+            ],
+          },
+        ],
+        order: [
+          [{ model: ApiGatewayRoute }, 'sort_order', 'ASC'],
+          [{ model: ApiGatewayRoute }, 'created_at', 'ASC'],
+        ],
+      }),
     ]);
 
     // Update default gateway domain from DB (overrides env var)
-    if (domainRows.length > 0 && domainRows[0].setting_value) {
-      defaultGatewayDomain = domainRows[0].setting_value;
+    if (domainSetting && domainSetting.setting_value) {
+      defaultGatewayDomain = domainSetting.setting_value;
     }
 
     const newCustomDomainMap = {};
     const newProjectSlugMap = {};
 
-    for (const row of routeRows) {
-      const projectSlug = row.project_slug;
-      const customDomain = row.custom_domain;
+    for (const config of configs) {
+      const projectSlug = config.Project.slug; // Virtual field on Project model
+      const customDomain = config.custom_domain;
 
       // Ensure project entry exists in slug map
       if (!newProjectSlugMap[projectSlug]) {
         newProjectSlugMap[projectSlug] = {
-          projectId: row.project_id,
+          projectId: config.project_id,
           projectSlug,
-          configId: row.config_id,
+          configId: config.id,
           routes: [],
         };
       }
@@ -130,33 +117,47 @@ async function refresh() {
         const domainKey = normalizeHostname(customDomain);
         if (!newCustomDomainMap[domainKey]) {
           newCustomDomainMap[domainKey] = {
-            projectId: row.project_id,
+            projectId: config.project_id,
             projectSlug,
-            configId: row.config_id,
+            configId: config.id,
             routes: [],
           };
         }
       }
 
-      // Add route (if this row has a route)
-      if (row.route_id) {
+      // Iterate only active routes (filter in JS to avoid LEFT JOIN / WHERE ambiguity)
+      const activeRoutes = (config.ApiGatewayRoutes || []).filter(r => r.is_active);
+
+      for (const route of activeRoutes) {
+        const settings = route.settings || {};
+
+        // Auth methods are fetched via belongsToMany; sort by junction table sort_order
+        const authMethods = (route.authMethods || [])
+          .slice()
+          .sort((a, b) => {
+            const aSort = (a.ApiGatewayRouteAuthMethod && a.ApiGatewayRouteAuthMethod.sort_order) || 0;
+            const bSort = (b.ApiGatewayRouteAuthMethod && b.ApiGatewayRouteAuthMethod.sort_order) || 0;
+            return aSort - bSort;
+          })
+          .map(am => ({ type: am.type, config: am.config }));
+
         const routeEntry = {
-          id: row.route_id,
-          routePath: row.route_path,
-          functionId: row.function_id,
-          allowedMethods: row.allowed_methods || ['GET', 'POST'],
-          sortOrder: row.sort_order,
-          matchFn: compilePattern(row.route_path),
+          id: route.id,
+          routePath: route.route_path,
+          functionId: route.function_id,
+          allowedMethods: route.allowed_methods || ['GET', 'POST'],
+          sortOrder: route.sort_order,
+          matchFn: compilePattern(route.route_path),
           corsSettings: {
-            enabled: row.cors_enabled || false,
-            allowedOrigins: row.cors_allowed_origins || [],
-            allowedHeaders: row.cors_allowed_headers || [],
-            exposeHeaders: row.cors_expose_headers || [],
-            maxAge: row.cors_max_age || 86400,
-            allowCredentials: row.cors_allow_credentials || false,
+            enabled: settings.cors_enabled || false,
+            allowedOrigins: settings.cors_allowed_origins || [],
+            allowedHeaders: settings.cors_allowed_headers || [],
+            exposeHeaders: settings.cors_expose_headers || [],
+            maxAge: settings.cors_max_age || 86400,
+            allowCredentials: settings.cors_allow_credentials || false,
           },
-          authMethods: Array.isArray(row.auth_methods) ? row.auth_methods : [],
-          authLogic: row.auth_logic || 'or',
+          authMethods,
+          authLogic: route.auth_logic || 'or',
         };
 
         newProjectSlugMap[projectSlug].routes.push(routeEntry);

@@ -25,8 +25,7 @@ const gatewayService = spawn('node', ['--inspect=9231', 'server.js'], {
   env: {
     ...env,
     PORT: '3002',
-    EXECUTION_SERVICE_URL: 'http://localhost:3001',
-    CACHE_REFRESH_INTERVAL: '30000',
+    EXECUTION_SERVICE_URL: 'http://localhost:3001'
   }
 });
 

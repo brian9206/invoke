@@ -9,7 +9,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
         const { id: functionId, logId } = req.query
         // Verify function exists
-        const { FunctionModel } = database.models;
+        const { Function: FunctionModel } = database.models;
         const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
         if (!fn) {

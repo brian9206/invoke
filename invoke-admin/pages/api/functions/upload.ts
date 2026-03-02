@@ -74,7 +74,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Check if function already exists by name - reject duplicates for new uploads
-    const { FunctionModel, FunctionVersion } = database.models;
+    const { Function: FunctionModel, FunctionVersion } = database.models;
     const existingFn = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] });
 
     if (existingFn) {

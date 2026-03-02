@@ -1,4 +1,5 @@
 const { Model, DataTypes } = require('sequelize');
+const { default: slugify } = require('@sindresorhus/slugify');
 
 module.exports = (sequelize) => {
   class Project extends Model {}
@@ -29,10 +30,13 @@ module.exports = (sequelize) => {
         type: DataTypes.BIGINT,
         defaultValue: 1073741824,
       },
-      // slug added in migration 003
       slug: {
-        type: DataTypes.STRING(100),
-        unique: true,
+        type: DataTypes.VIRTUAL,
+        get() {
+          const name = this.getDataValue('name');
+          if (!name) return null;
+          return slugify(name);
+        },
       },
       created_at: {
         type: DataTypes.DATE,

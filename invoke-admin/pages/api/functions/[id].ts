@@ -69,7 +69,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       // Check project access for non-admins (developer can update basic info, owner can update all)
       if (!req.user?.isAdmin) {
-        const { FunctionModel } = database.models;
+        const { Function: FunctionModel } = database.models;
         const fn0 = await FunctionModel.findByPk(id, { attributes: ['project_id'] });
         if (!fn0) {
           return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -106,7 +106,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
         // If enabling API key requirement and no key exists, generate one
         if (requires_api_key) {
-          const { FunctionModel } = database.models;
+          const { Function: FunctionModel } = database.models;
           const existingRecord = await FunctionModel.findByPk(id, { attributes: ['api_key'] });
           
           if (existingRecord && !existingRecord.api_key) {
@@ -140,7 +140,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         RETURNING *
       `
 
-      const { FunctionModel: FnModel } = database.models;
+      const { Function: FnModel } = database.models;
       const fnCheck = await FnModel.findByPk(id, { attributes: ['project_id'] });
       if (!fnCheck) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -165,7 +165,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     } else if (req.method === 'DELETE') {
       // Check project access for non-admins
       if (!req.user?.isAdmin) {
-        const { FunctionModel } = database.models;
+        const { Function: FunctionModel } = database.models;
         const fnForDelete = await FunctionModel.findByPk(id, { attributes: ['project_id'] });
         if (!fnForDelete) {
           return res.status(404).json(createResponse(false, null, 'Function not found', 404))

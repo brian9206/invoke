@@ -27,7 +27,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Function ID is required' })
     }
 
-    const { FunctionModel } = database.models;
+    const { Function: FunctionModel } = database.models;
 
     if (req.method === 'GET') {
       // Get current schedule settings

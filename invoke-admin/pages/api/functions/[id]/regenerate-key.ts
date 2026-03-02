@@ -22,7 +22,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Verify function exists and requires API key
-    const { FunctionModel } = database.models;
+    const { Function: FunctionModel } = database.models;
     const fn = await FunctionModel.findByPk(id, { attributes: ['id', 'requires_api_key'] });
 
     if (!fn) {

@@ -77,13 +77,6 @@ class ExecutionServer {
 
     // Security middleware
     this.app.use(helmet());
-    this.app.use(
-      cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
-        methods: ["GET", "POST", "PUT", "DELETE"],
-        allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
-      }),
-    );
 
     // Rate limiting - prevent abuse
     const limiter = rateLimit({
@@ -257,9 +250,6 @@ class ExecutionServer {
         console.log(`🗄️ S3 Endpoint: ${process.env.S3_ENDPOINT}`);
         console.log(
           `💾 Cache Directory: ${process.env.CACHE_DIR || "/tmp/invoke-cache"}`,
-        );
-        console.log(
-          `🔒 API Key Authentication: ${process.env.REQUIRE_API_KEY === "true" ? "Required" : "Optional"}`,
         );
         console.log(
           `🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`,

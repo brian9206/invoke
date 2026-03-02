@@ -233,7 +233,7 @@ async function getFunctionPackage(functionId) {
  * @returns {import('keyv').default}
  */
 function createDefaultKVFactory(projectId) {
-    return createProjectKV(projectId, db.pool);
+    return createProjectKV(projectId);
 }
 
 // ---------------------------------------------------------------------------

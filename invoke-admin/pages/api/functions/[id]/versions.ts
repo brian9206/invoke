@@ -55,7 +55,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     // Check project access for non-admins (required for all operations)
     if (!authResult.user?.isAdmin) {
-      const { FunctionModel } = database.models;
+      const { Function: FunctionModel } = database.models;
       const fnAccess = await FunctionModel.findByPk(functionId, { attributes: ['project_id'] });
       if (!fnAccess) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -99,7 +99,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       }
 
       // Check if function exists and get active version
-      const { FunctionModel, FunctionVersion } = database.models;
+      const { Function: FunctionModel, FunctionVersion } = database.models;
       const functionData = await FunctionModel.findByPk(functionId, {
         attributes: ['id', 'name', 'active_version_id']
       });
@@ -163,7 +163,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         }
 
         // Check if function exists
-        const { FunctionModel: FnModel, FunctionVersion: FnVersion } = database.models;
+        const { Function: FnModel, FunctionVersion: FnVersion } = database.models;
         const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
         if (!fn) {

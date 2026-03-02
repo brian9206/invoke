@@ -62,7 +62,7 @@ function createNotifyListener(channel, {
       setTimeout(async () => {
         debounceTimers.delete(key);
         if (onNotifyCallback) {
-          console.log(`${label} Notifying — key: ${key}`);
+          console.log(`${label} Notifying`);
           try {
             await onNotifyCallback(payload);
           } catch (err) {
