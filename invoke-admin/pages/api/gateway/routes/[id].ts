@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
@@ -24,18 +25,17 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Verify route belongs to this project
-  const ownerCheck = await database.query(
-    `SELECT gr.id FROM api_gateway_routes gr
-     JOIN api_gateway_configs gc ON gc.id = gr.gateway_config_id
-     WHERE gr.id = $1 AND gc.project_id = $2`,
-    [id, projectId]
-  )
-  if (ownerCheck.rows.length === 0) {
+  const { ApiGatewayConfig, ApiGatewayRoute, ApiGatewayRouteAuthMethod } = database.models;
+  const ownerCheck = await ApiGatewayRoute.findOne({
+    where: { id },
+    include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }]
+  });
+  if (!ownerCheck) {
     return res.status(404).json(createResponse(false, null, 'Route not found', 404))
   }
 
   if (req.method === 'GET') {
-    const result = await database.query(
+    const [row] = await database.sequelize.query(
       `SELECT
          gr.id,
          gr.route_path,
@@ -69,10 +69,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
        GROUP BY gr.id, f.name, gs.cors_enabled, gs.cors_allowed_origins,
                 gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials,
                 gr.auth_logic`,
-      [id]
-    )
+      { bind: [id], type: QueryTypes.SELECT }
+    ) as any[];
 
-    const row = result.rows[0]
     return res.json(createResponse(true, {
       id: row.id,
       routePath: row.route_path,
@@ -104,7 +103,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     const { routePath, functionId, allowedMethods, isActive, corsSettings, authMethodIds, authLogic } = req.body
 
-    await database.transaction(async (client: any) => {
+    await database.sequelize.transaction(async (t: any) => {
       if (routePath !== undefined || functionId !== undefined || allowedMethods !== undefined || isActive !== undefined || authLogic !== undefined) {
         const updates: string[] = []
         const values: any[] = []
@@ -119,10 +118,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
         updates.push(`updated_at = NOW()`)
         values.push(id)
 
-        await client.query(
+        await database.sequelize.query(
           `UPDATE api_gateway_routes SET ${updates.join(', ')} WHERE id = $${idx}`,
-          values
-        )
+          { bind: values, transaction: t }
+        );
       }
 
       if (corsSettings !== undefined) {
@@ -140,26 +139,22 @@ async function handler(req: AuthenticatedRequest, res: any) {
         if (settingUpdates.length > 0) {
           settingUpdates.push(`updated_at = NOW()`)
           settingValues.push(id)
-          await client.query(
+          await database.sequelize.query(
             `UPDATE api_gateway_route_settings SET ${settingUpdates.join(', ')} WHERE route_id = $${idx}`,
-            settingValues
-          )
+            { bind: settingValues, transaction: t }
+          );
         }
       }
 
       if (authMethodIds !== undefined) {
         // Replace all auth method associations
-        await client.query(
-          `DELETE FROM api_gateway_route_auth_methods WHERE route_id = $1`,
-          [id]
-        )
+        await ApiGatewayRouteAuthMethod.destroy({ where: { route_id: id }, transaction: t });
         const methodIds: string[] = Array.isArray(authMethodIds) ? authMethodIds : []
         for (let i = 0; i < methodIds.length; i++) {
-          await client.query(
-            `INSERT INTO api_gateway_route_auth_methods (route_id, auth_method_id, sort_order)
-             VALUES ($1, $2, $3) ON CONFLICT (route_id, auth_method_id) DO UPDATE SET sort_order = EXCLUDED.sort_order`,
-            [id, methodIds[i], i]
-          )
+          await ApiGatewayRouteAuthMethod.upsert(
+            { route_id: id, auth_method_id: methodIds[i], sort_order: i },
+            { transaction: t }
+          );
         }
       }
     })
@@ -172,7 +167,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    await database.query('DELETE FROM api_gateway_routes WHERE id = $1', [id])
+    await ApiGatewayRoute.destroy({ where: { id } });
     return res.json(createResponse(true, null, 'Route deleted'))
   }
 }

@@ -1,23 +1,37 @@
-node_modules
-npm-debug.log*
+# Dependency directories
+**/node_modules/
 .npm
-.next
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-coverage
-.coverage
-.nyc_output
-.DS_Store
-*.log
-.git
-.gitignore
-README.md
-.vscode
-.idea
-*.swp
-*.swo
-uploads
-.vercel
+
+# Build outputs
+**/dist/
+**/.next/
+
+# Debug and log files
+**/npm-debug.log*
+**/*.log
+**/*.swp
+**/*.swo
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.development.local
+**/.env.test.local
+**/.env.production.local
+**/.env.example
+
+# OS and editor files
+**/.DS_Store
+**/.vscode
+**/.idea
+
+# Git and CI/CD
+**/.git/
+**/.gitignore
+**/.github/
+**/.vercel/
+
+# Project files not needed in container
+**/README.md
+**/uploads/
+docker-compose.yml

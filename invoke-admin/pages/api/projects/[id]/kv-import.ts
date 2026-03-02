@@ -17,8 +17,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    await database.connect();
-
     const { id: projectId } = req.query;
     const { data, strategy = 'merge' } = req.body;
 
@@ -94,10 +92,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Get storage limit
-    const limitResult = await database.query(
-      `SELECT setting_value FROM global_settings WHERE setting_key = 'kv_storage_limit_bytes'`
-    );
-    const limit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].setting_value) : 1073741824;
+    const { GlobalSetting } = database.models;
+    const limitSetting = await GlobalSetting.findOne({ where: { setting_key: 'kv_storage_limit_bytes' }, attributes: ['setting_value'] });
+    const limit = limitSetting ? parseInt(limitSetting.setting_value) : 1073741824;
 
     // Check if import would exceed quota
     const projectedUsage = currentUsage + totalImportSize;
@@ -147,7 +144,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  * Create Keyv instance for a project
  */
 function createKVStore(projectId: string) {
-  const config = database.pool.options;
+  const config = database.getConnectionConfig();
   const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
 
   return new Keyv({

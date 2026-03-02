@@ -5,8 +5,6 @@ const database = require('@/lib/database')
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    await database.connect()
-
     const { id } = req.query
 
     if (!id || typeof id !== 'string') {
@@ -14,21 +12,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     if (req.method === 'DELETE') {
-      // Check that the API key belongs to the user
-      const checkResult = await database.query(
-        'SELECT id FROM api_keys WHERE id = $1 AND created_by = $2',
-        [parseInt(id), req.user!.id]
-      )
+      const { ApiKey } = database.models
 
-      if (checkResult.rows.length === 0) {
+      // Check that the API key belongs to the user
+      const apiKeyRecord = await ApiKey.findOne({
+        where: { id: parseInt(id), created_by: req.user!.id },
+        attributes: ['id'],
+      })
+
+      if (!apiKeyRecord) {
         return res.status(404).json(createResponse(false, null, 'API key not found', 404))
       }
 
       // Revoke the API key (set is_active to false)
-      await database.query(
-        'UPDATE api_keys SET is_active = false WHERE id = $1',
-        [parseInt(id)]
-      )
+      await apiKeyRecord.update({ is_active: false })
 
       return res.status(200).json(createResponse(true, null, 'API key revoked successfully'))
     }

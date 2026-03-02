@@ -1,5 +1,6 @@
 const chalk = require('chalk')
 const inquirer = require('inquirer').default
+const { Op } = require('sequelize')
 const zxcvbn = require('zxcvbn')
 const { table } = require('table')
 const database = require('../services/database')
@@ -11,7 +12,7 @@ function register(program) {
     .description('Create a new user (admin or regular)')
     .action(async () => {
       try {
-        await database.connect()
+        const { User } = database.models
 
         const answers = await inquirer.prompt([
           {
@@ -54,25 +55,24 @@ function register(program) {
         ])
 
         // Check if user already exists
-        const existingUser = await database.query(
-          'SELECT id FROM users WHERE username = $1 OR email = $2',
-          [answers.username, answers.email]
-        )
+        const existingUser = await User.findOne({
+          where: { [Op.or]: [{ username: answers.username }, { email: answers.email }] },
+          attributes: ['id']
+        })
 
-        if (existingUser.rows.length > 0) {
+        if (!!existingUser) {
           console.log(chalk.red('❌ User with this username or email already exists'))
           return
         }
 
         const hashedPassword = await hashPassword(answers.password)
 
-        const result = await database.query(`
-          INSERT INTO users (username, email, password_hash, is_admin)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id, username, email, is_admin, created_at
-        `, [answers.username, answers.email, hashedPassword, answers.isAdmin])
-
-        const user = result.rows[0]
+        const user = await User.create({
+          username: answers.username,
+          email: answers.email,
+          password_hash: hashedPassword,
+          is_admin: answers.isAdmin
+        })
 
         console.log(chalk.green('✅ User created successfully!'))
         console.log('')

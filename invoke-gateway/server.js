@@ -3,11 +3,13 @@ const express = require('express');
 const helmet = require('helmet');
 const compression = require('compression');
 
+const { createNotifyListener } = require('invoke-shared');
 const database = require('./services/database');
 const routeCache = require('./services/route-cache');
-const pgNotifyListener = require('./services/pg-notify-listener');
 const healthRoutes = require('./routes/health');
 const gatewayRoutes = require('./routes/gateway');
+
+const pgNotifyListener = createNotifyListener('gateway_invalidated');
 
 /**
  * Invoke API Gateway Service
@@ -39,9 +41,6 @@ async function validateEnvironment() {
 async function main() {
   await validateEnvironment();
 
-  // Connect DB
-  await database.connect();
-
   // Warm route cache
   await routeCache.forceRefresh();
   routeCache.start(CACHE_REFRESH_INTERVAL);
@@ -65,6 +64,7 @@ async function main() {
 
   // Request logging
   app.use((req, _res, next) => {
+    if (req.path === '/health') return next(); // skip health checks
     console.log(
       `${new Date().toISOString()} - ${req.method} ${req.hostname}${req.path} - ${req.ip}`,
     );

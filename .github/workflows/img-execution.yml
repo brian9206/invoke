@@ -8,6 +8,8 @@ on:
       - master
     paths:
       - 'invoke-execution/**'
+      - 'shared/**'
+      - 'package-lock.json'
       - '.github/workflows/img-execution.yml'
 
 permissions:
@@ -26,8 +28,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./invoke-execution
+          context: .
           file: ./invoke-execution/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/execution:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

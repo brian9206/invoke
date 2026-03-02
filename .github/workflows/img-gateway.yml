@@ -8,6 +8,8 @@ on:
       - master
     paths:
       - 'invoke-gateway/**'
+      - 'shared/**'
+      - 'package-lock.json'
       - '.github/workflows/img-gateway.yml'
 
 permissions:
@@ -26,8 +28,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./invoke-gateway
+          context: .
           file: ./invoke-gateway/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/gateway:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

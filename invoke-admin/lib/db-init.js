@@ -3,6 +3,8 @@
  * Ensures database connection and migrations are run on server startup
  */
 
+const path = require('path');
+const { spawnSync } = require('child_process');
 const database = require('./database');
 
 let initialized = false;
@@ -25,12 +27,20 @@ async function initializeDatabase() {
     initializationPromise = (async () => {
         try {
             console.log('🚀 Initializing database on server startup...');
-            await database.connect();
-            
-            // Run database migrations
-            const MigrationManager = require('./migration-manager');
-            const migrationManager = new MigrationManager(database.pool);
-            await migrationManager.runMigrations();
+            await database.sequelize.authenticate();
+            console.log('✅ Database connected successfully');
+
+            // Run database migrations in a child process to avoid
+            // webpack bundling issues with dynamic require() in umzug
+            const migrateScript = path.resolve(process.cwd(), 'scripts/migrate.js');
+            console.log('🔄 Running migrations via child process...');
+            const result = spawnSync(process.execPath, [migrateScript], {
+                stdio: 'inherit',
+                env: process.env,
+            });
+            if (result.status !== 0) {
+                throw new Error(`Migration process exited with code ${result.status}`);
+            }
             
             initialized = true;
             console.log('✅ Database initialization complete\n');

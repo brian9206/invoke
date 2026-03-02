@@ -5,7 +5,7 @@ import * as tar from 'tar'
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
@@ -18,28 +18,22 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     // Verify function exists
-    const functionResult = await database.query(
-      'SELECT id, name FROM functions WHERE id = $1',
-      [functionId]
-    )
+    const { Function: FunctionModel, FunctionVersion } = database.models;
+    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
-    if (functionResult.rows.length === 0) {
+    if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
     // Get next version number
-    const versionResult = await database.query(
-      'SELECT MAX(version) as max_version FROM function_versions WHERE function_id = $1',
-      [functionId]
-    )
-
-    const nextVersion = (versionResult.rows[0]?.max_version || 0) + 1
+    const maxVersion = await FunctionVersion.max('version', { where: { function_id: functionId } });
+    const nextVersion = ((maxVersion as number) || 0) + 1;
     const newVersionId = uuidv4()
 
     // Get temp directory from environment or use default
@@ -70,28 +64,29 @@ async function handler(req: AuthenticatedRequest, res: any) {
       const fileBuffer = await fs.readFile(tgzPath)
       const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-      // Upload to MinIO
+      // Upload to S3
       const minioObjectName = `functions/${functionId}/v${nextVersion}.tgz`
-      const bucketName = process.env.MINIO_BUCKET || 'invoke-packages'
-      await minioService.client.fPutObject(bucketName, minioObjectName, tgzPath, {
+      const bucketName = process.env.S3_BUCKET || 'invoke-packages'
+      await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
         'Version': nextVersion.toString()
       })
 
       // Create version record
-      await database.query(
-        `INSERT INTO function_versions (id, function_id, version, file_size, package_hash, created_by, package_path)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [newVersionId, functionId, nextVersion, stats.size, hash, userId, minioObjectName]
-      )
+      await FunctionVersion.create({
+        id: newVersionId,
+        function_id: functionId,
+        version: nextVersion,
+        file_size: stats.size,
+        package_hash: hash,
+        created_by: userId,
+        package_path: minioObjectName
+      });
 
       // If setActive is true, update the function's active version
       if (setActive) {
-        await database.query(
-          'UPDATE functions SET active_version_id = $1 WHERE id = $2',
-          [newVersionId, functionId]
-        )
+        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } });
       }
 
       // Clean up temporary files

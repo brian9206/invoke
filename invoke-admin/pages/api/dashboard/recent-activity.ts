@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
@@ -24,7 +25,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
     
     // Get recent execution activity
-    const result = await database.query(`
+    const recentRows = await database.sequelize.query(`
       SELECT 
         el.id,
         f.id as function_id,
@@ -42,9 +43,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       ${whereClause}
       ORDER BY el.executed_at DESC
       LIMIT 10
-    `, queryParams)
+    `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
 
-    const recentActivity = result.rows.map(row => ({
+    const recentActivity = recentRows.map(row => ({
       id: row.id.toString(),
       functionId: row.function_id,
       functionName: row.function_name,

@@ -1233,7 +1233,8 @@ export default function ApiGatewayPage() {
 
   // Load data when project changes
   useEffect(() => {
-    if (activeProject?.id) {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (activeProject?.id && UUID_RE.test(activeProject.id)) {
       setActiveTab('routes')
       setOrderDirty(false)
       loadAll()
@@ -1241,7 +1242,8 @@ export default function ApiGatewayPage() {
   }, [activeProject?.id])
 
   const loadAll = async () => {
-    if (!activeProject?.id) return
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!activeProject?.id || !UUID_RE.test(activeProject.id)) return
     setLoadingConfig(true)
     try {
       const [cfgRes, routesRes, funcsRes, gsRes, authRes] = await Promise.all([

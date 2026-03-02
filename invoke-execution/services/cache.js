@@ -1,7 +1,7 @@
 const fs = require('fs-extra')
 const path = require('path')
 const crypto = require('crypto')
-const minioService = require('./minio')
+const { s3Service } = require('invoke-shared')
 
 /**
  * Cache management service for function packages
@@ -170,7 +170,7 @@ class CacheService {
     // This prevents removing cache when database hash is out of sync
     if (metadata && metadata.hash) {
       try {
-        const actualHash = await minioService.computeFileHash(cachedPath)
+        const actualHash = await s3Service.computeFileHash(cachedPath)
         const valid = actualHash === metadata.hash // Compare with cached hash, not DB hash
         
         if (valid) {
@@ -223,8 +223,8 @@ class CacheService {
       const cachedPath = this.getCachedPackagePath(functionId, version)
       const extractedPath = this.getExtractedPackagePath(functionId, version)
       
-      // Download from MinIO
-      await minioService.downloadPackage(functionId, version, cachedPath)
+      // Download from S3
+      await s3Service.downloadPackage(functionId, version, cachedPath)
       
       // Extract package
       await fs.remove(extractedPath) // Remove existing if any
@@ -278,11 +278,11 @@ class CacheService {
     const extractedPath = this.getExtractedPackagePath(functionId, version)
     
     try {
-      // Download from MinIO using specific path
-      await minioService.downloadPackageFromPath(packagePath, cachedPath)
+      // Download from S3 using specific path
+      await s3Service.downloadPackageFromPath(packagePath, cachedPath)
       
       // Compute actual hash of downloaded file
-      const actualHash = await minioService.computeFileHash(cachedPath)
+      const actualHash = await s3Service.computeFileHash(cachedPath)
       
       // Warn if hash doesn't match expected (database might be out of sync)
       if (hash && actualHash !== hash) {
@@ -356,8 +356,8 @@ class CacheService {
       const cachedPath = this.getCachedPackagePath(functionId)
       const extractedPath = this.getExtractedPackagePath(functionId)
       
-      // Download from MinIO using specific path
-      await minioService.downloadPackageFromPath(packagePath, cachedPath)
+      // Download from S3 using specific path
+      await s3Service.downloadPackageFromPath(packagePath, cachedPath)
       
       // Extract package
       await fs.remove(extractedPath) // Remove existing if any

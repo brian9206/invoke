@@ -17,8 +17,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    await database.connect();
-
     const { id: projectId } = req.query;
 
     if (!projectId || typeof projectId !== 'string') {
@@ -66,7 +64,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  * Create Keyv instance for a project
  */
 function createKVStore(projectId: string) {
-  const config = database.pool.options;
+  const config = database.getConnectionConfig();
   const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
 
   return new Keyv({

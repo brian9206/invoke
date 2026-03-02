@@ -5,10 +5,18 @@
   "license": "MIT",
   "private": true,
   "workspaces": [
+    "shared",
     "invoke-cli",
     "invoke-admin",
     "invoke-execution",
     "invoke-execution-bundler",
+    "invoke-gateway",
     "invoke-scheduler"
-  ]
+  ],
+  "scripts": {
+    "setup:env": "node scripts/setup-env.js"
+  },
+  "dependencies": {
+    "plain": "^0.0.0"
+  }
 }

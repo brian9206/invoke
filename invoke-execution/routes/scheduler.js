@@ -1,4 +1,5 @@
 const express = require('express')
+const { Op } = require('sequelize')
 const router = express.Router()
 const database = require('../services/database')
 const cache = require('../services/cache')
@@ -103,24 +104,18 @@ async function executeScheduledFunction(functionData) {
     
     // Log failed execution
     try {
-      const logQuery = `
-        INSERT INTO execution_logs (
-          function_id, status_code, execution_time_ms, 
-          request_method, request_url, request_size, executed_at, response_body, console_logs
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      `
-      
-      await database.query(logQuery, [
-        functionData.id,
-        500,
-        executionTime,
-        'SCHEDULED',
-        '/scheduled',
-        0,
-        new Date(),
-        JSON.stringify({ error: error.message }),
-        JSON.stringify([])
-      ])
+      const { ExecutionLog } = database.models;
+      await ExecutionLog.create({
+        function_id: functionData.id,
+        status_code: 500,
+        execution_time_ms: executionTime,
+        request_method: 'SCHEDULED',
+        request_url: '/scheduled',
+        request_size: 0,
+        executed_at: new Date(),
+        response_body: JSON.stringify({ error: error.message }),
+        console_logs: [],
+      });
     } catch (logError) {
       console.error('Failed to log execution error:', logError)
     }
@@ -132,22 +127,20 @@ async function executeScheduledFunction(functionData) {
 // Route to trigger scheduled functions (called by cron/scheduler)
 router.post('/trigger-scheduled', async (req, res) => {
   try {
-    await database.connect()
-    
+    const { Function: FunctionModel } = database.models;
     console.log('Checking for scheduled functions to execute...')
-    
+
     // Get all functions that are scheduled and due for execution
     const now = new Date()
-    const result = await database.query(`
-      SELECT id, name, schedule_cron, next_execution, is_active
-      FROM functions 
-      WHERE schedule_enabled = true 
-        AND is_active = true
-        AND next_execution <= $1
-      ORDER BY next_execution ASC
-    `, [now])
-    
-    const functionsToExecute = result.rows
+    const functionsToExecute = await FunctionModel.findAll({
+      where: {
+        schedule_enabled: true,
+        is_active: true,
+        next_execution: { [Op.lte]: now },
+      },
+      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active'],
+      order: [['next_execution', 'ASC']],
+    })
     console.log(`Found ${functionsToExecute.length} functions to execute`)
     
     const executionResults = []
@@ -166,21 +159,19 @@ router.post('/trigger-scheduled', async (req, res) => {
         // Calculate and update next execution time
         const nextExecution = calculateNextExecution(func.schedule_cron)
         if (nextExecution) {
-          await database.query(`
-            UPDATE functions 
-            SET next_execution = $2
-            WHERE id = $1
-          `, [func.id, nextExecution])
-          
+          await FunctionModel.update(
+            { next_execution: nextExecution },
+            { where: { id: func.id } }
+          )
+
           console.log(`Updated next execution for ${func.name}: ${nextExecution.toISOString()}`)
         } else {
           console.error(`Failed to calculate next execution for function ${func.id}`)
           // Disable scheduling if we can't calculate next execution
-          await database.query(`
-            UPDATE functions 
-            SET schedule_enabled = false
-            WHERE id = $1
-          `, [func.id])
+          await FunctionModel.update(
+            { schedule_enabled: false },
+            { where: { id: func.id } }
+          )
         }
         
       } catch (error) {

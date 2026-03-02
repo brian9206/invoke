@@ -1,4 +1,5 @@
 # Admin Service Dockerfile
+# Build context must be the monorepo root
 FROM node:24-alpine
 
 # Install curl for health checks
@@ -6,15 +7,23 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
-# Copy package files
-COPY ./invoke-admin/package*.json ./
+# Copy root workspace manifest and lockfile
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Copy workspace package manifests (needed before npm ci)
+COPY shared/package.json ./shared/
+COPY invoke-admin/package.json ./invoke-admin/
 
-# Copy source code and shared modules
-COPY ./invoke-admin .
-COPY ./database ./database
+# Install dependencies for admin and shared workspaces only
+RUN npm ci --omit=dev -w invoke-shared && npm ci -w invoke-admin
+
+# Copy shared source
+COPY shared/ ./shared/
+
+# Copy admin source
+COPY invoke-admin/ ./invoke-admin/
+
+WORKDIR /app/invoke-admin
 
 # Build Next.js application
 RUN npm run build

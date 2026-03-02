@@ -18,8 +18,6 @@ type NextApiHandler = (req: AuthenticatedRequest, res: NextApiResponse) => void 
 export function withAuth(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
-      await database.connect()
-
       const authHeader = req.headers.authorization
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return res.status(401).json(createResponse(false, null, 'No token provided', 401))
@@ -31,21 +29,20 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
         
         // Get fresh user data from database
-        const result = await database.query(
-          'SELECT id, username, email, is_admin FROM users WHERE id = $1',
-          [decoded.userId]
-        )
+        const { User } = database.models
+        const user = await User.findByPk(decoded.userId, {
+          attributes: ['id', 'username', 'email', 'is_admin'],
+        })
 
-        if (result.rows.length === 0) {
+        if (!user) {
           return res.status(401).json(createResponse(false, null, 'User not found', 401))
         }
 
-        const user = result.rows[0]
         req.user = {
           id: user.id,
           username: user.username,
           email: user.email,
-          isAdmin: user.is_admin
+          isAdmin: user.is_admin,
         }
 
         // Check admin requirement if specified
@@ -95,8 +92,6 @@ export function withAuthOrApiKeyAndMethods(allowedMethods: string[], authOptions
 // Auth-only middleware for routes with special requirements (like multer)
 export async function authenticate(req: AuthenticatedRequest): Promise<{ success: boolean, user?: any, error?: string }> {
   try {
-    await database.connect()
-
     const authHeader = req.headers.authorization
     const apiKeyHeader = req.headers['x-api-key'] as string
 
@@ -108,21 +103,13 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
         const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
         
         // Get fresh user data from database
-        const result = await database.query(
-          'SELECT id, username, email, is_admin FROM users WHERE id = $1',
-          [decoded.userId]
-        )
+        const { User } = database.models
+        const jwtUser = await User.findByPk(decoded.userId, {
+          attributes: ['id', 'username', 'email', 'is_admin'],
+        })
 
-        if (result.rows.length > 0) {
-          const user = result.rows[0]
-          const userData = {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            isAdmin: user.is_admin
-          }
-
-          return { success: true, user: userData }
+        if (jwtUser) {
+          return { success: true, user: { id: jwtUser.id, username: jwtUser.username, email: jwtUser.email, isAdmin: jwtUser.is_admin } }
         }
       } catch (jwtError) {
         // JWT invalid, will try API key next
@@ -141,31 +128,21 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
     if (apiKey) {
       const keyHash = hashApiKey(apiKey)
       
-      const keyResult = await database.query(
-        `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
-         FROM api_keys ak
-         JOIN users u ON ak.created_by = u.id
-         WHERE ak.key_hash = $1 AND ak.is_active = true`,
-        [keyHash]
-      )
+      const { ApiKey, User: UserModel } = database.models
+      const apiKeyRecord = await ApiKey.findOne({
+        where: { key_hash: keyHash, is_active: true },
+        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+      })
 
-      if (keyResult.rows.length > 0) {
-        const keyData = keyResult.rows[0]
-
+      if (apiKeyRecord) {
         // Update API key usage
-        await database.query(
-          'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
-          [keyData.id]
-        )
+        await apiKeyRecord.update({
+          last_used: new Date(),
+          usage_count: database.sequelize.literal('usage_count + 1'),
+        })
 
-        const userData = {
-          id: keyData.user_id,
-          username: keyData.username,
-          email: keyData.email,
-          isAdmin: keyData.is_admin
-        }
-
-        return { success: true, user: userData }
+        const u = apiKeyRecord.creator
+        return { success: true, user: { id: u.id, username: u.username, email: u.email, isAdmin: u.is_admin } }
       }
     }
 
@@ -181,8 +158,6 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
 export function withApiKeyAuth(handler: NextApiHandler) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
-      await database.connect()
-
       // Check for API key in headers (Authorization: Bearer <key> or x-api-key: <key>)
       const authHeader = req.headers.authorization
       const apiKeyHeader = req.headers['x-api-key'] as string
@@ -201,36 +176,33 @@ export function withApiKeyAuth(handler: NextApiHandler) {
       // Hash the incoming API key and lookup in database
       const keyHash = hashApiKey(apiKey)
       
-      const keyResult = await database.query(
-        `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
-         FROM api_keys ak
-         JOIN users u ON ak.created_by = u.id
-         WHERE ak.key_hash = $1`,
-        [keyHash]
-      )
+      const { ApiKey, User: UserModel } = database.models
+      const apiKeyRecord = await ApiKey.findOne({
+        where: { key_hash: keyHash },
+        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+      })
 
-      if (keyResult.rows.length === 0) {
+      if (!apiKeyRecord) {
         return res.status(401).json(createResponse(false, null, 'Invalid API key', 401))
       }
 
-      const keyData = keyResult.rows[0]
-
-      if (!keyData.is_active) {
+      if (!apiKeyRecord.is_active) {
         return res.status(401).json(createResponse(false, null, 'API key has been revoked', 401))
       }
 
       // Update last_used and usage_count
-      await database.query(
-        'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
-        [keyData.id]
-      )
+      await apiKeyRecord.update({
+        last_used: new Date(),
+        usage_count: database.sequelize.literal('usage_count + 1'),
+      })
 
+      const keyUser = apiKeyRecord.creator
       // Attach user data to request (same format as JWT auth)
       req.user = {
-        id: keyData.user_id,
-        username: keyData.username,
-        email: keyData.email,
-        isAdmin: keyData.is_admin
+        id: keyUser.id,
+        username: keyUser.username,
+        email: keyUser.email,
+        isAdmin: keyUser.is_admin,
       }
 
       return handler(req, res)
@@ -246,8 +218,6 @@ export function withApiKeyAuth(handler: NextApiHandler) {
 export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
-      await database.connect()
-
       const authHeader = req.headers.authorization
       const apiKeyHeader = req.headers['x-api-key'] as string
 
@@ -260,18 +230,17 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
         try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
           
-          const result = await database.query(
-            'SELECT id, username, email, is_admin FROM users WHERE id = $1',
-            [decoded.userId]
-          )
+          const { User } = database.models
+          const jwtUser = await User.findByPk(decoded.userId, {
+            attributes: ['id', 'username', 'email', 'is_admin'],
+          })
 
-          if (result.rows.length > 0) {
-            const user = result.rows[0]
+          if (jwtUser) {
             authenticatedUser = {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-              isAdmin: user.is_admin
+              id: jwtUser.id,
+              username: jwtUser.username,
+              email: jwtUser.email,
+              isAdmin: jwtUser.is_admin,
             }
           }
         } catch (jwtError) {
@@ -292,28 +261,25 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
         if (apiKey) {
           const keyHash = hashApiKey(apiKey)
           
-          const keyResult = await database.query(
-            `SELECT ak.id, ak.created_by, ak.is_active, u.id as user_id, u.username, u.email, u.is_admin
-             FROM api_keys ak
-             JOIN users u ON ak.created_by = u.id
-             WHERE ak.key_hash = $1 AND ak.is_active = true`,
-            [keyHash]
-          )
+          const { ApiKey, User: UserModel } = database.models
+          const apiKeyRecord = await ApiKey.findOne({
+            where: { key_hash: keyHash, is_active: true },
+            include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+          })
 
-          if (keyResult.rows.length > 0) {
-            const keyData = keyResult.rows[0]
-
+          if (apiKeyRecord) {
             // Update API key usage
-            await database.query(
-              'UPDATE api_keys SET last_used = CURRENT_TIMESTAMP, usage_count = usage_count + 1 WHERE id = $1',
-              [keyData.id]
-            )
+            await apiKeyRecord.update({
+              last_used: new Date(),
+              usage_count: database.sequelize.literal('usage_count + 1'),
+            })
 
+            const keyUser = apiKeyRecord.creator
             authenticatedUser = {
-              id: keyData.user_id,
-              username: keyData.username,
-              email: keyData.email,
-              isAdmin: keyData.is_admin
+              id: keyUser.id,
+              username: keyUser.username,
+              email: keyUser.email,
+              isAdmin: keyUser.is_admin,
             }
           }
         }
@@ -345,11 +311,12 @@ export type { AuthenticatedRequest }
 // Project access control helpers
 export async function getUserProjectRole(userId: number, projectId: string): Promise<string | null> {
   try {
-    const result = await database.query(
-      'SELECT role FROM project_memberships WHERE user_id = $1 AND project_id = $2',
-      [userId, projectId]
-    )
-    return result.rows.length > 0 ? result.rows[0].role : null
+    const { ProjectMembership } = database.models
+    const membership = await ProjectMembership.findOne({
+      where: { user_id: userId, project_id: projectId },
+      attributes: ['role'],
+    })
+    return membership ? membership.role : null
   } catch (error) {
     console.error('Error checking user project role:', error)
     return null
@@ -358,34 +325,38 @@ export async function getUserProjectRole(userId: number, projectId: string): Pro
 
 export async function getUserProjects(userId: number): Promise<any[]> {
   try {
-    // Check if user is admin
-    const userResult = await database.query(
-      'SELECT is_admin FROM users WHERE id = $1',
-      [userId]
-    )
-    
-    const isAdmin = userResult.rows.length > 0 && userResult.rows[0].is_admin
-    
-    // Admin users get all projects with 'owner' role
+    const { User, Project, ProjectMembership } = database.models
+    const userRecord = await User.findByPk(userId, { attributes: ['is_admin'] })
+    const isAdmin = userRecord?.is_admin || false
+
     if (isAdmin) {
-      const result = await database.query(`
-        SELECT p.id, p.name, p.description, p.slug, 'owner' as role
-        FROM projects p
-        WHERE p.is_active = true
-        ORDER BY p.name
-      `)
-      return result.rows
+      // Admin users get all projects with 'owner' role
+      const projects = await Project.findAll({
+        where: { is_active: true },
+        attributes: ['id', 'name', 'description', 'slug'],
+        order: [['name', 'ASC']],
+      })
+      return projects.map((p: any) => ({ ...p.get({ plain: true }), role: 'owner' }))
     }
-    
+
     // Regular users get only their assigned projects
-    const result = await database.query(`
-      SELECT p.id, p.name, p.description, p.slug, pm.role
-      FROM projects p
-      JOIN project_memberships pm ON p.id = pm.project_id
-      WHERE pm.user_id = $1 AND p.is_active = true
-      ORDER BY p.name
-    `, [userId])
-    return result.rows
+    const memberships = await ProjectMembership.findAll({
+      where: { user_id: userId },
+      include: [{
+        model: Project,
+        required: true,
+        where: { is_active: true },
+        attributes: ['id', 'name', 'description', 'slug'],
+      }],
+      attributes: ['role'],
+    })
+    return memberships.map((m: any) => ({
+      id: m.Project.id,
+      name: m.Project.name,
+      description: m.Project.description,
+      slug: m.Project.slug,
+      role: m.role,
+    }))
   } catch (error) {
     console.error('Error getting user projects:', error)
     return []

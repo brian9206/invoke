@@ -17,13 +17,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 // Get global security policies
 async function getGlobalSecurityPolicies(res: NextApiResponse) {
   try {
-    const result = await database.query(
-      `SELECT id, action, target_type, target_value, description, priority
-       FROM global_network_policies
-       ORDER BY priority ASC`
-    );
-
-    res.json({ rules: result.rows });
+    const { GlobalNetworkPolicy } = database.models;
+    const rules = await GlobalNetworkPolicy.findAll({
+      attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
+      order: [['priority', 'ASC']]
+    });
+    res.json({ rules: rules.map((r: any) => r.get({ plain: true })) });
   } catch (error) {
     console.error('Error fetching global security policies:', error);
     res.status(500).json({ error: 'Failed to fetch global security policies' });
@@ -79,34 +78,24 @@ async function updateGlobalSecurityPolicies(
   }
 
   try {
-    // Use a transaction to delete old rules and insert new ones
-    await database.query('BEGIN');
-
-    // Delete all existing global rules
-    await database.query('DELETE FROM global_network_policies');
-
-    // Insert new rules with sequential priorities
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      await database.query(
-        `INSERT INTO global_network_policies 
-         (action, target_type, target_value, description, priority)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          rule.action,
-          rule.target_type,
-          rule.target_value,
-          rule.description || null,
-          i + 1, // Sequential priority starting from 1
-        ]
-      );
-    }
-
-    await database.query('COMMIT');
-
+    await database.sequelize.transaction(async (t: any) => {
+      const { GlobalNetworkPolicy } = database.models;
+      // Delete all existing global rules
+      await GlobalNetworkPolicy.destroy({ where: {}, transaction: t });
+      // Insert new rules with sequential priorities
+      for (let i = 0; i < rules.length; i++) {
+        const rule = rules[i];
+        await GlobalNetworkPolicy.create({
+          action: rule.action,
+          target_type: rule.target_type,
+          target_value: rule.target_value,
+          description: rule.description || null,
+          priority: i + 1
+        }, { transaction: t });
+      }
+    });
     res.json({ success: true, message: 'Global security policies updated successfully' });
   } catch (error) {
-    await database.query('ROLLBACK');
     console.error('Error updating global security policies:', error);
     res.status(500).json({ error: 'Failed to update global security policies' });
   }

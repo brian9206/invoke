@@ -50,13 +50,12 @@ async function getProjectStorageUsage(projectId, kvStore) {
  */
 async function getStorageLimit() {
   try {
-    const result = await database.query(
-      `SELECT setting_value FROM global_settings WHERE setting_key = 'kv_storage_limit_bytes'`
-    );
-    if (result.rows.length === 0) {
+    const { GlobalSetting } = database.models;
+    const setting = await GlobalSetting.findOne({ where: { setting_key: 'kv_storage_limit_bytes' } });
+    if (!setting) {
       return 1073741824; // Default 1GB if not set
     }
-    return parseInt(result.rows[0].setting_value);
+    return parseInt(setting.setting_value);
   } catch (error) {
     console.error('Error fetching KV storage limit:', error);
     return 1073741824; // Default 1GB on error
@@ -66,13 +65,12 @@ async function getStorageLimit() {
 /**
  * Create a project-scoped KV store with quota enforcement
  * @param {string} projectId - The project UUID
- * @param {object} dbPool - PostgreSQL connection pool
  * @returns {object} Keyv-compatible KV store interface
  */
-function createProjectKV(projectId, dbPool) {
-  // Build PostgreSQL connection string from pool config
-  const config = dbPool.options;
-  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
+function createProjectKV(projectId) {
+  // Build PostgreSQL connection string from shared service database config
+  const config = database.getConnectionConfig();
+  const connectionString = `postgresql://${config.user}:${encodeURIComponent(config.password)}@${config.host}:${config.port}/${config.database}`;
   
   // Create Keyv instance with PostgreSQL backend and project namespace
   const keyv = new Keyv({

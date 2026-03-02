@@ -1,3 +1,4 @@
+import { Op } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 const { createResponse } = require('@/lib/utils')
@@ -8,28 +9,27 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { functionId } = req.body // Optional - if not provided, cleans all functions
 
     // Get global settings to determine if cleanup is enabled
-    const globalResult = await database.query(`
-      SELECT setting_value 
-      FROM global_settings 
-      WHERE setting_key = 'log_retention_enabled'
-    `)
-    
-    const globalEnabled = globalResult.rows[0]?.setting_value === 'true'
+    const { GlobalSetting, FunctionModel, ExecutionLog } = database.models;
+    const globalEnabledRecord = await GlobalSetting.findOne({
+      where: { setting_key: 'log_retention_enabled' },
+      attributes: ['setting_value']
+    });
+    const globalEnabled = globalEnabledRecord?.setting_value === 'true'
     
     if (!globalEnabled) {
       return res.json(createResponse(true, { deleted: 0, functions: 0 }, 'Log retention cleanup is disabled globally'))
     }
 
-    let functions = []
+    let functions: { id: any }[] = []
     
     if (functionId) {
       // Clean specific function
-      const result = await database.query('SELECT id FROM functions WHERE id = $1', [functionId])
-      functions = result.rows
+      const fn = await FunctionModel.findByPk(functionId, { attributes: ['id'] });
+      functions = fn ? [fn.get({ plain: true })] : [];
     } else {
       // Clean all functions
-      const result = await database.query('SELECT id FROM functions')
-      functions = result.rows
+      const allFunctions = await FunctionModel.findAll({ attributes: ['id'] });
+      functions = allFunctions.map((f: any) => f.get({ plain: true }));
     }
 
     let totalDeleted = 0
@@ -37,15 +37,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     for (const func of functions) {
       try {
         // Get function retention settings
-        const funcResult = await database.query(`
-          SELECT retention_type, retention_value, retention_enabled 
-          FROM functions 
-          WHERE id = $1
-        `, [func.id])
+        const funcRecord = await FunctionModel.findByPk(func.id, {
+          attributes: ['retention_type', 'retention_value', 'retention_enabled']
+        });
 
-        if (funcResult.rows.length === 0) continue
+        if (!funcRecord) continue
 
-        const funcSettings = funcResult.rows[0]
+        const funcSettings = funcRecord.get({ plain: true });
         
         let retentionType, retentionValue, retentionEnabled
 
@@ -56,14 +54,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           retentionEnabled = funcSettings.retention_enabled
         } else {
           // Use global settings
-          const globalSettings = await database.query(`
-            SELECT setting_key, setting_value 
-            FROM global_settings 
-            WHERE setting_key LIKE 'log_retention_%'
-          `)
+          const globalSettingsRows = await GlobalSetting.findAll({
+            where: { setting_key: { [Op.like]: 'log_retention_%' } },
+            attributes: ['setting_key', 'setting_value']
+          });
           
           const settings: any = {}
-          globalSettings.rows.forEach((row: any) => {
+          globalSettingsRows.map((r: any) => r.get({ plain: true })).forEach((row: any) => {
             const key = row.setting_key.replace('log_retention_', '')
             settings[key] = row.setting_value
           })
@@ -75,19 +72,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
         if (!retentionEnabled) continue
 
-        let deleteQuery, params
+        let deleted = 0
 
         if (retentionType === 'time') {
           // Delete logs older than specified days
-          deleteQuery = `
-            DELETE FROM execution_logs 
-            WHERE function_id = $1 
-            AND executed_at < NOW() - INTERVAL '${retentionValue} days'
-          `
-          params = [func.id]
+          deleted = await ExecutionLog.destroy({
+            where: {
+              function_id: func.id,
+              executed_at: { [Op.lt]: database.sequelize.literal(`NOW() - INTERVAL '${parseInt(retentionValue)} days'`) }
+            }
+          });
         } else if (retentionType === 'count') {
           // Keep only the latest N logs
-          deleteQuery = `
+          const [, metadata] = await database.sequelize.query(`
             DELETE FROM execution_logs 
             WHERE function_id = $1 
             AND id NOT IN (
@@ -96,14 +93,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
               ORDER BY executed_at DESC 
               LIMIT $2
             )
-          `
-          params = [func.id, retentionValue]
+          `, { bind: [func.id, retentionValue] });
+          deleted = (metadata as any)?.rowCount || 0;
         } else {
           continue // Skip if type is 'none'
         }
 
-        const result = await database.query(deleteQuery, params)
-        const deleted = result.rowCount || 0
         totalDeleted += deleted
 
         if (deleted > 0) {

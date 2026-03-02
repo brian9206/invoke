@@ -6,18 +6,28 @@ const rateLimit = require("express-rate-limit");
 const slowDown = require("express-slow-down");
 require("dotenv").config();
 
-const { validateEnvironment } = require("./services/utils");
-const database = require("./services/database");
-const cache = require("./services/cache");
+const { createNotifyListener } = require('invoke-shared');
+const { validateEnvironment } = require('./services/utils');
+const database = require('./services/database');
+const cache = require('./services/cache');
 const {
   initialize: initializeExecutionEngine,
   shutdown: shutdownExecutionEngine,
-} = require("./services/execution-service");
-const executionPgNotify = require("./services/execution-pg-notify");
+} = require('./services/execution-service');
 const {
   invalidateEnvVarCache,
   invalidateNetworkPolicyCache,
-} = require("./services/function-providers");
+} = require('./services/function-providers');
+
+const executionPgNotify = createNotifyListener('execution_cache_invalidated', {
+  parsePayload: (raw) => (typeof raw === 'string' ? JSON.parse(raw) : (raw || {})),
+  getDebounceKey: (payload) =>
+    payload.table === 'function_environment_variables'
+      ? `function_environment_variables:${payload.function_id}`
+      : payload.table === 'project_network_policies'
+        ? `project_network_policies:${payload.project_id}`
+        : 'global_network_policies',
+});
 
 // Routes
 const executionRoutes = require("./routes/execution");
@@ -67,13 +77,6 @@ class ExecutionServer {
 
     // Security middleware
     this.app.use(helmet());
-    this.app.use(
-      cors({
-        origin: process.env.ALLOWED_ORIGINS?.split(",") || "*",
-        methods: ["GET", "POST", "PUT", "DELETE"],
-        allowedHeaders: ["Content-Type", "Authorization", "X-API-Key"],
-      }),
-    );
 
     // Rate limiting - prevent abuse
     const limiter = rateLimit({
@@ -106,6 +109,7 @@ class ExecutionServer {
 
     // Request logging
     this.app.use((req, res, next) => {
+      if (req.path === '/health') return next(); // skip health checks
       console.log(
         `${new Date().toISOString()} - ${req.method} ${req.path} - ${req.ip}`,
       );
@@ -213,17 +217,14 @@ class ExecutionServer {
         "DB_NAME",
         "DB_USER",
         "DB_PASSWORD",
-        "MINIO_ENDPOINT",
-        "MINIO_ACCESS_KEY",
-        "MINIO_SECRET_KEY",
+        "S3_ENDPOINT",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY",
       ]);
 
       if (!process.env.INTERNAL_GATEWAY_SECRET) {
         console.warn("⚠️  WARNING: INTERNAL_GATEWAY_SECRET is not set. Gateway token verification is disabled — requests to /invoke will not be authenticated against invoke-gateway. Set this variable in both execution and gateway for trusted header verification.");
       }
-
-      // Connect to database
-      await database.connect();
 
       // Start pg LISTEN/NOTIFY for in-memory cache invalidation
       await executionPgNotify.connect((payload) => {
@@ -247,12 +248,9 @@ class ExecutionServer {
       // Start HTTP server
       this.server = this.app.listen(this.port, () => {
         console.log(`⚡ Invoke Execution Service running on port ${this.port}`);
-        console.log(`🗄️ MinIO Endpoint: ${process.env.MINIO_ENDPOINT}`);
+        console.log(`🗄️ S3 Endpoint: ${process.env.S3_ENDPOINT}`);
         console.log(
           `💾 Cache Directory: ${process.env.CACHE_DIR || "/tmp/invoke-cache"}`,
-        );
-        console.log(
-          `🔒 API Key Authentication: ${process.env.REQUIRE_API_KEY === "true" ? "Required" : "Optional"}`,
         );
         console.log(
           `🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`,

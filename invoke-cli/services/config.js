@@ -76,8 +76,8 @@ function getBaseUrl() {
  * @returns {string} Execution service URL (defaults to localhost:3001)
  */
 function getExecutionUrl() {
-  if (process.env.INVOKE_EXECUTION_URL) {
-    return process.env.INVOKE_EXECUTION_URL;
+  if (process.env.INVOKE_EXECUTION_SERVICE_URL) {
+    return process.env.INVOKE_EXECUTION_SERVICE_URL;
   }
 
   if (process.env.EXECUTION_SERVICE_URL) {

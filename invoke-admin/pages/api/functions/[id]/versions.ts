@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -7,7 +8,7 @@ import crypto from 'crypto'
 import path from 'path'
 const { createResponse } = require('@/lib/utils')
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
 const upload = multer({
@@ -43,8 +44,6 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
   }
 
   try {
-    await database.connect()
-
     // Authenticate user using our middleware
     const authResult = await authenticate(req)
     if (!authResult.success) {
@@ -56,11 +55,12 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     // Check project access for non-admins (required for all operations)
     if (!authResult.user?.isAdmin) {
-      const functionResult = await database.query('SELECT project_id FROM functions WHERE id = $1', [functionId])
-      if (functionResult.rows.length === 0) {
+      const { Function: FunctionModel } = database.models;
+      const fnAccess = await FunctionModel.findByPk(functionId, { attributes: ['project_id'] });
+      if (!fnAccess) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
-      const projectId = functionResult.rows[0].project_id
+      const projectId = fnAccess.project_id;
       if (projectId) {
         const access = await checkProjectDeveloperAccess(userId, projectId, false)
         if (!access.allowed) {
@@ -71,7 +71,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     if (req.method === 'GET') {
       // List all versions for a function
-      const result = await database.query(`
+      const versions = await database.sequelize.query(`
         SELECT 
           fv.id,
           fv.version,
@@ -86,9 +86,9 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         LEFT JOIN functions f ON fv.function_id = f.id
         WHERE fv.function_id = $1
         ORDER BY fv.created_at DESC
-      `, [functionId])
+      `, { bind: [functionId], type: QueryTypes.SELECT });
 
-      return res.status(200).json(createResponse(true, result.rows, 'Versions retrieved successfully'))
+      return res.status(200).json(createResponse(true, versions, 'Versions retrieved successfully'))
 
     } else if (req.method === 'DELETE') {
       // Handle version deletion (only inactive versions)
@@ -99,29 +99,27 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       }
 
       // Check if function exists and get active version
-      const functionResult = await database.query(
-        'SELECT id, name, active_version_id FROM functions WHERE id = $1',
-        [functionId]
-      )
+      const { Function: FunctionModel, FunctionVersion } = database.models;
+      const functionData = await FunctionModel.findByPk(functionId, {
+        attributes: ['id', 'name', 'active_version_id']
+      });
 
-      if (functionResult.rows.length === 0) {
+      if (!functionData) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
 
-      const functionData = functionResult.rows[0]
-
       // Get the version to delete
       const versionStr = Array.isArray(version) ? version[0] : version
-      const versionResult = await database.query(
-        'SELECT id, version FROM function_versions WHERE function_id = $1 AND version = $2',
-        [functionId, parseInt(versionStr)]
-        )
+      const versionRecord = await FunctionVersion.findOne({
+        where: { function_id: functionId, version: parseInt(versionStr) },
+        attributes: ['id', 'version']
+      });
 
-        if (versionResult.rows.length === 0) {
+        if (!versionRecord) {
           return res.status(404).json(createResponse(false, null, `Version ${version} not found`, 404))
         }
 
-        const versionData = versionResult.rows[0]
+        const versionData = versionRecord.get({ plain: true });
 
         // Check if this version is currently active
         if (functionData.active_version_id === versionData.id) {
@@ -129,18 +127,15 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         }
 
         // Delete the version record
-        await database.query(
-          'DELETE FROM function_versions WHERE id = $1',
-          [versionData.id]
-        )
+        await versionRecord.destroy();
 
-        // Delete the package from MinIO
+        // Delete the package from S3
         try {
-          await minioService.deletePackage(functionId, version)
-          console.log(`✓ Deleted MinIO package for function ${functionId} version ${version}`)
-        } catch (minioError) {
-          console.error('Error deleting package from MinIO:', minioError)
-          // Continue even if MinIO deletion fails
+          await s3Service.deletePackage(functionId, version)
+          console.log(`✓ Deleted S3 package for function ${functionId} version ${version}`)
+        } catch (s3Error) {
+          console.error('Error deleting package from S3:', s3Error)
+          // Continue even if S3 deletion fails
         }
 
         return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))
@@ -168,31 +163,24 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         }
 
         // Check if function exists
-        const functionResult = await database.query(
-          'SELECT id, name FROM functions WHERE id = $1',
-          [functionId]
-        )
+        const { Function: FnModel, FunctionVersion: FnVersion } = database.models;
+        const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
-        if (functionResult.rows.length === 0) {
+        if (!fn) {
           return res.status(404).json({
             success: false,
             message: 'Function not found'
           })
         }
 
-        const functionName = functionResult.rows[0].name
+        const functionName = fn.name;
 
         // Calculate file hash
         const fileBuffer = await fs.readFile(uploadedFile.path)
         const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-        // Get next version number (simple integer increment)
-        const versionResult = await database.query(`
-          SELECT COALESCE(MAX(version), 0) + 1 as next_version 
-          FROM function_versions 
-          WHERE function_id = $1
-        `, [functionId])
-        const nextVersion = versionResult.rows[0].next_version // Already an integer
+        const maxVersion = await FnVersion.max('version', { where: { function_id: functionId } });
+        const nextVersion = ((maxVersion as number) || 0) + 1;
 
         // Prepare package for upload to MinIO - convert .tar.gz to .tgz if needed
         let packagePath = uploadedFile.path
@@ -240,35 +228,25 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           }
         }
 
-        // Store file in MinIO using consistent version-based naming
-        await minioService.uploadPackage(functionId, nextVersion, packagePath)
+        // Store file in S3 using consistent version-based naming
+        await s3Service.uploadPackage(functionId, nextVersion, packagePath)
 
         // Create new version record (not active by default)
-        const newVersionResult = await database.query(`
-          INSERT INTO function_versions (
-            function_id, 
-            version, 
-            package_path, 
-            file_size, 
-            package_hash,
-            created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6)
-          RETURNING id, version
-        `, [
-          functionId,
-          nextVersion,
-          `packages/${functionId}/${nextVersion}.tgz`, // Consistent MinIO path
-          require('fs-extra').statSync(packagePath).size, // Use processed file size
-          hash,
-          userId
-        ])
+        const newVersion = await FnVersion.create({
+          function_id: functionId,
+          version: nextVersion,
+          package_path: `packages/${functionId}/${nextVersion}.tgz`,
+          file_size: require('fs-extra').statSync(packagePath).size,
+          package_hash: hash,
+          created_by: userId
+        });
 
         // Clean up uploaded file
         await fs.remove(packagePath)
 
         res.status(201).json(createResponse(true, {
-          id: newVersionResult.rows[0].id,
-          version: newVersionResult.rows[0].version,
+          id: newVersion.id,
+          version: newVersion.version,
           functionId: functionId
         }, `Version ${nextVersion} uploaded successfully`))
 

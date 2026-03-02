@@ -19,26 +19,23 @@ async function handler(req: AuthenticatedRequest, res: any) {
     return res.status(403).json(createResponse(false, null, access.message || 'Access denied', 403))
   }
 
+  const { ApiGatewayConfig, ApiGatewayAuthMethod } = database.models;
+
   if (req.method === 'GET') {
     // Ensure gateway config exists; return empty array if not
-    const cfgResult = await database.query(
-      `SELECT id FROM api_gateway_configs WHERE project_id = $1`,
-      [projectId]
-    )
-    if (cfgResult.rows.length === 0) {
+    const cfg = await ApiGatewayConfig.findOne({ where: { project_id: projectId }, attributes: ['id'] });
+    if (!cfg) {
       return res.json(createResponse(true, [], 'No auth methods found'))
     }
-    const configId = cfgResult.rows[0].id
+    const configId = cfg.id;
 
-    const result = await database.query(
-      `SELECT id, name, type, config, created_at, updated_at
-       FROM api_gateway_auth_methods
-       WHERE gateway_config_id = $1
-       ORDER BY created_at ASC`,
-      [configId]
-    )
+    const methods = await ApiGatewayAuthMethod.findAll({
+      where: { gateway_config_id: configId },
+      attributes: ['id', 'name', 'type', 'config', 'created_at', 'updated_at'],
+      order: [['created_at', 'ASC']]
+    });
 
-    return res.json(createResponse(true, result.rows.map((r: any) => ({
+    return res.json(createResponse(true, methods.map((r: any) => ({
       id: r.id,
       name: r.name,
       type: r.type,
@@ -67,30 +64,26 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Auto-create gateway config if it doesn't exist
-    const cfgResult = await database.query(
-      `INSERT INTO api_gateway_configs (project_id, enabled)
-       VALUES ($1, false)
-       ON CONFLICT (project_id) DO UPDATE SET project_id = EXCLUDED.project_id
-       RETURNING id`,
-      [projectId]
-    )
-    const configId = cfgResult.rows[0].id
+    const [cfg2] = await ApiGatewayConfig.findOrCreate({
+      where: { project_id: projectId },
+      defaults: { enabled: false }
+    });
+    const configId = cfg2.id;
 
-    const result = await database.query(
-      `INSERT INTO api_gateway_auth_methods (gateway_config_id, name, type, config)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, type, config, created_at, updated_at`,
-      [configId, name.trim(), type, JSON.stringify(config)]
-    )
+    const newMethod = await ApiGatewayAuthMethod.create({
+      gateway_config_id: configId,
+      name: name.trim(),
+      type,
+      config
+    });
 
-    const row = result.rows[0]
     return res.status(201).json(createResponse(true, {
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      config: row.config,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      id: newMethod.id,
+      name: newMethod.name,
+      type: newMethod.type,
+      config: newMethod.config,
+      createdAt: newMethod.created_at,
+      updatedAt: newMethod.updated_at,
     }, 'Auth method created'))
   }
 }

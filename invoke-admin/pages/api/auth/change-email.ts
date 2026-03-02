@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
+import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
 const database = require('@/lib/database')
 const { createResponse } = require('@/lib/utils')
@@ -48,15 +49,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ))
     }
 
-    await database.connect()
-
     // Check if email is already used by another user
-    const existingEmail = await database.query(
-      'SELECT id FROM users WHERE email = $1 AND id != $2',
-      [email, userId]
-    )
+    const { User } = database.models
+    const existingUser = await User.findOne({
+      where: { email, id: { [Op.ne]: userId } },
+      attributes: ['id'],
+    })
 
-    if (existingEmail.rows.length > 0) {
+    if (existingUser) {
       return res.status(409).json(createResponse(
         false,
         null,
@@ -66,20 +66,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Update email in database
-    const result = await database.query(
-      'UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2 RETURNING username, email',
-      [email, userId]
-    )
+    const userRecord = await User.findByPk(userId, { attributes: ['id', 'username'] })
 
-    if (result.rows.length === 0) {
+    if (!userRecord) {
       return res.status(404).json(createResponse(false, null, 'User not found', 404))
     }
 
-    const user = result.rows[0]
+    await userRecord.update({ email, updated_at: new Date() })
 
     res.status(200).json(createResponse(
       true, 
-      { username: user.username, email: user.email }, 
+      { username: userRecord.username, email }, 
       'Email updated successfully'
     ))
 

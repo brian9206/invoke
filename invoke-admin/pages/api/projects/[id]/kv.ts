@@ -15,8 +15,6 @@ const { KeyvPostgres } = require('@keyv/postgres');
  */
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    await database.connect();
-
     const { id: projectId } = req.query;
 
     if (!projectId || typeof projectId !== 'string') {
@@ -64,7 +62,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  * Create Keyv instance for a project
  */
 function createKVStore(projectId: string) {
-  const config = database.pool.options;
+  const config = database.getConnectionConfig();
   const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
 
   return new Keyv({
@@ -121,11 +119,9 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse, projec
     const totalFiltered = allItems.length;
 
     // Get storage limit from project
-    const limitResult = await database.query(
-      `SELECT kv_storage_limit_bytes FROM projects WHERE id = $1`,
-      [projectId]
-    );
-    const storageLimit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].kv_storage_limit_bytes) : 1073741824;
+    const { Project } = database.models;
+    const projData = await Project.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] });
+    const storageLimit = projData ? parseInt(projData.kv_storage_limit_bytes) : 1073741824;
 
     return res.status(200).json(createResponse(true, {
       items: paginatedItems,
@@ -174,11 +170,9 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse, proje
       currentUsage += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(vStr, 'utf8');
     }
 
-    const limitResult = await database.query(
-      `SELECT kv_storage_limit_bytes FROM projects WHERE id = $1`,
-      [projectId]
-    );
-    const limit = limitResult.rows.length > 0 ? parseInt(limitResult.rows[0].kv_storage_limit_bytes) : 1073741824;
+    const { Project: ProjectModel } = database.models;
+    const projDataPost = await ProjectModel.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] });
+    const limit = projDataPost ? parseInt(projDataPost.kv_storage_limit_bytes) : 1073741824;
 
     // Check if key already exists
     const existingValue = await kvStore.get(key);

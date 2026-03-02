@@ -1,5 +1,5 @@
 const database = require('./database')
-const minioService = require('./minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('./utils')
 
 /**
@@ -11,19 +11,21 @@ async function deleteFunction(functionId) {
 
   try {
     // Attempt to delete all packages in MinIO for this function
-    deletedPackages = await minioService.deleteAllPackagesForFunction(functionId)
+    deletedPackages = await s3Service.deleteAllPackagesForFunction(functionId)
   } catch (err) {
-    console.error(`deleteFunction: failed to remove MinIO packages for ${functionId}:`, err)
+    console.error(`deleteFunction: failed to remove S3 packages for ${functionId}:`, err)
     // continue to delete DB rows even if MinIO cleanup fails
   }
 
   // Delete function record (cascade deletes versions)
-  const deleteResult = await database.query('DELETE FROM functions WHERE id = $1 RETURNING *', [functionId])
+  const { Function: FunctionModel } = database.models;
+  const fn = await FunctionModel.findByPk(functionId);
 
-  if (deleteResult.rows.length === 0) {
+  if (!fn) {
     throw new Error('Function not found')
   }
 
+  await fn.destroy();
   return deletedPackages
 }
 

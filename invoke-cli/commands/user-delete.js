@@ -8,17 +8,20 @@ function register(program) {
     .description('Delete an admin user')
     .action(async () => {
       try {
-        await database.connect()
+        const { User } = database.models
 
         // First, list users to choose from
-        const users = await database.query('SELECT id, username, email FROM users ORDER BY username')
+        const users = await User.findAll({
+          attributes: ['id', 'username', 'email'],
+          order: [['username', 'ASC']]
+        })
 
-        if (users.rows.length === 0) {
+        if (users.length === 0) {
           console.log(chalk.yellow('📭 No users found'))
           return
         }
 
-        const choices = users.rows.map(user => ({
+        const choices = users.map(user => ({
           name: `${user.username} (${user.email})`,
           value: user.id
         }))
@@ -44,7 +47,7 @@ function register(program) {
         }
 
         // Delete user
-        await database.query('DELETE FROM users WHERE id = $1', [userId])
+        await User.destroy({ where: { id: userId } })
 
         console.log(chalk.green('✅ User deleted successfully'))
       } catch (error) {

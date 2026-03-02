@@ -6,17 +6,7 @@ console.log('🚀 Starting Invoke Debug Environment...\n');
 // Environment variables
 const env = {
   ...process.env,
-  NODE_ENV: 'development',
-  DB_HOST: 'localhost',
-  DB_PORT: '5432',
-  DB_NAME: 'invoke_db',
-  DB_USER: 'postgres',
-  DB_PASSWORD: 'invoke_password_123',
-  MINIO_ENDPOINT: 'localhost',
-  MINIO_PORT: '9000',
-  MINIO_ACCESS_KEY: 'invoke-minio',
-  MINIO_SECRET_KEY: 'invoke-minio-password-123',
-  MINIO_BUCKET: 'invoke-functions'
+  NODE_ENV: 'development'
 };
 
 // Start Invoke Execution Service
@@ -35,8 +25,7 @@ const gatewayService = spawn('node', ['--inspect=9231', 'server.js'], {
   env: {
     ...env,
     PORT: '3002',
-    EXECUTION_SERVICE_URL: 'http://localhost:3001',
-    CACHE_REFRESH_INTERVAL: '30000',
+    EXECUTION_SERVICE_URL: 'http://localhost:3001'
   }
 });
 

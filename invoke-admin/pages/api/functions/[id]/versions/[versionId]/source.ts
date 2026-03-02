@@ -1,3 +1,4 @@
+import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import fs from 'fs-extra'
@@ -5,7 +6,7 @@ import path from 'path'
 import AdmZip from 'adm-zip'
 import * as tar from 'tar'
 const database = require('@/lib/database')
-const minioService = require('@/lib/minio')
+const { s3Service } = require('invoke-shared')
 const { createResponse } = require('@/lib/utils')
 
 async function handler(req: AuthenticatedRequest, res: any) {
@@ -16,28 +17,25 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   try {
-
-    await database.connect()
-    
-    // Initialize MinIO service
-    if (!minioService.initialized) {
-      await minioService.initialize()
+    // Initialize S3 service
+    if (!s3Service.initialized) {
+      await s3Service.initialize()
     }
 
     // Get version details
-    const versionResult = await database.query(`
+    const versionRows = await database.sequelize.query(`
       SELECT fv.*, f.name as function_name, f.project_id, p.name as project_name
       FROM function_versions fv
       JOIN functions f ON fv.function_id = f.id
       LEFT JOIN projects p ON f.project_id = p.id
       WHERE fv.id = $1 AND fv.function_id = $2
-    `, [versionId, functionId])
+    `, { bind: [versionId, functionId], type: QueryTypes.SELECT }) as any[];
 
-    if (versionResult.rows.length === 0) {
+    if (!versionRows.length) {
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
     }
 
-    const versionData = versionResult.rows[0]
+    const versionData = versionRows[0]
     // Verify project membership for non-admins
     if (!req.user?.isAdmin) {
       const access = await checkProjectDeveloperAccess(req.user!.id, versionData.project_id, false)
@@ -72,11 +70,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
     
     try {
-      console.log('Attempting to download from MinIO:', objectKey)
-      const bucketName = process.env.MINIO_BUCKET || 'invoke-packages'
+      console.log('Attempting to download from S3:', objectKey)
+      const bucketName = process.env.S3_BUCKET || 'invoke-packages'
       
-      // Use getObject and write to file instead of fGetObject to avoid range issues
-      const stream = await minioService.client.getObject(bucketName, objectKey)
+      // Use getObjectStream and write to file
+      const stream = await s3Service.getObjectStream(bucketName, objectKey)
       const writeStream = fs.createWriteStream(tempFilePath)
       
       await new Promise<void>((resolve, reject) => {

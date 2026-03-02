@@ -22,8 +22,9 @@ function generatePassword(length = 16) {
  */
 async function usersExist() {
     try {
-        const result = await database.query('SELECT COUNT(*) as count FROM users');
-        return result.rows[0].count > 0;
+        const { User } = database.models;
+        const count = await User.count();
+        return count > 0;
     } catch (error) {
         console.error('Error checking users:', error);
         throw error;
@@ -49,14 +50,13 @@ async function createDefaultAdmin() {
         const passwordHash = await bcrypt.hash(password, 10);
         
         // Create admin user
-        const result = await database.query(
-            `INSERT INTO users (username, email, password_hash, is_admin, created_at) 
-             VALUES ($1, $2, $3, $4, NOW()) 
-             RETURNING id, username, email`,
-            ['admin', 'admin@invoke.local', passwordHash, true]
-        );
-        
-        const admin = result.rows[0];
+        const { User } = database.models;
+        const admin = await User.create({
+            username: 'admin',
+            email: 'admin@invoke.local',
+            password_hash: passwordHash,
+            is_admin: true,
+        });
         
         console.log('\n' + '='.repeat(80));
         console.log('🎉 DEFAULT ADMIN USER CREATED');

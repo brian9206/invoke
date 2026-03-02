@@ -1,3 +1,4 @@
+import { Op } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 const { createResponse } = require('@/lib/utils')
@@ -20,19 +21,14 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   if (req.method === 'GET') {
-    const result = await database.query(
-      `SELECT id, project_id, enabled, custom_domain, created_at, updated_at
-       FROM api_gateway_configs
-       WHERE project_id = $1`,
-      [projectId]
-    )
+    const { ApiGatewayConfig } = database.models;
+    const row = await ApiGatewayConfig.findOne({ where: { project_id: projectId } });
 
-    if (result.rows.length === 0) {
+    if (!row) {
       // Return default (not yet configured)
       return res.json(createResponse(true, { enabled: false, customDomain: null }, 'Gateway config retrieved'))
     }
 
-    const row = result.rows[0]
     return res.json(createResponse(true, {
       id: row.id,
       enabled: row.enabled,
@@ -50,34 +46,28 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { enabled, customDomain } = req.body
 
     // Validate custom domain uniqueness if provided
+    const { ApiGatewayConfig } = database.models;
     if (customDomain) {
-      const existing = await database.query(
-        `SELECT id FROM api_gateway_configs WHERE custom_domain = $1 AND project_id != $2`,
-        [customDomain, projectId]
-      )
-      if (existing.rows.length > 0) {
+      const existing = await ApiGatewayConfig.findOne({
+        where: { custom_domain: customDomain, project_id: { [Op.ne]: projectId } },
+        attributes: ['id']
+      });
+      if (existing) {
         return res.status(409).json(createResponse(false, null, 'Custom domain is already in use by another project', 409))
       }
     }
 
-    const result = await database.query(
-      `INSERT INTO api_gateway_configs (project_id, enabled, custom_domain)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (project_id) DO UPDATE
-         SET enabled = EXCLUDED.enabled,
-             custom_domain = EXCLUDED.custom_domain,
-             updated_at = NOW()
-       RETURNING id, project_id, enabled, custom_domain, created_at, updated_at`,
-      [projectId, enabled ?? false, customDomain || null]
-    )
+    const [cfg] = await ApiGatewayConfig.upsert(
+      { project_id: projectId, enabled: enabled ?? false, custom_domain: customDomain || null },
+      { returning: true }
+    );
 
-    const row = result.rows[0]
     return res.json(createResponse(true, {
-      id: row.id,
-      enabled: row.enabled,
-      customDomain: row.custom_domain,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      id: cfg.id,
+      enabled: cfg.enabled,
+      customDomain: cfg.custom_domain,
+      createdAt: cfg.created_at,
+      updatedAt: cfg.updated_at,
     }, 'Gateway config updated'))
   }
 }
