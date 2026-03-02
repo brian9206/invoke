@@ -1220,6 +1220,8 @@ export default function ApiGatewayPage() {
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<Partial<GatewayRoute> | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [orderDirty, setOrderDirty] = useState(false)
+  const [savingOrder, setSavingOrder] = useState(false)
 
   const [authMethodModalOpen, setAuthMethodModalOpen] = useState(false)
   const [editingAuthMethod, setEditingAuthMethod] = useState<Partial<AuthMethod> | null>(null)
@@ -1233,6 +1235,7 @@ export default function ApiGatewayPage() {
   useEffect(() => {
     if (activeProject?.id) {
       setActiveTab('routes')
+      setOrderDirty(false)
       loadAll()
     }
   }, [activeProject?.id])
@@ -1259,6 +1262,7 @@ export default function ApiGatewayPage() {
       if (routesRes.ok) {
         const d = await routesRes.json()
         setRoutes(d.data || [])
+        setOrderDirty(false)
       }
       if (funcsRes.ok) {
         const d = await funcsRes.json()
@@ -1355,8 +1359,37 @@ export default function ApiGatewayPage() {
     setDeleteConfirmId(null)
   }
 
+  const handleSaveOrder = async () => {
+    if (!activeProject?.id) return
+    setSavingOrder(true)
+    try {
+      const res = await authenticatedFetch(
+        `/api/gateway/routes/reorder?projectId=${activeProject.id}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: routes.map((r) => ({ id: r.id, sortOrder: r.sortOrder })) }),
+        }
+      )
+      if (res.ok) {
+        toast.success('Route order saved')
+        setOrderDirty(false)
+      } else {
+        toast.error('Failed to save route order')
+      }
+    } catch {
+      toast.error('Failed to save route order')
+    } finally {
+      setSavingOrder(false)
+    }
+  }
+
+  const handleDiscardOrder = async () => {
+    await loadAll()
+  }
+
   const handleDragEnd = useCallback(
-    async (event: DragEndEvent) => {
+    (event: DragEndEvent) => {
       const { active, over } = event
       if (!over || active.id === over.id) return
 
@@ -1366,27 +1399,10 @@ export default function ApiGatewayPage() {
 
       // Assign new sort orders
       const withOrder = reordered.map((r, i) => ({ ...r, sortOrder: i }))
-      setRoutes(withOrder) // Optimistic update
-
-      try {
-        const res = await authenticatedFetch(
-          `/api/gateway/routes/reorder?projectId=${activeProject?.id}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: withOrder.map((r) => ({ id: r.id, sortOrder: r.sortOrder })) }),
-          }
-        )
-        if (!res.ok) {
-          toast.error('Failed to save route order')
-          setRoutes(routes) // Revert
-        }
-      } catch {
-        toast.error('Failed to save route order')
-        setRoutes(routes) // Revert
-      }
+      setRoutes(withOrder)
+      setOrderDirty(true)
     },
-    [routes, activeProject?.id]
+    [routes]
   )
 
   const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -1547,10 +1563,25 @@ export default function ApiGatewayPage() {
                           Routes
                           <span className="text-sm font-normal text-gray-400">({routes.length})</span>
                         </h2>
-                        <button onClick={handleAddRoute} className="btn-primary flex items-center gap-2 text-sm">
-                          <Plus className="w-4 h-4" />
-                          Add Route
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {orderDirty ? (
+                            <>
+                              <button onClick={handleDiscardOrder} disabled={savingOrder} className="btn-secondary flex items-center gap-2 text-sm">
+                                <X className="w-4 h-4" />
+                                Discard
+                              </button>
+                              <button onClick={handleSaveOrder} disabled={savingOrder} className="btn-primary flex items-center gap-2 text-sm">
+                                {savingOrder ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                Save Order
+                              </button>
+                            </>
+                          ) : (
+                            <button onClick={handleAddRoute} className="btn-primary flex items-center gap-2 text-sm">
+                              <Plus className="w-4 h-4" />
+                              Add Route
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {routes.length === 0 ? (
@@ -1603,7 +1634,7 @@ export default function ApiGatewayPage() {
                       )}
 
                       <p className="text-xs text-gray-500">
-                        Drag rows to reorder. Routes are matched from top to bottom — first match wins.
+                        Drag rows to reorder, then click <strong className="text-gray-400">Save Order</strong> to apply. Routes are matched from top to bottom — first match wins.
                         Use specific routes (e.g. <code className="bg-gray-700 px-1 rounded">/users/me</code>) above
                         parameterized ones (e.g. <code className="bg-gray-700 px-1 rounded">/users/:id</code>).
                       </p>
