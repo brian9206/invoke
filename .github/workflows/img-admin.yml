@@ -8,6 +8,8 @@ on:
       - master
     paths:
       - 'invoke-admin/**'
+      - 'shared/**'
+      - 'package-lock.json'
       - '.github/workflows/img-admin.yml'
 
 permissions:
@@ -31,3 +33,5 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/admin:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -64,6 +64,7 @@ async function main() {
 
   // Request logging
   app.use((req, _res, next) => {
+    if (req.path === '/health') return next(); // skip health checks
     console.log(
       `${new Date().toISOString()} - ${req.method} ${req.hostname}${req.path} - ${req.ip}`,
     );

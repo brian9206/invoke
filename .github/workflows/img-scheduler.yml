@@ -8,6 +8,7 @@ on:
       - master
     paths:
       - 'invoke-scheduler/**'
+      - 'package-lock.json'
       - '.github/workflows/img-scheduler.yml'
 
 permissions:
@@ -26,8 +27,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v5
         with:
-          context: ./invoke-scheduler
+          context: .
           file: ./invoke-scheduler/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}/scheduler:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

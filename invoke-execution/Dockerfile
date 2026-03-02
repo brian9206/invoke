@@ -1,4 +1,5 @@
 # Execution Service Dockerfile
+# Build context must be the monorepo root
 FROM node:24-alpine
 
 # Install curl for health checks
@@ -6,14 +7,23 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy root workspace manifest and lockfile
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Copy workspace package manifests (needed before npm ci)
+COPY shared/package.json ./shared/
+COPY invoke-execution/package.json ./invoke-execution/
 
-# Copy source code
-COPY . .
+# Install dependencies for execution and shared workspaces only
+RUN npm ci --omit=dev -w invoke-execution -w invoke-shared
+
+# Copy shared source
+COPY shared/ ./shared/
+
+# Copy execution source
+COPY invoke-execution/ ./invoke-execution/
+
+WORKDIR /app/invoke-execution
 
 # Expose port
 EXPOSE 3001

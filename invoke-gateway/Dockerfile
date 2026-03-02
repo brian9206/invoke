@@ -1,4 +1,5 @@
 # API Gateway Service Dockerfile
+# Build context must be the monorepo root
 FROM node:24-alpine
 
 # Install curl for health checks
@@ -6,14 +7,23 @@ RUN apk add --no-cache curl
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy root workspace manifest and lockfile
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
+# Copy workspace package manifests (needed before npm ci)
+COPY shared/package.json ./shared/
+COPY invoke-gateway/package.json ./invoke-gateway/
 
-# Copy source code
-COPY . .
+# Install dependencies for gateway and shared workspaces only
+RUN npm ci --omit=dev -w invoke-gateway -w invoke-shared
+
+# Copy shared source
+COPY shared/ ./shared/
+
+# Copy gateway source
+COPY invoke-gateway/ ./invoke-gateway/
+
+WORKDIR /app/invoke-gateway
 
 # Expose port
 EXPOSE 3002
@@ -25,3 +35,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Start the service
 ENV NODE_ENV=production
 CMD ["npm", "start"]
+

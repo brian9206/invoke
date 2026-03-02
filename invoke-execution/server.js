@@ -109,6 +109,7 @@ class ExecutionServer {
 
     // Request logging
     this.app.use((req, res, next) => {
+      if (req.path === '/health') return next(); // skip health checks
       console.log(
         `${new Date().toISOString()} - ${req.method} ${req.path} - ${req.ip}`,
       );

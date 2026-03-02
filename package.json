@@ -15,5 +15,8 @@
   ],
   "scripts": {
     "setup:env": "node scripts/setup-env.js"
+  },
+  "dependencies": {
+    "plain": "^0.0.0"
   }
 }

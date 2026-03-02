@@ -10,6 +10,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
@@ -27,6 +28,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -35,6 +37,9 @@ services:
 
   # Execution Service
   execution:
+    build:
+      context: .
+      dockerfile: invoke-execution/Dockerfile
     image: ghcr.io/brian9206/invoke/execution:latest
     ports:
       - "${EXECUTION_PORT}:${EXECUTION_PORT}"
@@ -67,6 +72,7 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${EXECUTION_PORT}/health"]
       interval: 30s
@@ -75,6 +81,9 @@ services:
 
   # Admin Service
   admin:
+    build:
+      context: .
+      dockerfile: invoke-admin/Dockerfile
     image: ghcr.io/brian9206/invoke/admin:latest
     ports:
       - "${ADMIN_PORT}:${ADMIN_PORT}"
@@ -102,6 +111,7 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:${ADMIN_PORT}/api/health"]
       interval: 30s
@@ -110,6 +120,9 @@ services:
 
   # API Gateway Service
   gateway:
+    build:
+      context: .
+      dockerfile: invoke-gateway/Dockerfile
     image: ghcr.io/brian9206/invoke/invoke-gateway:latest
     ports:
       - "${GATEWAY_PORT}:${GATEWAY_PORT}"
@@ -141,6 +154,9 @@ services:
 
   # Scheduler Service
   scheduler:
+    build:
+      context: .
+      dockerfile: invoke-scheduler/Dockerfile
     image: ghcr.io/brian9206/invoke/scheduler:latest
     env_file:
       - .env

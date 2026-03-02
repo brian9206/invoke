@@ -13,7 +13,7 @@
   "dependencies": {
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
-    "esbuild": "^0.27.2",
+    "esbuild": "^0.27.3",
     "events": "^3.3.0",
     "node-fetch": "^2.7.0",
     "punycode": "^2.3.1",

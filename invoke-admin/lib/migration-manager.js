@@ -101,8 +101,9 @@ class MigrationManager {
 
     /**
      * One-time bootstrap: if the old schema_migrations table exists and
-     * SequelizeMeta is still empty, seed SequelizeMeta from the legacy table
-     * so existing deployments don't re-run already-applied migrations.
+     * SequelizeMeta is not yet populated, create SequelizeMeta, mark all
+     * known migrations as applied (regardless of what schema_migrations
+     * recorded), then drop the legacy table.
      */
     async _bootstrapFromLegacy() {
         try {
@@ -110,30 +111,17 @@ class MigrationManager {
 
             if (!tables.includes('schema_migrations')) return;
 
-            // If SequelizeMeta already has rows, nothing to do
+            // If SequelizeMeta already has rows, bootstrap already ran — just clean up
             if (tables.includes('SequelizeMeta')) {
                 const [existing] = await this.sequelize.query('SELECT name FROM "SequelizeMeta" LIMIT 1');
-                if (existing.length > 0) return;
+                if (existing.length > 0) {
+                    await this.sequelize.query('DROP TABLE schema_migrations');
+                    console.log('🗑️  Dropped legacy schema_migrations table');
+                    return;
+                }
             }
 
             console.log('🔄 Bootstrapping SequelizeMeta from legacy schema_migrations...');
-
-            const [applied] = await this.sequelize.query(
-                "SELECT version FROM schema_migrations WHERE success = true ORDER BY version"
-            );
-
-            if (applied.length === 0) return;
-
-            // Map old 3-digit version numbers to new migration filenames
-            const VERSION_MAP = {
-                '001': '001_initial_schema.js',
-                '002': '002_add_network_policies.js',
-                '003': '003_add_api_gateway.js',
-                '004': '004_add_middleware_auth.js',
-                '005': '005_auth_method_sort_order.js',
-                '006': '006_add_execution_notify_triggers.js',
-                '007': '007_jwt_mode_backfill.js',
-            };
 
             await this.sequelize.query(`
                 CREATE TABLE IF NOT EXISTS "SequelizeMeta" (
@@ -141,19 +129,14 @@ class MigrationManager {
                 )
             `);
 
-            let seeded = 0;
-            for (const row of applied) {
-                const migrationName = VERSION_MAP[row.version];
-                if (migrationName) {
-                    await this.sequelize.query(
-                        'INSERT INTO "SequelizeMeta" (name) VALUES ($1) ON CONFLICT DO NOTHING',
-                        { bind: [migrationName] }
-                    );
-                    seeded++;
-                }
-            }
+            await this.sequelize.query(
+                'INSERT INTO "SequelizeMeta" (name) VALUES ($1) ON CONFLICT DO NOTHING',
+                { bind: ['001_initial_schema.js'] }
+            );
 
-            console.log(`✅ Seeded SequelizeMeta with ${seeded} legacy migration(s)`);
+            await this.sequelize.query('DROP TABLE schema_migrations');
+
+            console.log('✅ Seeded SequelizeMeta with 001_initial_schema.js and dropped legacy schema_migrations table');
         } catch (err) {
             // Non-fatal — umzug will handle first-run creation of SequelizeMeta
             console.warn('⚠️  Legacy bootstrap skipped (non-fatal):', err.message);
