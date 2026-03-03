@@ -1,4 +1,5 @@
 import ivm from 'isolated-vm';
+import mime from 'mime-types';
 import BuiltinBridge from './builtin-bridge';
 import NetworkPolicy from './network-policy';
 
@@ -294,31 +295,8 @@ class ExecutionContext {
         const path = require('path');
         const vfsFs = self.vfs.createNodeFSModule();
 
-        const ext = path.extname(filePath).toLowerCase();
-        const contentTypes: Record<string, string> = {
-          '.html': 'text/html',
-          '.htm': 'text/html',
-          '.css': 'text/css',
-          '.js': 'application/javascript',
-          '.json': 'application/json',
-          '.xml': 'application/xml',
-          '.txt': 'text/plain',
-          '.png': 'image/png',
-          '.jpg': 'image/jpeg',
-          '.jpeg': 'image/jpeg',
-          '.gif': 'image/gif',
-          '.svg': 'image/svg+xml',
-          '.ico': 'image/x-icon',
-          '.webp': 'image/webp',
-          '.pdf': 'application/pdf',
-          '.zip': 'application/zip',
-          '.woff': 'font/woff',
-          '.woff2': 'font/woff2',
-          '.ttf': 'font/ttf',
-          '.otf': 'font/otf',
-        };
-
-        const contentType = contentTypes[ext] || 'application/octet-stream';
+        const ext = path.extname(filePath);
+        const contentType = mime.lookup(ext) || 'application/octet-stream';
         const buffer = vfsFs.readFileSync(filePath);
 
         self.response.headers['content-type'] = contentType;
