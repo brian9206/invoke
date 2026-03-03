@@ -112,7 +112,7 @@ services:
     build:
       context: .
       dockerfile: invoke-gateway/Dockerfile
-    image: ghcr.io/brian9206/invoke/invoke-gateway:latest
+    image: ghcr.io/brian9206/invoke/gateway:latest
     ports:
       - "${GATEWAY_PORT}:3000"
     env_file:
