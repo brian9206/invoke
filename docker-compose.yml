@@ -72,6 +72,8 @@ services:
       minio:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      replicas: ${EXECUTION_REPLICAS}
 
   # Admin Service
   admin:
@@ -134,6 +136,8 @@ services:
       execution:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      replicas: ${GATEWAY_REPLICAS}
 
   # Scheduler Service
   scheduler:
