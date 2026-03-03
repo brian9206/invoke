@@ -15,6 +15,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
+      start_period: 5s
       retries: 3
 
   # MinIO Object Storage (S3-compatible)
@@ -33,6 +34,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 20s
+      start_period: 5s
       retries: 3
 
   # Execution Service
