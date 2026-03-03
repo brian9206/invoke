@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
-const database = require('@/lib/database')
-const { createResponse } = require('@/lib/utils')
+import database from '@/lib/database'
+import { createResponse } from '@/lib/utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') {

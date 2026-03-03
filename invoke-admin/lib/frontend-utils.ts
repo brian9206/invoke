@@ -56,17 +56,17 @@ export async function getFunctionBaseUrl(): Promise<string> {
       
       if (data.success && data.data.function_base_url) {
         cachedFunctionBaseUrl = data.data.function_base_url.value.replace(/\/+$/, '');
-        return cachedFunctionBaseUrl;
+        return cachedFunctionBaseUrl!;
       }
       
       // Fallback to default if not found
       cachedFunctionBaseUrl = 'https://localhost:3001/invoke';
-      return cachedFunctionBaseUrl;
+      return cachedFunctionBaseUrl!;
     } catch (error) {
       console.error('Failed to get function base URL:', error);
       // Fallback to default on error
       cachedFunctionBaseUrl = 'https://localhost:3001/invoke';
-      return cachedFunctionBaseUrl;
+      return cachedFunctionBaseUrl!;
     } finally {
       fetchPromise = null;
     }

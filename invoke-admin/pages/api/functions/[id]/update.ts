@@ -5,9 +5,10 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs-extra'
 import * as tar from 'tar'
+import AdmZip from 'adm-zip'
 
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
@@ -117,7 +118,6 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
       
       try {
         // Extract zip
-        const AdmZip = require('adm-zip')
         const zip = new AdmZip(packagePath)
         zip.extractAllTo(extractDir, true)
         

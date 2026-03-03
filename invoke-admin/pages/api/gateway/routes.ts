@@ -1,8 +1,8 @@
 import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const projectId = req.query.projectId as string
@@ -107,7 +107,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const configId = cfgPost.id;
 
     // Check max sort_order to append new route at end
-    const maxOrder = await ApiGatewayRoute.max('sort_order', { where: { gateway_config_id: configId } });
+    const maxOrder = await (ApiGatewayRoute as any).max('sort_order', { where: { gateway_config_id: configId } });
     const nextOrder = ((maxOrder as number) ?? -1) + 1;
 
     // Create route + settings in a transaction

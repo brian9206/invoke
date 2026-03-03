@@ -7,8 +7,10 @@
     "invoke": "./dist/cli.js"
   },
   "scripts": {
-    "start": "node index.js",
-    "build": "node build.js",
+    "start": "node -r @swc-node/register src/index.ts",
+    "build": "npm run typecheck && npm run build:vm-modules && node scripts/build.js",
+    "build:vm-modules": "cd ../invoke-execution && npm run build:vm-modules",
+    "typecheck": "tsc --noEmit",
     "prepack": "npm pkg delete devDependencies.invoke-execution && npm run build",
     "postpack": "npm pkg set devDependencies.invoke-execution=\"*\""
   },
@@ -27,17 +29,25 @@
     "form-data": "^4.0.0",
     "ignore": "^5.3.2",
     "inquirer": "^12.11.1",
+    "invoke-shared": "*",
     "isolated-vm": "^6.0.2",
     "keyv": "^5.1.0",
-    "invoke-shared": "*",
     "pg": "^8.11.3",
     "sandbox-fs": "^1.1.0",
     "table": "^6.8.1",
     "zxcvbn": "^4.4.2"
   },
   "devDependencies": {
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.18",
+    "@types/adm-zip": "^0.5.5",
+    "@types/archiver": "^6.0.3",
+    "@types/bcrypt": "^5.0.2",
+    "@types/node": "^20",
+    "@types/zxcvbn": "^4.4.4",
     "esbuild": "^0.27.3",
-    "invoke-execution": "*"
+    "invoke-execution": "*",
+    "typescript": "^5.9.3"
   },
   "keywords": [
     "invoke",

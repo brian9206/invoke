@@ -2,16 +2,22 @@
   "name": "invoke-scheduler",
   "version": "1.0.0",
   "description": "Scheduled function trigger service for Invoke platform",
-  "main": "scheduler.js",
+  "main": "dist/server.js",
   "scripts": {
-    "start": "node scheduler.js",
-    "dev": "nodemon scheduler.js"
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "nodemon --exec node -r @swc-node/register src/server.ts"
   },
   "dependencies": {
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.18",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.0.0",
+    "nodemon": "^3.0.2",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"

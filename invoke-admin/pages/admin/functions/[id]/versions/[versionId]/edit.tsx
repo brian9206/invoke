@@ -1123,7 +1123,7 @@ export default function FunctionCodeEditor() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const relativePath = (file as any).webkitRelativePath || file.name
-      const parts = relativePath.split('/').filter(p => p) // Remove empty parts
+      const parts = relativePath.split('/').filter((p: string) => p) // Remove empty parts
       
       if (parts.length === 0) continue
       

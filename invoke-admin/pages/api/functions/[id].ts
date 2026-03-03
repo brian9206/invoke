@@ -1,8 +1,9 @@
 import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import { deleteFunction } from '@/lib/delete-utils'
+import database from '@/lib/database'
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -180,13 +181,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
 
       // Use centralized delete helper to remove MinIO packages and DB rows
-      const { deleteFunction } = require('@/lib/delete-utils')
 
       try {
         const deletedPackages = await deleteFunction(id)
         return res.status(200).json(createResponse(true, null, `Function and ${deletedPackages} associated files deleted successfully`, 200))
       } catch (err) {
-        if (err.message === 'Function not found') {
+        if ((err as any).message === 'Function not found') {
           return res.status(404).json(createResponse(false, null, 'Function not found', 404))
         }
         console.error('Error deleting function:', err)

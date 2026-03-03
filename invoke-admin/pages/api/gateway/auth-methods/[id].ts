@@ -1,8 +1,8 @@
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 import { validateAuthMethodConfig, isValidAuthMethodType } from '@/lib/gateway-auth-validation'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id } = req.query as { id: string }
@@ -37,6 +37,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const method = await ApiGatewayAuthMethod.findByPk(id, {
       attributes: ['id', 'name', 'type', 'config', 'created_at', 'updated_at']
     });
+    if (!method) {
+      return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
+    }
     return res.json(createResponse(true, {
       id: method.id,
       name: method.name,
@@ -56,6 +59,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     // Get current values for partial update
     const cur = await ApiGatewayAuthMethod.findByPk(id, { attributes: ['name', 'type', 'config'] });
+    if (!cur) {
+      return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
+    }
 
     const newName = name !== undefined ? (typeof name === 'string' ? name.trim() : null) : cur.name
     const newType = type !== undefined ? type : cur.type

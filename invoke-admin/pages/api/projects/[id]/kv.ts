@@ -1,8 +1,8 @@
 import { NextApiResponse } from 'next';
 import { AuthenticatedRequest, withAuth } from '@/lib/middleware';
 import { checkProjectAccess } from '@/lib/project-access';
-const { createResponse } = require('@/lib/utils');
-const database = require('@/lib/database');
+import { createResponse } from '@/lib/utils';
+import database from '@/lib/database';
 const KeyvModule = require('keyv');
 const Keyv = KeyvModule.default || KeyvModule;
 const { KeyvPostgres } = require('@keyv/postgres');

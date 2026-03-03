@@ -1,7 +1,7 @@
 // API endpoints for managing function environment variables
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { id: functionId } = req.query;

@@ -1,7 +1,7 @@
 import { QueryTypes } from 'sequelize';
 import { NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   switch (req.method) {

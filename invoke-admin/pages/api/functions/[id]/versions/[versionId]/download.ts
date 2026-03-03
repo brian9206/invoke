@@ -5,8 +5,8 @@ import path from 'path'
 import * as tar from 'tar'
 import archiver from 'archiver'
 import { pipeline } from 'stream/promises'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 
 async function handler(req: AuthenticatedRequest, res: any) {

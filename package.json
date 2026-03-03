@@ -9,7 +9,6 @@
     "invoke-cli",
     "invoke-admin",
     "invoke-execution",
-    "invoke-execution-bundler",
     "invoke-gateway",
     "invoke-scheduler"
   ],

@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '@/lib/middleware';
 import { checkProjectOwnerAccess } from '@/lib/project-access';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 const ipaddr = require('ipaddr.js');
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {

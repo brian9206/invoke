@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.base.json",
+  "entry": "src/index.ts",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "scripts"]
+}

@@ -1,7 +1,8 @@
 import { QueryTypes } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
-const database = require('@/lib/database');
+import { deleteFunction } from '@/lib/delete-utils';
+import database from '@/lib/database';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   switch (req.method) {
@@ -151,7 +152,6 @@ async function deleteProject(req: NextApiRequest, res: NextApiResponse) {
       attributes: ['id']
     });
 
-    const { deleteFunction } = require('@/lib/delete-utils')
     let totalDeletedPackages = 0
 
     // Delete each function using centralized helper (removes MinIO packages and DB rows)

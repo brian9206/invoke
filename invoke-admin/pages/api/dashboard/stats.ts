@@ -1,8 +1,8 @@
 import { NextApiResponse } from 'next'
 import { Op, fn, col, literal } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {

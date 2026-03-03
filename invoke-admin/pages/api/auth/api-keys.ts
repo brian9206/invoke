@@ -1,8 +1,7 @@
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { NextApiResponse } from 'next'
-const { createResponse } = require('@/lib/utils')
-const { generateApiKey, hashApiKey } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse, generateApiKey, hashApiKey } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {

@@ -1,9 +1,9 @@
 import { QueryTypes, Op } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired } from '@/lib/middleware';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 const bcrypt = require('bcrypt');
-const { validatePasswordStrength } = require('@/lib/utils');
+import { validatePasswordStrength } from '@/lib/utils';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   switch (req.method) {
@@ -169,7 +169,7 @@ async function deleteUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   try {
-    const { User, FunctionModel } = database.models;
+    const { User, Function: FunctionModel } = database.models;
 
     // Check if user has deployed functions
     const functionCount = await FunctionModel.count({ where: { deployed_by: id } });

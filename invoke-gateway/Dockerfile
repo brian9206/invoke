@@ -8,14 +8,14 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy root workspace manifest and lockfile
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 
 # Copy workspace package manifests (needed before npm ci)
 COPY shared/package.json ./shared/
 COPY invoke-gateway/package.json ./invoke-gateway/
 
-# Install dependencies for gateway and shared workspaces only
-RUN npm ci --omit=dev -w invoke-gateway -w invoke-shared
+# Install all dependencies (including devDeps for TypeScript build)
+RUN npm ci -w invoke-gateway -w invoke-shared
 
 # Copy shared source
 COPY shared/ ./shared/
@@ -24,6 +24,12 @@ COPY shared/ ./shared/
 COPY invoke-gateway/ ./invoke-gateway/
 
 WORKDIR /app/invoke-gateway
+
+# Build TypeScript source
+RUN npm run build
+
+# Remove devDependencies after build
+RUN npm prune --production -w invoke-gateway
 
 # Expose port
 EXPOSE 3002

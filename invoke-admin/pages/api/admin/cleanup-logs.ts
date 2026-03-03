@@ -1,15 +1,15 @@
 import { Op } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
     const { functionId } = req.body // Optional - if not provided, cleans all functions
 
     // Get global settings to determine if cleanup is enabled
-    const { GlobalSetting, FunctionModel, ExecutionLog } = database.models;
+    const { GlobalSetting, Function: FunctionModel, ExecutionLog } = database.models;
     const globalEnabledRecord = await GlobalSetting.findOne({
       where: { setting_key: 'log_retention_enabled' },
       attributes: ['setting_value']
@@ -121,4 +121,11 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthAndMethods(['POST'], { adminRequired: true })(handler)
+export default function routeHandler(req: NextApiRequest, res: NextApiResponse) {
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET
+  if (internalSecret && req.headers['x-internal-secret'] === internalSecret) {
+    // Trusted internal service call — skip JWT auth
+    return handler(req as AuthenticatedRequest, res)
+  }
+  return withAuthAndMethods(['POST'], { adminRequired: true })(handler)(req as AuthenticatedRequest, res)
+}

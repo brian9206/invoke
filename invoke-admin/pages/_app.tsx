@@ -41,7 +41,7 @@ App.getInitialProps = async (appContext: AppContext): Promise<AppInitialProps & 
   // Only query the DB on the server (ctx.req is undefined during client-side navigation)
   if (typeof window === 'undefined') {
     try {
-      const database = require('@/lib/database')
+      const { default: database } = await import('@/lib/database')
       const setting = await database.models.GlobalSetting.findOne({
         where: { setting_key: 'api_gateway_domain' },
       })

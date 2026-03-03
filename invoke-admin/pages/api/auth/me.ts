@@ -1,5 +1,5 @@
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
-const { createResponse } = require('@/lib/utils')
+import { createResponse } from '@/lib/utils'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   // Get user's project memberships

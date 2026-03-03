@@ -5,9 +5,9 @@ import fs from 'fs-extra'
 import path from 'path'
 import AdmZip from 'adm-zip'
 import * as tar from 'tar'
-const database = require('@/lib/database')
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
-const { createResponse } = require('@/lib/utils')
+import { createResponse } from '@/lib/utils'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id: functionId, versionId } = req.query

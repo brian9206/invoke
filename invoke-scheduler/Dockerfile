@@ -8,22 +8,32 @@ RUN apk add --no-cache curl dcron
 WORKDIR /app
 
 # Copy root workspace manifest and lockfile
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 
 # Copy workspace package manifest (needed before npm ci)
 COPY invoke-scheduler/package.json ./invoke-scheduler/
 
-# Install dependencies for scheduler workspace only
-RUN npm ci --omit=dev -w invoke-scheduler
+# Install all dependencies (including devDeps for TypeScript build)
+RUN npm ci -w invoke-scheduler
 
 # Copy scheduler source
 COPY invoke-scheduler/ ./invoke-scheduler/
 
 WORKDIR /app/invoke-scheduler
 
-RUN chmod +x entrypoint.sh
+# Build TypeScript source
+RUN npm run build
 
-EXPOSE 3002
+# Remove devDependencies after build
+RUN npm prune --production -w invoke-scheduler
 
+# Expose port
+EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
+
+# Start the service
 ENV NODE_ENV=production
-ENTRYPOINT ["./entrypoint.sh"]
+CMD ["npm", "start"]

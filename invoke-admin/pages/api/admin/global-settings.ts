@@ -1,7 +1,7 @@
 import { Op } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
@@ -50,7 +50,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain } = req.body
 
     const { GlobalSetting } = database.models;
-    const queries: Promise<[number]>[] = []
+    const queries: Promise<[number, ...unknown[]]>[] = []
 
     if (type !== undefined) {
       queries.push(GlobalSetting.update(
@@ -101,7 +101,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const results = await Promise.all(queries)
 
     // Check if any rows were actually updated
-    const totalRowsUpdated = results.reduce((sum: number, result: [number]) => sum + (result[0] || 0), 0)
+    const totalRowsUpdated = results.reduce((sum: number, result: [number, ...unknown[]]) => sum + (result[0] || 0), 0)
     
     if (totalRowsUpdated === 0) {
       return res.status(404).json(createResponse(false, null, 'No settings were found to update. Please ensure the global_settings table is properly initialized.', 404))

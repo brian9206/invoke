@@ -8,7 +8,7 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy root workspace manifest and lockfile
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 
 # Copy workspace package manifests (needed before npm ci)
 COPY shared/package.json ./shared/
@@ -28,6 +28,9 @@ WORKDIR /app/invoke-admin
 # Build Next.js application
 RUN npm run build
 
+# Prune devDependencies
+RUN npm prune --production -w invoke-admin
+
 # Expose port
 EXPOSE 3000
 
@@ -37,4 +40,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Start the service
 ENV NODE_ENV=production
-CMD ["npm", "start"]
+CMD ["npm", "start", "--", "-p", "3000", "-H", "0.0.0.0"]

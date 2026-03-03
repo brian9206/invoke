@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
-const { createResponse, hashApiKey } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse, hashApiKey } from '@/lib/utils'
+import database from '@/lib/database'
 
 interface AuthenticatedRequest extends NextApiRequest {
   user?: {

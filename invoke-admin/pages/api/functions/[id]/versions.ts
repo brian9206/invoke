@@ -6,8 +6,10 @@ import multer from 'multer'
 import fs from 'fs-extra'
 import crypto from 'crypto'
 import path from 'path'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import * as tar from 'tar'
+import AdmZip from 'adm-zip'
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
@@ -179,7 +181,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         const fileBuffer = await fs.readFile(uploadedFile.path)
         const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-        const maxVersion = await FnVersion.max('version', { where: { function_id: functionId } });
+        const maxVersion = await (FnVersion as any).max('version', { where: { function_id: functionId } });
         const nextVersion = ((maxVersion as number) || 0) + 1;
 
         // Prepare package for upload to MinIO - convert .tar.gz to .tgz if needed
@@ -193,22 +195,20 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           
           try {
             // Extract zip
-            const AdmZip = require('adm-zip')
             const zip = new AdmZip(packagePath)
             zip.extractAllTo(extractDir, true)
             
             // Create tgz
-            const tar = require('tar')
             await tar.create(
               { gzip: true, file: tgzPath, cwd: extractDir },
-              require('fs-extra').readdirSync(extractDir)
+              fs.readdirSync(extractDir)
             )
             
             // Update package path
             packagePath = tgzPath
             
             // Clean up
-            await require('fs-extra').remove(extractDir)
+            await fs.remove(extractDir)
           } catch (error) {
             console.error('Error converting zip to tgz:', error)
             throw new Error('Failed to process ZIP file')
@@ -220,7 +220,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           
           try {
             // Just rename/copy the file with .tgz extension
-            await require('fs-extra').move(packagePath, tgzPath)
+            await fs.move(packagePath, tgzPath)
             packagePath = tgzPath
           } catch (error) {
             console.error('Error converting tar.gz to tgz:', error)
@@ -236,7 +236,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           function_id: functionId,
           version: nextVersion,
           package_path: `packages/${functionId}/${nextVersion}.tgz`,
-          file_size: require('fs-extra').statSync(packagePath).size,
+          file_size: fs.statSync(packagePath).size,
           package_hash: hash,
           created_by: userId
         });
@@ -262,10 +262,10 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           }
         }
 
-        if (error.message && error.message.includes('Invalid file type')) {
+        if ((error as any).message && (error as any).message.includes('Invalid file type')) {
           return res.status(400).json({
             success: false,
-            message: error.message
+            message: (error as any).message
           })
         }
 

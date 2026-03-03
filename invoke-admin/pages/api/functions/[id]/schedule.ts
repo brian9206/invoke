@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { CronJob } from 'cron'
-const database = require('@/lib/database')
+import database from '@/lib/database'
 
 // Utility function to calculate next execution time based on cron expression
 function calculateNextExecution(cronExpression: string): Date | null {
@@ -14,7 +14,7 @@ function calculateNextExecution(cronExpression: string): Date | null {
     return next
     
   } catch (error) {
-    console.error(`Admin UI: Error parsing cron expression "${cronExpression}":`, error.message)
+    console.error(`Admin UI: Error parsing cron expression "${cronExpression}":`, (error as any).message)
     return null
   }
 }

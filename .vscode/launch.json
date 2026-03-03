@@ -28,8 +28,9 @@
       "name": "Debug Invoke Execution Service",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/invoke-execution/server.js",
       "cwd": "${workspaceFolder}/invoke-execution",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
       "env": {
@@ -39,8 +40,7 @@
       "skipFiles": [
         "<node_internals>/**",
         "node_modules/**"
-      ],
-      "restart": true
+      ]
     },
     {
       "name": "Attach to Invoke Admin",
@@ -72,8 +72,9 @@
       "name": "Debug Invoke Gateway Service",
       "type": "node",
       "request": "launch",
-      "program": "${workspaceFolder}/invoke-gateway/server.js",
       "cwd": "${workspaceFolder}/invoke-gateway",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
       "env": {
@@ -83,8 +84,7 @@
       "skipFiles": [
         "<node_internals>/**",
         "node_modules/**"
-      ],
-      "restart": true
+      ]
     },
     {
       "name": "Attach to Invoke Gateway",
@@ -103,7 +103,6 @@
       "name": "Debug Both Services",
       "type": "node",
       "request": "launch",
-      "name": "Launch Program",
       "skipFiles": [
         "<node_internals>/**"
       ],

@@ -6,9 +6,10 @@ import path from 'path'
 import * as tar from 'tar'
 import { v4 as uuidv4 } from 'uuid'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import crypto from 'crypto'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 
 // Hello World function template (mirrors samples/hello-world)
@@ -136,7 +137,6 @@ Returns a JSON object with a greeting message.
       const fileBuffer = await fs.readFile(tgzPath)
       
       // Calculate hash
-      const crypto = require('crypto')
       const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
       // Upload to S3
@@ -163,7 +163,7 @@ Returns a JSON object with a greeting message.
       });
 
       // Generate a separate version ID
-      const versionId = require('crypto').randomUUID()
+      const versionId = crypto.randomUUID()
 
       // Create version record
       await FunctionVersion.create({

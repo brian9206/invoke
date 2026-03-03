@@ -4,9 +4,9 @@ import path from 'path'
 import * as tar from 'tar'
 import crypto from 'crypto'
 import { v4 as uuidv4 } from 'uuid'
-const database = require('@/lib/database')
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
-const { createResponse } = require('@/lib/utils')
+import { createResponse } from '@/lib/utils'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const userId = req.user!.id
@@ -32,7 +32,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Get next version number
-    const maxVersion = await FunctionVersion.max('version', { where: { function_id: functionId } });
+    const maxVersion = await (FunctionVersion as any).max('version', { where: { function_id: functionId } });
     const nextVersion = ((maxVersion as number) || 0) + 1;
     const newVersionId = uuidv4()
 

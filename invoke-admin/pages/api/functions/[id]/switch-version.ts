@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
-const database = require('@/lib/database')
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {

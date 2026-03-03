@@ -3,7 +3,7 @@
  * Shared functions for checking project membership and permissions
  */
 
-const database = require('@/lib/database');
+import database from '@/lib/database';
 
 export interface ProjectAccessResult {
   allowed: boolean;

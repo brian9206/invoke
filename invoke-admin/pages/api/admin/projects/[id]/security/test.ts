@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuth } from '@/lib/middleware';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 
 // Import the NetworkPolicy class from execution service
 // Since we're in the admin service, we'll simulate the policy evaluation

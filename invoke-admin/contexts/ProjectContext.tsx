@@ -67,7 +67,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
         // Always select the first project by default
         if (projects && projects.length > 0) {
           // Check if current active project is still in the list
-          const currentProjectStillExists = activeProject && projects.find(p => p.id === activeProject.id);
+          const currentProjectStillExists = activeProject && projects.find((p: Project) => p.id === activeProject.id);
           if (!currentProjectStillExists) {
             setActiveProject(projects[0]);
           }

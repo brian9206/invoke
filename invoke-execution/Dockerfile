@@ -1,4 +1,4 @@
-# Execution Service Dockerfile
+# API Gateway Service Dockerfile
 # Build context must be the monorepo root
 FROM node:24-alpine
 
@@ -8,14 +8,14 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy root workspace manifest and lockfile
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.base.json ./
 
 # Copy workspace package manifests (needed before npm ci)
 COPY shared/package.json ./shared/
 COPY invoke-execution/package.json ./invoke-execution/
 
-# Install dependencies for execution and shared workspaces only
-RUN npm ci --omit=dev -w invoke-execution -w invoke-shared
+# Install all dependencies (including devDeps for TypeScript build)
+RUN npm ci -w invoke-execution -w invoke-shared
 
 # Copy shared source
 COPY shared/ ./shared/
@@ -25,13 +25,20 @@ COPY invoke-execution/ ./invoke-execution/
 
 WORKDIR /app/invoke-execution
 
+# Build TypeScript source
+RUN npm run build
+
+# Remove devDependencies after build
+RUN npm prune --production -w invoke-execution
+
 # Expose port
-EXPOSE 3001
+EXPOSE 3002
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3001/health || exit 1
+  CMD curl -f http://localhost:3002/health || exit 1
 
 # Start the service
 ENV NODE_ENV=production
 CMD ["npm", "start"]
+

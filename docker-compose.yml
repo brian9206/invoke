@@ -42,11 +42,10 @@ services:
       dockerfile: invoke-execution/Dockerfile
     image: ghcr.io/brian9206/invoke/execution:latest
     ports:
-      - "${EXECUTION_PORT}:${EXECUTION_PORT}"
+      - "${EXECUTION_PORT}:3000"
     env_file:
       - .env
     environment:
-      - PORT=${EXECUTION_PORT}
       - TRUST_PROXY=true
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
@@ -64,7 +63,7 @@ services:
       - EXECUTION_TIMEOUT=${EXECUTION_TIMEOUT}
       - CACHE_TTL_DAYS=${CACHE_TTL_DAYS}
       - MAX_CACHE_SIZE_GB=${MAX_CACHE_SIZE_GB}
-      - INTERNAL_GATEWAY_SECRET=${INTERNAL_GATEWAY_SECRET}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
     volumes:
       - execution_cache:/app/cache
     depends_on:
@@ -73,11 +72,6 @@ services:
       minio:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${EXECUTION_PORT}/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Admin Service
   admin:
@@ -86,11 +80,10 @@ services:
       dockerfile: invoke-admin/Dockerfile
     image: ghcr.io/brian9206/invoke/admin:latest
     ports:
-      - "${ADMIN_PORT}:${ADMIN_PORT}"
+      - "${ADMIN_PORT}:3000"
     env_file:
       - .env
     environment:
-      - PORT=${ADMIN_PORT}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
@@ -103,20 +96,16 @@ services:
       - S3_ACCESS_KEY=${S3_ACCESS_KEY}
       - S3_SECRET_KEY=${S3_SECRET_KEY}
       - S3_BUCKET=${S3_BUCKET}
-      - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
+      - EXECUTION_SERVICE_URL=http://execution:3000
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
       minio:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${ADMIN_PORT}/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # API Gateway Service
   gateway:
@@ -125,32 +114,26 @@ services:
       dockerfile: invoke-gateway/Dockerfile
     image: ghcr.io/brian9206/invoke/invoke-gateway:latest
     ports:
-      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+      - "${GATEWAY_PORT}:3000"
     env_file:
       - .env
     environment:
-      - PORT=${GATEWAY_PORT}
       - TRUST_PROXY=true
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
-      - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
+      - EXECUTION_SERVICE_URL=http://execution:3000
       - CACHE_REFRESH_INTERVAL=${CACHE_REFRESH_INTERVAL}
       - JWT_SECRET=${JWT_SECRET}
-      - INTERNAL_GATEWAY_SECRET=${INTERNAL_GATEWAY_SECRET}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
       execution:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${GATEWAY_PORT}/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # Scheduler Service
   scheduler:
@@ -161,19 +144,18 @@ services:
     env_file:
       - .env
     environment:
-      - PORT=8080
-      - EXECUTION_SERVICE_URL=${EXECUTION_SERVICE_URL}
+      - EXECUTION_SERVICE_URL=http://execution:3000
+      - ADMIN_SERVICE_URL=http://admin:3000
       - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL}
+      - LOG_CLEANUP_INTERVAL=${LOG_CLEANUP_INTERVAL}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - TZ=${TZ}
     depends_on:
       execution:
         condition: service_healthy
+      admin:
+        condition: service_started
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
 
 volumes:
   postgres_data:

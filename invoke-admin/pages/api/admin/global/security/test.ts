@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware';
-const database = require('@/lib/database');
+import database from '@/lib/database';
 const ipaddr = require('ipaddr.js');
 const minimatch = require('minimatch');
 const dns = require('dns').promises;

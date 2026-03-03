@@ -10,8 +10,9 @@ import path from 'path'
 import * as tar from 'tar'
 import archiver from 'archiver'
 import { v4 as uuidv4 } from 'uuid'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import AdmZip from 'adm-zip'
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 import runMiddleware from '@/lib/multer'
 
@@ -97,7 +98,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       
       try {
         // Extract zip
-        const AdmZip = require('adm-zip')
         const zip = new AdmZip(packagePath)
         zip.extractAllTo(extractDir, true)
         
@@ -185,7 +185,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     }
 
-    const errorMessage = error.message || 'Upload failed'
+    const errorMessage = (error as any).message || 'Upload failed'
     return res.status(500).json(createResponse(false, null, 'Upload failed: ' + errorMessage, 500))
   }
 }

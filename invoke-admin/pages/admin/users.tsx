@@ -264,7 +264,7 @@ export default function UsersPage() {
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user)}
-                        disabled={currentUser && user.id === currentUser.id}
+                        disabled={!!currentUser && user.id === currentUser.id}
                         className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         title={currentUser && user.id === currentUser.id ? "Cannot delete yourself" : "Delete User"}
                       >
@@ -439,7 +439,7 @@ export default function UsersPage() {
                     type="checkbox"
                     checked={formData.is_admin}
                     onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                    disabled={currentUser && editingUser && currentUser.id === editingUser.id}
+                    disabled={!!currentUser && !!editingUser && currentUser.id === editingUser.id}
                     className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-200">Admin User</span>

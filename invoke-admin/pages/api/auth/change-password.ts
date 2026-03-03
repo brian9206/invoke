@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
 const bcrypt = require('bcrypt')
-const database = require('@/lib/database')
-const { createResponse, validatePasswordStrength } = require('@/lib/utils')
+import database from '@/lib/database'
+import { createResponse, validatePasswordStrength } from '@/lib/utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') {
@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json(createResponse(
         false,
         { score: passwordValidation.score },
-        passwordValidation.feedback,
+        passwordValidation.feedback ?? undefined,
         400
       ))
     }

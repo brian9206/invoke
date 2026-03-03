@@ -1857,7 +1857,7 @@ export default function ApiGatewayPage() {
           isOpen={!!deleteConfirmId}
           title="Delete Route"
           description="Are you sure you want to delete this route? This action cannot be undone."
-          onConfirm={() => deleteConfirmId && handleDeleteRoute(deleteConfirmId)}
+          onConfirm={() => { if (deleteConfirmId) handleDeleteRoute(deleteConfirmId); }}
           onCancel={() => setDeleteConfirmId(null)}
           confirmText="Delete"
           cancelText="Cancel"
@@ -1878,7 +1878,7 @@ export default function ApiGatewayPage() {
           isOpen={!!deleteAuthMethodId}
           title="Delete Auth Method"
           description="Are you sure you want to delete this authentication method? Routes using it will become public."
-          onConfirm={() => deleteAuthMethodId && handleDeleteAuthMethod(deleteAuthMethodId)}
+          onConfirm={() => { if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId); }}
           onCancel={() => setDeleteAuthMethodId(null)}
           confirmText="Delete"
           cancelText="Cancel"

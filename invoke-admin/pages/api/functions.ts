@@ -1,7 +1,8 @@
 import { QueryTypes } from 'sequelize'
+import { v4 as uuidv4 } from 'uuid'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
-const { createResponse } = require('@/lib/utils')
-const database = require('@/lib/database')
+import { createResponse, generateApiKey } from '@/lib/utils'
+import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
@@ -90,9 +91,6 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Generate function ID and API key if needed
-    const { v4: uuidv4 } = require('uuid')
-    const { generateApiKey } = require('@/lib/utils')
-    
     const functionId = uuidv4()
     const apiKey = requires_api_key ? generateApiKey() : null
 
