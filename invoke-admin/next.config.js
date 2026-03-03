@@ -2,11 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['pg-listen', 'pg-format', 'sequelize', 'pg', 'pg-hstore'],
-  env: {
-    REPOSITORY_URL: process.env.REPOSITORY_URL || 'http://localhost:3002',
-    EXECUTION_SERVICE_URL: process.env.EXECUTION_SERVICE_URL || 'http://localhost:3001',
-    MAX_FILE_SIZE: process.env.MAX_FILE_SIZE || String(100 * 1024 * 1024),
-  },
+  poweredByHeader: false,
   async redirects() {
     return [
       {
