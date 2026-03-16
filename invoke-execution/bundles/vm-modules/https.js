@@ -172,6 +172,10 @@ https.request = function(url, options, callback) {
     } else {
         callback = options;
         options = url;
+        // Normalize URL object spreads: pathname+search -> path (node-fetch passes URL spreads)
+        if (!options.path && options.pathname) {
+            options = { ...options, path: (options.pathname || '/') + (options.search || '') };
+        }
     }
 
     // Ensure HTTPS defaults
