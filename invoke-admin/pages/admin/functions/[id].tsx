@@ -38,7 +38,7 @@ interface Function {
   id: string
   name: string
   description: string
-  version: string
+  active_version: number | null
   file_size: number
   is_active: boolean
   created_at: string
@@ -874,7 +874,7 @@ export default function FunctionDetails() {
                     <label className="block text-sm font-medium text-gray-300 mb-1">
                       Version
                     </label>
-                    <p className="text-gray-400">v{functionData.version}</p>
+                    <p className="text-gray-400">{functionData.active_version != null ? `v${functionData.active_version}` : 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1">

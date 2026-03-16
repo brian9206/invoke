@@ -61,6 +61,7 @@ import { register as functionTest } from './commands/function-test';
 import { register as userCreate } from './commands/user-create';
 import { register as userList } from './commands/user-list';
 import { register as userDelete } from './commands/user-delete';
+import { register as userSetPassword } from './commands/user-setpassword';
 
 import { register as dbStatus } from './commands/db-status';
 
@@ -111,6 +112,7 @@ functionTest(program);
 userCreate(program);
 userList(program);
 userDelete(program);
+userSetPassword(program);
 
 dbStatus(program);
 

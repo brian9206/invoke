@@ -57,9 +57,17 @@ async function main(): Promise<void> {
   app.use(compression());
 
   // Trust proxy
+  let trustProxy: boolean | number | string = false;
   if (process.env.TRUST_PROXY === 'true') {
-    app.set('trust proxy', true);
+    trustProxy = true;
+  } else if (process.env.TRUST_PROXY === 'false') {
+    trustProxy = false;
+  } else if (process.env.TRUST_PROXY && !isNaN(Number(process.env.TRUST_PROXY))) {
+    trustProxy = parseInt(process.env.TRUST_PROXY, 10);
+  } else {
+    trustProxy = process.env.TRUST_PROXY || false;
   }
+  app.set('trust proxy', trustProxy);
 
   // Parse raw body as Buffer (we re-stream it to the upstream)
   app.use(express.raw({ type: '*/*', limit: '50mb' }));
@@ -96,6 +104,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: Error) => {
-  console.error('[Gateway] Fatal startup error:', err.message);
+  console.error('[Gateway] Fatal startup error:', err);
   process.exit(1);
 });

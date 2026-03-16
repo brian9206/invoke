@@ -167,7 +167,7 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
       requestHeaders: req.headers,
       responseHeaders: result.headers || {},
       requestMethod: req.method,
-      requestUrl: req.url,
+      requestUrl: executionContext.req.url,
       requestBody: req.body ? JSON.stringify(req.body) : '',
       responseBody: result.data,
     };
