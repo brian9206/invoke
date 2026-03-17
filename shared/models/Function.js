@@ -84,6 +84,15 @@ module.exports = (sequelize) => {
       last_scheduled_execution: {
         type: DataTypes.DATE,
       },
+      group_id: {
+        type: DataTypes.UUID,
+        references: { model: 'function_groups', key: 'id' },
+        onDelete: 'SET NULL',
+      },
+      sort_order: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+      },
     },
     {
       sequelize,
@@ -98,6 +107,7 @@ module.exports = (sequelize) => {
   FunctionModel.associate = (models) => {
     FunctionModel.belongsTo(models.Project, { foreignKey: 'project_id' });
     FunctionModel.belongsTo(models.User, { foreignKey: 'deployed_by', as: 'deployedBy' });
+    FunctionModel.belongsTo(models.FunctionGroup, { foreignKey: 'group_id', as: 'group', constraints: false });
     FunctionModel.hasMany(models.FunctionVersion, { foreignKey: 'function_id' });
     // Circular FK — FunctionVersion must already be initialised
     FunctionModel.belongsTo(models.FunctionVersion, {

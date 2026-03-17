@@ -26,7 +26,7 @@ import {
   Replace
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })

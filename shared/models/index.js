@@ -13,6 +13,7 @@ function initModels(sequelize) {
   const User                       = require('./User')(sequelize);
   const Project                    = require('./Project')(sequelize);
   const ProjectMembership          = require('./ProjectMembership')(sequelize);
+  const FunctionGroup              = require('./FunctionGroup')(sequelize);
   const FunctionModel              = require('./Function')(sequelize);
   const FunctionVersion            = require('./FunctionVersion')(sequelize);
   const ApiKey                     = require('./ApiKey')(sequelize);
@@ -35,6 +36,7 @@ function initModels(sequelize) {
     User,
     Project,
     ProjectMembership,
+    FunctionGroup,
     // Exposed as 'Function' so callers write models.Function
     Function: FunctionModel,
     FunctionVersion,

@@ -1,5 +1,14 @@
 import React, { ReactNode, useState } from 'react';
-import { createPortal } from 'react-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -30,7 +39,8 @@ export default function Modal({
   confirmDisabled = false,
   size = 'md',
 }: ModalProps) {
-  const sizeClass = size === 'lg' ? 'max-w-2xl' : size === 'sm' ? 'max-w-sm' : 'max-w-md';
+  const sizeClass =
+    size === 'lg' ? 'sm:max-w-2xl' : size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md';
   const [isLoading, setIsLoading] = useState(false);
 
   const handleConfirm = async () => {
@@ -43,45 +53,46 @@ export default function Modal({
     }
   };
 
-  if (!isOpen) return null;
-
-  const modalContent = (
-    <div className="fixed inset-0 bg-gray-900/80 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn">
-      <div className={`bg-gray-800 border border-gray-700 rounded-xl p-6 ${sizeClass} w-full mx-4 animate-scaleIn`}>
-        <h3 className="text-xl font-semibold text-gray-200 mb-4">{title}</h3>
-        {description && (
-          <p className="text-gray-400 text-sm mb-4">{description}</p>
-        )}
+  return (
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel?.()}>
+      <DialogContent className={cn(sizeClass)}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description && (
+            <DialogDescription asChild={typeof description !== 'string'}>
+              {typeof description === 'string' ? (
+                description
+              ) : (
+                <div>{description}</div>
+              )}
+            </DialogDescription>
+          )}
+        </DialogHeader>
         {children}
         {(onCancel || onConfirm) && (
-          <div className="flex gap-3 mt-6">
+          <DialogFooter className="gap-2">
             {onCancel && (
-              <button
+              <Button
+                variant="outline"
                 onClick={onCancel}
-                disabled={loading}
-                className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading || isLoading}
               >
                 {cancelText}
-              </button>
+              </Button>
             )}
             {onConfirm && (
-              <button
+              <Button
+                variant={confirmVariant === 'danger' ? 'destructive' : 'default'}
                 onClick={handleConfirm}
                 disabled={loading || isLoading || confirmDisabled}
-                className={`flex-1 px-4 py-2 rounded-lg text-white transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed ${
-                  confirmVariant === 'danger'
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
               >
                 {confirmText}
-              </button>
+              </Button>
             )}
-          </div>
+          </DialogFooter>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
-
-  return createPortal(modalContent, document.body);
 }
+

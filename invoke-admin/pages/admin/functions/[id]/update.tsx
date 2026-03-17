@@ -4,110 +4,66 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
-import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react'
+import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft, Loader } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { cn } from '@/lib/cn'
 
 export default function UpdateFunction() {
   const router = useRouter()
   const { id } = router.query
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
-  
+
   const [functionData, setFunctionData] = useState<any>(null)
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (id) {
-      fetchFunctionData()
-    }
-  }, [id])
+  useEffect(() => { if (id) fetchFunctionData() }, [id])
 
-  // Lock project when function data loads
   useEffect(() => {
     if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
       hasLockedProject.current = true
-      lockProject({
-        id: functionData.project_id,
-        name: functionData.project_name,
-        description: '',
-        role: 'locked'
-      })
+      lockProject({ id: functionData.project_id, name: functionData.project_name, description: '', role: 'locked' })
     }
-    
-    return () => {
-      if (hasLockedProject.current) {
-        hasLockedProject.current = false
-        unlockProject()
-      }
-    }
+    return () => { if (hasLockedProject.current) { hasLockedProject.current = false; unlockProject() } }
   }, [functionData?.project_id, functionData?.project_name])
 
   const fetchFunctionData = async () => {
     try {
       const response = await authenticatedFetch(`/api/functions/${id}`)
       const result = await response.json()
-
-      if (result.success) {
-        setFunctionData(result.data)
-      }
-    } catch (error) {
-      console.error('Error fetching function:', error)
-    } finally {
-      setLoading(false)
-    }
+      if (result.success) setFunctionData(result.data)
+    } catch { console.error('Error fetching function') }
+    finally { setLoading(false) }
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      setFile(selectedFile)
-      setUploadResult(null)
-    }
+    const f = e.target.files?.[0]
+    if (f) { setFile(f); setUploadResult(null) }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!file) {
-      setUploadResult({ success: false, message: 'Please select a file to upload' })
-      return
-    }
-
+    if (!file) { setUploadResult({ success: false, message: 'Please select a file to upload' }); return }
     setUploading(true)
     setUploadResult(null)
-
     const formData = new FormData()
     formData.append('file', file)
-
     try {
-      const response = await authenticatedFetch(`/api/functions/${id}/update`, {
-        method: 'POST',
-        body: formData,
-      })
-
+      const response = await authenticatedFetch(`/api/functions/${id}/update`, { method: 'POST', body: formData })
       const result = await response.json()
-
-      if (result.success) {
-        // Navigate back to function details page
-        router.push(`/admin/functions/${id}`)
-      } else {
-        setUploadResult({ success: false, message: result.message || 'Update failed' })
-      }
-    } catch (error) {
-      setUploadResult({ success: false, message: 'Network error occurred' })
-    } finally {
-      setUploading(false)
-    }
+      if (result.success) router.push(`/admin/functions/${id}`)
+      else setUploadResult({ success: false, message: result.message || 'Update failed' })
+    } catch { setUploadResult({ success: false, message: 'Network error occurred' }) }
+    finally { setUploading(false) }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     const droppedFile = e.dataTransfer.files[0]
@@ -117,147 +73,76 @@ export default function UpdateFunction() {
     }
   }
 
-  if (loading) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-gray-400">Loading function details...</div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    )
-  }
-
-  if (!functionData) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-red-400">Function not found</div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    )
-  }
+  if (loading) return (
+    <ProtectedRoute><Layout><div className="flex items-center justify-center h-64"><Loader className="w-8 h-8 text-primary animate-spin" /></div></Layout></ProtectedRoute>
+  )
+  if (!functionData) return (
+    <ProtectedRoute><Layout><div className="flex items-center justify-center h-64 text-destructive">Function not found</div></Layout></ProtectedRoute>
+  )
 
   return (
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.push(`/admin/functions/${id}`)}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-400" />
-            </button>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/functions/${id}`)}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
             <PageHeader
               title="Update Function Package"
-              subtitle={`Update the package for ${functionData.name} - Current version: ${functionData.version}`}
-              icon={<Upload className="w-8 h-8 text-primary-500" />}
+              subtitle={`Update the package for ${functionData.name} — Current version: ${functionData.version}`}
+              icon={<Upload className="w-8 h-8 text-primary" />}
             />
           </div>
 
-          <div className="card max-w-2xl">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-              <Upload className="w-5 h-5 mr-2" />
-              New Package File
-            </h2>
+          <Card className="max-w-2xl">
+            <CardContent className="pt-6 space-y-6">
+              <h2 className="text-base font-semibold flex items-center gap-2 text-foreground"><Upload className="w-5 h-5" />New Package File</h2>
 
-            {/* Upload Area */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                file ? 'border-primary-500 bg-primary-500/10' : 'border-gray-600 hover:border-gray-500'
-              }`}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              {file ? (
-                <div className="space-y-3">
-                  <FileText className="w-12 h-12 mx-auto text-primary-500" />
-                  <div>
-                    <p className="text-gray-100 font-medium">{file.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
+              <div
+                className={cn('border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer', file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50')}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => !file && fileInputRef.current?.click()}
+              >
+                {file ? (
+                  <div className="space-y-3">
+                    <FileText className="w-12 h-12 mx-auto text-primary" />
+                    <div>
+                      <p className="font-medium text-foreground">{file.name}</p>
+                      <p className="text-muted-foreground text-sm">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setFile(null) }} className="text-muted-foreground">Remove file</Button>
                   </div>
-                  <button
-                    onClick={() => setFile(null)}
-                    className="text-gray-400 hover:text-gray-300 text-sm"
-                  >
-                    Remove file
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Upload className="w-12 h-12 mx-auto text-gray-500" />
-                  <div>
-                    <p className="text-gray-100">
-                      Drag and drop your new function package here
-                    </p>
-                    <p className="text-gray-400 text-sm">
-                      or click to browse files
-                    </p>
+                ) : (
+                  <div className="space-y-3">
+                    <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
+                    <div>
+                      <p className="text-foreground">Drag and drop your new function package here</p>
+                      <p className="text-muted-foreground text-sm">or click to browse files (.zip, .tar.gz, .tgz)</p>
+                    </div>
+                    <input ref={fileInputRef} type="file" accept=".zip,.tar.gz,.tgz" onChange={handleFileSelect} className="hidden" />
+                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}>Choose File</Button>
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip,.tar.gz,.tgz"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-secondary"
-                  >
-                    Choose File
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-              {/* Upload Result */}
-              {uploadResult && (
-                <div className={`p-4 rounded-md ${
-                  uploadResult.success 
-                    ? 'bg-green-900/50 border border-green-700' 
-                    : 'bg-red-900/50 border border-red-700'
-                }`}>
-                  <div className="flex items-center">
-                    {uploadResult.success ? (
-                      <CheckCircle className="w-5 h-5 text-green-400 mr-2" />
-                    ) : (
-                      <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
-                    )}
-                    <span className={uploadResult.success ? 'text-green-300' : 'text-red-300'}>
-                      {uploadResult.message}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <div className="flex space-x-3">
-                <button
-                  type="submit"
-                  disabled={!file || uploading}
-                  className="btn-primary flex items-center disabled:opacity-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {uploading ? 'Updating...' : 'Update Package'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/admin/functions/${id}`)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
+                )}
               </div>
-            </form>
-          </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {uploadResult && (
+                  <div className={cn('p-4 rounded-lg flex items-center gap-2', uploadResult.success ? 'bg-green-900/20 border border-green-700' : 'bg-red-900/20 border border-red-700')}>
+                    {uploadResult.success ? <CheckCircle className="w-5 h-5 text-green-400 shrink-0" /> : <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />}
+                    <span className={uploadResult.success ? 'text-green-300' : 'text-red-300'}>{uploadResult.message}</span>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <Button type="submit" disabled={!file || uploading}>
+                    {uploading ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Updating…</> : <><Upload className="w-4 h-4 mr-2" />Update Package</>}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => router.push(`/admin/functions/${id}`)}>Cancel</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </Layout>
     </ProtectedRoute>

@@ -18,10 +18,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center animate-fadeIn">
+      <div className="min-h-screen bg-background flex items-center justify-center animate-fadeIn">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-500 mx-auto mb-4"></div>
-          <p className="text-gray-400 animate-pulse">Loading...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground animate-pulse">Loading...</p>
         </div>
       </div>
     )

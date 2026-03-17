@@ -66,7 +66,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     } else if (req.method === 'PATCH') {
       // Update function details
-      const { name, description, requires_api_key, is_active } = req.body
+      const { name, description, requires_api_key, is_active, group_id, sort_order } = req.body
 
       // Check project access for non-admins (developer can update basic info, owner can update all)
       if (!req.user?.isAdmin) {
@@ -121,6 +121,18 @@ async function handler(req: AuthenticatedRequest, res: any) {
       if (is_active !== undefined) {
         updateFields.push(`is_active = $${paramCount}`)
         updateValues.push(is_active)
+        paramCount++
+      }
+
+      if (group_id !== undefined) {
+        updateFields.push(`group_id = $${paramCount}`)
+        updateValues.push(group_id ?? null)
+        paramCount++
+      }
+
+      if (sort_order !== undefined) {
+        updateFields.push(`sort_order = $${paramCount}`)
+        updateValues.push(sort_order)
         paramCount++
       }
 

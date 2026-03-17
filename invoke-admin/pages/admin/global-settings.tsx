@@ -1,194 +1,172 @@
-import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/router'
-import Layout from '@/components/Layout'
-import ProtectedRoute from '@/components/ProtectedRoute'
-import PageHeader from '@/components/PageHeader'
-import { Settings, AlertCircle, CheckCircle, Plus, Trash2, Loader } from 'lucide-react'
-import { clearFunctionBaseUrlCache, authenticatedFetch } from '@/lib/frontend-utils'
-import { useProject } from '@/contexts/ProjectContext'
-import { useSetFeatureFlags } from '@/contexts/FeatureFlagsContext'
-import toast from 'react-hot-toast'
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
+import { Settings, AlertCircle, CheckCircle, Loader, Plus, Trash2 } from 'lucide-react';
+import Layout from '@/components/Layout';
+import PageHeader from '@/components/PageHeader';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { authenticatedFetch } from '@/lib/frontend-utils';
+import { useProject } from '@/contexts/ProjectContext';
+import { useSetFeatureFlags } from '@/contexts/FeatureFlagsContext';
+import { clearFunctionBaseUrlCache } from '@/lib/frontend-utils';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 
-interface GlobalSettings {
-  type: { value: string; description: string }
-  value: { value: string; description: string }
-  enabled: { value: string; description: string }
-  function_base_url: { value: string; description: string }
-  kv_storage_limit_bytes: { value: string; description: string }
-  api_gateway_domain: { value: string; description: string }
-}
+export default function GlobalSettingsPage() {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<string | null>(null);
 
-interface CleanupResult {
-  deleted: number
-  functions: number
-}
+  const [retentionEnabled, setRetentionEnabled] = useState(false);
+  const [retentionType, setRetentionType] = useState<'time' | 'count' | 'none'>('none');
+  const [retentionValue, setRetentionValue] = useState('');
+  const [functionBaseUrl, setFunctionBaseUrl] = useState('');
+  const [kvStorageLimitGB, setKvStorageLimitGB] = useState('');
+  const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false);
+  const [apiGatewayDomain, setApiGatewayDomain] = useState('');
+  const [apiGatewayDomainProtocol, setApiGatewayDomainProtocol] = useState<'http' | 'https'>('https');
 
-export default function GlobalSettings() {
-  const { lockProject, unlockProject, userProjects } = useProject()
-  const setFeatureFlags = useSetFeatureFlags()
-  const hasLockedProject = useRef(false)
-  const [settings, setSettings] = useState<GlobalSettings | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [cleaning, setCleaning] = useState(false)
-  const [message, setMessage] = useState('')
-  const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null)
-  
-  // Form state
-  const [retentionType, setRetentionType] = useState('time')
-  const [retentionValue, setRetentionValue] = useState('7')
-  const [retentionEnabled, setRetentionEnabled] = useState(true)
-  const [functionBaseUrl, setFunctionBaseUrl] = useState('https://localhost:3001/invoke')
-  const [kvStorageLimitGB, setKvStorageLimitGB] = useState('1')
-  const [apiGatewayDomain, setApiGatewayDomain] = useState('')
-  const [apiGatewayDomainProtocol, setApiGatewayDomainProtocol] = useState<'http' | 'https'>('https')
-  const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false)
+  const { lockProject, unlockProject, userProjects } = useProject();
+  const hasLockedProject = useRef(false);
+  const setFeatureFlags = useSetFeatureFlags();
 
   useEffect(() => {
-    fetchSettings()
-  }, [])
-
-  // Lock project to System when on this page
-  useEffect(() => {
-    const systemProject = userProjects.find(p => p.id === 'system')
-    
+    const systemProject = userProjects.find((p) => p.id === 'system');
     if (systemProject && !hasLockedProject.current) {
-      hasLockedProject.current = true
-      lockProject(systemProject)
+      hasLockedProject.current = true;
+      lockProject(systemProject);
     }
-
     return () => {
       if (hasLockedProject.current) {
-        hasLockedProject.current = false
-        unlockProject()
+        hasLockedProject.current = false;
+        unlockProject();
       }
-    }
-  }, [userProjects])
+    };
+  }, [userProjects]);
+
+  useEffect(() => { fetchSettings(); }, []);
 
   const fetchSettings = async () => {
     try {
-      const response = await authenticatedFetch('/api/admin/global-settings')
-      const data = await response.json()
-      
-      if (data.success) {
-        setSettings(data.data)
-        setRetentionType(data.data.type.value)
-        setRetentionValue(data.data.value.value)
-        setRetentionEnabled(data.data.enabled.value === 'true')
-        setFunctionBaseUrl(data.data.function_base_url?.value || 'https://localhost:3001/invoke')
-        
-        // Convert bytes to GB for display
-        const kvLimitBytes = parseInt(data.data.kv_storage_limit_bytes?.value || '1073741824')
-        const kvLimitGB = (kvLimitBytes / (1024 * 1024 * 1024)).toFixed(2)
-        setKvStorageLimitGB(kvLimitGB)
-        const raw = data.data.api_gateway_domain?.value || ''
-        if (raw.startsWith('http://')) {
-          setApiGatewayDomainProtocol('http')
-          setApiGatewayDomain(raw.slice(7))
-        } else if (raw.startsWith('https://')) {
-          setApiGatewayDomainProtocol('https')
-          setApiGatewayDomain(raw.slice(8))
-        } else {
-          setApiGatewayDomain(raw)
+      const res = await authenticatedFetch('/api/admin/global-settings');
+      if (res.ok) {
+        const data = await res.json();
+        const s = data.data;
+
+        const readSetting = (key: string): string => {
+          const value = s?.[key]
+          if (value && typeof value === 'object' && 'value' in value) {
+            return String((value as { value: unknown }).value ?? '')
+          }
+          return String(value ?? '')
         }
-        setApiGatewayEnabled(raw.trim() !== '')
+
+        const retentionEnabledValue = readSetting('enabled')
+        setRetentionEnabled(retentionEnabledValue === 'true')
+        setRetentionType((readSetting('type') || 'none') as 'time' | 'count' | 'none')
+        setRetentionValue(readSetting('value'))
+        setFunctionBaseUrl(readSetting('function_base_url'))
+
+        const kvBytesRaw = readSetting('kv_storage_limit_bytes')
+        if (kvBytesRaw) {
+          const kvBytes = Number(kvBytesRaw)
+          setKvStorageLimitGB(Number.isFinite(kvBytes) ? String(kvBytes / (1024 ** 3)) : '')
+        } else {
+          setKvStorageLimitGB('')
+        }
+
+        const gatewayDomain = readSetting('api_gateway_domain')
+        if (gatewayDomain) {
+          const hasProtocol = /^https?:\/\//i.test(gatewayDomain)
+          if (hasProtocol) {
+            setApiGatewayDomainProtocol(gatewayDomain.toLowerCase().startsWith('http://') ? 'http' : 'https')
+            setApiGatewayDomain(gatewayDomain.replace(/^https?:\/\//i, ''))
+          } else {
+            setApiGatewayDomain(gatewayDomain)
+            setApiGatewayDomainProtocol('https')
+          }
+          setApiGatewayEnabled(true)
+        } else {
+          setApiGatewayDomain('')
+          setApiGatewayDomainProtocol('https')
+          setApiGatewayEnabled(false)
+        }
       }
     } catch (error) {
-      console.error('Error fetching settings:', error)
-      setMessage('Failed to load settings')
+      console.error('Failed to load settings:', error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSave = async () => {
     if (apiGatewayEnabled && !apiGatewayDomain.trim()) {
-      toast.error('Please enter a gateway domain URL or disable the API Gateway.')
-      return
+      toast.error('API Gateway domain is required when the gateway is enabled.');
+      return;
     }
-
-    setSaving(true)
-    setMessage('')
-
+    setSaving(true);
     try {
-      const response = await authenticatedFetch('/api/admin/global-settings', {
+      const res = await authenticatedFetch('/api/admin/global-settings', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
-          type: retentionType,
-          value: parseInt(retentionValue),
           enabled: retentionEnabled,
+          type: retentionType,
+          value: retentionValue !== '' ? Number(retentionValue) : null,
           function_base_url: functionBaseUrl,
-          kv_storage_limit_bytes: Math.floor(parseFloat(kvStorageLimitGB) * 1024 * 1024 * 1024),
-          api_gateway_domain: apiGatewayEnabled && apiGatewayDomain ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : ''
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        toast.success('Settings saved successfully!')
-        clearFunctionBaseUrlCache() // Clear cache so other pages get updated URL
-        setFeatureFlags({ gatewayEnabled: apiGatewayEnabled && !!apiGatewayDomain })
-        fetchSettings() // Refresh
+          kv_storage_limit_bytes: kvStorageLimitGB !== '' ? Math.round(Number(kvStorageLimitGB) * (1024 ** 3)) : null,
+          api_gateway_domain: apiGatewayEnabled ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : '',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        clearFunctionBaseUrlCache();
+        if (data.featureFlags) setFeatureFlags(data.featureFlags);
+        toast.success('Settings saved successfully.');
       } else {
-        toast.error('Failed to save settings: ' + data.message)
+        const data = await res.json();
+        toast.error(data.error || 'Failed to save settings.');
       }
-    } catch (error) {
-      console.error('Error saving settings:', error)
-      toast.error('Failed to save settings')
+    } catch {
+      toast.error('An error occurred while saving settings.');
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const handleCleanup = async () => {
-    setCleaning(true)
-    setMessage('')
-    setCleanupResult(null)
-
+    setCleaning(true);
+    setCleanupResult(null);
     try {
-      const response = await authenticatedFetch('/api/admin/cleanup-logs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({})
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        setCleanupResult(data.data)
-        toast.success('Cleanup completed successfully!')
+      const res = await authenticatedFetch('/api/admin/cleanup-logs', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setCleanupResult(data.message || 'Cleanup completed successfully.');
       } else {
-        toast.error('Cleanup failed: ' + data.message)
+        const data = await res.json();
+        toast.error(data.error || 'Cleanup failed.');
       }
-    } catch (error) {
-      console.error('Error during cleanup:', error)
-      toast.error('Cleanup failed')
+    } catch {
+      toast.error('An error occurred during cleanup.');
     } finally {
-      setCleaning(false)
+      setCleaning(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <ProtectedRoute>
         <Layout title="Global Settings">
-          <div className="flex justify-center items-center h-64">
-            <div className="flex items-center gap-2 text-lg">
-              <Loader className="w-6 h-6 text-primary-500 animate-spin" />
-              <span className="text-gray-400 animate-pulse">Loading global settings...</span>
-            </div>
+          <div className="flex items-center justify-center h-64">
+            <Loader className="w-8 h-8 text-primary animate-spin" />
           </div>
         </Layout>
       </ProtectedRoute>
-    )
+    );
   }
 
   return (
@@ -197,230 +175,166 @@ export default function GlobalSettings() {
         <div className="space-y-6">
           <PageHeader
             title="Global Settings"
-            subtitle="Configure default execution log retention settings for all functions"
-            icon={<Settings className="w-8 h-8 text-primary-500" />}
+            subtitle="Configure system-wide platform settings"
+            icon={<Settings className="w-8 h-8 text-primary" />}
           />
 
-          <div className="card max-w-2xl">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-              <Settings className="w-5 h-5 mr-2" />
-              Log Retention Settings
-            </h2>
-
-            <form onSubmit={handleSave} className="space-y-6">
-              {/* Retention Enabled */}
-              <div>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={retentionEnabled}
-                    onChange={(e) => setRetentionEnabled(e.target.checked)}
-                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
-                  />
-                  <span className="ml-2 text-sm font-medium text-gray-300">
-                    Enable execution log retention cleanup
-                  </span>
-                </label>
-                <p className="mt-1 text-sm text-gray-500">
-                  When enabled, old execution logs will be automatically cleaned up based on the settings below
-                </p>
-              </div>
-
-              {/* Retention Type */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Retention Type
-                </label>
-                <select
-                  value={retentionType}
-                  onChange={(e) => setRetentionType(e.target.value)}
-                  disabled={!retentionEnabled}
-                  className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 disabled:bg-gray-700 disabled:text-gray-400 disabled:border-gray-700 px-3 py-2"
-                >
-                  <option value="time">Time-based (days)</option>
-                  <option value="count">Count-based (number of logs)</option>
-                  <option value="none">No cleanup</option>
-                </select>
-                <p className="mt-1 text-sm text-gray-500">
-                  {retentionType === 'time' && 'Delete logs older than specified number of days'}
-                  {retentionType === 'count' && 'Keep only the most recent N execution logs'}
-                  {retentionType === 'none' && 'Never delete execution logs automatically'}
-                </p>
-              </div>
-
-              {/* Retention Value */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Retention Value
-                </label>
-                <input
-                  type="number"
-                  value={retentionValue}
-                  onChange={(e) => setRetentionValue(e.target.value)}
-                  disabled={!retentionEnabled || retentionType === 'none'}
-                  min="1"
-                  className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 disabled:bg-gray-700 disabled:text-gray-400 disabled:border-gray-700 px-3 py-2"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  {retentionType === 'time' && 'Number of days to keep logs'}
-                  {retentionType === 'count' && 'Maximum number of logs to keep per function'}
-                </p>
-              </div>
-
-              {/* Function Base URL */}
-              <div className="border-t border-gray-700 pt-6 mt-6">
-                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
-                  <Settings className="w-5 h-5 mr-2" />
-                  Function URL Settings
-                </h3>
-                
+          <Card>
+            <CardContent className="pt-6 space-y-8">
+              {/* Log Retention */}
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Function Base URL
-                  </label>
-                  <input
+                  <h3 className="text-base font-semibold text-foreground">Log Retention</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Configure automatic cleanup of execution logs.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Switch id="retentionEnabled" checked={retentionEnabled} onCheckedChange={setRetentionEnabled} />
+                  <Label htmlFor="retentionEnabled" className="cursor-pointer">Enable log retention policy</Label>
+                </div>
+                {retentionEnabled && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pl-2">
+                    <div className="space-y-1.5">
+                      <Label>Retention Type</Label>
+                      <Select value={retentionType} onValueChange={(v) => setRetentionType(v as 'time' | 'count' | 'none')}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="time">Time-based (days)</SelectItem>
+                          <SelectItem value="count">Count-based (max entries)</SelectItem>
+                          <SelectItem value="none">No limit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {retentionType !== 'none' && (
+                      <div className="space-y-1.5">
+                        <Label>{retentionType === 'time' ? 'Days to retain' : 'Max log entries'}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          value={retentionValue}
+                          onChange={(e) => setRetentionValue(e.target.value)}
+                          placeholder={retentionType === 'time' ? 'e.g. 30' : 'e.g. 10000'}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Function URL Settings */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">Function URL Settings</h3>
+                  <p className="text-sm text-muted-foreground mt-1">The base URL used when invoking functions.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Base URL</Label>
+                  <Input
                     type="url"
                     value={functionBaseUrl}
                     onChange={(e) => setFunctionBaseUrl(e.target.value)}
-                    placeholder="https://localhost:3001/invoke"
-                    className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 px-3 py-2"
+                    placeholder="https://functions.example.com"
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Base URL used for function invocation endpoints. Function URLs will be displayed as <code className="bg-gray-700 px-1 rounded">{functionBaseUrl}/&lt;function-id&gt;</code>
-                  </p>
                 </div>
               </div>
 
-              {/* KV Storage Limit */}
-              <div className="border-t border-gray-700 pt-6 mt-6">
-                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
-                  <Settings className="w-5 h-5 mr-2" />
-                  KV Storage Settings
-                </h3>
-                
+              <Separator />
+
+              {/* KV Storage Settings */}
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Default Storage Limit (GB)
-                  </label>
-                  <input
+                  <h3 className="text-base font-semibold text-foreground">KV Storage Settings</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Limit the total key-value store size per project.</p>
+                </div>
+                <div className="space-y-1.5 max-w-xs">
+                  <Label>Storage Limit (GB)</Label>
+                  <Input
                     type="number"
+                    min={0}
+                    step={0.1}
                     value={kvStorageLimitGB}
                     onChange={(e) => setKvStorageLimitGB(e.target.value)}
-                    min="0.1"
-                    step="0.1"
-                    placeholder="1"
-                    className="block w-full bg-gray-800 border-2 border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 sm:text-sm text-gray-100 px-3 py-2"
+                    placeholder="e.g. 1"
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Default storage limit for new projects. You can customize the limit for each project individually on the Projects page.
-                  </p>
                 </div>
               </div>
 
-              {/* API Gateway Domain */}
-              <div className="border-t border-gray-700 pt-6 mt-6">
-                <h3 className="text-lg font-medium text-gray-200 mb-4 flex items-center">
-                  <Settings className="w-5 h-5 mr-2" />
-                  API Gateway Settings
-                </h3>
+              <Separator />
 
-                {/* Enable toggle */}
-                <div className="mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={apiGatewayEnabled}
-                      onChange={(e) => setApiGatewayEnabled(e.target.checked)}
-                      className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500 focus:ring-2"
-                    />
-                    <span className="text-sm font-medium text-gray-300">Enable API Gateway</span>
-                  </label>
-                  <p className="mt-1 text-sm text-gray-500">
-                    When enabled, the API Gateway page appears in the sidebar for all users.
-                  </p>
+              {/* API Gateway Settings */}
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold text-foreground">API Gateway Settings</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Configure the API Gateway for routing HTTP traffic to functions.</p>
                 </div>
-
-                <div className={apiGatewayEnabled ? '' : 'opacity-50 pointer-events-none'}>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Default Gateway Domain
-                  </label>
-                  <div className="flex rounded-md overflow-hidden border-2 border-gray-600 focus-within:border-primary-500 bg-gray-800">
-                    <select
-                      value={apiGatewayDomainProtocol}
-                      onChange={(e) => setApiGatewayDomainProtocol(e.target.value as 'http' | 'https')}
-                      disabled={!apiGatewayEnabled}
-                      className="bg-gray-700 text-gray-300 sm:text-sm px-2 py-2 border-r border-gray-600 focus:outline-none shrink-0"
-                    >
-                      <option value="https">https://</option>
-                      <option value="http">http://</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={apiGatewayDomain}
-                      onChange={(e) => setApiGatewayDomain(e.target.value)}
-                      disabled={!apiGatewayEnabled}
-                      placeholder="api.example.com"
-                      className="flex-1 bg-transparent sm:text-sm text-gray-100 px-3 py-2 focus:outline-none"
-                    />
+                <div className="flex items-center gap-3">
+                  <Switch id="apiGatewayEnabled" checked={apiGatewayEnabled} onCheckedChange={setApiGatewayEnabled} />
+                  <Label htmlFor="apiGatewayEnabled" className="cursor-pointer">Enable API Gateway</Label>
+                </div>
+                {apiGatewayEnabled && (
+                  <div className="space-y-1.5">
+                    <Label>Gateway Domain</Label>
+                    <div className="flex gap-2">
+                      <Select value={apiGatewayDomainProtocol} onValueChange={(v) => setApiGatewayDomainProtocol(v as 'http' | 'https')}>
+                        <SelectTrigger className="w-[110px] shrink-0">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="https">https://</SelectItem>
+                          <SelectItem value="http">http://</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="text"
+                        value={apiGatewayDomain}
+                        onChange={(e) => setApiGatewayDomain(e.target.value)}
+                        placeholder="gateway.example.com"
+                        className="flex-1"
+                      />
+                    </div>
+                    {apiGatewayEnabled && !apiGatewayDomain.trim() && (
+                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Domain is required when the gateway is enabled.
+                      </p>
+                    )}
                   </div>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Domain used for the default gateway URL pattern:{' '}
-                    <code className="bg-gray-700 px-1 rounded">
-                      {apiGatewayDomainProtocol}://{apiGatewayDomain || 'api.example.com'}/&lt;project-slug&gt;/&lt;route&gt;
-                    </code>
-                  </p>
-                </div>
+                )}
               </div>
 
-              {/* Submit Button */}
-              <div className="flex justify-between items-center pt-4 border-t border-gray-700">
-                <button
-                  type="submit"
-                  disabled={saving || (apiGatewayEnabled && !apiGatewayDomain.trim())}
-                  className="btn-primary flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={apiGatewayEnabled && !apiGatewayDomain.trim() ? 'Enter a gateway domain URL or disable the API Gateway' : undefined}
-                >
-                  {saving ? 'Saving...' : 'Save Settings'}
-                </button>
+              <Separator />
 
-                <button
-                  type="button"
+              {/* Actions */}
+              <div className="flex flex-wrap items-center gap-3 pt-1">
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || (apiGatewayEnabled && !apiGatewayDomain.trim())}
+                >
+                  {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                </Button>
+                <Button
+                  variant="destructive"
                   onClick={handleCleanup}
                   disabled={cleaning || !retentionEnabled}
-                  className="btn-danger flex items-center disabled:opacity-50"
                 >
-                  {cleaning ? 'Cleaning...' : 'Run Cleanup Now'}
-                </button>
+                  {cleaning ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Running…</> : 'Run Cleanup Now'}
+                </Button>
               </div>
-            </form>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Message Display */}
-          {message && (
-            <div className={`card max-w-2xl p-4 ${
-              message.includes('success') || message.includes('completed') 
-                ? 'bg-green-900/50 border border-green-700 text-green-300'
-                : 'bg-red-900/50 border border-red-700 text-red-300'
-            }`}>
-              {message}
-            </div>
-          )}
-
-          {/* Cleanup Result */}
           {cleanupResult && (
-            <div className="card max-w-2xl">
-              <h3 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-                <Settings className="w-5 h-5 mr-2" />
-                Cleanup Results
-              </h3>
-              <div className="text-gray-300">
-                <p>• Deleted {cleanupResult.deleted} execution logs</p>
-                <p>• Processed {cleanupResult.functions} functions</p>
-              </div>
-            </div>
+            <Card className="border-green-800/50">
+              <CardContent className="pt-5 flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-green-300">{cleanupResult}</p>
+              </CardContent>
+            </Card>
           )}
         </div>
       </Layout>
     </ProtectedRoute>
-  )
+  );
 }

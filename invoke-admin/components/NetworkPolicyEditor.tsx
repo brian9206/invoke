@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { 
-  GripVertical, 
-  Plus, 
-  Trash2, 
-  AlertCircle, 
+import {
+  GripVertical,
+  Plus,
+  Trash2,
+  AlertCircle,
   CheckCircle2,
   XCircle,
   HelpCircle
@@ -26,9 +26,22 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import Modal from './Modal';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { cn } from '@/lib/cn';
 
 const ipaddr = require('ipaddr.js');
-const minimatch = require('minimatch');
 
 interface NetworkPolicyRule {
   action: 'allow' | 'deny';
@@ -36,7 +49,7 @@ interface NetworkPolicyRule {
   target_value: string;
   description?: string;
   priority: number;
-  id?: string; // For UI tracking
+  id?: string;
 }
 
 interface NetworkPolicyEditorProps {
@@ -48,28 +61,22 @@ interface NetworkPolicyEditorProps {
   readOnly?: boolean;
 }
 
-// Sortable row component
-function SortableRuleRow({ 
-  rule, 
-  index, 
-  onDelete, 
+function SortableRuleRow({
+  rule,
+  index,
+  onDelete,
   onUpdate,
-  readOnly = false
-}: { 
-  rule: NetworkPolicyRule; 
-  index: number; 
+  readOnly = false,
+}: {
+  rule: NetworkPolicyRule;
+  index: number;
   onDelete: () => void;
   onUpdate: (updates: Partial<NetworkPolicyRule>) => void;
   readOnly?: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: rule.id || `rule-${index}` });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: rule.id || `rule-${index}`,
+  });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -80,34 +87,30 @@ function SortableRuleRow({
   const [validationError, setValidationError] = useState<string>('');
   const [validationTimeout, setValidationTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Validate target value with debounce
   const validateTarget = (value: string, type: string) => {
-    if (validationTimeout) {
-      clearTimeout(validationTimeout);
-    }
+    if (validationTimeout) clearTimeout(validationTimeout);
 
     const timeout = setTimeout(() => {
       let error = '';
-      
       if (!value.trim()) {
         error = 'Target value is required';
       } else if (type === 'ip') {
-        if (!ipaddr.isValid(value)) {
-          error = 'Invalid IP address';
-        }
+        if (!ipaddr.isValid(value)) error = 'Invalid IP address';
       } else if (type === 'cidr') {
         try {
           ipaddr.parseCIDR(value);
-        } catch (e) {
+        } catch {
           error = 'Invalid CIDR notation (e.g., 192.168.0.0/16)';
         }
       } else if (type === 'domain') {
-        // Basic domain validation
-        if (!/^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(value)) {
+        if (
+          !/^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(
+            value
+          )
+        ) {
           error = 'Invalid domain format';
         }
       }
-      
       setValidationError(error);
     }, 500);
 
@@ -122,59 +125,60 @@ function SortableRuleRow({
   }, [rule.target_value, rule.target_type]);
 
   return (
-    <tr ref={setNodeRef} style={style} className="border-b border-gray-700">
-      <td className="p-3">
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-10">
         <button
           {...attributes}
           {...listeners}
           disabled={readOnly}
-          className={readOnly ? "text-gray-600 cursor-not-allowed" : "cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300"}
+          className={readOnly ? 'text-muted-foreground/30 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground'}
         >
           <GripVertical className="w-4 h-4" />
         </button>
-      </td>
-      <td className="p-3 text-gray-300">{index + 1}</td>
-      <td className="p-3">
-        <select
+      </TableCell>
+      <TableCell className="text-muted-foreground w-12">{index + 1}</TableCell>
+      <TableCell>
+        <Select
           value={rule.action}
-          onChange={(e) => onUpdate({ action: e.target.value as 'allow' | 'deny' })}
+          onValueChange={(v) => onUpdate({ action: v as 'allow' | 'deny' })}
           disabled={readOnly}
-          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <option value="allow">Allow</option>
-          <option value="deny">Deny</option>
-        </select>
-      </td>
-      <td className="p-3">
-        <span
-          className={`px-2 py-1 text-xs rounded ${
-            rule.action === 'allow'
-              ? 'bg-green-900/30 text-green-400 border border-green-800'
-              : 'bg-red-900/30 text-red-400 border border-red-800'
-          }`}
-        >
+          <SelectTrigger className="w-24 h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="allow">Allow</SelectItem>
+            <SelectItem value="deny">Deny</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Badge variant={rule.action === 'allow' ? 'success' : 'destructive'}>
           {rule.action === 'allow' ? 'Allow' : 'Deny'}
-        </span>
-      </td>
-      <td className="p-3">
-        <select
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Select
           value={rule.target_type}
-          onChange={(e) => {
-            onUpdate({ target_type: e.target.value as 'ip' | 'cidr' | 'domain' });
-            validateTarget(rule.target_value, e.target.value);
+          onValueChange={(v) => {
+            onUpdate({ target_type: v as 'ip' | 'cidr' | 'domain' });
+            validateTarget(rule.target_value, v);
           }}
           disabled={readOnly}
-          className="bg-gray-700 border border-gray-600 rounded px-3 py-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <option value="ip">IP Address</option>
-          <option value="cidr">CIDR Block</option>
-          <option value="domain">Domain</option>
-        </select>
-      </td>
-      <td className="p-3">
+          <SelectTrigger className="w-32 h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ip">IP Address</SelectItem>
+            <SelectItem value="cidr">CIDR Block</SelectItem>
+            <SelectItem value="domain">Domain</SelectItem>
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
         <div className="space-y-1">
-          <input
-            type="text"
+          <Input
             value={rule.target_value}
             onChange={(e) => {
               onUpdate({ target_value: e.target.value });
@@ -182,13 +186,13 @@ function SortableRuleRow({
             }}
             disabled={readOnly}
             placeholder={
-              rule.target_type === 'ip' ? '192.168.1.1' :
-              rule.target_type === 'cidr' ? '192.168.0.0/16' :
-              '*.example.com'
+              rule.target_type === 'ip'
+                ? '192.168.1.1'
+                : rule.target_type === 'cidr'
+                ? '192.168.0.0/16'
+                : '*.example.com'
             }
-            className={`w-full bg-gray-700 border ${
-              validationError ? 'border-red-500' : 'border-gray-600'
-            } rounded px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={cn('h-8', validationError && 'border-red-500')}
           />
           {validationError && (
             <p className="text-xs text-red-400 flex items-center gap-1">
@@ -197,34 +201,34 @@ function SortableRuleRow({
             </p>
           )}
           {rule.target_type === 'domain' && !validationError && (
-            <p className="text-xs text-gray-500 flex items-center gap-1">
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
               <HelpCircle className="w-3 h-3" />
               Wildcards supported: *.example.com
             </p>
           )}
         </div>
-      </td>
-      <td className="p-3">
-        <input
-          type="text"
+      </TableCell>
+      <TableCell>
+        <Input
           value={rule.description || ''}
           onChange={(e) => onUpdate({ description: e.target.value })}
           disabled={readOnly}
           placeholder="Optional description"
-          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          className="h-8"
         />
-      </td>
-      <td className="p-3">
-        <button
+      </TableCell>
+      <TableCell className="w-12">
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onDelete}
           disabled={readOnly}
-          className="p-2 rounded-lg text-red-400 hover:bg-red-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Delete rule"
+          className="text-red-400 hover:text-red-300 h-8 w-8"
         >
           <Trash2 className="w-4 h-4" />
-        </button>
-      </td>
-    </tr>
+        </Button>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -234,40 +238,30 @@ export default function NetworkPolicyEditor({
   onSave,
   saving,
   onTestConnection,
-  readOnly = false
+  readOnly = false,
 }: NetworkPolicyEditorProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [testHost, setTestHost] = useState('');
   const [testResult, setTestResult] = useState<{ allowed: boolean; reason: string } | null>(null);
   const [testing, setTesting] = useState(false);
 
-  // Add unique IDs to rules for drag-and-drop
   const rulesWithIds = rules.map((rule, index) => ({
     ...rule,
-    id: rule.id || `rule-${index}`
+    id: rule.id || `rule-${index}`,
   }));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-
     if (over && active.id !== over.id) {
       const oldIndex = rulesWithIds.findIndex((r) => r.id === active.id);
       const newIndex = rulesWithIds.findIndex((r) => r.id === over.id);
-
       const reordered = arrayMove(rulesWithIds, oldIndex, newIndex);
-      // Renumber priorities
-      const renumbered = reordered.map((rule, index) => ({
-        ...rule,
-        priority: index + 1
-      }));
-      onChange(renumbered);
+      onChange(reordered.map((rule, index) => ({ ...rule, priority: index + 1 })));
     }
   };
 
@@ -278,7 +272,7 @@ export default function NetworkPolicyEditor({
       target_value: '',
       description: '',
       priority: rules.length + 1,
-      id: `rule-${Date.now()}`
+      id: `rule-${Date.now()}`,
     };
     onChange([...rules, newRule]);
     setShowAddModal(false);
@@ -286,97 +280,80 @@ export default function NetworkPolicyEditor({
 
   const handleDeleteRule = (index: number) => {
     const updated = rules.filter((_, i) => i !== index);
-    // Renumber priorities
-    const renumbered = updated.map((rule, i) => ({
-      ...rule,
-      priority: i + 1
-    }));
-    onChange(renumbered);
+    onChange(updated.map((rule, i) => ({ ...rule, priority: i + 1 })));
   };
 
   const handleUpdateRule = (index: number, updates: Partial<NetworkPolicyRule>) => {
-    const updated = rules.map((rule, i) =>
-      i === index ? { ...rule, ...updates } : rule
-    );
-    onChange(updated);
+    onChange(rules.map((rule, i) => (i === index ? { ...rule, ...updates } : rule)));
   };
 
   const handleTestConnection = async () => {
     if (!onTestConnection || !testHost.trim()) return;
-    
     setTesting(true);
     setTestResult(null);
-    
     try {
       const result = await onTestConnection(testHost);
       setTestResult(result);
     } catch (err) {
       setTestResult({
         allowed: false,
-        reason: 'Test failed: ' + (err instanceof Error ? err.message : String(err))
+        reason: 'Test failed: ' + (err instanceof Error ? err.message : String(err)),
       });
     } finally {
       setTesting(false);
     }
   };
 
-  const hasValidationErrors = rulesWithIds.some(rule => !rule.target_value.trim());
+  const hasValidationErrors = rulesWithIds.some((rule) => !rule.target_value.trim());
 
   return (
     <div className="space-y-6">
-      {/* Warning banner if no rules */}
       {rules.length === 0 && (
-        <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm">
-            <p className="text-red-400 font-medium">At least one policy rule is required</p>
-            <p className="text-red-300 mt-1">
-              Without any rules, all network connections will be blocked by default.
-            </p>
-          </div>
-        </div>
+        <Card className="border-red-800 bg-red-900/10">
+          <CardContent className="pt-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="text-red-400 font-medium">At least one policy rule is required</p>
+              <p className="text-red-300 mt-1">
+                Without any rules, all network connections will be blocked by default.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Policy Rules Table */}
-      <div className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-200">Network Policy Rules</h3>
+      <Card>
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <h3 className="text-base font-semibold text-foreground">Network Policy Rules</h3>
           {!readOnly && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors"
-            >
-              <Plus className="w-4 h-4" />
+            <Button size="sm" onClick={() => setShowAddModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
               Add Rule
-            </button>
+            </Button>
           )}
         </div>
 
         {rules.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext
-              items={rulesWithIds.map(r => r.id!)}
+              items={rulesWithIds.map((r) => r.id!)}
               strategy={verticalListSortingStrategy}
             >
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-900/50">
-                    <tr>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-12"></th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-16">Priority</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Badge</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Type</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Target</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Description</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider w-16"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-gray-800">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10"></TableHead>
+                      <TableHead className="w-16">Priority</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Badge</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Target</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-12"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {rulesWithIds.map((rule, index) => (
                       <SortableRuleRow
                         key={rule.id}
@@ -387,80 +364,79 @@ export default function NetworkPolicyEditor({
                         readOnly={readOnly}
                       />
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </SortableContext>
           </DndContext>
         ) : (
-          <div className="p-8 text-center text-gray-500">
-            <p>No policy rules configured. Click "Add Rule" to get started.</p>
-          </div>
+          <CardContent className="py-8 text-center text-muted-foreground">
+            No policy rules configured. Click &quot;Add Rule&quot; to get started.
+          </CardContent>
         )}
-      </div>
+      </Card>
 
-      {/* Test Connection */}
       {onTestConnection && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <h3 className="text-lg font-semibold text-gray-200 mb-4">Test Connection</h3>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={testHost}
-              onChange={(e) => setTestHost(e.target.value)}
-              placeholder="Enter hostname or IP (e.g., example.com, 8.8.8.8)"
-              className="flex-1 bg-gray-700 border border-gray-600 rounded px-4 py-2 text-sm"
-              onKeyPress={(e) => e.key === 'Enter' && handleTestConnection()}
-            />
-            <button
-              onClick={handleTestConnection}
-              disabled={testing || !testHost.trim()}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {testing ? 'Testing...' : 'Test'}
-            </button>
-          </div>
-          {testResult && (
-            <div className={`mt-3 p-3 rounded-lg flex items-start gap-2 ${
-              testResult.allowed 
-                ? 'bg-green-900/20 border border-green-800' 
-                : 'bg-red-900/20 border border-red-800'
-            }`}>
-              {testResult.allowed ? (
-                <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-              ) : (
-                <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              )}
-              <div className="text-sm">
-                <p className={testResult.allowed ? 'text-green-400' : 'text-red-400'}>
-                  <span className="font-medium">
-                    {testResult.allowed ? 'Connection Allowed' : 'Connection Blocked'}
-                  </span>
-                </p>
-                <p className="text-gray-300 mt-1">{testResult.reason}</p>
-              </div>
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-base font-semibold text-foreground mb-4">Test Connection</h3>
+            <div className="flex gap-3">
+              <Input
+                value={testHost}
+                onChange={(e) => setTestHost(e.target.value)}
+                placeholder="Enter hostname or IP (e.g., example.com, 8.8.8.8)"
+                onKeyPress={(e) => e.key === 'Enter' && handleTestConnection()}
+              />
+              <Button
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testing || !testHost.trim()}
+              >
+                {testing ? 'Testing...' : 'Test'}
+              </Button>
             </div>
-          )}
-        </div>
+            {testResult && (
+              <div
+                className={cn(
+                  'mt-3 p-3 rounded-lg flex items-start gap-2 border',
+                  testResult.allowed
+                    ? 'bg-green-900/20 border-green-800'
+                    : 'bg-red-900/20 border-red-800'
+                )}
+              >
+                {testResult.allowed ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                )}
+                <div className="text-sm">
+                  <p className={testResult.allowed ? 'text-green-400' : 'text-red-400'}>
+                    <span className="font-medium">
+                      {testResult.allowed ? 'Connection Allowed' : 'Connection Blocked'}
+                    </span>
+                  </p>
+                  <p className="text-muted-foreground mt-1">{testResult.reason}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Save Button */}
       {!readOnly && (
         <div className="flex items-center justify-end gap-3">
           {rules.length === 0 && (
             <p className="text-sm text-red-400">Cannot save without at least one rule</p>
           )}
-          <button
+          <Button
             onClick={onSave}
             disabled={saving || rules.length === 0 || hasValidationErrors}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Saving...' : 'Save Policy'}
-          </button>
+          </Button>
         </div>
       )}
 
-      {/* Add Rule Modal */}
       <Modal
         isOpen={showAddModal}
         title="Add New Rule"

@@ -29,6 +29,7 @@ declare module 'invoke-shared' {
     User: AnyModelStatic;
     Project: AnyModelStatic;
     ProjectMembership: AnyModelStatic;
+    FunctionGroup: AnyModelStatic;
     /** NOTE: 'Function' is a reserved JS keyword — always destructure with an alias:
      *  const { Function: FunctionModel } = database.models; */
     Function: AnyModelStatic;

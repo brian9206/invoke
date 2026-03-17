@@ -14,18 +14,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (req.method === 'DELETE') {
       const { ApiKey } = database.models
 
-      // Check that the API key belongs to the user
-      const apiKeyRecord = await ApiKey.findOne({
-        where: { id: parseInt(id), created_by: req.user!.id },
-        attributes: ['id'],
-      })
-
-      if (!apiKeyRecord) {
-        return res.status(404).json(createResponse(false, null, 'API key not found', 404))
+      const keyId = Number(id)
+      if (!Number.isInteger(keyId) || keyId <= 0) {
+        return res.status(400).json(createResponse(false, null, 'Invalid API key ID', 400))
       }
 
-      // Revoke the API key (set is_active to false)
-      await apiKeyRecord.update({ is_active: false })
+      // Revoke only if the key belongs to the user and is currently active
+      const [updatedCount] = await ApiKey.update(
+        { is_active: false },
+        { where: { id: keyId, created_by: req.user!.id, is_active: true } }
+      )
+
+      if (updatedCount === 0) {
+        return res.status(404).json(createResponse(false, null, 'API key not found or already revoked', 404))
+      }
 
       return res.status(200).json(createResponse(true, null, 'API key revoked successfully'))
     }

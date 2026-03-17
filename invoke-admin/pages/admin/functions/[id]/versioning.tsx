@@ -5,26 +5,13 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import Modal from '@/components/Modal'
 import { useProject } from '@/contexts/ProjectContext'
-import { 
-  Upload, 
-  FileText, 
-  AlertCircle, 
-  CheckCircle, 
-  ArrowLeft, 
-  History,
-  Play,
-  Pause,
-  Calendar,
-  HardDrive,
-  Hash,
-  User,
-  Trash2,
-  Code2,
-  GitBranch,
-  Eye,
-  Download
-} from 'lucide-react'
+import { Upload, FileText, AlertCircle, CheckCircle, ArrowLeft, History, Play, Pause, Calendar, HardDrive, Hash, User, Trash2, Code2, GitBranch, Download, Loader } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/cn'
 
 interface FunctionVersion {
   id: string
@@ -43,7 +30,7 @@ export default function FunctionVersioning() {
   const { lockProject, unlockProject } = useProject()
   const hasLockedProject = useRef(false)
   const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
-  
+
   const [functionData, setFunctionData] = useState<any>(null)
   const [versions, setVersions] = useState<FunctionVersion[]>([])
   const [file, setFile] = useState<File | null>(null)
@@ -51,256 +38,111 @@ export default function FunctionVersioning() {
   const [switchingVersion, setSwitchingVersion] = useState<string | null>(null)
   const [deletingVersion, setDeletingVersion] = useState<string | null>(null)
   const [downloadingVersion, setDownloadingVersion] = useState<string | null>(null)
-  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; data?: any } | null>(null)
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (id) {
-      fetchFunctionData()
-      fetchVersions()
-    }
-  }, [id])
+  useEffect(() => { if (id) { fetchFunctionData(); fetchVersions() } }, [id])
 
-  // Lock project when function data loads
   useEffect(() => {
     if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
       hasLockedProject.current = true
-      lockProject({
-        id: functionData.project_id,
-        name: functionData.project_name,
-        description: '',
-        role: 'locked'
-      })
+      lockProject({ id: functionData.project_id, name: functionData.project_name, description: '', role: 'locked' })
     }
-    
-    return () => {
-      if (hasLockedProject.current) {
-        hasLockedProject.current = false
-        unlockProject()
-      }
-    }
+    return () => { if (hasLockedProject.current) { hasLockedProject.current = false; unlockProject() } }
   }, [functionData?.project_id, functionData?.project_name])
 
   const fetchFunctionData = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}`)
-      const result = await response.json()
-
-      if (result.success) {
-        setFunctionData(result.data)
-      }
-    } catch (error) {
-      console.error('Error fetching function:', error)
-    } finally {
-      setLoading(false)
-    }
+    try { const r = await authenticatedFetch(`/api/functions/${id}`); const d = await r.json(); if (d.success) setFunctionData(d.data) }
+    catch { console.error('Error fetching function') }
+    finally { setLoading(false) }
   }
-
   const fetchVersions = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/functions/${id}/versions`)
-      const result = await response.json()
-
-      if (result.success) {
-        setVersions(result.data)
-      }
-    } catch (error) {
-      console.error('Error fetching versions:', error)
-    }
+    try { const r = await authenticatedFetch(`/api/functions/${id}/versions`); const d = await r.json(); if (d.success) setVersions(d.data) }
+    catch { console.error('Error fetching versions') }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
-    if (selectedFile) {
-      setFile(selectedFile)
-      setUploadResult(null)
-    }
-  }
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) { setFile(f); setUploadResult(null) } }
 
   const handleUploadNewVersion = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!file) {
-      setUploadResult({ success: false, message: 'Please select a file to upload' })
-      return
-    }
-
-    setUploading(true)
-    setUploadResult(null)
-
-    const formData = new FormData()
-    formData.append('file', file)
-
+    if (!file) { setUploadResult({ success: false, message: 'Please select a file to upload' }); return }
+    setUploading(true); setUploadResult(null)
+    const formData = new FormData(); formData.append('file', file)
     try {
-      const response = await authenticatedFetch(`/api/functions/${id}/versions`, {
-        method: 'POST',
-        body: formData,
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        setUploadResult({ success: true, message: 'New version uploaded successfully!' })
-        setFile(null)
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ''
-        }
-        // Refresh versions list
-        fetchVersions()
-      } else {
-        setUploadResult({ success: false, message: result.message || 'Upload failed' })
-      }
-    } catch (error) {
-      setUploadResult({ success: false, message: 'Network error occurred' })
-    } finally {
-      setUploading(false)
-    }
+      const r = await authenticatedFetch(`/api/functions/${id}/versions`, { method: 'POST', body: formData })
+      const result = await r.json()
+      if (result.success) { setUploadResult({ success: true, message: 'New version uploaded successfully!' }); setFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; fetchVersions() }
+      else setUploadResult({ success: false, message: result.message || 'Upload failed' })
+    } catch { setUploadResult({ success: false, message: 'Network error occurred' }) }
+    finally { setUploading(false) }
   }
 
   const handleSwitchVersion = async (versionId: string, version: string) => {
-    setDialogState({
-      type: 'confirm',
-      title: 'Switch Version',
-      message: `Are you sure you want to switch to version ${version}?`,
+    setDialogState({ type: 'confirm', title: 'Switch Version', message: `Are you sure you want to switch to version ${version}?`,
       onConfirm: async () => {
         setSwitchingVersion(versionId)
-        
         try {
-          const response = await authenticatedFetch(`/api/functions/${id}/switch-version`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ versionId })
-          })
-
-          const result = await response.json()
-
-          if (result.success) {
-            setUploadResult({ success: true, message: `Switched to version ${version}` })
-            // Refresh versions list to update active status
-            fetchVersions()
-            fetchFunctionData()
-            setDialogState({ type: null, title: '', message: '' })
-          } else {
-            setUploadResult({ success: false, message: result.message || 'Version switch failed' })
-          }
-        } catch (error) {
-          setUploadResult({ success: false, message: 'Network error occurred' })
-        } finally {
-          setSwitchingVersion(null)
-        }
+          const r = await authenticatedFetch(`/api/functions/${id}/switch-version`, { method: 'POST', body: JSON.stringify({ versionId }) })
+          const result = await r.json()
+          if (result.success) { setUploadResult({ success: true, message: `Switched to version ${version}` }); fetchVersions(); fetchFunctionData(); setDialogState({ type: null, title: '', message: '' }) }
+          else setUploadResult({ success: false, message: result.message || 'Version switch failed' })
+        } catch { setUploadResult({ success: false, message: 'Network error occurred' }) }
+        finally { setSwitchingVersion(null) }
       }
     })
   }
 
   const handleDeleteVersion = async (versionId: string, versionNumber: number) => {
-    setDialogState({
-      type: 'confirm',
-      title: 'Delete Version',
-      message: `Are you sure you want to delete version ${versionNumber}? This action cannot be undone.`,
+    setDialogState({ type: 'confirm', title: 'Delete Version', message: `Are you sure you want to delete version ${versionNumber}? This action cannot be undone.`,
       onConfirm: async () => {
         setDeletingVersion(versionId)
-
         try {
-          const response = await authenticatedFetch(`/api/functions/${id}/versions?version=${versionNumber}`, {
-            method: 'DELETE'
-          })
-
-          const result = await response.json()
-
-          if (result.success) {
-            setUploadResult({ success: true, message: `Version ${versionNumber} deleted successfully` })
-            // Refresh versions list
-            fetchVersions()
-            setDialogState({ type: null, title: '', message: '' })
-          } else {
-            setUploadResult({ success: false, message: result.message || 'Failed to delete version' })
-          }
-        } catch (error) {
-          setUploadResult({ success: false, message: 'Network error occurred' })
-        } finally {
-          setDeletingVersion(null)
-        }
+          const r = await authenticatedFetch(`/api/functions/${id}/versions?version=${versionNumber}`, { method: 'DELETE' })
+          const result = await r.json()
+          if (result.success) { setUploadResult({ success: true, message: `Version ${versionNumber} deleted successfully` }); fetchVersions(); setDialogState({ type: null, title: '', message: '' }) }
+          else setUploadResult({ success: false, message: result.message || 'Failed to delete version' })
+        } catch { setUploadResult({ success: false, message: 'Network error occurred' }) }
+        finally { setDeletingVersion(null) }
       }
     })
   }
 
   const handleDownloadVersion = async (versionId: string, version: string) => {
     setDownloadingVersion(versionId)
-    
     try {
-      const response = await authenticatedFetch(`/api/functions/${id}/versions/${versionId}/download`)
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `${functionData?.name || 'function'}-v${version}.zip`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        window.URL.revokeObjectURL(url)
-      } else {
-        console.error('Failed to download version')
+      const r = await authenticatedFetch(`/api/functions/${id}/versions/${versionId}/download`)
+      if (r.ok) {
+        const blob = await r.blob(); const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a'); a.href = url; a.download = `${functionData?.name || 'function'}-v${version}.zip`
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url)
       }
-    } catch (error) {
-      console.error('Error downloading version:', error)
-    } finally {
-      setDownloadingVersion(null)
-    }
+    } catch { console.error('Error downloading version') }
+    finally { setDownloadingVersion(null) }
   }
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
+  const handleDragOver = (e: React.DragEvent) => e.preventDefault()
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
-    const droppedFile = e.dataTransfer.files[0]
-    if (droppedFile && (droppedFile.name.endsWith('.zip') || droppedFile.name.endsWith('.tar.gz') || droppedFile.name.endsWith('.tgz'))) {
-      setFile(droppedFile)
-      setUploadResult(null)
-    }
+    const f = e.dataTransfer.files[0]
+    if (f && (f.name.endsWith('.zip') || f.name.endsWith('.tar.gz') || f.name.endsWith('.tgz'))) { setFile(f); setUploadResult(null) }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
-
+  const formatDate = (ds: string) => new Date(ds).toLocaleString()
   const formatBytes = (bytes: number) => {
     if (bytes == null || isNaN(bytes)) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    if (bytes == 0) return '0 Bytes'
+    if (bytes === 0) return '0 Bytes'
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
     return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
 
-  if (loading) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-gray-400">Loading function details...</div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    )
-  }
-
-  if (!functionData) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-red-400">Function not found</div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    )
-  }
+  if (loading) return (
+    <ProtectedRoute><Layout><div className="flex items-center justify-center h-64"><Loader className="w-8 h-8 text-primary animate-spin" /></div></Layout></ProtectedRoute>
+  )
+  if (!functionData) return (
+    <ProtectedRoute><Layout><div className="flex items-center justify-center h-64 text-destructive">Function not found</div></Layout></ProtectedRoute>
+  )
 
   const activeVersion = versions.find(v => v.is_active)
 
@@ -308,288 +150,139 @@ export default function FunctionVersioning() {
     <ProtectedRoute>
       <Layout>
         <div className="space-y-6">
-          {/* Dialog Modal */}
           <Modal
             isOpen={dialogState.type !== null}
             title={dialogState.title}
             description={dialogState.message}
             onCancel={() => setDialogState({ type: null, title: '', message: '' })}
-            onConfirm={async () => {
-              if (dialogState.onConfirm) {
-                await dialogState.onConfirm();
-              } else {
-                setDialogState({ type: null, title: '', message: '' });
-              }
-            }}
+            onConfirm={async () => { if (dialogState.onConfirm) await dialogState.onConfirm(); else setDialogState({ type: null, title: '', message: '' }) }}
             cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
             confirmText={dialogState.type === 'alert' ? undefined : 'Continue'}
             confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
           />
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.push(`/admin/functions/${id}`)}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-400" />
-            </button>
+
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/functions/${id}`)}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
             <div className="flex-1">
               <PageHeader
                 title="Function Versioning"
-                subtitle={`Manage versions for ${functionData.name}${activeVersion ? ` - Active: v${activeVersion.version}` : ''}`}
-                icon={<GitBranch className="w-8 h-8 text-primary-500" />}
+                subtitle={`Manage versions for ${functionData.name}${activeVersion ? ` — Active: v${activeVersion.version}` : ''}`}
+                icon={<GitBranch className="w-8 h-8 text-primary" />}
               />
             </div>
           </div>
 
           {/* Upload New Version */}
-          <div className="card max-w-2xl">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-              <Upload className="w-5 h-5 mr-2" />
-              Upload New Version
-            </h2>
-
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                file ? 'border-primary-500 bg-primary-500/10' : 'border-gray-600 hover:border-gray-500'
-              }`}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-            >
-              {file ? (
-                <div className="space-y-3">
-                  <FileText className="w-12 h-12 mx-auto text-primary-500" />
-                  <div>
-                    <p className="text-gray-100 font-medium">{file.name}</p>
-                    <p className="text-gray-400 text-sm">
-                      {formatBytes(file.size)}
-                    </p>
+          <Card className="max-w-2xl">
+            <CardContent className="pt-6 space-y-4">
+              <h2 className="text-base font-semibold flex items-center gap-2 text-foreground"><Upload className="w-5 h-5" />Upload New Version</h2>
+              <div
+                className={cn('border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer', file ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50')}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => !file && fileInputRef.current?.click()}
+              >
+                {file ? (
+                  <div className="space-y-3">
+                    <FileText className="w-12 h-12 mx-auto text-primary" />
+                    <div><p className="font-medium text-foreground">{file.name}</p><p className="text-muted-foreground text-sm">{formatBytes(file.size)}</p></div>
+                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setFile(null) }} className="text-muted-foreground">Remove file</Button>
                   </div>
-                  <button
-                    onClick={() => setFile(null)}
-                    className="text-gray-400 hover:text-gray-300 text-sm"
-                  >
-                    Remove file
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <Upload className="w-12 h-12 mx-auto text-gray-500" />
-                  <div>
-                    <p className="text-gray-100">
-                      Drag and drop your function package here
-                    </p>
-                    <p className="text-gray-400 text-sm">
-                      or click to browse files (.zip, .tar.gz, .tgz)
-                    </p>
+                ) : (
+                  <div className="space-y-3">
+                    <Upload className="w-12 h-12 mx-auto text-muted-foreground" />
+                    <div><p className="text-foreground">Drag and drop your function package here</p><p className="text-muted-foreground text-sm">or click to browse (.zip, .tar.gz, .tgz)</p></div>
+                    <input ref={fileInputRef} type="file" accept=".zip,.tar.gz,.tgz" onChange={handleFileSelect} className="hidden" />
+                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click() }}>Choose File</Button>
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip,.tar.gz,.tgz"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="btn-secondary"
-                  >
-                    Choose File
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handleUploadNewVersion} className="mt-4">
-              <div className="flex space-x-3">
-                <button
-                  type="submit"
-                  disabled={!file || uploading}
-                  className="btn-primary flex items-center disabled:opacity-50"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  {uploading ? 'Uploading...' : 'Upload New Version'}
-                </button>
+                )}
               </div>
-              <p className="mt-2 text-sm text-gray-500">
-                New version will be uploaded but not activated automatically
-              </p>
-            </form>
-          </div>
+              <form onSubmit={handleUploadNewVersion} className="space-y-3">
+                <Button type="submit" disabled={!file || uploading}>
+                  {uploading ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Uploading…</> : <><Upload className="w-4 h-4 mr-2" />Upload New Version</>}
+                </Button>
+                <p className="text-sm text-muted-foreground">New version will be uploaded but not activated automatically</p>
+              </form>
+            </CardContent>
+          </Card>
 
           {/* Upload Result */}
           {uploadResult && (
-            <div className={`card max-w-2xl p-4 ${
-              uploadResult.success 
-                ? 'bg-green-900/50 border border-green-700' 
-                : 'bg-red-900/50 border border-red-700'
-            }`}>
-              <div className="flex items-center">
-                {uploadResult.success ? (
-                  <CheckCircle className="w-5 h-5 text-green-400 mr-2" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
-                )}
-                <span className={uploadResult.success ? 'text-green-300' : 'text-red-300'}>
-                  {uploadResult.message}
-                </span>
-              </div>
-            </div>
+            <Card className={cn('max-w-2xl', uploadResult.success ? 'border-green-700' : 'border-red-700')}>
+              <CardContent className="pt-4 pb-4 flex items-center gap-2">
+                {uploadResult.success ? <CheckCircle className="w-5 h-5 text-green-400" /> : <AlertCircle className="w-5 h-5 text-red-400" />}
+                <span className={uploadResult.success ? 'text-green-300' : 'text-red-300'}>{uploadResult.message}</span>
+              </CardContent>
+            </Card>
           )}
 
           {/* Versions Table */}
-          <div className="card">
-            <h2 className="text-xl font-semibold text-gray-100 mb-4 flex items-center">
-              <History className="w-5 h-5 mr-2" />
-              Versions
-              <span className="ml-2 text-sm bg-gray-700 px-2 py-1 rounded">
-                {versions.length} versions
-              </span>
-            </h2>
-
-            {versions.length === 0 ? (
-              <div className="text-center py-8">
-                <History className="w-12 h-12 mx-auto text-gray-600 mb-4" />
-                <p className="text-gray-400">No versions found</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 px-4 text-gray-300">Version</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Status</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Size</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Hash</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Created</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Created By</th>
-                      <th className="text-left py-3 px-4 text-gray-300">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {versions
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((version) => (
-                      <tr key={version.id} className="border-b border-gray-800 hover:bg-gray-800/50">
-                        <td className="py-3 px-4">
-                          <span className="font-medium text-gray-100">v{version.version}</span>
-                        </td>
-                        <td className="py-3 px-4">
-                          {version.is_active ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-900/50 text-green-400 border border-green-700">
-                              <Play className="w-3 h-3 mr-1" />
-                              Active
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-700 text-gray-400">
-                              <Pause className="w-3 h-3 mr-1" />
-                              Inactive
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-gray-400">
-                          <div className="flex items-center">
-                            <HardDrive className="w-4 h-4 mr-1" />
-                            {formatBytes(version.file_size)}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-400">
-                          <div className="flex items-center font-mono text-xs">
-                            <Hash className="w-4 h-4 mr-1" />
-                            {version.package_hash.substring(0, 8)}...
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-400">
-                          <div className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            {formatDate(version.created_at)}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-gray-400">
-                          <div className="flex items-center">
-                            <User className="w-4 h-4 mr-1" />
-                            {version.created_by_name || 'Unknown'}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2">
-                            {!version.is_active ? (
-                              <>
-                                <button
-                                  onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}
-                                  className="text-blue-400 hover:text-blue-300 p-1 rounded"
-                                  title="View/Edit code"
-                                >
-                                  <Code2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDownloadVersion(version.id, version.version)}
-                                  disabled={downloadingVersion === version.id}
-                                  className="text-primary-400 hover:text-primary-300 p-1 rounded disabled:opacity-50"
-                                  title="Download package"
-                                >
-                                  {downloadingVersion === version.id ? (
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Download className="w-4 h-4" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleSwitchVersion(version.id, version.version)}
-                                  disabled={switchingVersion === version.id}
-                                  className="text-primary-400 hover:text-primary-300 text-sm font-medium disabled:opacity-50"
-                                  title="Switch to this version"
-                                >
-                                  {switchingVersion === version.id ? (
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Play className="w-4 h-4" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteVersion(version.id, parseInt(version.version))}
-                                  disabled={deletingVersion === version.id}
-                                  className="text-red-400 hover:text-red-300 p-1 rounded disabled:opacity-50"
-                                  title="Delete version"
-                                >
-                                  {deletingVersion === version.id ? (
-                                    <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Trash2 className="w-4 h-4" />
-                                  )}
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}
-                                  className="text-blue-400 hover:text-blue-300 p-1 rounded"
-                                  title="View/Edit code"
-                                >
-                                  <Code2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDownloadVersion(version.id, version.version)}
-                                  disabled={downloadingVersion === version.id}
-                                  className="text-primary-400 hover:text-primary-300 p-1 rounded disabled:opacity-50"
-                                  title="Download package"
-                                >
-                                  {downloadingVersion === version.id ? (
-                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                                  ) : (
-                                    <Download className="w-4 h-4" />
-                                  )}
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <h2 className="text-base font-semibold flex items-center gap-2 text-foreground">
+                <History className="w-5 h-5" />Versions
+                <Badge variant="secondary">{versions.length} versions</Badge>
+              </h2>
+              {versions.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  <History className="w-12 h-12 mx-auto mb-3 opacity-30" /><p>No versions found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Version</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Size</TableHead>
+                        <TableHead>Hash</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Created By</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[...versions].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((version) => (
+                        <TableRow key={version.id}>
+                          <TableCell className="font-medium text-foreground">v{version.version}</TableCell>
+                          <TableCell>
+                            {version.is_active
+                              ? <Badge variant="success" className="flex items-center gap-1 w-fit"><Play className="w-3 h-3" />Active</Badge>
+                              : <Badge variant="secondary" className="flex items-center gap-1 w-fit"><Pause className="w-3 h-3" />Inactive</Badge>
+                            }
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground"><span className="flex items-center gap-1"><HardDrive className="w-3.5 h-3.5" />{formatBytes(version.file_size)}</span></TableCell>
+                          <TableCell className="text-sm text-muted-foreground font-mono"><span className="flex items-center gap-1"><Hash className="w-3.5 h-3.5" />{version.package_hash.substring(0, 8)}…</span></TableCell>
+                          <TableCell className="text-sm text-muted-foreground"><span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{formatDate(version.created_at)}</span></TableCell>
+                          <TableCell className="text-sm text-muted-foreground"><span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{version.created_by_name || 'Unknown'}</span></TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)} className="text-blue-400 hover:text-blue-300 h-8 w-8" title="View/Edit code"><Code2 className="w-4 h-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDownloadVersion(version.id, version.version)} disabled={downloadingVersion === version.id} className="text-primary hover:text-primary/80 h-8 w-8" title="Download">
+                                {downloadingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                              </Button>
+                              {!version.is_active && (
+                                <>
+                                  <Button variant="ghost" size="icon" onClick={() => handleSwitchVersion(version.id, version.version)} disabled={switchingVersion === version.id} className="text-green-400 hover:text-green-300 h-8 w-8" title="Activate">
+                                    {switchingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => handleDeleteVersion(version.id, parseInt(version.version))} disabled={deletingVersion === version.id} className="text-destructive hover:text-destructive/80 h-8 w-8" title="Delete">
+                                    {deletingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </Layout>
     </ProtectedRoute>
