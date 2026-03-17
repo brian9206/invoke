@@ -321,9 +321,38 @@ function GroupTreeNode({
         </div>
       )}
 
-      {/* Group body: children + functions */}
+      {/* Group body: functions first, then subgroups */}
       {isOpen && (
         <div className="mt-1 space-y-1">
+          {!isProjectFake && (
+            <SortableContext
+              items={functionsInGroup.map((f) => f.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div
+                className="space-y-2 min-h-[2rem] rounded-lg transition-colors"
+                style={{ marginLeft: indent + 24 }}
+              >
+                {functionsInGroup.length > 0 ? (
+                  functionsInGroup.map((func) => (
+                    <FunctionCard
+                      key={func.id}
+                      func={func}
+                      functionUrl={functionUrls[func.id] || ''}
+                      onToggle={onToggleFunction}
+                      onDelete={onDeleteFunction}
+                      draggable={canWrite}
+                    />
+                  ))
+                ) : node.children.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-2 text-center">
+                    {canWrite ? 'Empty group. Drag functions here' : 'Empty group'}
+                  </p>
+                ) : null}
+              </div>
+            </SortableContext>
+          )}
+
           {node.children.length > 0 && (
             <SortableContext
               items={node.children.map((c) => `group:${c.group.id}`)}
@@ -347,35 +376,6 @@ function GroupTreeNode({
                   onDeleteFunction={onDeleteFunction}
                 />
               ))}
-            </SortableContext>
-          )}
-
-          {!isProjectFake && (
-            <SortableContext
-              items={functionsInGroup.map((f) => f.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div
-                className="space-y-2 min-h-[2rem] rounded-lg transition-colors"
-                style={{ marginLeft: indent + 24 }}
-              >
-                {functionsInGroup.length > 0 ? (
-                  functionsInGroup.map((func) => (
-                    <FunctionCard
-                      key={func.id}
-                      func={func}
-                      functionUrl={functionUrls[func.id] || ''}
-                      onToggle={onToggleFunction}
-                      onDelete={onDeleteFunction}
-                      draggable={canWrite}
-                    />
-                  ))
-                ) : node.children.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2 text-center">
-                    {canWrite ? 'Drag functions here' : 'Empty group'}
-                  </p>
-                ) : null}
-              </div>
             </SortableContext>
           )}
 

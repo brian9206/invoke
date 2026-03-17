@@ -44,19 +44,17 @@ export function FunctionCard({ func, functionUrl, onToggle, onDelete, draggable 
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleString()
-
   return (
     <div ref={setNodeRef} style={style}>
       <Card className="hover:bg-card/80 transition-colors">
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-4">
+        <CardContent className="px-3 py-2">
+          <div className="flex items-center gap-2">
             {/* Drag handle */}
             {draggable && (
               <button
                 {...attributes}
                 {...listeners}
-                className="mt-1 shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground focus:outline-none"
+                className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground focus:outline-none"
                 tabIndex={0}
                 aria-label="Drag to reorder"
               >
@@ -66,41 +64,36 @@ export function FunctionCard({ func, functionUrl, onToggle, onDelete, draggable 
 
             <Link
               href={`/admin/functions/${func.id}`}
-              className="flex items-start space-x-4 flex-1 min-w-0"
+              className="flex items-center gap-3 flex-1 min-w-0"
             >
               <div
-                className={`p-3 rounded-lg shrink-0 ${
+                className={`p-1.5 rounded shrink-0 ${
                   func.is_active
                     ? 'bg-green-900/30 text-green-400'
                     : 'bg-muted text-muted-foreground'
                 }`}
               >
-                <Package className="w-5 h-5" />
+                <Package className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center flex-wrap gap-2">
-                  <h3 className="text-base font-semibold text-foreground">{func.name}</h3>
-                  <Badge variant="secondary">v{func.active_version || '1'}</Badge>
+                <div className="flex items-center flex-wrap gap-1.5">
+                  <span className="text-sm font-semibold text-foreground truncate">{func.name}</span>
+                  <Badge variant="secondary" className="text-xs px-1.5 py-0">v{func.active_version || '1'}</Badge>
                   {func.requires_api_key && (
-                    <Badge variant="warning">API Key Required</Badge>
+                    <Badge variant="warning" className="text-xs px-1.5 py-0">API Key</Badge>
                   )}
-                  <Badge variant={func.is_active ? 'success' : 'secondary'}>
+                  <Badge variant={func.is_active ? 'success' : 'secondary'} className="text-xs px-1.5 py-0">
                     {func.is_active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground text-sm mt-1 truncate">
-                  {func.description || 'No description provided'}
-                </p>
-                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                  <span>Executions: {func.execution_count}</span>
-                  <span>Created: {formatDate(func.created_at)}</span>
-                  {func.last_executed && <span>Last: {formatDate(func.last_executed)}</span>}
-                </div>
+                {func.description && (
+                  <p className="text-muted-foreground text-xs mt-0.5 truncate">{func.description}</p>
+                )}
               </div>
             </Link>
 
             <div
-              className="flex items-center gap-1 shrink-0"
+              className="flex items-center gap-0.5 shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               <Tooltip>
@@ -108,14 +101,14 @@ export function FunctionCard({ func, functionUrl, onToggle, onDelete, draggable 
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => onToggle(func.id, func.is_active)}
-                    className={
+                    className={`h-7 w-7 ${
                       func.is_active
                         ? 'text-yellow-400 hover:bg-yellow-900/20'
                         : 'text-green-400 hover:bg-green-900/20'
-                    }
+                    }`}
+                    onClick={() => onToggle(func.id, func.is_active)}
                   >
-                    {func.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                    {func.is_active ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>{func.is_active ? 'Deactivate' : 'Activate'}</TooltipContent>
@@ -127,10 +120,10 @@ export function FunctionCard({ func, functionUrl, onToggle, onDelete, draggable 
                     variant="ghost"
                     size="icon"
                     asChild
-                    className="text-blue-400 hover:bg-blue-900/20"
+                    className="h-7 w-7 text-blue-400 hover:bg-blue-900/20"
                   >
                     <a href={functionUrl || '#'} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="w-4 h-4" />
+                      <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </Button>
                 </TooltipTrigger>
@@ -142,10 +135,10 @@ export function FunctionCard({ func, functionUrl, onToggle, onDelete, draggable 
                   <Button
                     variant="ghost"
                     size="icon"
+                    className="h-7 w-7 text-red-400 hover:bg-red-900/20"
                     onClick={() => onDelete(func.id)}
-                    className="text-red-400 hover:bg-red-900/20"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Delete Function</TooltipContent>
