@@ -65,9 +65,16 @@ export default function Functions() {
 
       if (groupData.success) {
         if (isSystem) {
-          // Build fake project-level root groups + prefix real group names
+          // Build fake project-level root groups + prefix real group names.
+          // Seed the project map from functions too, so projects with only
+          // ungrouped functions still get a fake root node.
           const rawGroups: (FunctionGroup & { project_name: string })[] = groupData.data
           const projectMap = new Map<string, string>()
+          if (funcData.success) {
+            funcData.data.forEach((f: FunctionItem) => {
+              if (f.project_id && f.project_name) projectMap.set(f.project_id, f.project_name)
+            })
+          }
           rawGroups.forEach((g) => {
             if (g.project_id && g.project_name) projectMap.set(g.project_id, g.project_name)
           })
