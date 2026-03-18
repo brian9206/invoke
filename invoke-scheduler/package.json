@@ -9,6 +9,7 @@
     "dev": "nodemon --exec node -r @swc-node/register src/server.ts"
   },
   "dependencies": {
+    "dotenv": "^16.6.1",
     "express": "^5.2.1"
   },
   "devDependencies": {
