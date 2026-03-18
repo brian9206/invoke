@@ -1684,10 +1684,10 @@ export default function FunctionCodeEditor() {
               onClick={() => {
                 if (hasChanges) {
                   if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
-                    router.push(`/admin/functions/${functionId}/versioning`)
+                    router.push(`/admin/functions/${functionId}`)
                   }
                 } else {
-                  router.push(`/admin/functions/${functionId}/versioning`)
+                  router.push(`/admin/functions/${functionId}`)
                 }
               }}
               className="p-1 hover:bg-[#2a2d2e] rounded transition-colors"
