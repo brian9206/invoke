@@ -5,6 +5,19 @@
 This is an npm workspaces monorepo. All services resolve `invoke-shared` from the `shared/` package.
 Please ignore any code inside `.next/`, `dist/`, `.cache/` directories when scanning across the project — that is just build output or cached stuff.
 
+## UI Component Rules
+
+### Modal/Dialog Usage
+
+Use the shared `invoke-admin/components/Modal.tsx` component for all modal and dialog UI in `invoke-admin` pages and feature components.
+
+Rules:
+
+1. Do **not** import or use `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, or `DialogDescription` directly in page-level or feature-level code.
+2. If a modal needs a different width, rich title content, or custom body actions, extend `Modal.tsx` instead of bypassing it.
+3. Only low-level shared dialog infrastructure should use `invoke-admin/components/ui/dialog.tsx` directly.
+4. If you find an older direct `Dialog` usage while editing a file, migrate it to `Modal` unless the user explicitly asks not to.
+
 ---
 
 ## Database System

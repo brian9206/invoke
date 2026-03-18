@@ -12,7 +12,7 @@ import { cn } from '@/lib/cn';
 
 export interface ModalProps {
   isOpen: boolean;
-  title: string;
+  title: string | ReactNode;
   description?: string | ReactNode;
   children?: ReactNode;
   onCancel?: () => void;
@@ -23,6 +23,8 @@ export interface ModalProps {
   loading?: boolean;
   confirmDisabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  hideFooter?: boolean;
+  className?: string;
 }
 
 export default function Modal({
@@ -38,6 +40,8 @@ export default function Modal({
   loading = false,
   confirmDisabled = false,
   size = 'md',
+  hideFooter = false,
+  className,
 }: ModalProps) {
   const sizeClass =
     size === 'lg' ? 'sm:max-w-2xl' : size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md';
@@ -55,7 +59,7 @@ export default function Modal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel?.()}>
-      <DialogContent className={cn(sizeClass)}>
+      <DialogContent className={cn(sizeClass, className)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && (
@@ -69,7 +73,7 @@ export default function Modal({
           )}
         </DialogHeader>
         {children}
-        {(onCancel || onConfirm) && (
+        {!hideFooter && (onCancel || onConfirm) && (
           <DialogFooter className="gap-2">
             {onCancel && (
               <Button

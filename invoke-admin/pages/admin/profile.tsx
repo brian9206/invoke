@@ -17,13 +17,6 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 
 interface ApiKey {
   id: number
@@ -504,17 +497,17 @@ export default function ProfileSettings() {
         </Modal>
 
         {/* ── CLI Setup Dialog (after key created) ─────────── */}
-        <Dialog open={showCliDialog} onOpenChange={(open) => { if (!open) { setShowCliDialog(false); setCreatedKey('') } }}>
-          <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Terminal className="w-5 h-5" />
-                API Key Created — Configure CLI
-              </DialogTitle>
-              <DialogDescription>
-                Your new API key has been generated. Save it now — it won't be shown again.
-              </DialogDescription>
-            </DialogHeader>
+        <Modal
+          isOpen={showCliDialog}
+          title={<span className="flex items-center gap-2"><Terminal className="w-5 h-5" />API Key Created — Configure CLI</span>}
+          description="Your new API key has been generated. Save it now — it won't be shown again."
+          onCancel={() => {
+            setShowCliDialog(false)
+            setCreatedKey('')
+          }}
+          hideFooter
+          className="max-w-xl"
+        >
 
             <div className="space-y-4">
               {/* Warning */}
@@ -569,8 +562,7 @@ export default function ProfileSettings() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
       </Layout>
     </ProtectedRoute>
   )

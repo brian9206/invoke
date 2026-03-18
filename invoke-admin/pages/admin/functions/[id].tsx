@@ -22,7 +22,6 @@ import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/cn'
@@ -616,11 +615,11 @@ export default function FunctionDetails() {
           confirmText={dialogState.type === 'alert' ? undefined : 'Continue'}
           confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
         />
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
 
           {/* ── Header ─────────────────────────────────────────────────────── */}
           <div className="space-y-3">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <PageHeader
                 title={functionData.name}
                 subtitle={functionData.description || 'No description provided'}
@@ -648,8 +647,8 @@ export default function FunctionDetails() {
           </div>
 
           {/* ── Tabs ───────────────────────────────────────────────────────── */}
-          <Tabs defaultValue="general" className="space-y-6">
-            <TabsList className="gap-8">
+          <Tabs defaultValue="general" className="min-w-0 space-y-6">
+            <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="deployment">Deployment</TabsTrigger>
               <TabsTrigger value="environment">Environment</TabsTrigger>
@@ -701,8 +700,8 @@ export default function FunctionDetails() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  <div className="flex">
-                    <Input type="text" value={functionUrl} readOnly className="rounded-r-none font-mono text-xs" />
+                  <div className="flex min-w-0">
+                    <Input type="text" value={functionUrl} readOnly className="min-w-0 flex-1 rounded-r-none font-mono text-xs" />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="default" size="icon" onClick={() => copyToClipboard(functionUrl)} className="rounded-l-none shrink-0">
@@ -713,8 +712,8 @@ export default function FunctionDetails() {
                     </Tooltip>
                   </div>
                   {gatewayUrls.map(url => (
-                    <div key={url} className="flex">
-                      <Input type="text" value={url} readOnly className="rounded-r-none font-mono text-xs" />
+                    <div key={url} className="flex min-w-0">
+                      <Input type="text" value={url} readOnly className="min-w-0 flex-1 rounded-r-none font-mono text-xs" />
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button variant="default" size="icon" onClick={() => copyToClipboard(url)} className="rounded-l-none shrink-0">
@@ -762,7 +761,7 @@ export default function FunctionDetails() {
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Function ID</dt>
-                      <dd className="font-mono text-xs">{functionData.id}</dd>
+                      <dd className="break-all font-mono text-xs">{functionData.id}</dd>
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Project</dt>
@@ -909,11 +908,11 @@ export default function FunctionDetails() {
                       ) : (
                         <div className="space-y-3">
                           {tempEnvVars.map((envVar, index) => (
-                            <div key={index} className="flex gap-2 items-center p-3 bg-muted rounded-lg border border-border">
-                              <Input placeholder="VARIABLE_NAME" value={envVar.variable_name} onChange={(e) => updateEnvironmentVariable(index, 'variable_name', e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))} className="font-mono text-sm w-40" />
+                            <div key={index} className="flex flex-col gap-2 rounded-lg border border-border bg-muted p-3 sm:flex-row sm:items-center">
+                              <Input placeholder="VARIABLE_NAME" value={envVar.variable_name} onChange={(e) => updateEnvironmentVariable(index, 'variable_name', e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))} className="font-mono text-sm sm:w-40" />
                               <span className="text-muted-foreground">=</span>
-                              <Input placeholder="Value" value={envVar.variable_value} onChange={(e) => updateEnvironmentVariable(index, 'variable_value', e.target.value)} className="flex-1 text-sm" />
-                              <Input placeholder="Description (optional)" value={envVar.description || ''} onChange={(e) => updateEnvironmentVariable(index, 'description', e.target.value)} className="flex-1 text-sm" />
+                              <Input placeholder="Value" value={envVar.variable_value} onChange={(e) => updateEnvironmentVariable(index, 'variable_value', e.target.value)} className="min-w-0 flex-1 text-sm" />
+                              <Input placeholder="Description (optional)" value={envVar.description || ''} onChange={(e) => updateEnvironmentVariable(index, 'description', e.target.value)} className="min-w-0 flex-1 text-sm" />
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button variant="ghost" size="icon" onClick={() => removeEnvironmentVariable(index)} className="text-destructive hover:text-destructive shrink-0">
@@ -1174,8 +1173,8 @@ export default function FunctionDetails() {
                     {functionData.requires_api_key && (
                       <div className="mt-4 space-y-2 pl-0">
                         <Label className="text-xs text-muted-foreground"><Key className="w-3.5 h-3.5 inline mr-1" />API Key</Label>
-                        <div className="flex">
-                          <Input type="text" value={functionData.api_key || 'No API key set'} readOnly className="rounded-r-none font-mono text-xs" />
+                        <div className="flex min-w-0">
+                          <Input type="text" value={functionData.api_key || 'No API key set'} readOnly className="min-w-0 flex-1 rounded-r-none font-mono text-xs" />
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button variant="outline" size="icon" onClick={() => copyToClipboard(functionData.api_key || '')} className="rounded-none border-l-0">
@@ -1204,11 +1203,17 @@ export default function FunctionDetails() {
         </div>
 
         {/* ── Deploy New Version Dialog ─────────────────────────────────── */}
-        <Dialog open={deployModalOpen} onOpenChange={(open) => { setDeployModalOpen(open); if (!open) { setUploadResult(null); setDeployFile(null) } }}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Deploy New Version</DialogTitle>
-            </DialogHeader>
+        <Modal
+          isOpen={deployModalOpen}
+          title="Deploy New Version"
+          onCancel={() => {
+            setDeployModalOpen(false)
+            setUploadResult(null)
+            setDeployFile(null)
+          }}
+          hideFooter
+          className="max-w-2xl"
+        >
             <Tabs defaultValue="upload" className="mt-2">
               <TabsList className="w-full">
                 <TabsTrigger value="upload" className="flex-1"><Upload className="w-4 h-4 mr-1" />Upload ZIP Package</TabsTrigger>
@@ -1272,15 +1277,16 @@ export default function FunctionDetails() {
                 </div>
               </TabsContent>
             </Tabs>
-          </DialogContent>
-        </Dialog>
+        </Modal>
 
         {/* ── Edit Function Modal ───────────────────────────────────────── */}
-        <Dialog open={editHeaderModalOpen} onOpenChange={setEditHeaderModalOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Edit Function</DialogTitle>
-            </DialogHeader>
+        <Modal
+          isOpen={editHeaderModalOpen}
+          title="Edit Function"
+          onCancel={() => setEditHeaderModalOpen(false)}
+          hideFooter
+          className="max-w-lg"
+        >
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label htmlFor="function-name">Name</Label>
@@ -1310,15 +1316,16 @@ export default function FunctionDetails() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
 
         {/* ── Retention Configure Modal ─────────────────────────────────── */}
-        <Dialog open={retentionModalOpen} onOpenChange={setRetentionModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Clock className="w-5 h-5" />Execution Log Retention</DialogTitle>
-            </DialogHeader>
+        <Modal
+          isOpen={retentionModalOpen}
+          title={<span className="flex items-center gap-2"><Clock className="w-5 h-5" />Execution Log Retention</span>}
+          onCancel={() => setRetentionModalOpen(false)}
+          hideFooter
+          className="max-w-md"
+        >
             <div className="space-y-4 py-2">
               <div className="flex items-center gap-3">
                 <Switch
@@ -1366,8 +1373,7 @@ export default function FunctionDetails() {
                 <Button variant="outline" onClick={() => setRetentionModalOpen(false)}><X className="w-4 h-4 mr-1" />Cancel</Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
       </Layout>
       </TooltipProvider>
     </ProtectedRoute>
