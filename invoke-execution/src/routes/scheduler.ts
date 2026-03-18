@@ -124,36 +124,37 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
 
     console.log(`Found ${functionsToExecute.length} functions to execute`);
 
-    const executionResults: any[] = [];
+    const executionResults: any[] = await Promise.all(
+      functionsToExecute.map(async (func) => {
+        try {
+          const executionResult = await executeScheduledFunction(func);
 
-    for (const func of functionsToExecute) {
-      try {
-        const executionResult = await executeScheduledFunction(func);
-        executionResults.push({
-          function_id: func.id,
-          function_name: func.name,
-          success: true,
-          execution_time_ms: executionResult.execution_time_ms,
-        });
+          const nextExecution = calculateNextExecution(func.schedule_cron);
+          if (nextExecution) {
+            await FunctionModel.update({ next_execution: nextExecution }, { where: { id: func.id } });
+            console.log(`Updated next execution for ${func.name}: ${nextExecution.toISOString()}`);
+          } else {
+            console.error(`Failed to calculate next execution for function ${func.id}`);
+            await FunctionModel.update({ schedule_enabled: false }, { where: { id: func.id } });
+          }
 
-        const nextExecution = calculateNextExecution(func.schedule_cron);
-        if (nextExecution) {
-          await FunctionModel.update({ next_execution: nextExecution }, { where: { id: func.id } });
-          console.log(`Updated next execution for ${func.name}: ${nextExecution.toISOString()}`);
-        } else {
-          console.error(`Failed to calculate next execution for function ${func.id}`);
-          await FunctionModel.update({ schedule_enabled: false }, { where: { id: func.id } });
+          return {
+            function_id: func.id,
+            function_name: func.name,
+            success: true,
+            execution_time_ms: executionResult.execution_time_ms,
+          };
+        } catch (error: any) {
+          console.error(`Failed to execute scheduled function ${func.name}:`, error);
+          return {
+            function_id: func.id,
+            function_name: func.name,
+            success: false,
+            error: error.message,
+          };
         }
-      } catch (error: any) {
-        console.error(`Failed to execute scheduled function ${func.name}:`, error);
-        executionResults.push({
-          function_id: func.id,
-          function_name: func.name,
-          success: false,
-          error: error.message,
-        });
-      }
-    }
+      }),
+    );
 
     res.json({
       success: true,

@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 import express, { Request, Response } from 'express';
 
 const app = express();
@@ -13,7 +15,10 @@ const LOG_CLEANUP_INTERVAL = parseInt(process.env.LOG_CLEANUP_INTERVAL ?? '36000
 let isRunning = false;
 
 interface SchedulerTriggerResult {
-  executedFunctions?: number;
+  success: boolean;
+  message?: string;
+  executed?: number;
+  failed?: number;
 }
 
 /**
@@ -44,11 +49,11 @@ async function triggerScheduledFunctions(): Promise<void> {
 
     if (response.ok) {
       const result = (await response.json()) as SchedulerTriggerResult;
-      const executionCount = result.executedFunctions || 0;
+      const executionCount = result.executed || 0;
 
       if (executionCount > 0) {
         console.log(
-          `[${new Date().toISOString()}] Successfully triggered ${executionCount} scheduled functions`,
+          `[${new Date().toISOString()}] Scheduled functions: ${executionCount} executed, ${result.failed ?? 0} failed`,
         );
       } else {
         console.log(
@@ -134,13 +139,18 @@ function startScheduler(): void {
   console.log(`Admin service URL: ${ADMIN_SERVICE_URL}`);
   console.log(`Log cleanup interval: ${LOG_CLEANUP_INTERVAL}ms`);
 
-  // Run immediately on start
-  void triggerScheduledFunctions();
-  void triggerCleanupLogs();
+  // calculate next :00 second to align with minute intervals
+  const now = new Date();
+  const delayUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
 
-  // Set up intervals
-  setInterval(() => void triggerScheduledFunctions(), SCHEDULER_INTERVAL);
-  setInterval(() => void triggerCleanupLogs(), LOG_CLEANUP_INTERVAL);
+  setTimeout(() => {
+    void triggerScheduledFunctions();
+    void triggerCleanupLogs();
+
+    // Set up intervals after the initial delay
+    setInterval(() => void triggerScheduledFunctions(), SCHEDULER_INTERVAL);
+    setInterval(() => void triggerCleanupLogs(), LOG_CLEANUP_INTERVAL);
+  }, delayUntilNextMinute);
 }
 
 // Health check endpoint
