@@ -417,6 +417,7 @@ function RouteEditorModal({
   onSave: (data: any) => Promise<void>
   onClose: () => void
 }) {
+  const NO_FUNCTION_VALUE = '__none__'
   const [routePath, setRoutePath] = useState('')
   const [functionId, setFunctionId] = useState<string>('')
   const [allowedMethods, setAllowedMethods] = useState<string[]>(['GET', 'POST'])
@@ -432,7 +433,9 @@ function RouteEditorModal({
   useEffect(() => {
     if (isOpen && route) {
       setRoutePath(route.routePath || '')
-      setFunctionId(route.functionId || '')
+      const routeFunctionId = route.functionId || ''
+      const functionExists = !!routeFunctionId && functions.some((f) => f.id === routeFunctionId)
+      setFunctionId(functionExists ? routeFunctionId : '')
       setAllowedMethods(route.allowedMethods || ['GET', 'POST'])
       setIsActive(route.isActive !== undefined ? route.isActive : true)
       setCors(route.corsSettings ? { ...route.corsSettings } : defaultCors())
@@ -440,7 +443,7 @@ function RouteEditorModal({
       setAuthLogic(route.authLogic || 'or')
       setCorsOpen(route.corsSettings?.enabled || false)
     }
-  }, [isOpen, route])
+  }, [functions, isOpen, route])
 
   const toggleMethod = (method: string) => {
     setAllowedMethods((prev) =>
@@ -521,12 +524,15 @@ function RouteEditorModal({
         {/* Upstream Function */}
         <div className="space-y-1.5">
           <Label>Upstream Function</Label>
-          <Select value={functionId} onValueChange={setFunctionId}>
+          <Select
+            value={functionId || NO_FUNCTION_VALUE}
+            onValueChange={(value) => setFunctionId(value === NO_FUNCTION_VALUE ? '' : value)}
+          >
             <SelectTrigger>
               <SelectValue placeholder="— Select function —" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">— Select function —</SelectItem>
+              <SelectItem value={NO_FUNCTION_VALUE}>— Select function —</SelectItem>
               {functions.map((f) => (
                 <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
               ))}
