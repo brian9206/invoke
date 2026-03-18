@@ -52,10 +52,12 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
 
     const responseData = (context.res && context.res.data) || result.data || result.error || {};
 
-    let responseSize = 0;
+    let responseSize: number | null = null;
     if (Buffer.isBuffer(responseData)) {
       responseSize = Buffer.byteLength(responseData);
-    } else if (responseData) {
+    } else if (typeof responseData === 'string') {
+      responseSize = Buffer.byteLength(responseData, 'utf8');
+    } else if (responseData !== undefined && responseData !== null) {
       responseSize = JSON.stringify(responseData).length;
     }
 
@@ -63,7 +65,7 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       requestMethod: 'SCHEDULED',
       requestUrl: '/scheduled',
       requestBody: '',
-      requestSize: 0,
+      requestSize: null,
       responseBody: responseData,
       responseSize,
       requestHeaders: { 'x-scheduled-execution': 'true' },
@@ -93,7 +95,7 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
         execution_time_ms: executionTime,
         request_method: 'SCHEDULED',
         request_url: '/scheduled',
-        request_size: 0,
+        request_size: null,
         executed_at: new Date(),
         response_body: JSON.stringify({ error: error.message }),
         console_logs: [],

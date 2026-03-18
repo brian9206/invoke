@@ -70,12 +70,14 @@ export default function ExecutionLogDetails() {
   }
 
   const formatDate = (ds: string) => new Intl.DateTimeFormat('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' }).format(new Date(ds))
-  const formatBytes = (bytes: number) => {
-    if (bytes == null || isNaN(bytes)) return 'N/A'
+  const formatBytes = (bytes: number | string | null | undefined) => {
+    const value = typeof bytes === 'string' ? Number(bytes) : bytes
+    if (value == null || !Number.isFinite(value) || value < 0) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    if (bytes === 0) return '0 Bytes'
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+    if (value === 0) return '0 Bytes'
+    const index = Math.floor(Math.log(value) / Math.log(1024))
+    const i = Math.min(index, sizes.length - 1)
+    return Math.round(value / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
   const formatLogLevel = (level: string) => ({ log: 'text-muted-foreground', info: 'text-blue-400', warn: 'text-yellow-400', error: 'text-red-400' }[level as string] || 'text-muted-foreground')
   const formatJSON = (jsonString: string) => { try { return JSON.stringify(JSON.parse(jsonString), null, 2) } catch { return jsonString } }

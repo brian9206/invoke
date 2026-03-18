@@ -571,12 +571,14 @@ export default function FunctionDetails() {
 
   // ── Utilities ─────────────────────────────────────────────────────────────────
   const formatDate = (ds: string) => new Date(ds).toLocaleString()
-  const formatBytes = (bytes: number) => {
-    if (bytes == null || isNaN(bytes)) return 'N/A'
+  const formatBytes = (bytes: number | string | null | undefined) => {
+    const value = typeof bytes === 'string' ? Number(bytes) : bytes
+    if (value == null || !Number.isFinite(value) || value < 0) return 'N/A'
     const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    if (bytes === 0) return '0 Bytes'
-    const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
+    if (value === 0) return '0 Bytes'
+    const index = Math.floor(Math.log(value) / Math.log(1024))
+    const i = Math.min(index, sizes.length - 1)
+    return Math.round(value / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i]
   }
   const getStatusBadgeVariant = (code: number) => code >= 200 && code < 300 ? 'success' : code >= 400 ? 'destructive' : 'warning'
   const getGatewayUrls = (): string[] => {

@@ -29,8 +29,8 @@ export interface ApiResponse<T = unknown> {
 }
 
 export interface LogExecutionOptions {
-  requestSize?: number;
-  responseSize?: number;
+  requestSize?: number | null;
+  responseSize?: number | null;
   clientIp?: string;
   userAgent?: string;
   consoleOutput?: unknown[];
@@ -109,6 +109,11 @@ export async function logExecution(
 ): Promise<void> {
   const database = require('./database').default;
 
+  const toNullableSize = (value: number | null | undefined): number | null => {
+    if (value == null || !Number.isFinite(value) || value < 0) return null;
+    return Math.trunc(value);
+  };
+
   try {
     let responseBodyLog = '';
     if (requestInfo.responseBody) {
@@ -151,8 +156,8 @@ export async function logExecution(
       function_id: functionId,
       status_code: statusCode,
       execution_time_ms: executionTime,
-      request_size: requestInfo.requestSize || 0,
-      response_size: requestInfo.responseSize || 0,
+      request_size: toNullableSize(requestInfo.requestSize),
+      response_size: toNullableSize(requestInfo.responseSize),
       error_message: error,
       client_ip: requestInfo.clientIp || null,
       user_agent: requestInfo.userAgent || null,

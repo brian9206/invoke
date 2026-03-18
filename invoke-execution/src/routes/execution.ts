@@ -130,6 +130,14 @@ function filterHeaders(headers: Record<string, string | string[] | undefined>): 
 router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
 
+  const parseContentLength = (value: string | string[] | undefined): number | null => {
+    if (!value) return null;
+    const raw = Array.isArray(value) ? value[0] : value;
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed) || parsed < 0) return null;
+    return parsed;
+  };
+
   try {
     const functionId = (req.params as any)[0];
     const { query: queryParams, headers } = req;
@@ -151,15 +159,28 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
     const executionTime = Date.now() - startTime;
     const statusCode = result.statusCode || 200;
 
-    let responseSize = 0;
+    let responseSize: number | null = null;
     if (Buffer.isBuffer(result.data)) {
       responseSize = Buffer.byteLength(result.data as Buffer);
-    } else if (result.data) {
+    } else if (typeof result.data === 'string') {
+      responseSize = Buffer.byteLength(result.data, 'utf8');
+    } else if (result.data !== undefined && result.data !== null) {
       responseSize = JSON.stringify(result.data).length;
     }
 
+    let requestSize = parseContentLength(req.headers['content-length']);
+    if (requestSize == null && Buffer.isBuffer(req.body)) {
+      requestSize = Buffer.byteLength(req.body as Buffer);
+    } else if (requestSize == null && typeof req.body === 'string') {
+      requestSize = Buffer.byteLength(req.body, 'utf8');
+    } else if (requestSize == null && req.body !== undefined && req.body !== null) {
+      requestSize = JSON.stringify(req.body).length;
+    }
+
+    const requestBody = req.body === undefined || req.body === null ? '' : JSON.stringify(req.body);
+
     const requestInfo = {
-      requestSize: req.body ? JSON.stringify(req.body).length : 0,
+      requestSize,
       responseSize,
       clientIp: (req as any).trustedClientIp,
       userAgent: req.headers['user-agent'],
@@ -168,7 +189,7 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
       responseHeaders: result.headers || {},
       requestMethod: req.method,
       requestUrl: executionContext.req.url,
-      requestBody: req.body ? JSON.stringify(req.body) : '',
+      requestBody,
       responseBody: result.data,
     };
 
