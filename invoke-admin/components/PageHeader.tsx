@@ -14,18 +14,18 @@ export default function PageHeader({
   children
 }: PageHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-100 flex items-center">
-          {icon && <span className="mr-3">{icon}</span>}
+    <div className="flex items-start justify-between gap-4">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          {icon && <span className="text-muted-foreground">{icon}</span>}
           {title}
         </h1>
-        <p className="text-gray-400 mt-1">
+        <p className="text-sm text-muted-foreground">
           {subtitle}
         </p>
       </div>
       {children && (
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center gap-2 shrink-0">
           {children}
         </div>
       )}

@@ -10,7 +10,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (req.method === 'GET') {
       // List user's API keys (without showing the actual keys)
       const keys = await ApiKey.findAll({
-        where: { created_by: req.user!.id },
+        where: { created_by: req.user!.id, is_active: true },
         attributes: ['id', 'name', 'created_at', 'last_used', 'usage_count', 'is_active'],
         order: [['created_at', 'DESC']],
       })

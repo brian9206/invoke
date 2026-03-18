@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 import {
   DndContext,
   closestCenter,
@@ -40,6 +40,28 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { cn } from '@/lib/cn'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,10 +79,8 @@ interface AuthMethod {
   name: string
   type: 'basic_auth' | 'bearer_jwt' | 'api_key' | 'middleware'
   config: {
-    // basic_auth
     credentials?: { username: string; password: string }[]
     realm?: string
-    // bearer_jwt
     jwtMode?: 'fixed_secret' | 'microsoft' | 'google' | 'github' | 'jwks_endpoint' | 'oidc_discovery'
     jwtSecret?: string
     tenantId?: string
@@ -68,9 +88,7 @@ interface AuthMethod {
     oidcUrl?: string
     audience?: string
     issuer?: string
-    // api_key
     apiKeys?: string[]
-    // middleware
     functionId?: string
   }
   createdAt: string
@@ -121,151 +139,43 @@ const parseUrlField = (value: string): { protocol: 'http' | 'https'; host: strin
   return { protocol: 'https', host: value }
 }
 
-const defaultRoute = (): Omit<GatewayRoute, 'id' | 'functionName' | 'createdAt' | 'updatedAt'> => ({
-  routePath: '',
-  functionId: null,
-  allowedMethods: ['GET', 'POST'],
-  sortOrder: 0,
-  isActive: true,
-  corsSettings: defaultCors(),
-  authMethodIds: [],
-  authMethodNames: [],
-  authLogic: 'or',
-})
+// ─── JWT mode helpers ────────────────────────────────────────────────────────
 
-// ─── Sortable Row Component ──────────────────────────────────────────────────
+const JWT_MODE_LABELS: Record<string, string> = {
+  microsoft: 'Microsoft (Entra ID / Azure AD)',
+  google: 'Google',
+  github: 'GitHub',
+  jwks_endpoint: 'Custom (JWKS Endpoint)',
+  oidc_discovery: 'Custom (OIDC Discovery)',
+  fixed_secret: 'Custom (Fixed Secret)',
+}
 
-function SortableRouteRow({
-  route,
-  onEdit,
-  onDelete,
-  gatewayDomain,
-  projectSlug,
-  customDomain,
-}: {
-  route: GatewayRoute
-  onEdit: (route: GatewayRoute) => void
-  onDelete: (id: string) => void
-  gatewayDomain?: string
-  projectSlug?: string
-  customDomain?: string | null
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: route.id })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
+function jwtModeShortLabel(mode?: string): string | null {
+  switch (mode) {
+    case 'microsoft': return 'MS'
+    case 'google': return 'Google'
+    case 'github': return 'GitHub'
+    case 'jwks_endpoint': return 'JWKS'
+    case 'oidc_discovery': return 'OIDC'
+    default: return null
   }
+}
 
-  return (
-    <tr ref={setNodeRef} style={style} className="border-b border-gray-700 hover:bg-gray-750">
-      {/* Drag handle */}
-      <td className="px-3 py-3 w-8">
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-gray-300 touch-none"
-          title="Drag to reorder"
-        >
-          <GripVertical className="w-4 h-4" />
-        </button>
-      </td>
+function authTypeBadgeClass(type: string) {
+  if (type === 'basic_auth') return 'bg-blue-900/40 text-blue-300 border border-blue-700'
+  if (type === 'bearer_jwt') return 'bg-yellow-900/40 text-yellow-300 border border-yellow-700'
+  if (type === 'middleware') return 'bg-purple-900/40 text-purple-300 border border-purple-700'
+  return 'bg-green-900/40 text-green-300 border border-green-700'
+}
 
-      <td className="px-4 py-3">
-        <div className="flex items-center gap-2">
-          {customDomain ? (
-            <a
-              href={`${customDomain}${route.routePath}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary-400 font-mono hover:underline"
-            >
-              {route.routePath}
-            </a>
-          ) : gatewayDomain && projectSlug ? (
-            <a
-              href={`${gatewayDomain}/${projectSlug}${route.routePath}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary-400 font-mono hover:underline"
-            >
-              {route.routePath}
-            </a>
-          ) : (
-            <code className="text-sm text-primary-400 font-mono">{route.routePath}</code>
-          )}
-          {!route.isActive && (
-            <span className="text-xs bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded">disabled</span>
-          )}
-        </div>
-      </td>
-
-      <td className="px-4 py-3 text-sm text-gray-300">
-        {route.functionName ? (
-          <span className="font-mono text-xs bg-gray-700 px-2 py-0.5 rounded">{route.functionName}</span>
-        ) : (
-          <span className="text-gray-500 italic text-xs">not configured</span>
-        )}
-      </td>
-
-      <td className="px-4 py-3">
-        <div className="flex flex-wrap gap-1">
-          {route.allowedMethods.map((m) => (
-            <span key={m} className="text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-1.5 py-0.5 rounded font-mono">
-              {m}
-            </span>
-          ))}
-        </div>
-      </td>
-
-      <td className="px-4 py-3 text-sm text-gray-400">
-        {(!route.authMethodNames || route.authMethodNames.length === 0) ? (
-          <span className="text-gray-500">—</span>
-        ) : (
-          <div className="flex flex-wrap items-center gap-1">
-            {route.authMethodNames.map((name) => (
-              <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
-                {name}
-              </span>
-            ))}
-            {route.authMethodNames.length > 1 && (
-              <span className="text-xs text-gray-500 ml-1">
-                ({route.authLogic === 'and' ? 'All match' : 'Any match'})
-              </span>
-            )}
-          </div>
-        )}
-      </td>
-
-      <td className="px-4 py-3 text-sm text-gray-400">
-        {route.corsSettings.enabled
-          ? <span className="text-green-400">Enabled</span>
-          : <span className="text-gray-500">—</span>}
-      </td>
-
-      <td className="px-4 py-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => onEdit(route)}
-            className="text-gray-400 hover:text-primary-400 transition-colors"
-            title="Edit"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onDelete(route.id)}
-            className="text-gray-400 hover:text-red-400 transition-colors"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
+function authTypeLabel(m: AuthMethod): string {
+  if (m.type === 'basic_auth') return 'Basic'
+  if (m.type === 'bearer_jwt') {
+    const sub = jwtModeShortLabel(m.config?.jwtMode)
+    return sub ? `JWT · ${sub}` : 'JWT'
+  }
+  if (m.type === 'middleware') return 'Middleware'
+  return 'API Key'
 }
 
 // ─── Tag Input ────────────────────────────────────────────────────────────────
@@ -292,12 +202,17 @@ function TagInput({
   }
 
   return (
-    <div className={`flex flex-wrap gap-1 p-2 bg-gray-800 border-2 border-gray-600 rounded-md ${disabled ? 'opacity-50' : ''}`}>
+    <div
+      className={cn(
+        'flex flex-wrap gap-1 p-2 bg-background border border-input rounded-md',
+        disabled && 'opacity-50'
+      )}
+    >
       {value.map((tag) => (
-        <span key={tag} className="flex items-center gap-1 text-xs bg-gray-700 text-gray-200 px-2 py-0.5 rounded">
+        <span key={tag} className="flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded">
           {tag}
           {!disabled && (
-            <button onClick={() => onChange(value.filter((t) => t !== tag))} className="text-gray-400 hover:text-red-400">
+            <button onClick={() => onChange(value.filter((t) => t !== tag))} className="text-muted-foreground hover:text-red-400">
               <X className="w-3 h-3" />
             </button>
           )}
@@ -307,12 +222,174 @@ function TagInput({
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add() } }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+              e.preventDefault()
+              add()
+            }
+          }}
           onBlur={add}
           placeholder={value.length === 0 ? placeholder : 'Add...'}
-          className="flex-1 min-w-[80px] bg-transparent text-sm text-gray-200 outline-none placeholder-gray-500"
+          className="flex-1 min-w-[80px] bg-transparent text-sm text-foreground outline-none placeholder-muted-foreground"
         />
       )}
+    </div>
+  )
+}
+
+// ─── Sortable Route Row ───────────────────────────────────────────────────────
+
+function SortableRouteRow({
+  route,
+  onEdit,
+  onDelete,
+  gatewayDomain,
+  projectSlug,
+  customDomain,
+}: {
+  route: GatewayRoute
+  onEdit: (route: GatewayRoute) => void
+  onDelete: (id: string) => void
+  gatewayDomain?: string
+  projectSlug?: string
+  customDomain?: string | null
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: route.id,
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  return (
+    <TableRow ref={setNodeRef} style={style}>
+      <TableCell className="w-8 px-3">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          {customDomain ? (
+            <a href={`${customDomain}${route.routePath}`} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-primary font-mono hover:underline">
+              {route.routePath}
+            </a>
+          ) : gatewayDomain && projectSlug ? (
+            <a href={`${gatewayDomain}/${projectSlug}${route.routePath}`} target="_blank" rel="noopener noreferrer"
+              className="text-sm text-primary font-mono hover:underline">
+              {route.routePath}
+            </a>
+          ) : (
+            <code className="text-sm text-primary font-mono">{route.routePath}</code>
+          )}
+          {!route.isActive && <Badge variant="secondary" className="text-xs">disabled</Badge>}
+        </div>
+      </TableCell>
+      <TableCell>
+        {route.functionName ? (
+          <code className="text-xs bg-muted px-2 py-0.5 rounded">{route.functionName}</code>
+        ) : (
+          <span className="text-muted-foreground italic text-xs">not configured</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {route.allowedMethods.map((m) => (
+            <span key={m} className="text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-1.5 py-0.5 rounded font-mono">
+              {m}
+            </span>
+          ))}
+        </div>
+      </TableCell>
+      <TableCell>
+        {!route.authMethodNames || route.authMethodNames.length === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1">
+            {route.authMethodNames.map((name) => (
+              <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
+                {name}
+              </span>
+            ))}
+            {route.authMethodNames.length > 1 && (
+              <span className="text-xs text-muted-foreground ml-1">
+                ({route.authLogic === 'and' ? 'All match' : 'Any match'})
+              </span>
+            )}
+          </div>
+        )}
+      </TableCell>
+      <TableCell>
+        {route.corsSettings.enabled ? (
+          <span className="text-green-400 text-sm">Enabled</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="icon" onClick={() => onEdit(route)} className="h-8 w-8 text-muted-foreground hover:text-primary">
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(route.id)} className="h-8 w-8 text-muted-foreground hover:text-red-400">
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// ─── Sortable Auth Method Item ─────────────────────────────────────────────--
+
+function SortableAuthMethodItem({
+  method,
+  showHandle,
+  onRemove,
+}: {
+  method: AuthMethod
+  showHandle: boolean
+  onRemove: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: method.id,
+  })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded px-2 py-1.5 bg-muted/60 border border-border"
+    >
+      {showHandle ? (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+      ) : (
+        <span className="w-3.5 h-3.5 flex-shrink-0" />
+      )}
+      <span className="flex-1 text-sm text-foreground">{method.name}</span>
+      <span className={cn('text-xs px-1.5 py-0.5 rounded font-mono', authTypeBadgeClass(method.type))}>
+        {authTypeLabel(method)}
+      </span>
+      <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-400 flex-shrink-0 ml-1">
+        <X className="w-3.5 h-3.5" />
+      </button>
     </div>
   )
 }
@@ -372,18 +449,9 @@ function RouteEditorModal({
   }
 
   const handleSave = async () => {
-    if (!routePath.trim()) {
-      toast.error('Route path is required')
-      return
-    }
-    if (!routePath.startsWith('/')) {
-      toast.error('Route path must start with /')
-      return
-    }
-    if (allowedMethods.length === 0) {
-      toast.error('At least one HTTP method must be allowed')
-      return
-    }
+    if (!routePath.trim()) { toast.error('Route path is required'); return }
+    if (!routePath.startsWith('/')) { toast.error('Route path must start with /'); return }
+    if (allowedMethods.length === 0) { toast.error('At least one HTTP method must be allowed'); return }
 
     setSaving(true)
     try {
@@ -414,398 +482,251 @@ function RouteEditorModal({
       size="lg"
     >
       <div className="overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1">
-          {/* Route Path */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Route Path <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={routePath}
-              onChange={(e) => setRoutePath(e.target.value)}
-              placeholder="e.g. /users/:userId/books/:bookId"
-              className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500 font-mono"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Use <code className="bg-gray-700 px-1 rounded">:paramName</code> for dynamic segments.
-              Parameters are forwarded as query string to the upstream function (e.g.{' '}
-              <code className="bg-gray-700 px-1 rounded">?paramName=value</code>).
-            </p>
-            {(gatewayDomain || customDomain) && routePath && (
-              <div className="mt-2 space-y-1">
-                {gatewayDomain && projectSlug && (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-gray-500 shrink-0">Default:</span>
-                    <a
-                      href={`${gatewayDomain}/${projectSlug}${routePath}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-primary-400 hover:text-primary-300 hover:underline truncate"
-                    >
-                      {`${gatewayDomain}/${projectSlug}${routePath}`}
-                    </a>
-                  </div>
-                )}
-                {customDomain && (
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="text-gray-500 shrink-0">Custom:</span>
-                    <a
-                      href={`${customDomain}${routePath}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-primary-400 hover:text-primary-300 hover:underline truncate"
-                    >
-                      {`${customDomain}${routePath}`}
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Upstream Function */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Upstream Function</label>
-            <select
-              value={functionId}
-              onChange={(e) => setFunctionId(e.target.value)}
-              className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="">— Select function —</option>
-              {functions.map((f) => (
-                <option key={f.id} value={f.id}>{f.name}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Allowed Methods */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Allowed HTTP Methods</label>
-            <div className="flex flex-wrap gap-2">
-              {HTTP_METHODS.map((method) => (
-                <button
-                  key={method}
-                  type="button"
-                  onClick={() => toggleMethod(method)}
-                  className={`text-xs font-mono px-2.5 py-1 rounded border transition-colors ${
-                    allowedMethods.includes(method)
-                      ? 'bg-blue-900/70 border-blue-600 text-blue-200'
-                      : 'bg-gray-700 border-gray-600 text-gray-400 hover:border-gray-500'
-                  }`}
-                >
-                  {method}
-                </button>
-              ))}
+        {/* Route Path */}
+        <div className="space-y-1.5">
+          <Label>Route Path <span className="text-red-400">*</span></Label>
+          <Input
+            value={routePath}
+            onChange={(e) => setRoutePath(e.target.value)}
+            placeholder="e.g. /users/:userId/books/:bookId"
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            Use <code className="bg-muted px-1 rounded">:paramName</code> for dynamic segments.
+          </p>
+          {(gatewayDomain || customDomain) && routePath && (
+            <div className="mt-2 space-y-1">
+              {gatewayDomain && projectSlug && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground shrink-0">Default:</span>
+                  <a href={`${gatewayDomain}/${projectSlug}${routePath}`} target="_blank" rel="noopener noreferrer"
+                    className="font-mono text-primary hover:underline truncate">
+                    {`${gatewayDomain}/${projectSlug}${routePath}`}
+                  </a>
+                </div>
+              )}
+              {customDomain && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground shrink-0">Custom:</span>
+                  <a href={`${customDomain}${routePath}`} target="_blank" rel="noopener noreferrer"
+                    className="font-mono text-primary hover:underline truncate">
+                    {`${customDomain}${routePath}`}
+                  </a>
+                </div>
+              )}
             </div>
-          </div>
+          )}
+        </div>
 
-          {/* Active Toggle */}
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
-              />
-              <span className="text-sm text-gray-300">Route is active</span>
-            </label>
-          </div>
+        {/* Upstream Function */}
+        <div className="space-y-1.5">
+          <Label>Upstream Function</Label>
+          <Select value={functionId} onValueChange={setFunctionId}>
+            <SelectTrigger>
+              <SelectValue placeholder="— Select function —" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">— Select function —</SelectItem>
+              {functions.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-          {/* CORS Settings */}
-          <div className="border border-gray-700 rounded-lg overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setCorsOpen((o) => !o)}
-              className="w-full flex items-center justify-between px-4 py-3 bg-gray-750 hover:bg-gray-700 text-sm font-medium text-gray-200"
-            >
+        {/* HTTP Methods */}
+        <div className="space-y-2">
+          <Label>Allowed HTTP Methods</Label>
+          <div className="flex flex-wrap gap-2">
+            {HTTP_METHODS.map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => toggleMethod(method)}
+                className={cn(
+                  'text-xs font-mono px-2.5 py-1 rounded border transition-colors',
+                  allowedMethods.includes(method)
+                    ? 'bg-blue-900/70 border-blue-600 text-blue-200'
+                    : 'bg-muted border-border text-muted-foreground hover:border-foreground'
+                )}
+              >
+                {method}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Active Toggle */}
+        <div className="flex items-center gap-2">
+          <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+          <Label htmlFor="isActive" className="cursor-pointer">Route is active</Label>
+        </div>
+
+        {/* CORS Settings */}
+        <Collapsible open={corsOpen} onOpenChange={setCorsOpen}>
+          <div className="border border-border rounded-lg overflow-hidden">
+            <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 text-sm font-medium text-foreground">
               <span className="flex items-center gap-2">
                 {corsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 CORS Settings
               </span>
               {cors.enabled && <span className="text-xs text-green-400">Enabled</span>}
-            </button>
-
-            {corsOpen && (
-              <div className="px-4 py-4 space-y-4 border-t border-gray-700">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 py-4 space-y-4 border-t border-border">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="corsEnabled"
                     checked={cors.enabled}
-                    onChange={(e) => setCors((c) => ({ ...c, enabled: e.target.checked }))}
-                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
+                    onCheckedChange={(v) => setCors((c) => ({ ...c, enabled: v }))}
                   />
-                  <span className="text-sm text-gray-300">Enable CORS</span>
-                </label>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">
-                    Allowed Origins <span className="text-gray-500">(press Enter to add)</span>
-                  </label>
-                  <TagInput
-                    value={cors.allowedOrigins}
-                    onChange={(v) => setCors((c) => ({ ...c, allowedOrigins: v }))}
-                    placeholder="https://example.com or *"
-                    disabled={!cors.enabled}
-                  />
+                  <Label htmlFor="corsEnabled" className="cursor-pointer">Enable CORS</Label>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Allowed Headers</label>
-                  <TagInput
-                    value={cors.allowedHeaders}
-                    onChange={(v) => setCors((c) => ({ ...c, allowedHeaders: v }))}
-                    placeholder="Content-Type, Authorization"
-                    disabled={!cors.enabled}
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Allowed Origins (press Enter to add)</Label>
+                  <TagInput value={cors.allowedOrigins} onChange={(v) => setCors((c) => ({ ...c, allowedOrigins: v }))}
+                    placeholder="https://example.com or *" disabled={!cors.enabled} />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1">Expose Headers</label>
-                  <TagInput
-                    value={cors.exposeHeaders}
-                    onChange={(v) => setCors((c) => ({ ...c, exposeHeaders: v }))}
-                    placeholder="X-Request-Id"
-                    disabled={!cors.enabled}
-                  />
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Allowed Headers</Label>
+                  <TagInput value={cors.allowedHeaders} onChange={(v) => setCors((c) => ({ ...c, allowedHeaders: v }))}
+                    placeholder="Content-Type, Authorization" disabled={!cors.enabled} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Expose Headers</Label>
+                  <TagInput value={cors.exposeHeaders} onChange={(v) => setCors((c) => ({ ...c, exposeHeaders: v }))}
+                    placeholder="X-Request-Id" disabled={!cors.enabled} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1">Max Age (seconds)</label>
-                    <input
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Max Age (seconds)</Label>
+                    <Input
                       type="number"
                       value={cors.maxAge}
                       onChange={(e) => setCors((c) => ({ ...c, maxAge: parseInt(e.target.value) || 86400 }))}
                       disabled={!cors.enabled}
-                      className="block w-full bg-gray-900 border-2 border-gray-600 rounded text-gray-100 text-sm px-3 py-1.5 disabled:opacity-50"
                     />
                   </div>
-
-                  <div className="flex items-center mt-5">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={cors.allowCredentials}
-                        onChange={(e) => setCors((c) => ({ ...c, allowCredentials: e.target.checked }))}
-                        disabled={!cors.enabled}
-                        className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500 disabled:opacity-50"
-                      />
-                      <span className="text-sm text-gray-300">Allow Credentials</span>
-                    </label>
+                  <div className="flex items-center gap-2 mt-6">
+                    <Switch
+                      id="allowCredentials"
+                      checked={cors.allowCredentials}
+                      onCheckedChange={(v) => setCors((c) => ({ ...c, allowCredentials: v }))}
+                      disabled={!cors.enabled}
+                    />
+                    <Label htmlFor="allowCredentials" className="cursor-pointer text-sm">Allow Credentials</Label>
                   </div>
                 </div>
               </div>
-            )}
+            </CollapsibleContent>
           </div>
+        </Collapsible>
 
-          {/* Auth Methods */}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Authentication</label>
-            {authMethods.length === 0 ? (
-              <div className="rounded-md border border-gray-700 bg-gray-800/50 px-4 py-3 text-xs text-gray-500">
-                No authentication methods configured. Add methods in the{' '}
-                <span className="text-primary-400">Authentication</span> tab.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* Selected methods – DnD sortable execution order */}
-                {selectedAuthMethodIds.length === 0 ? (
-                  <div className="rounded-md border border-dashed border-gray-600 bg-gray-800/30 px-4 py-3 text-xs text-gray-500 text-center">
-                    No auth <span className="text-gray-400 font-medium">(public)</span> — add a method below to require authentication
-                  </div>
-                ) : (
-                  <div className="rounded-md border border-gray-700 bg-gray-800/50 p-3 space-y-1.5">
-                    {selectedAuthMethodIds.length > 1 && (
-                      <p className="text-xs text-gray-500 pb-1">Drag to set execution order</p>
-                    )}
-                    <DndContext
-                      sensors={authDndSensors}
-                      collisionDetection={closestCenter}
-                      modifiers={[restrictToVerticalAxis]}
-                      onDragEnd={(event: DragEndEvent) => {
-                        const { active, over } = event
-                        if (over && active.id !== over.id) {
-                          setSelectedAuthMethodIds((prev) => {
-                            const oldIdx = prev.indexOf(active.id as string)
-                            const newIdx = prev.indexOf(over.id as string)
-                            return arrayMove(prev, oldIdx, newIdx)
-                          })
-                        }
-                      }}
-                    >
-                      <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
-                        {selectedAuthMethodIds.map((id) => {
-                          const m = authMethods.find((x) => x.id === id)
-                          if (!m) return null
-                          return (
-                            <SortableAuthMethodItem
-                              key={m.id}
-                              method={m}
-                              showHandle={selectedAuthMethodIds.length > 1}
-                              onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((x) => x !== id))}
-                            />
-                          )
-                        })}
-                      </SortableContext>
-                    </DndContext>
-                  </div>
-                )}
-
-                {/* Available (unselected) methods */}
-                {authMethods.some((m) => !selectedAuthMethodIds.includes(m.id)) && (
-                  <div className="rounded-md border border-gray-700 bg-gray-800/30 p-3 space-y-1">
-                    <p className="text-xs text-gray-500 pb-0.5">Add method</p>
-                    {authMethods
-                      .filter((m) => !selectedAuthMethodIds.includes(m.id))
-                      .map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          onClick={() => setSelectedAuthMethodIds((prev) => [...prev, m.id])}
-                          className="w-full flex items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-700/50 text-left"
-                        >
-                          <Plus className="w-3.5 h-3.5 text-gray-500 flex-shrink-0" />
-                          <span className="flex-1 text-sm text-gray-300">{m.name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded border font-mono ${
-                            m.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
-                            m.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
-                            m.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
-                            'bg-green-900/40 text-green-300 border-green-700'
-                          }`}>
-                            {m.type === 'basic_auth' ? 'Basic' : m.type === 'bearer_jwt' ? (jwtModeShortLabel(m.config?.jwtMode) ? `JWT · ${jwtModeShortLabel(m.config?.jwtMode)}` : 'JWT') : m.type === 'middleware' ? 'Middleware' : 'API Key'}
-                          </span>
-                        </button>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {selectedAuthMethodIds.length > 1 && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-xs text-gray-400">Logic:</span>
-                <div className="flex rounded-md overflow-hidden border border-gray-600 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setAuthLogic('or')}
-                    className={`px-3 py-1 transition-colors ${
-                      authLogic === 'or'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    Any match
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthLogic('and')}
-                    className={`px-3 py-1 transition-colors border-l border-gray-600 ${
-                      authLogic === 'and'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-                    }`}
-                  >
-                    All match
-                  </button>
+        {/* Auth Methods */}
+        <div className="space-y-2">
+          <Label>Authentication</Label>
+          {authMethods.length === 0 ? (
+            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
+              No authentication methods configured. Add methods in the <span className="text-primary">Authentication</span> tab.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {selectedAuthMethodIds.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground text-center">
+                  No auth <span className="text-foreground font-medium">(public)</span> — add a method below to require authentication
                 </div>
-                <span className="text-xs text-gray-500">
-                  {authLogic === 'or' ? 'Access granted if any method passes' : 'All methods must pass'}
-                </span>
+              ) : (
+                <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1.5">
+                  {selectedAuthMethodIds.length > 1 && (
+                    <p className="text-xs text-muted-foreground pb-1">Drag to set execution order</p>
+                  )}
+                  <DndContext
+                    sensors={authDndSensors}
+                    collisionDetection={closestCenter}
+                    modifiers={[restrictToVerticalAxis]}
+                    onDragEnd={(event: DragEndEvent) => {
+                      const { active, over } = event
+                      if (over && active.id !== over.id) {
+                        setSelectedAuthMethodIds((prev) => {
+                          const oldIdx = prev.indexOf(active.id as string)
+                          const newIdx = prev.indexOf(over.id as string)
+                          return arrayMove(prev, oldIdx, newIdx)
+                        })
+                      }
+                    }}
+                  >
+                    <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
+                      {selectedAuthMethodIds.map((id) => {
+                        const m = authMethods.find((x) => x.id === id)
+                        if (!m) return null
+                        return (
+                          <SortableAuthMethodItem
+                            key={m.id}
+                            method={m}
+                            showHandle={selectedAuthMethodIds.length > 1}
+                            onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((x) => x !== id))}
+                          />
+                        )
+                      })}
+                    </SortableContext>
+                  </DndContext>
+                </div>
+              )}
+
+              {authMethods.some((m) => !selectedAuthMethodIds.includes(m.id)) && (
+                <div className="rounded-md border border-border bg-muted/20 p-3 space-y-1">
+                  <p className="text-xs text-muted-foreground pb-0.5">Add method</p>
+                  {authMethods
+                    .filter((m) => !selectedAuthMethodIds.includes(m.id))
+                    .map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedAuthMethodIds((prev) => [...prev, m.id])}
+                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50 text-left"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="flex-1 text-sm text-foreground">{m.name}</span>
+                        <span className={cn('text-xs px-1.5 py-0.5 rounded font-mono', authTypeBadgeClass(m.type))}>
+                          {authTypeLabel(m)}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+          {selectedAuthMethodIds.length > 1 && (
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs text-muted-foreground">Logic:</span>
+              <div className="flex rounded-md overflow-hidden border border-border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAuthLogic('or')}
+                  className={cn('px-3 py-1 transition-colors', authLogic === 'or' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground')}
+                >Any match</button>
+                <button
+                  type="button"
+                  onClick={() => setAuthLogic('and')}
+                  className={cn('px-3 py-1 transition-colors border-l border-border', authLogic === 'and' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground')}
+                >All match</button>
               </div>
-            )}
-          </div>
+              <span className="text-xs text-muted-foreground">
+                {authLogic === 'or' ? 'Access granted if any method passes' : 'All methods must pass'}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   )
 }
 
-// ─── JWT mode helpers ────────────────────────────────────────────────────────
-
-const JWT_MODE_LABELS: Record<string, string> = {
-  microsoft:      'Microsoft (Entra ID / Azure AD)',
-  google:         'Google',
-  github:         'GitHub',
-  jwks_endpoint:  'Custom (JWKS Endpoint)',
-  oidc_discovery: 'Custom (OIDC Discovery)',
-  fixed_secret:   'Custom (Fixed Secret)',
-}
-
-function jwtModeShortLabel(mode?: string): string | null {
-  switch (mode) {
-    case 'microsoft':      return 'MS'
-    case 'google':         return 'Google'
-    case 'github':         return 'GitHub'
-    case 'jwks_endpoint':  return 'JWKS'
-    case 'oidc_discovery': return 'OIDC'
-    default:               return null // fixed_secret or missing → just 'JWT'
-  }
-}
-
-// ─── Sortable Auth Method Item (inside RouteEditorModal) ─────────────────────
-
-function SortableAuthMethodItem({
-  method,
-  showHandle,
-  onRemove,
-}: {
-  method: AuthMethod
-  showHandle: boolean
-  onRemove: () => void
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: method.id })
-  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
-  const typeColors =
-    method.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
-    method.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
-    method.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
-    'bg-green-900/40 text-green-300 border-green-700'
-  const jwtSub = method.type === 'bearer_jwt' ? jwtModeShortLabel(method.config?.jwtMode) : null
-  const typeLabel =
-    method.type === 'basic_auth' ? 'Basic' :
-    method.type === 'bearer_jwt' ? (jwtSub ? `JWT · ${jwtSub}` : 'JWT') :
-    method.type === 'middleware' ? 'Middleware' : 'API Key'
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="flex items-center gap-2 rounded px-2 py-1.5 bg-gray-700/60 border border-gray-600"
-    >
-      {showHandle ? (
-        <button
-          type="button"
-          className="text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
-          title="Drag to reorder"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="w-3.5 h-3.5" />
-        </button>
-      ) : (
-        <span className="w-3.5 h-3.5 flex-shrink-0" />
-      )}
-      <span className="flex-1 text-sm text-gray-200">{method.name}</span>
-      <span className={`text-xs px-1.5 py-0.5 rounded border font-mono ${typeColors}`}>{typeLabel}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="text-gray-500 hover:text-red-400 flex-shrink-0 ml-1"
-        title="Remove"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  )
-}
-
 // ─── Auth Method Modal ────────────────────────────────────────────────────────
-
-const AUTH_TYPE_LABELS: Record<string, string> = {
-  basic_auth: 'Basic Auth',
-  bearer_jwt: 'Bearer JWT',
-  api_key: 'API Key',
-  middleware: 'Middleware',
-}
 
 function AuthMethodModal({
   isOpen,
@@ -822,7 +743,6 @@ function AuthMethodModal({
 }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<'basic_auth' | 'bearer_jwt' | 'api_key' | 'middleware'>('bearer_jwt')
-  // bearer_jwt
   const [jwtMode, setJwtMode] = useState('fixed_secret')
   const [jwtSecret, setJwtSecret] = useState('')
   const [showSecret, setShowSecret] = useState(false)
@@ -831,12 +751,9 @@ function AuthMethodModal({
   const [oidcUrl, setOidcUrl] = useState('')
   const [audience, setAudience] = useState('')
   const [issuer, setIssuer] = useState('')
-  // api_key
   const [apiKeys, setApiKeys] = useState<string[]>([])
-  // basic_auth
   const [credentials, setCredentials] = useState<{ username: string; password: string }[]>([])
   const [realm, setRealm] = useState('')
-  // middleware
   const [middlewareFunctionId, setMiddlewareFunctionId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -859,11 +776,6 @@ function AuthMethodModal({
     }
   }, [isOpen, method])
 
-  const addCredential = () => setCredentials((c) => [...c, { username: '', password: '' }])
-  const removeCredential = (i: number) => setCredentials((c) => c.filter((_, idx) => idx !== i))
-  const updateCredential = (i: number, field: 'username' | 'password', val: string) =>
-    setCredentials((c) => c.map((cred, idx) => idx === i ? { ...cred, [field]: val } : cred))
-
   const buildConfig = () => {
     if (type === 'basic_auth') return { credentials, ...(realm.trim() ? { realm: realm.trim() } : {}) }
     if (type === 'bearer_jwt') {
@@ -885,7 +797,7 @@ function AuthMethodModal({
     if (!name.trim()) { toast.error('Name is required'); return }
     if (type === 'bearer_jwt') {
       if (jwtMode === 'fixed_secret' && !jwtSecret.trim()) { toast.error('JWT secret is required'); return }
-      if (jwtMode === 'microsoft' && !tenantId.trim()) { toast.error('Tenant ID is required for Microsoft mode'); return }
+      if (jwtMode === 'microsoft' && !tenantId.trim()) { toast.error('Tenant ID is required'); return }
       if (jwtMode === 'jwks_endpoint' && !jwksUrl.trim()) { toast.error('JWKS URL is required'); return }
       if (jwtMode === 'oidc_discovery' && !oidcUrl.trim()) { toast.error('OIDC Discovery URL is required'); return }
     }
@@ -915,280 +827,183 @@ function AuthMethodModal({
       size="md"
     >
       <div className="space-y-4">
-        {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Name <span className="text-red-400">*</span></label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Admin JWT, Public API Key"
-            className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-          />
+        <div className="space-y-1.5">
+          <Label>Name <span className="text-red-400">*</span></Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Admin JWT, Public API Key" />
         </div>
 
-        {/* Type */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Type</label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as any)}
-            disabled={!!method?.id}
-            className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500 disabled:opacity-60"
-          >
-            <option value="bearer_jwt">Bearer JWT</option>
-            <option value="api_key">API Key</option>
-            <option value="basic_auth">Basic Auth</option>
-            <option value="middleware">Middleware</option>
-          </select>
-          {method?.id && <p className="mt-1 text-xs text-gray-500">Type cannot be changed after creation.</p>}
+        <div className="space-y-1.5">
+          <Label>Type</Label>
+          <Select value={type} onValueChange={(v) => setType(v as any)} disabled={!!method?.id}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bearer_jwt">Bearer JWT</SelectItem>
+              <SelectItem value="api_key">API Key</SelectItem>
+              <SelectItem value="basic_auth">Basic Auth</SelectItem>
+              <SelectItem value="middleware">Middleware</SelectItem>
+            </SelectContent>
+          </Select>
+          {method?.id && <p className="text-xs text-muted-foreground">Type cannot be changed after creation.</p>}
         </div>
 
         {/* Bearer JWT config */}
         {type === 'bearer_jwt' && (
           <div className="space-y-4">
-            {/* JWT Mode selector */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">JWT Mode</label>
-              <select
-                value={jwtMode}
-                onChange={(e) => setJwtMode(e.target.value)}
-                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {Object.entries(JWT_MODE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+            <div className="space-y-1.5">
+              <Label>JWT Mode</Label>
+              <Select value={jwtMode} onValueChange={setJwtMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(JWT_MODE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Microsoft: Tenant ID */}
             {jwtMode === 'microsoft' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Tenant ID <span className="text-red-400">*</span></label>
-                <input
-                  type="text"
-                  value={tenantId}
-                  onChange={(e) => setTenantId(e.target.value)}
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Found in Azure Portal → App registrations → Directory (tenant) ID.
-                </p>
+              <div className="space-y-1.5">
+                <Label>Tenant ID <span className="text-red-400">*</span></Label>
+                <Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="font-mono" />
+                <p className="text-xs text-muted-foreground">Found in Azure Portal → App registrations → Directory (tenant) ID.</p>
               </div>
             )}
 
-            {/* Google: no additional fields */}
             {jwtMode === 'google' && (
-              <p className="text-xs text-gray-500 rounded-md bg-gray-900 border border-gray-700 px-3 py-2">
-                Validates tokens signed by Google's public keys (e.g. Google Sign-In, Google Workspace).
-                No additional configuration required.
+              <p className="text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2">
+                Validates tokens signed by Google&apos;s public keys. No additional configuration required.
               </p>
             )}
 
-            {/* GitHub: no additional fields */}
             {jwtMode === 'github' && (
-              <p className="text-xs text-gray-500 rounded-md bg-gray-900 border border-gray-700 px-3 py-2">
+              <p className="text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2">
                 Validates GitHub Actions OIDC tokens issued by{' '}
-                <code className="bg-gray-700 px-1 rounded">token.actions.githubusercontent.com</code>.
+                <code className="bg-background px-1 rounded">token.actions.githubusercontent.com</code>.
                 No additional configuration required.
               </p>
             )}
 
-            {/* Custom JWKS Endpoint */}
             {jwtMode === 'jwks_endpoint' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">JWKS URL <span className="text-red-400">*</span></label>
-                <input
-                  type="url"
-                  value={jwksUrl}
-                  onChange={(e) => setJwksUrl(e.target.value)}
-                  placeholder="https://example.com/.well-known/jwks.json"
-                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  URL to a JSON Web Key Set (JWKS) document containing public keys.
-                </p>
+              <div className="space-y-1.5">
+                <Label>JWKS URL <span className="text-red-400">*</span></Label>
+                <Input type="url" value={jwksUrl} onChange={(e) => setJwksUrl(e.target.value)} placeholder="https://example.com/.well-known/jwks.json" className="font-mono" />
               </div>
             )}
 
-            {/* Custom OIDC Discovery */}
             {jwtMode === 'oidc_discovery' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">OIDC Discovery URL <span className="text-red-400">*</span></label>
-                <input
-                  type="url"
-                  value={oidcUrl}
-                  onChange={(e) => setOidcUrl(e.target.value)}
-                  placeholder="https://example.com/.well-known/openid-configuration"
-                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 font-mono focus:ring-primary-500 focus:border-primary-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  URL to an OpenID Connect discovery document. The JWKS URI is extracted automatically.
-                </p>
+              <div className="space-y-1.5">
+                <Label>OIDC Discovery URL <span className="text-red-400">*</span></Label>
+                <Input type="url" value={oidcUrl} onChange={(e) => setOidcUrl(e.target.value)} placeholder="https://example.com/.well-known/openid-configuration" className="font-mono" />
               </div>
             )}
 
-            {/* Fixed secret (HMAC) */}
             {jwtMode === 'fixed_secret' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">JWT Secret <span className="text-red-400">*</span></label>
+              <div className="space-y-1.5">
+                <Label>JWT Secret <span className="text-red-400">*</span></Label>
                 <div className="relative">
-                  <input
+                  <Input
                     type={showSecret ? 'text' : 'password'}
                     value={jwtSecret}
                     onChange={(e) => setJwtSecret(e.target.value)}
                     placeholder="Enter HMAC signing secret"
-                    className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 pr-10 font-mono focus:ring-primary-500 focus:border-primary-500"
+                    className="pr-10 font-mono"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSecret((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Tokens signed with this HMAC secret are accepted. Expired tokens are always rejected.
-                </p>
               </div>
             )}
 
-            {/* Optional claim validation — all modes */}
-            <div className="space-y-3 pt-1 border-t border-gray-700">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide pt-1">Claim Validation <span className="font-normal normal-case">(optional)</span></p>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Audience (aud)</label>
-                <input
-                  type="text"
-                  value={audience}
-                  onChange={(e) => setAudience(e.target.value)}
-                  placeholder="https://api.myapp.com"
-                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  If set, rejects tokens where <code className="bg-gray-700 px-1 rounded">aud</code> does not match.
-                </p>
+            <div className="space-y-3 pt-1 border-t border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">
+                Claim Validation <span className="font-normal normal-case">(optional)</span>
+              </p>
+              <div className="space-y-1.5">
+                <Label>Audience (aud)</Label>
+                <Input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="https://api.myapp.com" />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Issuer (iss)</label>
-                <input
-                  type="text"
-                  value={issuer}
-                  onChange={(e) => setIssuer(e.target.value)}
-                  placeholder={
-                    jwtMode === 'microsoft' ? 'https://login.microsoftonline.com/{tenantId}/v2.0' :
-                    jwtMode === 'google'    ? 'https://accounts.google.com' :
-                    jwtMode === 'github'    ? 'https://token.actions.githubusercontent.com' :
-                    'https://issuer.example.com'
-                  }
-                  className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  If set, rejects tokens where <code className="bg-gray-700 px-1 rounded">iss</code> does not match.
-                </p>
+              <div className="space-y-1.5">
+                <Label>Issuer (iss)</Label>
+                <Input value={issuer} onChange={(e) => setIssuer(e.target.value)}
+                  placeholder={jwtMode === 'microsoft' ? 'https://login.microsoftonline.com/{tenantId}/v2.0' : jwtMode === 'google' ? 'https://accounts.google.com' : 'https://issuer.example.com'} />
               </div>
             </div>
-
-            <p className="text-xs text-gray-500">
-              Tokens sent as <code className="bg-gray-700 px-1 rounded">Authorization: Bearer &lt;token&gt;</code> are validated.
-              Expired tokens are always rejected.
-            </p>
           </div>
         )}
 
         {/* API Key config */}
         {type === 'api_key' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              API Keys <span className="text-gray-500">(press Enter to add)</span>
-            </label>
+          <div className="space-y-1.5">
+            <Label>API Keys <span className="text-muted-foreground font-normal">(press Enter to add)</span></Label>
             <TagInput value={apiKeys} onChange={setApiKeys} placeholder="Paste or type key" />
-            <p className="mt-1 text-xs text-gray-500">
-              Keys are accepted via <code className="bg-gray-700 px-1 rounded">x-api-key</code> header or{' '}
-              <code className="bg-gray-700 px-1 rounded">Authorization: Bearer &lt;key&gt;</code>.
-            </p>
           </div>
         )}
 
         {/* Basic Auth config */}
         {type === 'basic_auth' && (
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-300">Credentials</label>
-              <button type="button" onClick={addCredential} className="btn-secondary text-xs px-2 py-1 flex items-center gap-1">
-                <Plus className="w-3 h-3" /> Add
-              </button>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Credentials</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => setCredentials((c) => [...c, { username: '', password: '' }])}>
+                <Plus className="w-3 h-3 mr-1" /> Add
+              </Button>
             </div>
-            {credentials.length === 0 && (
-              <p className="text-xs text-gray-500 mb-2">No credentials added yet.</p>
-            )}
+            {credentials.length === 0 && <p className="text-xs text-muted-foreground">No credentials added yet.</p>}
             <div className="space-y-2">
               {credentials.map((cred, i) => (
                 <div key={i} className="flex gap-2 items-center">
-                  <input
-                    type="text"
+                  <Input
                     value={cred.username}
-                    onChange={(e) => updateCredential(i, 'username', e.target.value)}
+                    onChange={(e) => setCredentials((c) => c.map((cr, idx) => idx === i ? { ...cr, username: e.target.value } : cr))}
                     placeholder="Username"
-                    className="flex-1 bg-gray-900 border-2 border-gray-600 rounded text-gray-100 text-sm px-3 py-1.5 focus:ring-primary-500 focus:border-primary-500"
                   />
-                  <input
+                  <Input
                     type="password"
                     value={cred.password}
-                    onChange={(e) => updateCredential(i, 'password', e.target.value)}
+                    onChange={(e) => setCredentials((c) => c.map((cr, idx) => idx === i ? { ...cr, password: e.target.value } : cr))}
                     placeholder="Password"
-                    className="flex-1 bg-gray-900 border-2 border-gray-600 rounded text-gray-100 text-sm px-3 py-1.5 focus:ring-primary-500 focus:border-primary-500"
                   />
-                  <button type="button" onClick={() => removeCredential(i)} className="text-gray-500 hover:text-red-400 shrink-0">
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setCredentials((c) => c.filter((_, idx) => idx !== i))}
+                    className="text-muted-foreground hover:text-red-400 flex-shrink-0">
                     <X className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Sent as <code className="bg-gray-700 px-1 rounded">Authorization: Basic &lt;base64(user:pass)&gt;</code>.
-            </p>
-            <div className="mt-3">
-              <label className="block text-sm font-medium text-gray-300 mb-1">Realm <span className="text-gray-500 font-normal">(optional)</span></label>
-              <input
-                type="text"
-                value={realm}
-                onChange={(e) => setRealm(e.target.value)}
-                placeholder="e.g. Admin Area"
-                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                If set, unauthenticated responses include <code className="bg-gray-700 px-1 rounded">WWW-Authenticate: Basic realm="…"</code>.
-              </p>
+            <div className="space-y-1.5">
+              <Label>Realm <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input value={realm} onChange={(e) => setRealm(e.target.value)} placeholder="e.g. Admin Area" />
             </div>
           </div>
         )}
+
         {/* Middleware config */}
         {type === 'middleware' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Function <span className="text-red-400">*</span>
-            </label>
+          <div className="space-y-1.5">
+            <Label>Function <span className="text-red-400">*</span></Label>
             {functions.length === 0 ? (
-              <p className="text-xs text-gray-500">No functions deployed in this project.</p>
+              <p className="text-xs text-muted-foreground">No functions deployed in this project.</p>
             ) : (
-              <select
-                value={middlewareFunctionId}
-                onChange={(e) => setMiddlewareFunctionId(e.target.value)}
-                className="block w-full bg-gray-900 border-2 border-gray-600 rounded-md text-gray-100 text-sm px-3 py-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                <option value="">Select a function…</option>
-                {functions.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
-                ))}
-              </select>
+              <Select value={middlewareFunctionId} onValueChange={setMiddlewareFunctionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a function…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {functions.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-            <p className="mt-1 text-xs text-gray-500">
-              The function receives <code className="bg-gray-700 px-1 rounded">{'{ path, query, headers }'}</code> and must return{' '}
-              <code className="bg-gray-700 px-1 rounded">{'{"allow": true}'}</code> to grant access.
-            </p>
           </div>
         )}
       </div>
@@ -1202,36 +1017,27 @@ export default function ApiGatewayPage() {
   const { activeProject } = useProject()
 
   const [activeTab, setActiveTab] = useState<'routes' | 'authentication'>('routes')
-
   const [config, setConfig] = useState<GatewayConfig>({ enabled: false, customDomain: null })
   const [routes, setRoutes] = useState<GatewayRoute[]>([])
   const [functions, setFunctions] = useState<FunctionOption[]>([])
   const [authMethods, setAuthMethods] = useState<AuthMethod[]>([])
   const [gatewayDomain, setGatewayDomain] = useState<string>('')
-
   const [loadingConfig, setLoadingConfig] = useState(false)
-
   const [savingConfig, setSavingConfig] = useState(false)
-
   const [customDomainInput, setCustomDomainInput] = useState('')
   const [customDomainProtocol, setCustomDomainProtocol] = useState<'http' | 'https'>('https')
-
   const [modalOpen, setModalOpen] = useState(false)
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<Partial<GatewayRoute> | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [orderDirty, setOrderDirty] = useState(false)
   const [savingOrder, setSavingOrder] = useState(false)
-
   const [authMethodModalOpen, setAuthMethodModalOpen] = useState(false)
   const [editingAuthMethod, setEditingAuthMethod] = useState<Partial<AuthMethod> | null>(null)
   const [deleteAuthMethodId, setDeleteAuthMethodId] = useState<string | null>(null)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
-  )
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
-  // Load data when project changes
   useEffect(() => {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (activeProject?.id && UUID_RE.test(activeProject.id)) {
@@ -1253,7 +1059,6 @@ export default function ApiGatewayPage() {
         authenticatedFetch('/api/admin/global-settings'),
         authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`),
       ])
-
       if (cfgRes.ok) {
         const d = await cfgRes.json()
         setConfig(d.data)
@@ -1261,24 +1066,11 @@ export default function ApiGatewayPage() {
         setCustomDomainProtocol(protocol)
         setCustomDomainInput(host)
       }
-      if (routesRes.ok) {
-        const d = await routesRes.json()
-        setRoutes(d.data || [])
-        setOrderDirty(false)
-      }
-      if (funcsRes.ok) {
-        const d = await funcsRes.json()
-        setFunctions((d.data || []).map((f: any) => ({ id: f.id, name: f.name })))
-      }
-      if (gsRes.ok) {
-        const d = await gsRes.json()
-        setGatewayDomain(d.data?.api_gateway_domain?.value || '')
-      }
-      if (authRes.ok) {
-        const d = await authRes.json()
-        setAuthMethods(d.data || [])
-      }
-    } catch (err) {
+      if (routesRes.ok) { const d = await routesRes.json(); setRoutes(d.data || []); setOrderDirty(false) }
+      if (funcsRes.ok) { const d = await funcsRes.json(); setFunctions((d.data || []).map((f: any) => ({ id: f.id, name: f.name }))) }
+      if (gsRes.ok) { const d = await gsRes.json(); setGatewayDomain(d.data?.api_gateway_domain?.value || '') }
+      if (authRes.ok) { const d = await authRes.json(); setAuthMethods(d.data || []) }
+    } catch {
       toast.error('Failed to load gateway settings')
     } finally {
       setLoadingConfig(false)
@@ -1292,8 +1084,10 @@ export default function ApiGatewayPage() {
       const res = await authenticatedFetch(`/api/gateway/config?projectId=${activeProject.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: config.enabled, customDomain: customDomainInput ? `${customDomainProtocol}://${customDomainInput}` : null }),
-
+        body: JSON.stringify({
+          enabled: config.enabled,
+          customDomain: customDomainInput ? `${customDomainProtocol}://${customDomainInput}` : null,
+        }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -1310,48 +1104,27 @@ export default function ApiGatewayPage() {
     }
   }
 
-  const handleAddRoute = () => {
-    setEditingRoute({})
-    setModalOpen(true)
-  }
-
-  const handleEditRoute = (route: GatewayRoute) => {
-    setEditingRoute(route)
-    setModalOpen(true)
-  }
-
   const handleSaveRoute = async (data: any) => {
     if (!activeProject?.id) return
-
     if (editingRoute?.id) {
-      // Update existing route
-      const res = await authenticatedFetch(
-        `/api/gateway/routes/${editingRoute.id}?projectId=${activeProject.id}`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
-      )
+      const res = await authenticatedFetch(`/api/gateway/routes/${editingRoute.id}?projectId=${activeProject.id}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const body = await res.json()
       if (!res.ok) { toast.error(body.message || 'Failed to update route'); throw new Error(body.message) }
       toast.success('Route updated')
     } else {
-      // Create new route
-      const res = await authenticatedFetch(
-        `/api/gateway/routes?projectId=${activeProject.id}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
-      )
+      const res = await authenticatedFetch(`/api/gateway/routes?projectId=${activeProject.id}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const body = await res.json()
       if (!res.ok) { toast.error(body.message || 'Failed to create route'); throw new Error(body.message) }
       toast.success('Route created')
     }
-
     await loadAll()
   }
 
   const handleDeleteRoute = async (id: string) => {
     if (!activeProject?.id) return
-    const res = await authenticatedFetch(
-      `/api/gateway/routes/${id}?projectId=${activeProject.id}`,
-      { method: 'DELETE' }
-    )
+    const res = await authenticatedFetch(`/api/gateway/routes/${id}?projectId=${activeProject.id}`, { method: 'DELETE' })
     if (res.ok) {
       toast.success('Route deleted')
       setRoutes((prev) => prev.filter((r) => r.id !== id))
@@ -1365,65 +1138,38 @@ export default function ApiGatewayPage() {
     if (!activeProject?.id) return
     setSavingOrder(true)
     try {
-      const res = await authenticatedFetch(
-        `/api/gateway/routes/reorder?projectId=${activeProject.id}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order: routes.map((r) => ({ id: r.id, sortOrder: r.sortOrder })) }),
-        }
-      )
-      if (res.ok) {
-        toast.success('Route order saved')
-        setOrderDirty(false)
-      } else {
-        toast.error('Failed to save route order')
-      }
-    } catch {
-      toast.error('Failed to save route order')
-    } finally {
-      setSavingOrder(false)
-    }
+      const res = await authenticatedFetch(`/api/gateway/routes/reorder?projectId=${activeProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: routes.map((r) => ({ id: r.id, sortOrder: r.sortOrder })) }),
+      })
+      if (res.ok) { toast.success('Route order saved'); setOrderDirty(false) }
+      else toast.error('Failed to save route order')
+    } catch { toast.error('Failed to save route order') }
+    finally { setSavingOrder(false) }
   }
 
-  const handleDiscardOrder = async () => {
-    await loadAll()
-  }
-
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event
-      if (!over || active.id === over.id) return
-
-      const oldIndex = routes.findIndex((r) => r.id === active.id)
-      const newIndex = routes.findIndex((r) => r.id === over.id)
-      const reordered = arrayMove(routes, oldIndex, newIndex)
-
-      // Assign new sort orders
-      const withOrder = reordered.map((r, i) => ({ ...r, sortOrder: i }))
-      setRoutes(withOrder)
-      setOrderDirty(true)
-    },
-    [routes]
-  )
-
-  const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = routes.findIndex((r) => r.id === active.id)
+    const newIndex = routes.findIndex((r) => r.id === over.id)
+    const reordered = arrayMove(routes, oldIndex, newIndex)
+    setRoutes(reordered.map((r, i) => ({ ...r, sortOrder: i })))
+    setOrderDirty(true)
+  }, [routes])
 
   const handleSaveAuthMethod = async (data: { name: string; type: string; config: any }) => {
     if (!activeProject?.id) return
     if (editingAuthMethod?.id) {
-      const res = await authenticatedFetch(
-        `/api/gateway/auth-methods/${editingAuthMethod.id}?projectId=${activeProject.id}`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
-      )
+      const res = await authenticatedFetch(`/api/gateway/auth-methods/${editingAuthMethod.id}?projectId=${activeProject.id}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const body = await res.json()
       if (!res.ok) { toast.error(body.message || 'Failed to update auth method'); throw new Error(body.message) }
       toast.success('Auth method updated')
     } else {
-      const res = await authenticatedFetch(
-        `/api/gateway/auth-methods?projectId=${activeProject.id}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
-      )
+      const res = await authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       const body = await res.json()
       if (!res.ok) { toast.error(body.message || 'Failed to create auth method'); throw new Error(body.message) }
       toast.success('Auth method created')
@@ -1433,33 +1179,18 @@ export default function ApiGatewayPage() {
 
   const handleDeleteAuthMethod = async (id: string) => {
     if (!activeProject?.id) return
-    const res = await authenticatedFetch(
-      `/api/gateway/auth-methods/${id}?projectId=${activeProject.id}`,
-      { method: 'DELETE' }
-    )
-    if (res.ok) {
-      toast.success('Auth method deleted')
-      setAuthMethods((prev) => prev.filter((m) => m.id !== id))
-    } else {
-      toast.error('Failed to delete auth method')
-    }
+    const res = await authenticatedFetch(`/api/gateway/auth-methods/${id}?projectId=${activeProject.id}`, { method: 'DELETE' })
+    if (res.ok) { toast.success('Auth method deleted'); setAuthMethods((prev) => prev.filter((m) => m.id !== id)) }
+    else toast.error('Failed to delete auth method')
     setDeleteAuthMethodId(null)
   }
 
-  // Normalise stored values: ensure they carry a protocol
-  const gatewayFull = gatewayDomain
-    ? (gatewayDomain.startsWith('http') ? gatewayDomain : `https://${gatewayDomain}`)
-    : ''
+  const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const gatewayFull = gatewayDomain ? (gatewayDomain.startsWith('http') ? gatewayDomain : `https://${gatewayDomain}`) : ''
   const customFull = customDomainInput
     ? `${customDomainProtocol}://${customDomainInput}`
-    : config.customDomain && config.customDomain.startsWith('http')
-      ? config.customDomain
-      : null
-
-  const defaultUrl = gatewayFull && projectSlug && activeProject?.id !== 'system'
-    ? `${gatewayFull}/${projectSlug}/<route>`
-    : null
-
+    : config.customDomain?.startsWith('http') ? config.customDomain : null
+  const defaultUrl = gatewayFull && projectSlug && activeProject?.id !== 'system' ? `${gatewayFull}/${projectSlug}/<route>` : null
   const customUrl = customFull ? `${customFull}/<route>` : null
 
   return (
@@ -1470,257 +1201,217 @@ export default function ApiGatewayPage() {
             <PageHeader
               title="API Gateway"
               subtitle="Configure per-project HTTP routing to invoke functions via custom or default domains"
-              icon={<Globe className="w-8 h-8 text-primary-500" />}
+              icon={<Globe className="w-8 h-8 text-primary" />}
             />
             {activeProject && activeProject.id !== 'system' && !loadingConfig && (
-              <button
-                onClick={() => setConfigModalOpen(true)}
-                className="btn-secondary flex items-center gap-2 shrink-0 mt-1"
-              >
-                <Settings className="w-4 h-4" />
+              <Button variant="outline" onClick={() => setConfigModalOpen(true)} className="shrink-0 mt-1">
+                <Settings className="w-4 h-4 mr-2" />
                 Configure
-              </button>
+              </Button>
             )}
           </div>
 
           {loadingConfig ? (
             <div className="flex items-center justify-center h-64">
-              <div className="flex items-center gap-2 text-gray-400">
-                <Loader className="w-5 h-5 text-primary-500 animate-spin" />
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Loader className="w-5 h-5 text-primary animate-spin" />
                 <span className="animate-pulse">Loading...</span>
               </div>
             </div>
           ) : !activeProject ? (
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
-                <Globe className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-300 mb-2">Please Select a Project</h2>
-                <p className="text-gray-400">Select a project to manage its API Gateway settings.</p>
+                <Globe className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">Please Select a Project</h2>
+                <p className="text-muted-foreground">Select a project to manage its API Gateway settings.</p>
               </div>
             </div>
           ) : activeProject.id === 'system' ? (
             <div className="flex items-center justify-center min-h-[400px]">
               <div className="text-center">
-                <Globe className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-gray-300 mb-2">Not Available for System Project</h2>
-                <p className="text-gray-400">API Gateway settings are configured per project. Select a project to manage its gateway.</p>
+                <Globe className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">Not Available for System Project</h2>
+                <p className="text-muted-foreground">API Gateway settings are configured per project. Select a project to manage its gateway.</p>
               </div>
             </div>
           ) : (
             <>
-              {/* Tab bar */}
-              <div className="border-b border-gray-700">
-                <nav className="flex gap-1 -mb-px">
-                  {([
-                    { id: 'routes', label: 'Routes', icon: <Globe className="w-4 h-4" /> },
-                    { id: 'authentication', label: 'Authentication', icon: <KeyRound className="w-4 h-4" /> },
-                  ] as const).map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === tab.id
-                          ? 'border-primary-500 text-primary-400'
-                          : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500'
-                      }`}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                      {tab.id === 'authentication' && authMethods.length > 0 && (
-                        <span className="text-xs bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded-full">
-                          {authMethods.length}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </nav>
-              </div>
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+                <TabsList>
+                  <TabsTrigger value="routes" className="flex items-center gap-2">
+                    <Globe className="w-4 h-4" />
+                    Routes
+                  </TabsTrigger>
+                  <TabsTrigger value="authentication" className="flex items-center gap-2">
+                    <KeyRound className="w-4 h-4" />
+                    Authentication
+                    {authMethods.length > 0 && (
+                      <Badge variant="secondary" className="text-xs ml-1">{authMethods.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* ── Routes tab ── */}
-              {activeTab === 'routes' && (
-                <>
-                  {/* Disabled notice */}
+                {/* Routes Tab */}
+                <TabsContent value="routes" className="space-y-4 mt-4">
                   {!config.enabled && (
-                    <div className="card flex items-center gap-4 py-4">
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-200">API Gateway is disabled</p>
-                        <p className="text-xs text-gray-500 mt-0.5">Enable it via Configure to start routing requests to your functions.</p>
-                      </div>
-                      <button
-                        onClick={() => setConfigModalOpen(true)}
-                        className="btn-secondary flex items-center gap-2 text-sm shrink-0"
-                      >
-                        <Settings className="w-4 h-4" />
-                        Configure
-                      </button>
-                    </div>
+                    <Card>
+                      <CardContent className="py-4 flex items-center gap-4">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground">API Gateway is disabled</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">Enable it via Configure to start routing requests to your functions.</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setConfigModalOpen(true)}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configure
+                        </Button>
+                      </CardContent>
+                    </Card>
                   )}
 
-                  {/* Routes Table */}
                   {config.enabled && (
-                    <div className="card space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-                          <Globe className="w-5 h-5 text-primary-500" />
-                          Routes
-                          <span className="text-sm font-normal text-gray-400">({routes.length})</span>
-                        </h2>
-                        <div className="flex items-center gap-2">
-                          {orderDirty ? (
-                            <>
-                              <button onClick={handleDiscardOrder} disabled={savingOrder} className="btn-secondary flex items-center gap-2 text-sm">
-                                <X className="w-4 h-4" />
-                                Discard
-                              </button>
-                              <button onClick={handleSaveOrder} disabled={savingOrder} className="btn-primary flex items-center gap-2 text-sm">
-                                {savingOrder ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Save Order
-                              </button>
-                            </>
-                          ) : (
-                            <button onClick={handleAddRoute} className="btn-primary flex items-center gap-2 text-sm">
-                              <Plus className="w-4 h-4" />
-                              Add Route
-                            </button>
-                          )}
+                    <Card>
+                      <CardContent className="pt-6 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                            <Globe className="w-5 h-5 text-primary" />
+                            Routes
+                            <span className="text-sm font-normal text-muted-foreground">({routes.length})</span>
+                          </h2>
+                          <div className="flex items-center gap-2">
+                            {orderDirty ? (
+                              <>
+                                <Button variant="outline" size="sm" onClick={() => loadAll()} disabled={savingOrder}>
+                                  <X className="w-4 h-4 mr-1" /> Discard
+                                </Button>
+                                <Button size="sm" onClick={handleSaveOrder} disabled={savingOrder}>
+                                  {savingOrder ? <Loader className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                                  Save Order
+                                </Button>
+                              </>
+                            ) : (
+                              <Button size="sm" onClick={() => { setEditingRoute({}); setModalOpen(true) }}>
+                                <Plus className="w-4 h-4 mr-1" /> Add Route
+                              </Button>
+                            )}
+                          </div>
                         </div>
+
+                        {routes.length === 0 ? (
+                          <div className="text-center py-12 text-muted-foreground">
+                            <Globe className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                            <p className="text-sm">No routes configured yet.</p>
+                            <p className="text-xs mt-1">Add a route to start routing external requests to your functions.</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto rounded-lg border border-border">
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              modifiers={[restrictToVerticalAxis]}
+                              onDragEnd={handleDragEnd}
+                            >
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-8" />
+                                    <TableHead>Route Path</TableHead>
+                                    <TableHead>Upstream Function</TableHead>
+                                    <TableHead>Methods</TableHead>
+                                    <TableHead>Auth</TableHead>
+                                    <TableHead>CORS</TableHead>
+                                    <TableHead>Actions</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  <SortableContext items={routes.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+                                    {routes.map((route) => (
+                                      <SortableRouteRow
+                                        key={route.id}
+                                        route={route}
+                                        onEdit={(r) => { setEditingRoute(r); setModalOpen(true) }}
+                                        onDelete={(id) => setDeleteConfirmId(id)}
+                                        gatewayDomain={gatewayFull}
+                                        projectSlug={projectSlug}
+                                        customDomain={customFull}
+                                      />
+                                    ))}
+                                  </SortableContext>
+                                </TableBody>
+                              </Table>
+                            </DndContext>
+                          </div>
+                        )}
+
+                        <p className="text-xs text-muted-foreground">
+                          Drag rows to reorder, then click <strong className="text-foreground">Save Order</strong> to apply. Routes are matched from top to bottom — first match wins.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+
+                {/* Authentication Tab */}
+                <TabsContent value="authentication" className="mt-4">
+                  <Card>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                          <KeyRound className="w-5 h-5 text-primary" />
+                          Authentication Methods
+                          <span className="text-sm font-normal text-muted-foreground">({authMethods.length})</span>
+                        </h2>
+                        <Button size="sm" onClick={() => { setEditingAuthMethod({}); setAuthMethodModalOpen(true) }}>
+                          <Plus className="w-4 h-4 mr-1" /> Add Method
+                        </Button>
                       </div>
 
-                      {routes.length === 0 ? (
-                        <div className="text-center py-12 text-gray-500">
-                          <Globe className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                          <p className="text-sm">No routes configured yet.</p>
-                          <p className="text-xs mt-1">Add a route to start routing external requests to your functions.</p>
+                      {authMethods.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <KeyRound className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                          <p className="text-sm">No authentication methods configured.</p>
+                          <p className="text-xs mt-1">Add a method and assign it to routes to secure your gateway endpoints.</p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto rounded-lg border border-gray-700">
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            modifiers={[restrictToVerticalAxis]}
-                            onDragEnd={handleDragEnd}
-                          >
-                            <table className="w-full text-sm">
-                              <thead>
-                                <tr className="bg-gray-750 border-b border-gray-700 text-xs text-gray-400 uppercase tracking-wider">
-                                  <th className="w-8 px-3 py-3" />
-                                  <th className="px-4 py-3 text-left">Route Path</th>
-                                  <th className="px-4 py-3 text-left">Upstream Function</th>
-                                  <th className="px-4 py-3 text-left">Methods</th>
-                                  <th className="px-4 py-3 text-left">Auth</th>
-                                  <th className="px-4 py-3 text-left">CORS</th>
-                                  <th className="px-4 py-3 text-left">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                <SortableContext
-                                  items={routes.map((r) => r.id)}
-                                  strategy={verticalListSortingStrategy}
-                                >
-                                  {routes.map((route) => (
-                                    <SortableRouteRow
-                                      key={route.id}
-                                      route={route}
-                                      onEdit={handleEditRoute}
-                                      onDelete={(id) => setDeleteConfirmId(id)}
-                                      gatewayDomain={gatewayFull}
-                                      projectSlug={projectSlug}
-                                      customDomain={customFull}
-                                    />
-                                  ))}
-                                </SortableContext>
-                              </tbody>
-                            </table>
-                          </DndContext>
+                        <div className="space-y-3">
+                          {authMethods.map((m) => (
+                            <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className={cn('shrink-0 text-xs px-2 py-1 rounded font-mono', authTypeBadgeClass(m.type))}>
+                                  {m.type === 'basic_auth' ? 'Basic Auth' : m.type === 'bearer_jwt' ? 'Bearer JWT' : m.type === 'middleware' ? 'Middleware' : 'API Key'}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-foreground truncate">{m.name}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {m.type === 'basic_auth' && `${m.config.credentials?.length ?? 0} credential(s)`}
+                                    {m.type === 'bearer_jwt' && (m.config.jwtMode ? JWT_MODE_LABELS[m.config.jwtMode] ?? 'Bearer JWT' : 'Fixed secret')}
+                                    {m.type === 'api_key' && `${m.config.apiKeys?.length ?? 0} key(s)`}
+                                    {m.type === 'middleware' && (functions.find((f) => f.id === m.config.functionId)?.name || 'Function configured')}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                  onClick={() => { setEditingAuthMethod(m); setAuthMethodModalOpen(true) }}>
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                  onClick={() => setDeleteAuthMethodId(m.id)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      <p className="text-xs text-gray-500">
-                        Drag rows to reorder, then click <strong className="text-gray-400">Save Order</strong> to apply. Routes are matched from top to bottom — first match wins.
-                        Use specific routes (e.g. <code className="bg-gray-700 px-1 rounded">/users/me</code>) above
-                        parameterized ones (e.g. <code className="bg-gray-700 px-1 rounded">/users/:id</code>).
+                      <p className="text-xs text-muted-foreground">
+                        Auth methods are reusable. Assign them to routes in the{' '}
+                        <button onClick={() => setActiveTab('routes')} className="text-primary hover:underline">Routes</button> tab.
                       </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* ── Authentication tab ── */}
-              {activeTab === 'authentication' && (
-                <div className="card space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold text-gray-100 flex items-center gap-2">
-                      <KeyRound className="w-5 h-5 text-primary-500" />
-                      Authentication Methods
-                      <span className="text-sm font-normal text-gray-400">({authMethods.length})</span>
-                    </h2>
-                    <button
-                      onClick={() => { setEditingAuthMethod({}); setAuthMethodModalOpen(true) }}
-                      className="btn-primary flex items-center gap-2 text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Method
-                    </button>
-                  </div>
-
-                  {authMethods.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <KeyRound className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                      <p className="text-sm">No authentication methods configured.</p>
-                      <p className="text-xs mt-1">Add a method and assign it to routes to secure your gateway endpoints.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {authMethods.map((m) => (
-                        <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className={`shrink-0 text-xs px-2 py-1 rounded border font-mono ${
-                              m.type === 'basic_auth' ? 'bg-blue-900/40 text-blue-300 border-blue-700' :
-                              m.type === 'bearer_jwt' ? 'bg-yellow-900/40 text-yellow-300 border-yellow-700' :
-                              m.type === 'middleware' ? 'bg-purple-900/40 text-purple-300 border-purple-700' :
-                              'bg-green-900/40 text-green-300 border-green-700'
-                            }`}>
-                              {m.type === 'basic_auth' ? 'Basic Auth' :
-                               m.type === 'bearer_jwt' ? 'Bearer JWT' :
-                               m.type === 'middleware' ? 'Middleware' : 'API Key'}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium text-gray-100 truncate">{m.name}</p>
-                              <p className="text-xs text-gray-500 mt-0.5">
-                                {m.type === 'basic_auth' && `${m.config.credentials?.length ?? 0} credential${(m.config.credentials?.length ?? 0) !== 1 ? 's' : ''}`}
-                                {m.type === 'bearer_jwt' && (m.config.jwtMode ? JWT_MODE_LABELS[m.config.jwtMode] ?? 'Bearer JWT' : 'Fixed secret')}
-                                {m.type === 'api_key' && `${m.config.apiKeys?.length ?? 0} key${(m.config.apiKeys?.length ?? 0) !== 1 ? 's' : ''}`}
-                                {m.type === 'middleware' && (functions.find((f) => f.id === m.config.functionId)?.name || 'Function configured')}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 shrink-0">
-                            <button
-                              onClick={() => { setEditingAuthMethod(m); setAuthMethodModalOpen(true) }}
-                              className="text-gray-400 hover:text-primary-400 transition-colors"
-                              title="Edit"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteAuthMethodId(m.id)}
-                              className="text-gray-400 hover:text-red-400 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="text-xs text-gray-500">
-                    Auth methods are reusable. Assign them to routes in the <button onClick={() => setActiveTab('routes')} className="text-primary-400 hover:underline">Routes</button> tab.
-                    A route with multiple methods allows access if <em>any</em> method validates successfully.
-                  </p>
-                </div>
-              )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
             </>
           )}
         </div>
@@ -1737,100 +1428,66 @@ export default function ApiGatewayPage() {
           size="md"
         >
           <div className="space-y-5">
-            {/* Enable toggle */}
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-200">Enable API Gateway</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  When enabled, external requests are routed to your functions via the gateway.
-                </p>
+                <p className="text-sm font-medium text-foreground">Enable API Gateway</p>
+                <p className="text-xs text-muted-foreground mt-0.5">When enabled, external requests are routed to your functions.</p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={config.enabled}
-                onClick={() => setConfig((c) => ({ ...c, enabled: !c.enabled }))}
-                className={`relative inline-flex h-6 min-w-11 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                  config.enabled ? 'bg-primary-600' : 'bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    config.enabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
+              <Switch checked={config.enabled} onCheckedChange={(v) => setConfig((c) => ({ ...c, enabled: v }))} />
             </div>
 
-            {/* Custom Domain */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Custom Domain <span className="text-gray-500">(optional)</span>
-              </label>
-              <div className="flex rounded-md overflow-hidden border-2 border-gray-600 focus-within:border-primary-500 bg-gray-800">
-                <select
-                  value={customDomainProtocol}
-                  onChange={(e) => setCustomDomainProtocol(e.target.value as 'http' | 'https')}
-                  className="bg-gray-700 text-gray-300 text-sm px-2 py-2 border-r border-gray-600 focus:outline-none shrink-0"
-                >
-                  <option value="https">https://</option>
-                  <option value="http">http://</option>
-                </select>
+            <div className="space-y-1.5">
+              <Label>Custom Domain <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <div className="flex rounded-md overflow-hidden border border-input focus-within:border-primary">
+                <Select value={customDomainProtocol} onValueChange={(v) => setCustomDomainProtocol(v as any)}>
+                  <SelectTrigger className="w-28 rounded-none border-0 border-r border-input bg-muted">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="https">https://</SelectItem>
+                    <SelectItem value="http">http://</SelectItem>
+                  </SelectContent>
+                </Select>
                 <input
                   type="text"
                   value={customDomainInput}
                   onChange={(e) => setCustomDomainInput(e.target.value)}
                   placeholder="api.mycompany.com"
-                  className="flex-1 bg-transparent text-gray-100 text-sm px-3 py-2 focus:outline-none"
+                  className="flex-1 bg-transparent text-foreground text-sm px-3 py-2 focus:outline-none"
                 />
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Point this domain to the gateway service. Must be unique across all projects.
-                {gatewayDomain && (() => {
-                  const cnameTarget = gatewayDomain.replace(/^https?:\/\//, '').split('/')[0].split(':')[0]
-                  return (
-                    <>
-                      {' '}Add a <span className="text-gray-300 font-medium">CNAME</span> record pointing to{' '}
-                      <code className="bg-gray-700 text-primary-300 px-1 py-0.5 rounded">{cnameTarget}</code>.
-                    </>
-                  )
-                })()}
-              </p>
             </div>
 
-            {/* URL Preview */}
-            <div className="bg-gray-900 rounded-lg p-4 space-y-2 border border-gray-700">
-              <p className="text-xs font-medium text-gray-400 mb-2">URL Preview</p>
+            <div className="bg-muted/40 rounded-lg p-4 space-y-2 border border-border">
+              <p className="text-xs font-medium text-muted-foreground mb-2">URL Preview</p>
               {customUrl ? (
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-400">Custom domain</p>
+                    <p className="text-xs text-muted-foreground">Custom domain</p>
                     <code className="text-xs text-green-300 font-mono">{customUrl}</code>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-gray-500">No custom domain configured</p>
+                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground">No custom domain configured</p>
                 </div>
               )}
               {defaultUrl ? (
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
                   <div>
-                    <p className="text-xs text-gray-400">Default gateway domain</p>
+                    <p className="text-xs text-muted-foreground">Default gateway domain</p>
                     <code className="text-xs text-blue-300 font-mono">{defaultUrl}</code>
                   </div>
                 </div>
               ) : (
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-gray-500 mt-0.5 shrink-0" />
-                  <p className="text-xs text-gray-500">
+                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <p className="text-xs text-muted-foreground">
                     Configure a default gateway domain in{' '}
-                    <a href="/admin/global-settings" className="text-primary-400 hover:underline">
-                      Global Settings
-                    </a>{' '}
+                    <a href="/admin/global-settings" className="text-primary hover:underline">Global Settings</a>{' '}
                     to enable the default URL pattern.
                   </p>
                 </div>
@@ -1839,7 +1496,6 @@ export default function ApiGatewayPage() {
           </div>
         </Modal>
 
-        {/* Route Editor Modal */}
         <RouteEditorModal
           isOpen={modalOpen}
           route={editingRoute}
@@ -1852,19 +1508,17 @@ export default function ApiGatewayPage() {
           onClose={() => { setModalOpen(false); setEditingRoute(null) }}
         />
 
-        {/* Delete Confirmation */}
         <Modal
           isOpen={!!deleteConfirmId}
           title="Delete Route"
           description="Are you sure you want to delete this route? This action cannot be undone."
-          onConfirm={() => { if (deleteConfirmId) handleDeleteRoute(deleteConfirmId); }}
+          onConfirm={() => { if (deleteConfirmId) handleDeleteRoute(deleteConfirmId) }}
           onCancel={() => setDeleteConfirmId(null)}
           confirmText="Delete"
           cancelText="Cancel"
           confirmVariant="danger"
         />
 
-        {/* Auth Method Modal */}
         <AuthMethodModal
           isOpen={authMethodModalOpen}
           method={editingAuthMethod}
@@ -1873,12 +1527,11 @@ export default function ApiGatewayPage() {
           onClose={() => { setAuthMethodModalOpen(false); setEditingAuthMethod(null) }}
         />
 
-        {/* Delete Auth Method Confirmation */}
         <Modal
           isOpen={!!deleteAuthMethodId}
           title="Delete Auth Method"
           description="Are you sure you want to delete this authentication method? Routes using it will become public."
-          onConfirm={() => { if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId); }}
+          onConfirm={() => { if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId) }}
           onCancel={() => setDeleteAuthMethodId(null)}
           confirmText="Delete"
           cancelText="Cancel"

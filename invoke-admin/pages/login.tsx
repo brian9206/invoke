@@ -1,22 +1,13 @@
-/**
- * Login page with Cloudflare Turnstile integration
- * 
- * Setup instructions:
- * 1. Get Turnstile keys from https://dash.cloudflare.com/
- * 2. Add to .env file:
- *    - TURNSTILE_SITE_KEY (for frontend)
- *    - TURNSTILE_SECRET_KEY (for backend verification)
- * 3. For testing, use dummy keys (always passes):
- *    - Site key: 1x00000000000000000000AA
- *    - Secret key: 1x0000000000000000000000000000000AA
- */
-
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useAuth } from '@/contexts/AuthContext'
 import { Rocket, Lock, User } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 declare global {
   interface Window {
@@ -135,86 +126,82 @@ export default function Login() {
         <meta name="description" content="Sign in to Invoke Admin Panel" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </Head>
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-        <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center">
-            <Rocket className="w-16 h-16 text-primary-500" />
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <div className="flex justify-center">
+              <Rocket className="w-14 h-14 text-primary" />
+            </div>
+            <h2 className="mt-4 text-3xl font-bold text-foreground">Sign in to Invoke</h2>
+            <p className="mt-2 text-muted-foreground text-sm">
+              Access your serverless function management panel
+            </p>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-white">
-            Sign in to Invoke
-          </h2>
-          <p className="mt-2 text-gray-400">
-            Access your serverless function management panel
+
+          <Card>
+            <CardContent className="pt-6">
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <Label htmlFor="username" className="flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5" />
+                    Username
+                  </Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    autoComplete="username"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Enter your username"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    Password
+                  </Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                  />
+                </div>
+
+                <div>
+                  <div ref={turnstileWidgetRef} className="flex justify-center" />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading || !turnstileToken}
+                  className="w-full"
+                  size="lg"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                      Signing in...
+                    </span>
+                  ) : (
+                    'Sign in'
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-sm text-muted-foreground">
+            Need an admin account? Contact your system administrator.
           </p>
         </div>
-
-        <form className="space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="username" className="form-label">
-              <User className="w-4 h-4 inline mr-2" />
-              Username
-            </label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="form-input"
-              placeholder="Enter your username"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="form-label">
-              <Lock className="w-4 h-4 inline mr-2" />
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
-              placeholder="Enter your password"
-            />
-          </div>
-
-          <div>
-            <div 
-              ref={turnstileWidgetRef}
-              className="flex justify-center"
-            ></div>
-          </div>
-
-          <div>
-            <button
-              type="submit"
-              disabled={loading || !turnstileToken}
-              className="w-full btn-primary py-3 text-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Signing in...
-                </div>
-              ) : (
-                'Sign in'
-              )}
-            </button>
-          </div>
-        </form>
-
-        <div className="text-center text-sm text-gray-400">
-          <p>Need an admin account? Contact your system administrator.</p>
-        </div>
-      </div>
       </div>
     </>
   )

@@ -1,11 +1,15 @@
 import '@/styles/globals.css'
 import type { AppProps, AppContext, AppInitialProps } from 'next/app'
 import NextApp from 'next/app'
-import { Toaster } from 'react-hot-toast'
+import { Inter } from 'next/font/google'
+import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { FeatureFlagsProvider, FeatureFlags } from '@/contexts/FeatureFlagsContext'
 import PageTransition from '@/components/PageTransition'
+import { SidebarProvider } from '@/components/ui/sidebar'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 type AppPropsWithFlags = AppProps & { featureFlags: FeatureFlags }
 
@@ -14,19 +18,13 @@ export default function App({ Component, pageProps, featureFlags }: AppPropsWith
     <FeatureFlagsProvider flags={featureFlags}>
       <AuthProvider>
         <ProjectProvider>
-          <PageTransition />
-          <Component {...pageProps} />
-          <Toaster
-            position="bottom-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#1f2937',
-                color: '#f9fafb',
-                border: '1px solid #374151',
-              },
-            }}
-          />
+          <div className={`${inter.variable} font-sans`}>
+            <PageTransition />
+            <SidebarProvider>
+              <Component {...pageProps} />
+            </SidebarProvider>
+            <Toaster position="bottom-right" />
+          </div>
         </ProjectProvider>
       </AuthProvider>
     </FeatureFlagsProvider>

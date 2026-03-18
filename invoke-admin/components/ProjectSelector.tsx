@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { ChevronDown, Folder, Server } from 'lucide-react';
 import Modal from './Modal';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/cn';
 
 interface Project {
   id: string;
@@ -39,13 +42,10 @@ export default function ProjectSelector({
   });
 
   const handleProjectSelect = (project: Project) => {
-    // Only show confirmation if locked and switching to a different project
     if (isProjectLocked && activeProject?.id !== project.id) {
       setConfirmModal({ isOpen: true, project });
       return;
     }
-
-    // Not locked, proceed directly
     onProjectChange(project);
     setProjectDropdownOpen(false);
   };
@@ -64,16 +64,12 @@ export default function ProjectSelector({
   };
 
   if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-10 bg-gray-700 rounded"></div>
-      </div>
-    );
+    return <div className="h-10 bg-muted animate-pulse rounded-md" />;
   }
 
   if (userProjects.length === 0) {
     return (
-      <div className="text-sm text-gray-400 text-center py-2">
+      <div className="text-sm text-muted-foreground text-center py-2">
         {user.isAdmin ? 'No projects found' : 'No projects assigned'}
       </div>
     );
@@ -82,59 +78,53 @@ export default function ProjectSelector({
   return (
     <>
       <div className="relative">
-        <button
+        <Button
+          variant="outline"
           onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-          className="w-full flex items-center justify-between p-2 rounded-lg bg-gray-700/50 hover:bg-gray-700 transition-colors min-w-0"
+          className="w-full justify-between px-3 h-9 bg-sidebar-accent border-sidebar-border hover:bg-sidebar-accent/80 hover:border-sidebar-border text-sidebar-foreground"
         >
-          <div className="flex items-center space-x-3 min-w-0 flex-1">
+          <div className="flex items-center space-x-2 min-w-0 flex-1">
             {activeProject?.id === 'system' ? (
-              <Server className="w-4 h-4 text-primary-400 flex-shrink-0" />
+              <Server className="w-4 h-4 text-primary shrink-0" />
             ) : (
-              <Folder className="w-4 h-4 text-primary-400 flex-shrink-0" />
+              <Folder className="w-4 h-4 text-primary shrink-0" />
             )}
-            <div className="text-left min-w-0 flex-1">
-              <div className="text-sm font-medium text-white truncate">
-                {activeProject ? activeProject.name : 'Select Project'}
-              </div>
-            </div>
+            <span className="text-sm font-medium truncate">
+              {activeProject ? activeProject.name : 'Select Project'}
+            </span>
           </div>
-          <ChevronDown className={`w-4 h-4 text-gray-400 transform transition-transform flex-shrink-0 ${
-            projectDropdownOpen ? 'rotate-180' : ''
-          }`} />
-        </button>
+          <ChevronDown className={cn(
+            'w-4 h-4 text-muted-foreground shrink-0 transition-transform',
+            projectDropdownOpen && 'rotate-180'
+          )} />
+        </Button>
 
         {projectDropdownOpen && (
           <>
-            {/* Backdrop */}
-            <div 
-              className="fixed inset-0 z-10" 
+            <div
+              className="fixed inset-0 z-10"
               onClick={() => setProjectDropdownOpen(false)}
             />
-            {/* Dropdown */}
-            <div className="absolute top-full left-0 right-0 mt-1 bg-gray-700 border border-gray-600 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto animate-slideInUp">
-              {userProjects.map((project, index) => (
-                <button
-                  key={project.id}
-                  onClick={() => handleProjectSelect(project)}
-                  className={`w-full px-4 py-3 text-left hover:bg-gray-600 transition-all flex items-center min-w-0 animate-fadeIn ${
-                    activeProject?.id === project.id ? 'bg-gray-600' : ''
-                  }`}
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <div className="flex items-center space-x-3 min-w-0 flex-1">
-                    {project.id === 'system' ? (
-                      <Server className="w-4 h-4 text-primary-400 flex-shrink-0" />
-                    ) : (
-                      <Folder className="w-4 h-4 text-primary-400 flex-shrink-0" />
+            <div className="absolute top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg z-20 overflow-hidden animate-in fade-in-0 zoom-in-95">
+              <ScrollArea className="max-h-64">
+                {userProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => handleProjectSelect(project)}
+                    className={cn(
+                      'w-full px-3 py-2.5 text-left flex items-center space-x-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                      activeProject?.id === project.id && 'bg-accent text-accent-foreground'
                     )}
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-white truncate">
-                        {project.name}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
+                  >
+                    {project.id === 'system' ? (
+                      <Server className="w-4 h-4 text-primary shrink-0" />
+                    ) : (
+                      <Folder className="w-4 h-4 text-primary shrink-0" />
+                    )}
+                    <span className="truncate font-medium">{project.name}</span>
+                  </button>
+                ))}
+              </ScrollArea>
             </div>
           </>
         )}

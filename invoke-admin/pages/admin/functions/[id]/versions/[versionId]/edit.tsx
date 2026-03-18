@@ -26,7 +26,7 @@ import {
   Replace
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 // Dynamically import Monaco Editor to avoid SSR issues
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { ssr: false })
@@ -1684,10 +1684,10 @@ export default function FunctionCodeEditor() {
               onClick={() => {
                 if (hasChanges) {
                   if (confirm('You have unsaved changes. Are you sure you want to leave?')) {
-                    router.push(`/admin/functions/${functionId}/versioning`)
+                    router.push(`/admin/functions/${functionId}`)
                   }
                 } else {
-                  router.push(`/admin/functions/${functionId}/versioning`)
+                  router.push(`/admin/functions/${functionId}`)
                 }
               }}
               className="p-1 hover:bg-[#2a2d2e] rounded transition-colors"

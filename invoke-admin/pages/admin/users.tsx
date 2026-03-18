@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import Modal from '@/components/Modal';
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
-import { Edit, Trash2, Users } from 'lucide-react';
+import { Edit, Trash2, Users, Loader } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface User {
   id: number;
@@ -27,30 +32,24 @@ export default function UsersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [passwordScore, setPasswordScore] = useState(0);
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    is_admin: false
-  });
-  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' });
-  const router = useRouter();
+  const [formData, setFormData] = useState({ username: '', email: '', password: '', is_admin: false });
+  const [dialogState, setDialogState] = useState<{
+    type: 'alert' | 'confirm' | null;
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+  }>({ type: null, title: '', message: '' });
   const { lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
+  useEffect(() => { loadUsers(); }, []);
 
-  // Lock project to System when on this page
   useEffect(() => {
-    const systemProject = userProjects.find(p => p.id === 'system');
-    
+    const systemProject = userProjects.find((p) => p.id === 'system');
     if (systemProject && !hasLockedProject.current) {
       hasLockedProject.current = true;
       lockProject(systemProject);
     }
-
     return () => {
       if (hasLockedProject.current) {
         hasLockedProject.current = false;
@@ -62,12 +61,9 @@ export default function UsersPage() {
   const loadUsers = async () => {
     try {
       const response = await authenticatedFetch('/api/admin/users');
-
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
-      } else {
-        console.error('Failed to load users');
       }
     } catch (error) {
       console.error('Error loading users:', error);
@@ -78,19 +74,12 @@ export default function UsersPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    // Validate password strength
     if (passwordScore < 3) {
       setDialogState({ type: 'alert', title: 'Weak Password', message: 'Password is not strong enough. Please use a stronger password with a score of at least 3.' });
       return;
     }
-
     try {
-      const response = await authenticatedFetch('/api/admin/users', {
-        method: 'POST',
-        body: JSON.stringify(formData),
-      });
-
+      const response = await authenticatedFetch('/api/admin/users', { method: 'POST', body: JSON.stringify(formData) });
       if (response.ok) {
         setShowCreateModal(false);
         setFormData({ username: '', email: '', password: '', is_admin: false });
@@ -99,8 +88,7 @@ export default function UsersPage() {
         const data = await response.json();
         setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to create user' });
       }
-    } catch (error) {
-      console.error('Error creating user:', error);
+    } catch {
       setDialogState({ type: 'alert', title: 'Error', message: 'Error creating user' });
     }
   };
@@ -108,30 +96,14 @@ export default function UsersPage() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-
-    // Validate password strength if password is being changed
     if (formData.password && passwordScore < 3) {
-      setDialogState({ type: 'alert', title: 'Weak Password', message: 'Password is not strong enough. Please use a stronger password with a score of at least 3.' });
+      setDialogState({ type: 'alert', title: 'Weak Password', message: 'Password is not strong enough.' });
       return;
     }
-
-    const updateData: any = {
-      id: editingUser.id,
-      username: formData.username,
-      email: formData.email,
-      is_admin: formData.is_admin,
-    };
-
-    if (formData.password) {
-      updateData.password = formData.password;
-    }
-
+    const updateData: any = { id: editingUser.id, username: formData.username, email: formData.email, is_admin: formData.is_admin };
+    if (formData.password) updateData.password = formData.password;
     try {
-      const response = await authenticatedFetch('/api/admin/users', {
-        method: 'PUT',
-        body: JSON.stringify(updateData),
-      });
-
+      const response = await authenticatedFetch('/api/admin/users', { method: 'PUT', body: JSON.stringify(updateData) });
       if (response.ok) {
         setEditingUser(null);
         setFormData({ username: '', email: '', password: '', is_admin: false });
@@ -140,30 +112,23 @@ export default function UsersPage() {
         const data = await response.json();
         setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to update user' });
       }
-    } catch (error) {
-      console.error('Error updating user:', error);
+    } catch {
       setDialogState({ type: 'alert', title: 'Error', message: 'Error updating user' });
     }
   };
 
   const handleDeleteUser = async (user: User) => {
-    // Prevent deleting current user
     if (currentUser && user.id === currentUser.id) {
       setDialogState({ type: 'alert', title: 'Cannot Delete', message: 'You cannot delete your own account. Please use another admin account to delete this user.' });
       return;
     }
-
     setDialogState({
       type: 'confirm',
       title: 'Delete User',
       message: `Are you sure you want to delete the user "${user.username}"?`,
       onConfirm: async () => {
         try {
-          const response = await authenticatedFetch('/api/admin/users', {
-            method: 'DELETE',
-            body: JSON.stringify({ id: user.id }),
-          });
-
+          const response = await authenticatedFetch('/api/admin/users', { method: 'DELETE', body: JSON.stringify({ id: user.id }) });
           if (response.ok) {
             loadUsers();
             setDialogState({ type: null, title: '', message: '' });
@@ -171,22 +136,16 @@ export default function UsersPage() {
             const data = await response.json();
             setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to delete user' });
           }
-        } catch (error) {
-          console.error('Error deleting user:', error);
+        } catch {
           setDialogState({ type: 'alert', title: 'Error', message: 'Error deleting user' });
         }
-      }
+      },
     });
   };
 
   const openEditModal = (user: User) => {
     setEditingUser(user);
-    setFormData({
-      username: user.username,
-      email: user.email,
-      password: '',
-      is_admin: user.is_admin
-    });
+    setFormData({ username: user.username, email: user.email, password: '', is_admin: user.is_admin });
   };
 
   const closeModals = () => {
@@ -201,7 +160,7 @@ export default function UsersPage() {
       <ProtectedRoute>
         <Layout title="Users">
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500"></div>
+            <Loader className="w-8 h-8 text-primary animate-spin" />
           </div>
         </Layout>
       </ProtectedRoute>
@@ -215,88 +174,69 @@ export default function UsersPage() {
           <PageHeader
             title="User Management"
             subtitle="Manage system users and their permissions"
-            icon={<Users className="w-8 h-8 text-primary-500" />}
+            icon={<Users className="w-8 h-8 text-primary" />}
           >
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="btn-primary"
-            >
-              Create User
-            </button>
+            <Button onClick={() => setShowCreateModal(true)}>Create User</Button>
           </PageHeader>
 
           {users.length === 0 ? (
-            <div className="card text-center py-12">
-              <div className="text-gray-500 text-lg">No users found.</div>
-            </div>
+            <Card>
+              <CardContent className="py-12 text-center text-muted-foreground">No users found.</CardContent>
+            </Card>
           ) : (
-            <div className="grid gap-6">
+            <div className="grid gap-4">
               {users.map((user) => (
-                <div key={user.id} className="card hover:bg-gray-800/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <h3 className="text-lg font-semibold text-gray-100">
-                          {user.username}
-                        </h3>
-                        {user.is_admin && (
-                          <span className="px-2 py-1 text-xs rounded bg-purple-900/30 text-purple-400 border border-purple-800">
-                            Admin
-                          </span>
-                        )}
+                <Card key={user.id}>
+                  <CardContent className="pt-5">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1">
+                          <h3 className="text-base font-semibold text-foreground">{user.username}</h3>
+                          {user.is_admin && <Badge variant="purple">Admin</Badge>}
+                        </div>
+                        <p className="text-muted-foreground text-sm">{user.email}</p>
+                        <div className="flex items-center gap-6 mt-2 text-sm text-muted-foreground">
+                          <span>Projects: {user.project_count}</span>
+                          <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                          {user.last_login && <span>Last login: {new Date(user.last_login).toLocaleDateString()}</span>}
+                        </div>
                       </div>
-                      <p className="text-gray-400 mt-1">{user.email}</p>
-                      <div className="flex items-center space-x-6 mt-3 text-sm text-gray-400">
-                        <span>Projects: {user.project_count}</span>
-                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                        {user.last_login && (
-                          <span>Last login: {new Date(user.last_login).toLocaleDateString()}</span>
-                        )}
+                      <div className="flex items-center gap-2 ml-4">
+                        <Button variant="ghost" size="icon" onClick={() => openEditModal(user)} className="text-yellow-400 hover:text-yellow-300">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={!!currentUser && user.id === currentUser.id}
+                          className="text-red-400 hover:text-red-300 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2 ml-4">
-                      <button
-                        onClick={() => openEditModal(user)}
-                        className="p-2 rounded-lg bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50 transition-colors active:scale-95"
-                        title="Edit User"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user)}
-                        disabled={!!currentUser && user.id === currentUser.id}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={currentUser && user.id === currentUser.id ? "Cannot delete yourself" : "Delete User"}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
         </div>
 
-        {/* Dialog Modal */}
         <Modal
           isOpen={dialogState.type !== null}
           title={dialogState.title}
           description={dialogState.message}
           onCancel={() => setDialogState({ type: null, title: '', message: '' })}
           onConfirm={async () => {
-            if (dialogState.onConfirm) {
-              await dialogState.onConfirm();
-            } else {
-              setDialogState({ type: null, title: '', message: '' });
-            }
+            if (dialogState.onConfirm) await dialogState.onConfirm();
+            else setDialogState({ type: null, title: '', message: '' });
           }}
           cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
           confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
           confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
         />
 
-        {/* Create User Modal */}
         {showCreateModal && (
           <Modal
             isOpen={showCreateModal}
@@ -311,65 +251,31 @@ export default function UsersPage() {
             confirmDisabled={passwordScore < 3}
           >
             <form onSubmit={handleCreateUser} data-create-user className="space-y-4">
-              <div>
-                <label className="form-label">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.username}
-                  onChange={(e) => setFormData({...formData, username: e.target.value})}
-                  className="form-input"
-                  placeholder="Enter username"
-                />
+              <div className="space-y-1.5">
+                <Label>Username</Label>
+                <Input required value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} placeholder="Enter username" />
               </div>
-              <div>
-                <label className="form-label">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="form-input"
-                  placeholder="Enter email address"
-                />
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="Enter email address" />
               </div>
-              <div>
-                <label className="form-label">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className="form-input"
-                  placeholder="Enter password"
-                />
-                <PasswordStrengthMeter 
-                  password={formData.password} 
-                  onScoreChange={setPasswordScore}
-                />
+              <div className="space-y-1.5">
+                <Label>Password</Label>
+                <Input type="password" required value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} placeholder="Enter password" />
+                <PasswordStrengthMeter password={formData.password} onScoreChange={setPasswordScore} />
               </div>
-              <div>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_admin}
-                    onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                    className="w-4 h-4 text-primary-600 bg-gray-700 border-gray-600 rounded focus:ring-primary-500"
-                  />
-                  <span className="text-sm text-gray-300">Admin User</span>
-                </label>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="createIsAdmin"
+                  checked={formData.is_admin}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_admin: v === true })}
+                />
+                <Label htmlFor="createIsAdmin" className="cursor-pointer">Admin User</Label>
               </div>
             </form>
           </Modal>
         )}
 
-        {/* Edit User Modal */}
         {editingUser && (
           <Modal
             isOpen={!!editingUser}
@@ -383,73 +289,44 @@ export default function UsersPage() {
             confirmText="Update User"
             confirmDisabled={formData.password !== '' && passwordScore < 3}
           >
-            <form onSubmit={handleUpdateUser} data-edit-user>
-              <div className="mb-4">
-                <label className="form-label">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.username}
-                  onChange={(e) => setFormData({...formData, username: e.target.value})}
-                  className="form-input"
-                />
+            <form onSubmit={handleUpdateUser} data-edit-user className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Username</Label>
+                <Input required value={formData.username} onChange={(e) => setFormData({ ...formData, username: e.target.value })} />
               </div>
-              <div className="mb-4">
-                <label className="form-label">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  className="form-input"
-                />
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
               </div>
-              <div className="mb-4">
-                <label className="form-label">
-                  New Password (leave blank to keep current)
-                </label>
+              <div className="space-y-1.5">
+                <Label>New Password (leave blank to keep current)</Label>
                 {currentUser && editingUser && currentUser.id === editingUser.id ? (
-                  <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-                    <p className="text-sm text-gray-400">
-                      ℹ️ You cannot change your own password here. Please use the Profile Settings page.
+                  <div className="bg-muted border border-border rounded-lg p-3">
+                    <p className="text-sm text-muted-foreground">
+                      You cannot change your own password here. Please use the Profile Settings page.
                     </p>
                   </div>
                 ) : (
                   <>
-                    <input
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="form-input"
-                    />
-                    <PasswordStrengthMeter 
-                      password={formData.password} 
-                      onScoreChange={setPasswordScore}
-                    />
+                    <Input type="password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} />
+                    <PasswordStrengthMeter password={formData.password} onScoreChange={setPasswordScore} />
                   </>
                 )}
               </div>
-              <div className="mb-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_admin}
-                    onChange={(e) => setFormData({...formData, is_admin: e.target.checked})}
-                    disabled={!!currentUser && !!editingUser && currentUser.id === editingUser.id}
-                    className="mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  <span className="text-sm font-medium text-gray-200">Admin User</span>
-                </label>
-                {currentUser && editingUser && currentUser.id === editingUser.id && (
-                  <p className="text-xs text-gray-400 mt-1">
-                    ℹ️ You cannot modify your own admin status
-                  </p>
-                )}
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="editIsAdmin"
+                  checked={formData.is_admin}
+                  onCheckedChange={(v) => setFormData({ ...formData, is_admin: v === true })}
+                  disabled={!!currentUser && !!editingUser && currentUser.id === editingUser.id}
+                />
+                <Label htmlFor="editIsAdmin" className={currentUser && editingUser && currentUser.id === editingUser.id ? 'opacity-50' : 'cursor-pointer'}>
+                  Admin User
+                </Label>
               </div>
+              {currentUser && editingUser && currentUser.id === editingUser.id && (
+                <p className="text-xs text-muted-foreground">You cannot modify your own admin status</p>
+              )}
             </form>
           </Modal>
         )}

@@ -7,9 +7,8 @@ import { useProject } from '@/contexts/ProjectContext'
 import { useFeatureFlags } from '@/contexts/FeatureFlagsContext'
 import ProjectSelector from '@/components/ProjectSelector'
 import Modal from '@/components/Modal'
+import { cn } from '@/lib/cn'
 import {
-  Menu,
-  X,
   Rocket,
   BarChart3,
   Package,
@@ -20,8 +19,34 @@ import {
   User,
   Database,
   Shield,
-  Globe
+  Globe,
+  ChevronRight,
 } from 'lucide-react'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Separator } from '@/components/ui/separator'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage } from '@/components/ui/breadcrumb'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -31,10 +56,8 @@ interface LayoutProps {
 interface NavItem {
   name: string
   href: string
-  icon: React.ComponentType<any>
+  icon: React.ComponentType<{ className?: string }>
   active: boolean
-  adminOnly?: boolean
-  featureFlag?: boolean  // when false, item is hidden
 }
 
 export default function Layout({ children, title }: LayoutProps) {
@@ -42,35 +65,24 @@ export default function Layout({ children, title }: LayoutProps) {
   const { activeProject, setActiveProject, userProjects, loading, isProjectLocked } = useProject()
   const { gatewayEnabled } = useFeatureFlags()
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = React.useState(false)
   const [showSignOutModal, setShowSignOutModal] = React.useState(false)
 
-  const navigationGroups: { items: NavItem[] }[] = [
-    {
-      items: [
-        { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
-        { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
-        { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
-        { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
-        { name: 'API Gateway', href: '/admin/api-gateway', icon: Globe, active: router.pathname === '/admin/api-gateway', featureFlag: gatewayEnabled },
-        { name: 'Execution Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
-      ]
-    },
-    {
-      items: [
-        { name: 'Projects', href: '/admin/projects', icon: FolderOpen, active: router.pathname.startsWith('/admin/projects'), adminOnly: true },
-        { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users', adminOnly: true },
-        { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings', adminOnly: true },
-      ]
-    }
+  const mainNavItems: NavItem[] = [
+    { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
+    { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
+    { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
+    { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
+    ...(gatewayEnabled ? [{ name: 'API Gateway', href: '/admin/api-gateway', icon: Globe, active: router.pathname === '/admin/api-gateway' }] : []),
+    { name: 'Execution Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
   ]
 
-  // Helper to check admin status (used when filtering nav items)
-  const reqUserIsAdmin = () => !!user?.isAdmin
+  const adminNavItems: NavItem[] = [
+    { name: 'Projects', href: '/admin/projects', icon: FolderOpen, active: router.pathname.startsWith('/admin/projects') },
+    { name: 'Users', href: '/admin/users', icon: User, active: router.pathname === '/admin/users' },
+    { name: 'Global Settings', href: '/admin/global-settings', icon: Settings, active: router.pathname === '/admin/global-settings' },
+  ]
 
-  if (!user) {
-    return null // Let the auth check handle redirects
-  }
+  if (!user) return null
 
   return (
     <>
@@ -81,7 +93,6 @@ export default function Layout({ children, title }: LayoutProps) {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
       </Head>
 
-      {/* Sign Out Confirmation Modal */}
       <Modal
         isOpen={showSignOutModal}
         title="Sign Out"
@@ -93,117 +104,138 @@ export default function Layout({ children, title }: LayoutProps) {
         confirmVariant="danger"
       />
 
-      <div className="min-h-screen bg-gray-900">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+      <Sidebar collapsible="icon" variant="floating">
 
-      {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 transition-transform duration-300 ease-in-out`}>
-        <div className="flex items-center justify-between h-16 px-6 border-b border-gray-700">
-          <div className="flex items-center">
-            <Rocket className="w-8 h-8 text-primary-500" />
-            <span className="ml-2 text-xl font-bold text-white">Invoke</span>
-          </div>
-          <button
-            className="lg:hidden text-gray-400 hover:text-white"
-            onClick={() => setSidebarOpen(false)}
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Project Selector - for all users */}
-        <div className="px-4 py-3 border-b border-gray-700">
-          <ProjectSelector
-            activeProject={activeProject}
-            userProjects={userProjects}
-            loading={loading}
-            isProjectLocked={isProjectLocked}
-            user={user}
-            onProjectChange={setActiveProject}
-          />
-        </div>
-
-        <nav className="mt-2">
-          {navigationGroups.map((group, groupIndex) => {
-            const visibleItems = group.items.filter(item =>
-            (item.featureFlag === undefined || item.featureFlag) &&
-            (!item.adminOnly || reqUserIsAdmin())
-          );
-            
-            if (visibleItems.length === 0) return null;
-            
-            return (
-              <div key={groupIndex}>
-                {groupIndex > 0 && <div className="my-4 border-t border-gray-700"></div>}
-                {visibleItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    href={item.href}
-                    className={`sidebar-link ${item.active ? 'active' : ''}`}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <item.icon className="w-5 h-5 mr-3" />
-                    {item.name}
+          <SidebarHeader>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton size="lg" asChild>
+                  <Link href="/admin">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 shrink-0">
+                      <Rocket className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex flex-col leading-none">
+                      <span className="font-semibold text-sm">Invoke</span>
+                      <span className="text-xs text-muted-foreground">Admin Portal</span>
+                    </div>
                   </Link>
-                ))}
-              </div>
-            );
-          })}
-        </nav>
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-700">
-          <div className="flex items-center mb-4">
-            <User className="w-8 h-8 text-gray-400" />
-            <div className="ml-3">
-              <p className="text-sm font-medium text-white">{user.username}</p>
-              <p className="text-xs text-gray-400">{user.email}</p>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+            <div className="px-1 group-data-[collapsible=icon]:hidden">
+              <ProjectSelector
+                activeProject={activeProject}
+                userProjects={userProjects}
+                loading={loading}
+                isProjectLocked={isProjectLocked}
+                user={user}
+                onProjectChange={setActiveProject}
+              />
             </div>
-          </div>
-          <div className="space-y-2">
-            <Link
-              href="/admin/profile"
-              className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <Settings className="w-4 h-4 mr-3" />
-              Profile Settings
-            </Link>
-            <button
-              onClick={() => setShowSignOutModal(true)}
-              className="flex items-center w-full text-gray-300 hover:text-white transition-colors"
-            >
-              <LogOut className="w-4 h-4 mr-3" />
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
+          </SidebarHeader>
 
-      {/* Main content */}
-      <div className="lg:ml-64">
-        {/* Top bar */}
-        <div className="flex items-center justify-between h-16 px-6 bg-gray-800 border-b border-gray-700 lg:px-8">
-          <button
-            className="lg:hidden text-gray-400 hover:text-white"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-          <h1 className="text-xl font-semibold text-white">{title}</h1>
-          <div className="hidden lg:block">
-            {/* Additional header content can go here */}
-          </div>
-        </div>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupLabel>Platform</SidebarGroupLabel>
+              <SidebarMenu>
+                {mainNavItems.map((item) => (
+                  <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={item.active}>
+                      <Link href={item.href}>
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.name}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
 
-        {/* Page content */}
-        <main className="p-6 lg:p-8">
-          {children}
-        </main>
-      </div>
-    </div>
+            {!!user?.isAdmin && (
+              <SidebarGroup>
+                <SidebarGroupLabel>Administration</SidebarGroupLabel>
+                <SidebarMenu>
+                  {adminNavItems.map((item) => (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton asChild tooltip={item.name} isActive={item.active}>
+                        <Link href={item.href}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.name}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroup>
+            )}
+          </SidebarContent>
+
+          <SidebarFooter>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size="lg"
+                      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent shrink-0">
+                        <User className="h-4 w-4" />
+                      </div>
+                      <div className="flex flex-col items-start leading-none min-w-0">
+                        <span className="text-sm font-medium truncate">{user.username}</span>
+                        <span className="text-xs text-muted-foreground truncate">{user.email}</span>
+                      </div>
+                      <ChevronRight className="ml-auto h-4 w-4 shrink-0 opacity-50" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56" side="top" align="start" sideOffset={4}>
+                    <DropdownMenuLabel className="font-normal">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium">{user.username}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      </div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin/profile" className="cursor-pointer">
+                        <Settings className="h-4 w-4 mr-1" />
+                        Profile Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive cursor-pointer"
+                      onClick={() => setShowSignOutModal(true)}
+                    >
+                      <LogOut className="h-4 w-4 mr-1" />
+                      Sign out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarFooter>
+
+          <SidebarRail />
+        </Sidebar>
+
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-border px-4 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{title}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </header>
+          <main className="flex flex-col gap-4 p-4 lg:gap-6 lg:p-6">
+            {children}
+          </main>
+        </SidebarInset>
     </>
   )
 }

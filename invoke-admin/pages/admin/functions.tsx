@@ -4,64 +4,98 @@ import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import Modal from '@/components/Modal'
-import { Package, Play, Pause, Trash2, Edit, ExternalLink, Eye, Loader } from 'lucide-react'
+import { FunctionGroupList, FunctionGroup } from '@/components/FunctionGroupList'
+import { FunctionItem } from '@/components/FunctionCard'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Package, Loader } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
 
-interface Function {
-  id: string
-  name: string
-  description: string
-  active_version: string
-  file_size: number
-  is_active: boolean
-  created_at: string
-  last_executed: string | null
-  execution_count: number
-  requires_api_key: boolean
-  project_name: string
-  user_role?: string
-}
-
 export default function Functions() {
   const { user } = useAuth()
   const { activeProject } = useProject()
-  const [functions, setFunctions] = useState<Function[]>([])
+  const [functions, setFunctions] = useState<FunctionItem[]>([])
+  const [groups, setGroups] = useState<FunctionGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [functionUrls, setFunctionUrls] = useState<Record<string, string>>({})
-  const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
+  const [dialogState, setDialogState] = useState<{
+    type: 'alert' | 'confirm' | null
+    title: string
+    message: string
+    onConfirm?: () => void
+  }>({ type: null, title: '', message: '' })
 
   useEffect(() => {
-    // Always fetch functions when user changes or active project changes
     if (user && activeProject) {
-      fetchFunctions()
+      fetchAll()
     } else {
       setFunctions([])
+      setGroups([])
       setLoading(false)
     }
   }, [activeProject, user])
 
-  const fetchFunctions = async () => {
+  const fetchAll = async () => {
+    setLoading(true)
     try {
-      let url = '/api/functions'
-      // Always add project filter since we always have a project selected
-      if (activeProject) {
-        url += `?projectId=${activeProject.id}`
-      }
-      
-      const response = await authenticatedFetch(url)
-      const result = await response.json()
-      
-      if (result.success) {
-        setFunctions(result.data)
-        
-        // Generate URLs for all functions
+      const projectId = activeProject!.id
+      const isSystem = projectId === 'system'
+
+      const [funcRes, maybeGroupRes] = await Promise.all([
+        authenticatedFetch(`/api/functions?projectId=${projectId}`),
+        isSystem
+          ? authenticatedFetch('/api/function-groups/all-projects')
+          : authenticatedFetch(`/api/function-groups?projectId=${projectId}`),
+      ])
+      const funcData = await funcRes.json()
+      const groupData = await maybeGroupRes.json()
+
+      if (funcData.success) {
+        setFunctions(funcData.data)
         const urls: Record<string, string> = {}
-        for (const func of result.data) {
-          urls[func.id] = await getFunctionUrl(func.id)
-        }
+        await Promise.all(
+          funcData.data.map(async (func: FunctionItem) => {
+            urls[func.id] = await getFunctionUrl(func.id)
+          })
+        )
         setFunctionUrls(urls)
+      }
+
+      if (groupData.success) {
+        if (isSystem) {
+          // Build fake project-level root groups + prefix real group names.
+          // Seed the project map from functions too, so projects with only
+          // ungrouped functions still get a fake root node.
+          const rawGroups: (FunctionGroup & { project_name: string })[] = groupData.data
+          const projectMap = new Map<string, string>()
+          if (funcData.success) {
+            funcData.data.forEach((f: FunctionItem) => {
+              if (f.project_id && f.project_name) projectMap.set(f.project_id, f.project_name)
+            })
+          }
+          rawGroups.forEach((g) => {
+            if (g.project_id && g.project_name) projectMap.set(g.project_id, g.project_name)
+          })
+          const fakeRoots: FunctionGroup[] = Array.from(projectMap.entries()).map(
+            ([pid, pname], i) => ({
+              id: `project:${pid}`,
+              name: pname,
+              project_id: pid,
+              sort_order: i,
+            })
+          )
+          const prefixedGroups: FunctionGroup[] = rawGroups.map((g) => ({
+            id: g.id,
+            name: `${g.project_name}/${g.name}`,
+            project_id: g.project_id,
+            sort_order: g.sort_order,
+          }))
+          setGroups([...fakeRoots, ...prefixedGroups])
+        } else {
+          setGroups(groupData.data)
+        }
       }
     } catch (error) {
       console.error('Error fetching functions:', error)
@@ -70,18 +104,56 @@ export default function Functions() {
     }
   }
 
+  const refreshGroups = async () => {
+    try {
+      const projectId = activeProject!.id
+      const isSystem = projectId === 'system'
+      const res = isSystem
+        ? await authenticatedFetch('/api/function-groups/all-projects')
+        : await authenticatedFetch(`/api/function-groups?projectId=${projectId}`)
+      const data = await res.json()
+      if (data.success) {
+        if (isSystem) {
+          const rawGroups: (FunctionGroup & { project_name: string })[] = data.data
+          const projectMap = new Map<string, string>()
+          rawGroups.forEach((g) => {
+            if (g.project_id && g.project_name) projectMap.set(g.project_id, g.project_name)
+          })
+          const fakeRoots: FunctionGroup[] = Array.from(projectMap.entries()).map(
+            ([pid, pname], i) => ({
+              id: `project:${pid}`,
+              name: pname,
+              project_id: pid,
+              sort_order: i,
+            })
+          )
+          const prefixedGroups: FunctionGroup[] = rawGroups.map((g) => ({
+            id: g.id,
+            name: `${g.project_name}/${g.name}`,
+            project_id: g.project_id,
+            sort_order: g.sort_order,
+          }))
+          setGroups([...fakeRoots, ...prefixedGroups])
+        } else {
+          setGroups(data.data)
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing groups:', error)
+    }
+  }
+
   const toggleFunction = async (id: string, isActive: boolean) => {
     try {
       const response = await authenticatedFetch(`/api/functions/${id}`, {
         method: 'PATCH',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !isActive }),
       })
-
       if (response.ok) {
-        fetchFunctions()
+        setFunctions((prev) =>
+          prev.map((f) => (f.id === id ? { ...f, is_active: !isActive } : f))
+        )
       }
     } catch (error) {
       console.error('Error toggling function:', error)
@@ -95,32 +167,31 @@ export default function Functions() {
       message: 'Are you sure you want to delete this function?',
       onConfirm: async () => {
         try {
-          const response = await authenticatedFetch(`/api/functions/${id}`, {
-            method: 'DELETE'
-          })
-
+          const response = await authenticatedFetch(`/api/functions/${id}`, { method: 'DELETE' })
           if (response.ok) {
-            fetchFunctions()
+            setFunctions((prev) => prev.filter((f) => f.id !== id))
             setDialogState({ type: null, title: '', message: '' })
           }
         } catch (error) {
           console.error('Error deleting function:', error)
         }
-      }
+      },
     })
   }
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes == 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
+  const canDeploy =
+    !activeProject ||
+    user?.isAdmin ||
+    activeProject.role === 'developer' ||
+    activeProject.role === 'owner'
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
+  const isSystemProject = activeProject?.id === 'system'
+  const canWrite = Boolean(
+    !isSystemProject &&
+      (user?.isAdmin ||
+        activeProject?.role === 'developer' ||
+        activeProject?.role === 'owner')
+  )
 
   if (loading) {
     return (
@@ -128,8 +199,8 @@ export default function Functions() {
         <Layout title="Functions">
           <div className="flex justify-center items-center h-64">
             <div className="flex flex-col items-center gap-3">
-              <Loader className="w-8 h-8 text-primary-500 animate-spin" />
-              <div className="text-gray-400 animate-pulse">Loading functions...</div>
+              <Loader className="w-8 h-8 text-primary animate-spin" />
+              <div className="text-muted-foreground animate-pulse">Loading functions...</div>
             </div>
           </div>
         </Layout>
@@ -141,7 +212,6 @@ export default function Functions() {
     <ProtectedRoute>
       <Layout title="Functions">
         <div className="space-y-6">
-          {/* Dialog Modal */}
           <Modal
             isOpen={dialogState.type !== null}
             title={dialogState.title}
@@ -149,149 +219,64 @@ export default function Functions() {
             onCancel={() => setDialogState({ type: null, title: '', message: '' })}
             onConfirm={async () => {
               if (dialogState.onConfirm) {
-                await dialogState.onConfirm();
+                await dialogState.onConfirm()
               } else {
-                setDialogState({ type: null, title: '', message: '' });
+                setDialogState({ type: null, title: '', message: '' })
               }
             }}
-            cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
-            confirmText={dialogState.type === 'alert' ? undefined : 'Delete'}
-            confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
+            cancelText="Cancel"
+            confirmText="Delete"
+            confirmVariant="danger"
           />
 
-          <PageHeader
-            title="Functions"
-            subtitle="Manage your deployed serverless functions"
-          >
-            <div>
-              {(!activeProject || user?.isAdmin || (activeProject.role === 'developer' || activeProject.role === 'owner')) ? (
-                <Link href="/admin/deploy" className="btn-primary">
-                  Deploy Function
-                </Link>
-              ) : (
-                <button className="px-4 py-2 rounded-lg bg-gray-700 text-gray-400 cursor-not-allowed" title="Insufficient permissions to deploy">
-                  Deploy Function
-                </button>
-              )}
-            </div>
+          <PageHeader title="Functions" subtitle="Manage your deployed serverless functions">
+            {canDeploy ? (
+              <Button asChild>
+                <Link href="/admin/deploy">Deploy Function</Link>
+              </Button>
+            ) : (
+              <Button disabled>Deploy Function</Button>
+            )}
           </PageHeader>
 
           {!activeProject ? (
-            <div className="card text-center py-12">
-              <Package className="w-16 h-16 mx-auto text-gray-500 mb-4" />
-              <h2 className="text-xl font-semibold text-gray-300 mb-2">
-                Loading Project
-              </h2>
-              <p className="text-gray-400 mb-6">
-                Please wait while we load your project
-              </p>
-            </div>
-          ) : functions.length === 0 ? (
-            <div className="card text-center py-12">
-              <Package className="w-16 h-16 mx-auto text-gray-500 mb-4" />
-              <h2 className="text-xl font-semibold text-gray-300 mb-2">
-                No Functions Deployed
-              </h2>
-              <p className="text-gray-400 mb-6">
-                Deploy your first serverless function to get started
-              </p>
-              {(!activeProject || user?.isAdmin || (activeProject.role === 'developer' || activeProject.role === 'owner')) ? (
-                <Link href="/admin/deploy" className="btn-primary">
-                  Deploy Function
-                </Link>
-              ) : (
-                <button className="px-4 py-2 rounded-lg bg-gray-700 text-gray-400 cursor-not-allowed" title="Insufficient permissions to deploy">
-                  Deploy Function
-                </button>
-              )}
-            </div>
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">Loading Project</h2>
+                <p className="text-muted-foreground">Please wait while we load your project</p>
+              </CardContent>
+            </Card>
+          ) : functions.length === 0 && groups.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Package className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <h2 className="text-xl font-semibold text-foreground mb-2">No Functions Deployed</h2>
+                <p className="text-muted-foreground mb-6">
+                  Deploy your first serverless function to get started
+                </p>
+                {canDeploy ? (
+                  <Button asChild>
+                    <Link href="/admin/deploy">Deploy Function</Link>
+                  </Button>
+                ) : (
+                  <Button disabled>Deploy Function</Button>
+                )}
+              </CardContent>
+            </Card>
           ) : (
-            <div className="grid gap-6">
-              {functions.map((func) => (
-                <div key={func.id} className="card hover:bg-gray-800/50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <Link 
-                      href={`/admin/functions/${func.id}`}
-                      className="flex items-start space-x-4 flex-1 hover:cursor-pointer"
-                    >
-                      <div className={`p-3 rounded-lg ${
-                        func.is_active ? 'bg-green-900/30 text-green-400' : 'bg-gray-700 text-gray-400'
-                      }`}>
-                        <Package className="w-6 h-6" />
-                      </div>
-                      
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
-                          <h3 className="text-lg font-semibold text-gray-100">
-                            {func.name}
-                          </h3>
-                          <span className="px-2 py-1 text-xs rounded bg-gray-700 text-gray-300">
-                            v{func.active_version || '1'}
-                          </span>
-                          {func.requires_api_key && (
-                            <span className="px-2 py-1 text-xs rounded bg-yellow-900/30 text-yellow-400 border border-yellow-800">
-                              API Key Required
-                            </span>
-                          )}
-                          <span className={`px-2 py-1 text-xs rounded ${
-                            func.is_active 
-                              ? 'bg-green-900/30 text-green-400 border border-green-800'
-                              : 'bg-gray-700 text-gray-400'
-                          }`}>
-                            {func.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                        
-                        <p className="text-gray-400 mt-1">
-                          {func.description || 'No description provided'}
-                        </p>
-                        
-                        <div className="flex items-center space-x-6 mt-3 text-sm text-gray-400">
-                          <span>Executions: {func.execution_count}</span>
-                          <span>Created: {formatDate(func.created_at)}</span>
-                          {func.last_executed && (
-                            <span>Last executed: {formatDate(func.last_executed)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </Link>
-                    
-                    <div className="flex items-center space-x-2 ml-4" onClick={(e) => e.stopPropagation()}>
-                      
-                      <button
-                        onClick={() => toggleFunction(func.id, func.is_active)}
-                        className={`p-2 rounded-lg transition-all active:scale-95 ${
-                          func.is_active
-                            ? 'bg-yellow-900/30 text-yellow-400 hover:bg-yellow-900/50'
-                            : 'bg-green-900/30 text-green-400 hover:bg-green-900/50'
-                        }`}
-                        title={func.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        {func.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      </button>
-                      
-                      <a
-                        href={functionUrls[func.id] || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 transition-colors active:scale-95"
-                        title="Execute Function"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                      
-                      <button
-                        onClick={() => deleteFunction(func.id)}
-                        className="p-2 rounded-lg bg-red-900/30 text-red-400 hover:bg-red-900/50 transition-colors active:scale-95"
-                        title="Delete Function"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <FunctionGroupList
+              functions={functions}
+              groups={groups}
+              projectId={activeProject.id}
+              functionUrls={functionUrls}
+              canWrite={canWrite}
+              onFunctionsChange={setFunctions}
+              onGroupsChange={setGroups}
+              onGroupsRefresh={refreshGroups}
+              onToggleFunction={toggleFunction}
+              onDeleteFunction={deleteFunction}
+            />
           )}
         </div>
       </Layout>

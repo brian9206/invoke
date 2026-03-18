@@ -22,7 +22,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         LEFT JOIN function_versions fv ON f.active_version_id = fv.id
         LEFT JOIN users u ON f.deployed_by = u.id
         LEFT JOIN projects p ON f.project_id = p.id
-        ORDER BY f.created_at DESC
+        ORDER BY f.group_id NULLS LAST, f.sort_order ASC, f.created_at DESC
       `
     } else {
       // Regular users or project-specific query
@@ -57,7 +57,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         LEFT JOIN projects p ON f.project_id = p.id
         LEFT JOIN project_memberships pm ON p.id = pm.project_id AND pm.user_id = $1
         WHERE f.project_id = ANY($2)
-        ORDER BY f.created_at DESC
+        ORDER BY f.group_id NULLS LAST, f.sort_order ASC, f.created_at DESC
       `
       params = [req.user!.id, projectIds]
     }
