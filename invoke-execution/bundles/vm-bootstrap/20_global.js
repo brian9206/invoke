@@ -41,4 +41,7 @@
     globalThis.Headers = fetch.Headers;
     globalThis.Request = fetch.Request;
     globalThis.Response = fetch.Response;
+
+    const Router = require('_router');
+    globalThis.Router = Router;
 })();

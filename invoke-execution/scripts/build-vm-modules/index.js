@@ -53,6 +53,13 @@ const { buildModule, patchModule } = require('./utils');
         exportModuleName: 'string_decoder'
     });
 
+    // _router (internal Express-compatible router, exposed as globalThis.Router)
+    await buildModule({
+        moduleName: '_router',
+        exportModuleName: '_router',
+        inputFileName: './modules/_router.js'
+    });
+
     console.log(chalk.green('VM module build complete'));
 
 })();

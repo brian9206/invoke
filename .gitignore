@@ -130,3 +130,4 @@ invoke-admin/package-lock.json
 /invoke-execution/bundles/vm-modules/node-fetch.js
 /invoke-execution/bundles/vm-modules/assert.js
 /invoke-execution/bundles/vm-modules/string_decoder.js
+/invoke-execution/bundles/vm-modules/_router.js

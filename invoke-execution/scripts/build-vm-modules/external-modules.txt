@@ -19,3 +19,4 @@ assert
 string_decoder
 process
 node-fetch
+_router
