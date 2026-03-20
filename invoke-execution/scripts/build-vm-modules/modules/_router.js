@@ -88,9 +88,9 @@ Router.prototype._dispatch = function(req, res) {
         function done(err) {
             if (err && !res.headersSent) {
                 const msg = err instanceof Error ? err.message : String(err);
-                res.status(500).send(msg);
+                res.status(500).json({ success: false, message: msg });
             } else if (!res.headersSent) {
-                res.status(404).send('Cannot ' + method + ' ' + path);
+                res.status(404).json({ success: false, message: 'Cannot ' + method + ' ' + path });
             }
             resolve();
         }
