@@ -52,6 +52,7 @@ const sidebars: SidebarsConfig = {
         'api/globals',
         'api/request',
         'api/response',
+        'api/router',
         'api/kv-store',
       ],
     },

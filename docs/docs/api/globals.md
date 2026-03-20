@@ -196,6 +196,25 @@ module.exports = async function(req, res) {
 };
 ```
 
+## Router
+
+Express.js-compatible router for handling multiple routes and middleware in a single function:
+
+```javascript
+const router = new Router();
+
+router.get('/', (req, res) => res.json({ ok: true }));
+router.get('/users/:id', (req, res) => res.json({ id: req.params.id }));
+router.post('/users', async (req, res) => {
+    res.status(201).json(req.body);
+});
+router.use((req, res) => res.status(404).send('Not found'));
+
+module.exports = router;
+```
+
+See the [Router API](/docs/api/router) for full documentation.
+
 ## Buffer
 
 Binary data handling:

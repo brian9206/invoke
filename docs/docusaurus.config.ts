@@ -181,6 +181,8 @@ const config: Config = {
       },
     },
   } satisfies Preset.ThemeConfig,
+
+  plugins: ["@cmfcmf/docusaurus-search-local"]
 };
 
 export default config;

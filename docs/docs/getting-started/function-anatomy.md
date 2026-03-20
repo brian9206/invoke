@@ -50,6 +50,36 @@ module.exports = async (req, res) => {
 };
 ```
 
+### Router
+
+For functions that handle multiple routes, you can export a `Router` instance. `Router` is a globally available class — no `require()` needed.
+
+```javascript
+const router = new Router();
+
+router.get('/', (req, res) => {
+    res.json({ message: 'Hello' });
+});
+
+router.get('/users/:id', (req, res) => {
+    res.json({ id: req.params.id });
+});
+
+router.post('/users', async (req, res) => {
+    const user = await createUser(req.body);
+    res.status(201).json(user);
+});
+
+// Optional: catch unmatched routes
+router.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+});
+
+module.exports = router;
+```
+
+See the [Router API](/docs/api/router) for complete documentation.
+
 ## Function Parameters
 
 ### Request Object (`req`)

@@ -2,87 +2,68 @@
 
 Complete REST API implementation with CRUD operations.
 
-## Complete REST API
+## Using the Router
+
+The `Router` global provides clean, Express.js-style routing with path parameter support:
 
 ```javascript
+const router = new Router();
+
 // In-memory storage (use KV store in production)
 let items = [
     { id: 1, name: 'Item 1', description: 'First item' },
-    { id: 2, name: 'Item 2', description: 'Second item' }
+    { id: 2, name: 'Item 2', description: 'Second item' },
 ];
 let nextId = 3;
 
-module.exports = function(req, res) {
-    const path = req.path;
-    const method = req.method;
-    
-    // LIST: GET /
-    if (method === 'GET' && path === '/') {
-        return res.json({ items, count: items.length });
-    }
-    
-    // GET: GET /:id
-    if (method === 'GET' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const item = items.find(i => i.id === id);
-        
-        if (!item) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        return res.json({ item });
-    }
-    
-    // CREATE: POST /
-    if (method === 'POST' && path === '/') {
-        const { name, description } = req.body;
-        
-        if (!name) {
-            return res.status(400).json({ error: 'Name is required' });
-        }
-        
-        const newItem = {
-            id: nextId++,
-            name,
-            description: description || ''
-        };
-        
-        items.push(newItem);
-        return res.status(201).json({ item: newItem });
-    }
-    
-    // UPDATE: PUT /:id
-    if (method === 'PUT' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const item = items.find(i => i.id === id);
-        
-        if (!item) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        const { name, description } = req.body;
-        if (name) item.name = name;
-        if (description !== undefined) item.description = description;
-        
-        return res.json({ item });
-    }
-    
-    // DELETE: DELETE /:id
-    if (method === 'DELETE' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const index = items.findIndex(i => i.id === id);
-        
-        if (index === -1) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        items.splice(index, 1);
-        return res.status(204).end();
-    }
-    
-    // Not found
+// LIST: GET /
+router.get('/', (req, res) => {
+    res.json({ items, count: items.length });
+});
+
+// GET: GET /:id
+router.get('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const item = items.find(i => i.id === id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    res.json({ item });
+});
+
+// CREATE: POST /
+router.post('/', (req, res) => {
+    const { name, description } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+    const newItem = { id: nextId++, name, description: description || '' };
+    items.push(newItem);
+    res.status(201).json({ item: newItem });
+});
+
+// UPDATE: PUT /:id
+router.put('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const item = items.find(i => i.id === id);
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    const { name, description } = req.body;
+    if (name) item.name = name;
+    if (description !== undefined) item.description = description;
+    res.json({ item });
+});
+
+// DELETE: DELETE /:id
+router.delete('/:id', (req, res) => {
+    const id = parseInt(req.params.id);
+    const index = items.findIndex(i => i.id === id);
+    if (index === -1) return res.status(404).json({ error: 'Item not found' });
+    items.splice(index, 1);
+    res.status(204).end();
+});
+
+// 404 fallback
+router.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
-};
+});
+
+module.exports = router;
 ```
 
 ## Testing the API
@@ -119,115 +100,80 @@ curl -X DELETE http://<your invoke-execution URL>/invoke/{functionId}/1
 ## with KV Store Persistence
 
 ```javascript
-module.exports = async function(req, res) {
-    const path = req.path;
-    const method = req.method;
-    
-    // Load items from KV store
-    let items = await kv.get('api:items') || [];
-    let nextId = await kv.get('api:nextId') || 1;
-    
-    // LIST
-    if (method === 'GET' && path === '/') {
-        return res.json({ items, count: items.length });
-    }
-    
-    // GET
-    if (method === 'GET' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const item = items.find(i => i.id === id);
-        
-        if (!item) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        return res.json({ item });
-    }
-    
-    // CREATE
-    if (method === 'POST' && path === '/') {
-        const { name, description } = req.body;
-        
-        if (!name) {
-            return res.status(400).json({ error: 'Name is required' });
-        }
-        
-        const newItem = {
-            id: nextId++,
-            name,
-            description: description || '',
-            createdAt: new Date().toISOString()
-        };
-        
-        items.push(newItem);
-        await kv.set('api:items', items);
-        await kv.set('api:nextId', nextId);
-        
-        return res.status(201).json({ item: newItem });
-    }
-    
-    // UPDATE
-    if (method === 'PUT' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const item = items.find(i => i.id === id);
-        
-        if (!item) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        const { name, description } = req.body;
-        if (name) item.name = name;
-        if (description !== undefined) item.description = description;
-        item.updatedAt = new Date().toISOString();
-        
-        await kv.set('api:items', items);
-        return res.json({ item });
-    }
-    
-    // DELETE
-    if (method === 'DELETE' && path.match(/^\/\d+$/)) {
-        const id = parseInt(path.substring(1));
-        const index = items.findIndex(i => i.id === id);
-        
-        if (index === -1) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        
-        items.splice(index, 1);
-        await kv.set('api:items', items);
-        
-        return res.status(204).end();
-    }
-    
-    res.status(404).json({ error: 'Endpoint not found' });
-};
+const router = new Router();
+
+router.get('/', async (req, res) => {
+    const items = await kv.get('api:items') || [];
+    res.json({ items, count: items.length });
+});
+
+router.get('/:id', async (req, res) => {
+    const items = await kv.get('api:items') || [];
+    const item = items.find(i => i.id === parseInt(req.params.id));
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+    res.json({ item });
+});
+
+router.post('/', async (req, res) => {
+    const { name, description } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    const items = await kv.get('api:items') || [];
+    const nextId = (await kv.get('api:nextId')) || 1;
+    const newItem = { id: nextId, name, description: description || '', createdAt: new Date().toISOString() };
+
+    items.push(newItem);
+    await kv.set('api:items', items);
+    await kv.set('api:nextId', nextId + 1);
+    res.status(201).json({ item: newItem });
+});
+
+router.put('/:id', async (req, res) => {
+    const items = await kv.get('api:items') || [];
+    const item = items.find(i => i.id === parseInt(req.params.id));
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    const { name, description } = req.body;
+    if (name) item.name = name;
+    if (description !== undefined) item.description = description;
+    item.updatedAt = new Date().toISOString();
+
+    await kv.set('api:items', items);
+    res.json({ item });
+});
+
+router.delete('/:id', async (req, res) => {
+    const items = await kv.get('api:items') || [];
+    const index = items.findIndex(i => i.id === parseInt(req.params.id));
+    if (index === -1) return res.status(404).json({ error: 'Item not found' });
+
+    items.splice(index, 1);
+    await kv.set('api:items', items);
+    res.status(204).end();
+});
+
+router.use((req, res) => res.status(404).json({ error: 'Endpoint not found' }));
+
+module.exports = router;
 ```
 
 ## With Pagination
 
 ```javascript
-module.exports = async function(req, res) {
-    if (req.method !== 'GET') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
-    
+const router = new Router();
+
+router.get('/', async (req, res) => {
     const items = await kv.get('api:items') || [];
-    
-    // Pagination params
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-    
+
     // Filter
     const search = req.query.search?.toLowerCase();
-    let filtered = items;
-    if (search) {
-        filtered = items.filter(item => 
-            item.name.toLowerCase().includes(search) ||
-            item.description.toLowerCase().includes(search)
-        );
-    }
-    
+    let filtered = search
+        ? items.filter(i =>
+            i.name.toLowerCase().includes(search) ||
+            i.description.toLowerCase().includes(search)
+          )
+        : items;
+
     // Sort
     const sortBy = req.query.sortBy || 'id';
     const sortOrder = req.query.order === 'desc' ? -1 : 1;
@@ -236,10 +182,13 @@ module.exports = async function(req, res) {
         if (a[sortBy] > b[sortBy]) return sortOrder;
         return 0;
     });
-    
+
     // Paginate
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
     const paginated = filtered.slice(offset, offset + limit);
-    
+
     res.json({
         items: paginated,
         pagination: {
@@ -248,10 +197,12 @@ module.exports = async function(req, res) {
             total: filtered.length,
             pages: Math.ceil(filtered.length / limit),
             hasNext: page * limit < filtered.length,
-            hasPrev: page > 1
-        }
+            hasPrev: page > 1,
+        },
     });
-};
+});
+
+module.exports = router;
 ```
 
 ## Next Steps
