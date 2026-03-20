@@ -182,7 +182,16 @@ const config: Config = {
     },
   } satisfies Preset.ThemeConfig,
 
-  plugins: ["@cmfcmf/docusaurus-search-local"]
+  plugins: [
+    [
+      require.resolve("@cmfcmf/docusaurus-search-local"),
+      {
+        indexDocs: true,
+        indexBlog: false,
+        language: ["en"], // ✅ array of strings
+      },
+    ],
+  ]
 };
 
 export default config;
