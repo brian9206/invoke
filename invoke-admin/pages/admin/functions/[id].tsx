@@ -618,7 +618,7 @@ export default function FunctionDetails() {
           confirmText={dialogState.type === 'alert' ? undefined : 'Continue'}
           confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
         />
-        <div className="min-w-0 space-y-6">
+        <div >
 
           {/* ── Inactive project alert ──────────────────────────────────── */}
           {functionData.project_is_active === false && (
@@ -658,8 +658,8 @@ export default function FunctionDetails() {
           </div>
 
           {/* ── Tabs ───────────────────────────────────────────────────────── */}
-          <Tabs defaultValue="general" className="min-w-0 space-y-6">
-            <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
+          <Tabs defaultValue="general">
+            <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="deployment">Deployment</TabsTrigger>
               <TabsTrigger value="environment">Environment</TabsTrigger>

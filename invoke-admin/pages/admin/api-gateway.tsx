@@ -1258,17 +1258,8 @@ export default function ApiGatewayPage() {
             <>
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
                 <TabsList>
-                  <TabsTrigger value="routes" className="flex items-center gap-2">
-                    <Globe className="w-4 h-4" />
-                    Routes
-                  </TabsTrigger>
-                  <TabsTrigger value="authentication" className="flex items-center gap-2">
-                    <KeyRound className="w-4 h-4" />
-                    Authentication
-                    {authMethods.length > 0 && (
-                      <Badge variant="secondary" className="text-xs ml-1">{authMethods.length}</Badge>
-                    )}
-                  </TabsTrigger>
+                  <TabsTrigger value="routes">Routes</TabsTrigger>
+                  <TabsTrigger value="authentication">Authentication</TabsTrigger>
                 </TabsList>
 
                 {/* Routes Tab */}

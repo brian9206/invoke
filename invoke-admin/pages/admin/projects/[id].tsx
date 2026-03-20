@@ -397,7 +397,7 @@ export default function ProjectDetails() {
             confirmVariant={dialogState.type === 'confirm' ? 'danger' : 'default'}
           />
 
-          <div className="min-w-0 space-y-6">
+          <div >
 
             {/* ── Header ───────────────────────────────────────────────────── */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -440,8 +440,8 @@ export default function ProjectDetails() {
             </div>
 
             {/* ── Tabs ─────────────────────────────────────────────────────── */}
-            <Tabs defaultValue="overview" className="min-w-0 space-y-6">
-              <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
+            <Tabs defaultValue="overview">
+              <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="members">Members</TabsTrigger>
               </TabsList>

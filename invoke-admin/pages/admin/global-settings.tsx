@@ -180,8 +180,8 @@ export default function GlobalSettingsPage() {
             icon={<Settings className="w-8 h-8 text-primary" />}
           />
 
-          <Tabs defaultValue="general" className="min-w-0 space-y-6">
-            <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
+          <Tabs defaultValue="general">
+            <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="log-retention">Log Retention</TabsTrigger>
               <TabsTrigger value="api-gateway">API Gateway</TabsTrigger>
