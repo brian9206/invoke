@@ -25,7 +25,10 @@ async function authenticateApiKey(req: Request, res: Response, next: NextFunctio
     if ((req as any).isFromGateway) {
       const func = await FunctionModel.findOne({
         where: { id: functionId, is_active: true },
-        include: [{ model: FunctionVersion, as: 'activeVersion' }],
+        include: [
+          { model: FunctionVersion, as: 'activeVersion' },
+          { model: database.models.Project, where: { is_active: true }, required: true },
+        ],
       });
 
       if (!func) {
@@ -52,7 +55,10 @@ async function authenticateApiKey(req: Request, res: Response, next: NextFunctio
 
     const func = await FunctionModel.findOne({
       where: { id: functionId, is_active: true },
-      include: [{ model: FunctionVersion, as: 'activeVersion' }],
+      include: [
+        { model: FunctionVersion, as: 'activeVersion' },
+        { model: database.models.Project, where: { is_active: true }, required: true },
+      ],
     });
 
     if (!func) {

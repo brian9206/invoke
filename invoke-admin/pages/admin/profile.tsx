@@ -231,8 +231,8 @@ export default function ProfileSettings() {
             icon={<User className="w-8 h-8 text-primary" />}
           />
 
-          <Tabs defaultValue="general" className="space-y-4">
-            <TabsList>
+          <Tabs defaultValue="general" className="min-w-0 space-y-6">
+            <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="api-key">API Key</TabsTrigger>
             </TabsList>

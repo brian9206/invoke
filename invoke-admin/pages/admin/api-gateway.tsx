@@ -1021,6 +1021,7 @@ function AuthMethodModal({
 
 export default function ApiGatewayPage() {
   const { activeProject } = useProject()
+  const [projectIsActive, setProjectIsActive] = useState<boolean | null>(null)
 
   const [activeTab, setActiveTab] = useState<'routes' | 'authentication'>('routes')
   const [config, setConfig] = useState<GatewayConfig>({ enabled: false, customDomain: null })
@@ -1050,6 +1051,13 @@ export default function ApiGatewayPage() {
       setActiveTab('routes')
       setOrderDirty(false)
       loadAll()
+      setProjectIsActive(null)
+      authenticatedFetch(`/api/admin/projects/${activeProject.id}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setProjectIsActive(d.data.is_active) })
+        .catch(() => {})
+    } else {
+      setProjectIsActive(null)
     }
   }, [activeProject?.id])
 
@@ -1203,6 +1211,12 @@ export default function ApiGatewayPage() {
     <ProtectedRoute>
       <Layout title="API Gateway">
         <div className="space-y-6">
+          {projectIsActive === false && (
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-600/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>The project <strong>{activeProject?.name}</strong> is currently inactive. Gateway routes will not accept traffic until the project is reactivated.</span>
+            </div>
+          )}
           <div className="flex items-start justify-between gap-4">
             <PageHeader
               title="API Gateway"

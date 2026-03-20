@@ -41,6 +41,7 @@ interface FunctionItem {
   api_key?: string
   project_id: string
   project_name: string
+  project_is_active: boolean
 }
 
 interface FunctionVersion {
@@ -619,6 +620,14 @@ export default function FunctionDetails() {
         />
         <div className="min-w-0 space-y-6">
 
+          {/* ── Inactive project alert ──────────────────────────────────── */}
+          {functionData.project_is_active === false && (
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-600/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>The project <strong>{functionData.project_name}</strong> is currently inactive. This function cannot be executed until the project is reactivated.</span>
+            </div>
+          )}
+
           {/* ── Header ─────────────────────────────────────────────────────── */}
           <div className="space-y-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -664,32 +673,34 @@ export default function FunctionDetails() {
 
               {/* Actions */}
               <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-wrap gap-2">
-                    {functionData.is_active ? (
-                      <>
-                        <Button variant="destructive" onClick={toggleActiveStatus}>
-                          <X className="w-4 h-4 mr-1" />Deactivate
+                <CardContent className="overflow-x-auto">
+                  <div className="mt-6">
+                    <div className="flex gap-2 whitespace-nowrap [&>*]:shrink-0">
+                      {functionData.is_active ? (
+                        <>
+                          <Button variant="destructive" onClick={toggleActiveStatus}>
+                            <X className="w-4 h-4 mr-1" />Deactivate
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              const targetUrl = functionUrl || gatewayUrls[0]
+                              if (targetUrl) window.open(targetUrl, '_blank', 'noopener,noreferrer')
+                            }}
+                            disabled={!functionUrl && gatewayUrls.length === 0}
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />Execute Function
+                          </Button>
+                        </>
+                      ) : (
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={toggleActiveStatus}>
+                          <Play className="w-4 h-4 mr-1" />Activate
                         </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const targetUrl = functionUrl || gatewayUrls[0]
-                            if (targetUrl) window.open(targetUrl, '_blank', 'noopener,noreferrer')
-                          }}
-                          disabled={!functionUrl && gatewayUrls.length === 0}
-                        >
-                          <ExternalLink className="w-4 h-4 mr-1" />Execute Function
-                        </Button>
-                      </>
-                    ) : (
-                      <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={toggleActiveStatus}>
-                        <Play className="w-4 h-4 mr-1" />Activate
+                      )}
+                      <Button className="hidden sm:inline-flex" variant="default" onClick={() => { if (functionData.active_version_id) router.push(`/admin/functions/${id}/versions/${functionData.active_version_id}/edit`) }} disabled={!functionData.active_version_id}>
+                        <Code2 className="w-4 h-4 mr-1" />Open Code Editor
                       </Button>
-                    )}
-                    <Button variant="default" onClick={() => { if (functionData.active_version_id) router.push(`/admin/functions/${id}/versions/${functionData.active_version_id}/edit`) }} disabled={!functionData.active_version_id}>
-                      <Code2 className="w-4 h-4 mr-1" />Open Code Editor
-                    </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -780,14 +791,16 @@ export default function FunctionDetails() {
 
               {/* Actions */}
               <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => { setUploadResult(null); setDeployFile(null); setDeployModalOpen(true) }}>
-                      <Upload className="w-4 h-4 mr-1" />Deploy New Version
-                    </Button>
-                    <Button size="sm" variant="destructive" onClick={handleCleanupVersions} disabled={cleaningUpVersions}>
-                      {cleaningUpVersions ? <><Loader className="w-4 h-4 mr-1 animate-spin" />Cleaning up…</> : <><Trash2 className="w-4 h-4 mr-1" />Clean Up Old Versions</>}
-                    </Button>
+                <CardContent className="overflow-x-auto">
+                  <div className="mt-6">
+                    <div className="flex gap-2 whitespace-nowrap [&>*]:shrink-0">
+                      <Button size="sm" onClick={() => { setUploadResult(null); setDeployFile(null); setDeployModalOpen(true) }}>
+                        <Upload className="w-4 h-4 mr-1" />Deploy New Version
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={handleCleanupVersions} disabled={cleaningUpVersions}>
+                        {cleaningUpVersions ? <><Loader className="w-4 h-4 mr-1 animate-spin" />Cleaning up…</> : <><Trash2 className="w-4 h-4 mr-1" />Clean Up Old Versions</>}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

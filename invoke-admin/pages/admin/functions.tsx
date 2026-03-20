@@ -8,7 +8,7 @@ import { FunctionGroupList, FunctionGroup } from '@/components/FunctionGroupList
 import { FunctionItem } from '@/components/FunctionCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Package, Loader } from 'lucide-react'
+import { Package, Loader, AlertCircle } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
@@ -19,6 +19,7 @@ export default function Functions() {
   const [functions, setFunctions] = useState<FunctionItem[]>([])
   const [groups, setGroups] = useState<FunctionGroup[]>([])
   const [loading, setLoading] = useState(true)
+  const [projectIsActive, setProjectIsActive] = useState<boolean | null>(null)
   const [functionUrls, setFunctionUrls] = useState<Record<string, string>>({})
   const [dialogState, setDialogState] = useState<{
     type: 'alert' | 'confirm' | null
@@ -36,6 +37,19 @@ export default function Functions() {
       setLoading(false)
     }
   }, [activeProject, user])
+
+  useEffect(() => {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (activeProject?.id && UUID_RE.test(activeProject.id)) {
+      setProjectIsActive(null)
+      authenticatedFetch(`/api/admin/projects/${activeProject.id}`)
+        .then(r => r.json())
+        .then(d => { if (d.success) setProjectIsActive(d.data.is_active) })
+        .catch(() => {})
+    } else {
+      setProjectIsActive(null)
+    }
+  }, [activeProject?.id])
 
   const fetchAll = async () => {
     setLoading(true)
@@ -228,6 +242,13 @@ export default function Functions() {
             confirmText="Delete"
             confirmVariant="danger"
           />
+
+          {projectIsActive === false && (
+            <div className="flex items-center gap-3 rounded-lg border border-yellow-600/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>The project <strong>{activeProject?.name}</strong> is currently inactive. Functions in this project cannot be executed until the project is reactivated.</span>
+            </div>
+          )}
 
           <PageHeader title="Functions" subtitle="Manage your deployed serverless functions">
             {canDeploy ? (

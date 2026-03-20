@@ -7,7 +7,6 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { ProjectProvider } from '@/contexts/ProjectContext'
 import { FeatureFlagsProvider, FeatureFlags } from '@/contexts/FeatureFlagsContext'
 import PageTransition from '@/components/PageTransition'
-import { SidebarProvider } from '@/components/ui/sidebar'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
@@ -20,9 +19,7 @@ export default function App({ Component, pageProps, featureFlags }: AppPropsWith
         <ProjectProvider>
           <div className={`${inter.variable} font-sans`}>
             <PageTransition />
-            <SidebarProvider>
-              <Component {...pageProps} />
-            </SidebarProvider>
+            <Component {...pageProps} />
             <Toaster position="bottom-right" />
           </div>
         </ProjectProvider>

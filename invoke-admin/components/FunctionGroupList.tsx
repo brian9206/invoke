@@ -324,7 +324,10 @@ function GroupTreeNode({
       {/* Group body: functions first, then subgroups */}
       {isOpen && (
         <div className="mt-1 space-y-1">
-          {!isProjectFake && (
+          {/* Only render the function drop area when the group has direct functions,
+              or when it has no children (so the "Empty group" hint is visible).
+              This prevents a blank min-h gap between the header and nested subgroups. */}
+          {!isProjectFake && (functionsInGroup.length > 0 || node.children.length === 0) && (
             <SortableContext
               items={functionsInGroup.map((f) => f.id)}
               strategy={verticalListSortingStrategy}
@@ -344,11 +347,11 @@ function GroupTreeNode({
                       draggable={canWrite}
                     />
                   ))
-                ) : node.children.length === 0 ? (
+                ) : (
                   <p className="text-xs text-muted-foreground py-2 text-center">
                     {canWrite ? 'Empty group. Drag functions here' : 'Empty group'}
                   </p>
-                ) : null}
+                )}
               </div>
             </SortableContext>
           )}
@@ -422,13 +425,19 @@ function UngroupedSection({
   onDeleteFunction: (id: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(true)
+  // The ref goes on the outer wrapper so both the header and the content area
+  // act as a drop target — this lets groups be dragged onto "Ungrouped" too.
   const { setNodeRef, isOver } = useDroppable({ id: droppableId })
 
   return (
-    <div>
+    <div ref={setNodeRef}>
       <button
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-2 w-full text-left rounded-lg bg-muted/20 border border-dashed border-border/50 hover:bg-muted/30 transition-colors"
+        className={`flex items-center gap-2 px-3 py-2 w-full text-left rounded-lg border border-dashed transition-colors ${
+          isOver && canWrite
+            ? 'bg-primary/10 border-primary/40'
+            : 'bg-muted/20 border-border/50 hover:bg-muted/30'
+        }`}
       >
         {isOpen ? (
           <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -441,7 +450,6 @@ function UngroupedSection({
 
       {isOpen && (
         <div
-          ref={setNodeRef}
           className={`mt-2 space-y-2 min-h-[2rem] rounded-lg transition-colors ${
             isOver ? 'bg-primary/5 ring-1 ring-primary/30' : ''
           }`}
@@ -584,9 +592,10 @@ export function FunctionGroupList({
 }: FunctionGroupListProps) {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [activeDragGroupNode, setActiveDragGroupNode] = useState<TreeNode | null>(null)
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
@@ -657,11 +666,20 @@ export function FunctionGroupList({
   // ── Drag handlers ──────────────────────────────────────────────────────────
 
   const handleDragStart = (event: DragStartEvent) => {
-    setActiveDragId(String(event.active.id))
+    const id = String(event.active.id)
+    setActiveDragId(id)
+    if (id.startsWith('group:')) {
+      // Grab the node from the drag data so we can render a compact overlay
+      const data = event.active.data.current as { type: string; node: TreeNode } | undefined
+      setActiveDragGroupNode(data?.node ?? null)
+    } else {
+      setActiveDragGroupNode(null)
+    }
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setActiveDragId(null)
+    setActiveDragGroupNode(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -686,6 +704,36 @@ export function FunctionGroupList({
 
       await saveReorder([{ id: activeGroupId, sort_order: 0, parentPath: nestNode.fullPath }], [])
       await onGroupsRefresh()
+      return
+    }
+
+    // ── Group dragged onto Ungrouped (delete group + ungroup its functions) ───
+    if (activeId.startsWith('group:') && (overId === 'ungrouped' || overId.startsWith('ungrouped:'))) {
+      const activeGroupId = activeId.replace('group:', '')
+      const activeNode = findNode(activeGroupId)
+      if (!activeNode) return
+      try {
+        const res = await authenticatedFetch(`/api/function-groups/${activeGroupId}`, {
+          method: 'DELETE',
+        })
+        const data = await res.json()
+        if (data.success) {
+          const nodePath = activeNode.fullPath
+          const deletedIds = new Set(
+            groups
+              .filter((g) => g.name === nodePath || g.name.startsWith(nodePath + '/'))
+              .map((g) => g.id)
+          )
+          onGroupsChange(groups.filter((g) => !deletedIds.has(g.id)))
+          onFunctionsChange(
+            functions.map((f) =>
+              f.group_id && deletedIds.has(f.group_id) ? { ...f, group_id: null } : f
+            )
+          )
+        }
+      } catch (e) {
+        console.error('Failed to delete group on drop to ungrouped', e)
+      }
       return
     }
 
@@ -882,7 +930,15 @@ export function FunctionGroupList({
         </div>
 
         <DragOverlay>
-          {activeDragFunc && (
+          {activeDragGroupNode ? (
+            // Compact header-only overlay so the collision detection rect
+            // matches the cursor position (not the whole group including children)
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card border-border shadow-lg pointer-events-none">
+              <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="font-medium text-sm text-foreground">{activeDragGroupNode.displayName}</span>
+            </div>
+          ) : activeDragFunc ? (
             <FunctionCard
               func={activeDragFunc}
               functionUrl={functionUrls[activeDragFunc.id] || ''}
@@ -890,7 +946,7 @@ export function FunctionGroupList({
               onDelete={() => {}}
               draggable={false}
             />
-          )}
+          ) : null}
         </DragOverlay>
       </DndContext>
     </TooltipProvider>

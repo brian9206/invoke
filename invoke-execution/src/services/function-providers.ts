@@ -54,9 +54,14 @@ export function invalidateNetworkPolicyCache(projectId: string | null): void {
 export async function fetchFunctionMetadata(functionId: string): Promise<FunctionMetadata> {
   const { Function: FunctionModel, FunctionVersion } = db.models;
 
+  const { Project } = db.models;
+
   const func = await FunctionModel.findOne({
     where: { id: functionId, is_active: true },
-    include: [{ model: FunctionVersion, as: 'activeVersion' }],
+    include: [
+      { model: FunctionVersion, as: 'activeVersion' },
+      { model: Project, where: { is_active: true }, required: true },
+    ],
   });
 
   if (!func) {

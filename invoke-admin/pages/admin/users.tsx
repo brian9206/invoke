@@ -3,7 +3,8 @@ import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import Modal from '@/components/Modal';
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
-import { Edit, Trash2, Users, Loader } from 'lucide-react';
+import { Edit, Trash2, Users, UserCircle, Loader } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
@@ -186,34 +187,56 @@ export default function UsersPage() {
           ) : (
             <div className="grid gap-4">
               {users.map((user) => (
-                <Card key={user.id}>
-                  <CardContent className="pt-5">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-base font-semibold text-foreground">{user.username}</h3>
-                          {user.is_admin && <Badge variant="purple">Admin</Badge>}
-                        </div>
-                        <p className="text-muted-foreground text-sm">{user.email}</p>
-                        <div className="flex items-center gap-6 mt-2 text-sm text-muted-foreground">
-                          <span>Projects: {user.project_count}</span>
-                          <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                          {user.last_login && <span>Last login: {new Date(user.last_login).toLocaleDateString()}</span>}
-                        </div>
+                <Card key={user.id} className="hover:bg-card/80 transition-colors">
+                  <CardContent className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`p-1.5 rounded shrink-0 ${
+                          user.is_admin
+                            ? 'bg-purple-900/30 text-purple-400'
+                            : 'bg-green-900/30 text-green-400'
+                        }`}
+                      >
+                        <UserCircle className="w-4 h-4" />
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <Button variant="ghost" size="icon" onClick={() => openEditModal(user)} className="text-yellow-400 hover:text-yellow-300">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteUser(user)}
-                          disabled={!!currentUser && user.id === currentUser.id}
-                          className="text-red-400 hover:text-red-300 disabled:opacity-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="text-sm font-semibold text-foreground truncate">{user.username}</span>
+                          {user.is_admin && <Badge variant="purple" className="text-xs px-1.5 py-0">Admin</Badge>}
+                        </div>
+                        <p className="text-muted-foreground text-xs mt-0.5 truncate">{user.email}</p>
+                      </div>
+                      <div
+                        className="flex items-center gap-0.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-blue-400 hover:bg-blue-900/20"
+                              onClick={() => openEditModal(user)}
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit User</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-400 hover:bg-red-900/20 disabled:opacity-50"
+                              onClick={() => handleDeleteUser(user)}
+                              disabled={!!currentUser && user.id === currentUser.id}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete User</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   </CardContent>

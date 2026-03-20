@@ -113,6 +113,11 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
 
   try {
     const { Project } = database.models;
+
+    // Fetch current state so we know if is_active is changing
+    const existing = await Project.findByPk(id, { attributes: ['is_active'] });
+    const activeChanged = existing && existing.is_active !== (is_active ?? true);
+
     const [affectedCount, updatedRows] = await Project.update(
       {
         name,
@@ -126,6 +131,14 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
 
     if (affectedCount === 0) {
       return res.status(404).json({ error: 'Project not found' });
+    }
+
+    // Notify gateway to invalidate its route cache when project active state changes
+    if (activeChanged) {
+      await database.sequelize.query(
+        `SELECT pg_notify('gateway_invalidated', :payload)`,
+        { replacements: { payload: JSON.stringify({ table: 'projects', action: 'UPDATE', project_id: id }) } }
+      );
     }
 
     res.json({ project: updatedRows[0].get({ plain: true }) });

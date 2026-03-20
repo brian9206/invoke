@@ -104,7 +104,8 @@ export default function Layout({ children, title }: LayoutProps) {
         confirmVariant="danger"
       />
 
-      <Sidebar collapsible="icon" variant="floating">
+      <SidebarProvider>
+        <Sidebar collapsible="icon" variant="floating">
 
           <SidebarHeader>
             <SidebarMenu>
@@ -236,6 +237,7 @@ export default function Layout({ children, title }: LayoutProps) {
             {children}
           </main>
         </SidebarInset>
+      </SidebarProvider>
     </>
   )
 }

@@ -1,18 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/router';
+import Link from 'next/link';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import PageHeader from '@/components/PageHeader';
 import { authenticatedFetch } from '@/lib/frontend-utils';
 import { useProject } from '@/contexts/ProjectContext';
 import Modal from '@/components/Modal';
-import { FolderOpen, Loader } from 'lucide-react';
+import { FolderOpen, Loader, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Project {
   id: string;
@@ -38,7 +39,6 @@ export default function ProjectsPage() {
     message: string;
     onConfirm?: () => void;
   }>({ type: null, title: '', message: '' });
-  const router = useRouter();
   const { refreshProjects, lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
 
@@ -197,28 +197,59 @@ export default function ProjectsPage() {
           ) : (
             <div className="grid gap-4">
               {projects.map((project) => (
-                <Card
-                  key={project.id}
-                  className="cursor-pointer hover:bg-card/80 transition-colors"
-                  onClick={() => router.push(`/admin/projects/${project.id}`)}
-                >
-                  <CardContent className="pt-5">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-1">
-                          <h3 className="text-base font-semibold text-foreground">{project.name}</h3>
-                          <Badge variant={project.is_active ? 'success' : 'secondary'}>
+                <Card key={project.id} className="hover:bg-card/80 transition-colors">
+                  <CardContent className="px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`p-1.5 rounded shrink-0 ${
+                          project.is_active
+                            ? 'bg-green-900/30 text-green-400'
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        <FolderOpen className="w-4 h-4" />
+                      </div>
+                      <Link href={`/admin/projects/${project.id}`} className="flex-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-1.5">
+                          <span className="text-sm font-semibold text-foreground truncate">{project.name}</span>
+                          <Badge variant={project.is_active ? 'success' : 'secondary'} className="text-xs px-1.5 py-0">
                             {project.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </div>
                         {project.description && (
-                          <p className="text-muted-foreground text-sm">{project.description}</p>
+                          <p className="text-muted-foreground text-xs mt-0.5 truncate">{project.description}</p>
                         )}
-                        <div className="flex items-center gap-6 mt-2 text-sm text-muted-foreground">
-                          <span>Members: {project.member_count}</span>
-                          <span>Functions: {project.function_count}</span>
-                          <span>Created: {new Date(project.created_at).toLocaleDateString()}</span>
-                        </div>
+                      </Link>
+                      <div
+                        className="flex items-center gap-0.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-blue-400 hover:bg-blue-900/20"
+                              onClick={() => openEditModal(project)}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Edit Project</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-400 hover:bg-red-900/20"
+                              onClick={() => handleDeleteProject(project)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Delete Project</TooltipContent>
+                        </Tooltip>
                       </div>
                     </div>
                   </CardContent>

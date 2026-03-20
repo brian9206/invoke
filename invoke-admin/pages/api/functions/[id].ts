@@ -41,6 +41,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         f.active_version_id,
         f.project_id,
         p.name as project_name,
+        p.is_active as project_is_active,
         fv.version as active_version,
         fv.file_size,
         fv.package_path,

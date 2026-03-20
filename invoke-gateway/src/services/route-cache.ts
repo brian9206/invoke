@@ -132,6 +132,9 @@ async function refresh(): Promise<void> {
     const newProjectSlugMap: Record<string, ProjectConfig> = {};
 
     for (const config of configs) {
+      // Skip gateways whose project has been deactivated
+      if (!config.Project.is_active) continue;
+
       const projectSlug = config.Project.slug as string; // Virtual field on Project model
       const customDomain = config.custom_domain as string | undefined;
 

@@ -114,12 +114,14 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
     console.log('Checking for scheduled functions to execute...');
 
     const now = new Date();
+    const { Project } = database.models;
     const functionsToExecute = await FunctionModel.findAll({
       where: {
         schedule_enabled: true,
         is_active: true,
         next_execution: { [Op.lte]: now },
       },
+      include: [{ model: Project, where: { is_active: true }, required: true }],
       attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active'],
       order: [['next_execution', 'ASC']],
     });

@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export default function GlobalSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -179,160 +180,194 @@ export default function GlobalSettingsPage() {
             icon={<Settings className="w-8 h-8 text-primary" />}
           />
 
-          <Card>
-            <CardContent className="pt-6 space-y-8">
-              {/* Log Retention */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">Log Retention</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Configure automatic cleanup of execution logs.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Switch id="retentionEnabled" checked={retentionEnabled} onCheckedChange={setRetentionEnabled} />
-                  <Label htmlFor="retentionEnabled" className="cursor-pointer">Enable log retention policy</Label>
-                </div>
-                {retentionEnabled && (
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pl-2">
-                    <div className="space-y-1.5">
-                      <Label>Retention Type</Label>
-                      <Select value={retentionType} onValueChange={(v) => setRetentionType(v as 'time' | 'count' | 'none')}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="time">Time-based (days)</SelectItem>
-                          <SelectItem value="count">Count-based (max entries)</SelectItem>
-                          <SelectItem value="none">No limit</SelectItem>
-                        </SelectContent>
-                      </Select>
+          <Tabs defaultValue="general" className="min-w-0 space-y-6">
+            <TabsList className="w-full justify-start gap-1 overflow-x-auto whitespace-nowrap sm:w-auto sm:justify-center sm:gap-8">
+              <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="log-retention">Log Retention</TabsTrigger>
+              <TabsTrigger value="api-gateway">API Gateway</TabsTrigger>
+            </TabsList>
+
+            {/* General Tab */}
+            <TabsContent value="general" className="space-y-6 mt-0">
+              <Card>
+                <CardContent className="pt-6 space-y-8">
+                  {/* Function URL Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Function URL Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">The base URL used when invoking functions.</p>
                     </div>
-                    {retentionType !== 'none' && (
-                      <div className="space-y-1.5">
-                        <Label>{retentionType === 'time' ? 'Days to retain' : 'Max log entries'}</Label>
-                        <Input
-                          type="number"
-                          min={1}
-                          value={retentionValue}
-                          onChange={(e) => setRetentionValue(e.target.value)}
-                          placeholder={retentionType === 'time' ? 'e.g. 30' : 'e.g. 10000'}
-                        />
+                    <div className="space-y-1.5">
+                      <Label>Base URL</Label>
+                      <Input
+                        type="url"
+                        value={functionBaseUrl}
+                        onChange={(e) => setFunctionBaseUrl(e.target.value)}
+                        placeholder="https://functions.example.com"
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* KV Storage Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">KV Storage Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Limit the total key-value store size per project.</p>
+                    </div>
+                    <div className="space-y-1.5 max-w-xs">
+                      <Label>Storage Limit (GB)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={0.1}
+                        value={kvStorageLimitGB}
+                        onChange={(e) => setKvStorageLimitGB(e.target.value)}
+                        placeholder="e.g. 1"
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Log Retention Tab */}
+            <TabsContent value="log-retention" className="space-y-6 mt-0">
+              <Card>
+                <CardContent className="pt-6 space-y-8">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Log Retention</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Configure automatic cleanup of execution logs.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Switch id="retentionEnabled" checked={retentionEnabled} onCheckedChange={setRetentionEnabled} />
+                      <Label htmlFor="retentionEnabled" className="cursor-pointer">Enable log retention policy</Label>
+                    </div>
+                    {retentionEnabled && (
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pl-2">
+                        <div className="space-y-1.5">
+                          <Label>Retention Type</Label>
+                          <Select value={retentionType} onValueChange={(v) => setRetentionType(v as 'time' | 'count' | 'none')}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="time">Time-based (days)</SelectItem>
+                              <SelectItem value="count">Count-based (max entries)</SelectItem>
+                              <SelectItem value="none">No limit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {retentionType !== 'none' && (
+                          <div className="space-y-1.5">
+                            <Label>{retentionType === 'time' ? 'Days to retain' : 'Max log entries'}</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={retentionValue}
+                              onChange={(e) => setRetentionValue(e.target.value)}
+                              placeholder={retentionType === 'time' ? 'e.g. 30' : 'e.g. 10000'}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              <Separator />
+                  <Separator />
 
-              {/* Function URL Settings */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">Function URL Settings</h3>
-                  <p className="text-sm text-muted-foreground mt-1">The base URL used when invoking functions.</p>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Base URL</Label>
-                  <Input
-                    type="url"
-                    value={functionBaseUrl}
-                    onChange={(e) => setFunctionBaseUrl(e.target.value)}
-                    placeholder="https://functions.example.com"
-                  />
-                </div>
-              </div>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleCleanup}
+                      disabled={cleaning || !retentionEnabled}
+                    >
+                      {cleaning ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Running…</> : 'Run Cleanup Now'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
 
-              <Separator />
+              {cleanupResult && (
+                <Card className="border-green-800/50">
+                  <CardContent className="pt-5 flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
+                    <p className="text-sm text-green-300">{cleanupResult}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
 
-              {/* KV Storage Settings */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">KV Storage Settings</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Limit the total key-value store size per project.</p>
-                </div>
-                <div className="space-y-1.5 max-w-xs">
-                  <Label>Storage Limit (GB)</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={kvStorageLimitGB}
-                    onChange={(e) => setKvStorageLimitGB(e.target.value)}
-                    placeholder="e.g. 1"
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* API Gateway Settings */}
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-base font-semibold text-foreground">API Gateway Settings</h3>
-                  <p className="text-sm text-muted-foreground mt-1">Configure the API Gateway for routing HTTP traffic to functions.</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Switch id="apiGatewayEnabled" checked={apiGatewayEnabled} onCheckedChange={setApiGatewayEnabled} />
-                  <Label htmlFor="apiGatewayEnabled" className="cursor-pointer">Enable API Gateway</Label>
-                </div>
-                {apiGatewayEnabled && (
-                  <div className="space-y-1.5">
-                    <Label>Gateway Domain</Label>
-                    <div className="flex gap-2">
-                      <Select value={apiGatewayDomainProtocol} onValueChange={(v) => setApiGatewayDomainProtocol(v as 'http' | 'https')}>
-                        <SelectTrigger className="w-[110px] shrink-0">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="https">https://</SelectItem>
-                          <SelectItem value="http">http://</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="text"
-                        value={apiGatewayDomain}
-                        onChange={(e) => setApiGatewayDomain(e.target.value)}
-                        placeholder="gateway.example.com"
-                        className="flex-1"
-                      />
+            {/* API Gateway Tab */}
+            <TabsContent value="api-gateway" className="space-y-6 mt-0">
+              <Card>
+                <CardContent className="pt-6 space-y-8">
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">API Gateway Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Configure the API Gateway for routing HTTP traffic to functions.</p>
                     </div>
-                    {apiGatewayEnabled && !apiGatewayDomain.trim() && (
-                      <p className="text-sm text-destructive flex items-center gap-1 mt-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> Domain is required when the gateway is enabled.
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <Switch id="apiGatewayEnabled" checked={apiGatewayEnabled} onCheckedChange={setApiGatewayEnabled} />
+                      <Label htmlFor="apiGatewayEnabled" className="cursor-pointer">Enable API Gateway</Label>
+                    </div>
+                    {apiGatewayEnabled && (
+                      <div className="space-y-1.5">
+                        <Label>Gateway Domain</Label>
+                        <div className="flex gap-2">
+                          <Select value={apiGatewayDomainProtocol} onValueChange={(v) => setApiGatewayDomainProtocol(v as 'http' | 'https')}>
+                            <SelectTrigger className="w-[110px] shrink-0">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="https">https://</SelectItem>
+                              <SelectItem value="http">http://</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="text"
+                            value={apiGatewayDomain}
+                            onChange={(e) => setApiGatewayDomain(e.target.value)}
+                            placeholder="gateway.example.com"
+                            className="flex-1"
+                          />
+                        </div>
+                        {apiGatewayEnabled && !apiGatewayDomain.trim() && (
+                          <p className="text-sm text-destructive flex items-center gap-1 mt-1">
+                            <AlertCircle className="w-3.5 h-3.5" /> Domain is required when the gateway is enabled.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
 
-              <Separator />
+                  <Separator />
 
-              {/* Actions */}
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                <Button
-                  onClick={handleSave}
-                  disabled={saving || (apiGatewayEnabled && !apiGatewayDomain.trim())}
-                >
-                  {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleCleanup}
-                  disabled={cleaning || !retentionEnabled}
-                >
-                  {cleaning ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Running…</> : 'Run Cleanup Now'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {cleanupResult && (
-            <Card className="border-green-800/50">
-              <CardContent className="pt-5 flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-green-400 mt-0.5 shrink-0" />
-                <p className="text-sm text-green-300">{cleanupResult}</p>
-              </CardContent>
-            </Card>
-          )}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving || (apiGatewayEnabled && !apiGatewayDomain.trim())}
+                    >
+                      {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </Layout>
     </ProtectedRoute>
