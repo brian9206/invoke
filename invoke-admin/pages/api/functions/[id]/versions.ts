@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -72,23 +71,31 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     }
 
     if (req.method === 'GET') {
-      // List all versions for a function
-      const versions = await database.sequelize.query(`
-        SELECT 
-          fv.id,
-          fv.version,
-          fv.file_size,
-          fv.package_hash,
-          (f.active_version_id = fv.id) as is_active,
-          fv.created_at,
-          fv.created_by,
-          u.username as created_by_name
-        FROM function_versions fv
-        LEFT JOIN users u ON fv.created_by = u.id
-        LEFT JOIN functions f ON fv.function_id = f.id
-        WHERE fv.function_id = $1
-        ORDER BY fv.created_at DESC
-      `, { bind: [functionId], type: QueryTypes.SELECT });
+      // List all versions for a function — get active_version_id first, then fetch versions
+      const { FunctionVersion, User } = database.models
+      const funcRecord = await (database.models as any).Function.findByPk(functionId, { attributes: ['active_version_id'], raw: true }) as any
+      const activeVersionId = funcRecord?.active_version_id ?? null
+
+      const versionRows = await FunctionVersion.findAll({
+        where: { function_id: functionId },
+        attributes: ['id', 'version', 'file_size', 'package_hash', 'created_at', 'created_by'],
+        include: [{ model: User, as: 'creator', attributes: ['username'], required: false }],
+        order: [['created_at', 'DESC']],
+      })
+
+      const versions = versionRows.map((v: any) => {
+        const raw = v.toJSON()
+        return {
+          id: raw.id,
+          version: raw.version,
+          file_size: raw.file_size,
+          package_hash: raw.package_hash,
+          is_active: raw.id === activeVersionId,
+          created_at: raw.created_at,
+          created_by: raw.created_by,
+          created_by_name: raw.creator?.username ?? null,
+        }
+      })
 
       return res.status(200).json(createResponse(true, versions, 'Versions retrieved successfully'))
 

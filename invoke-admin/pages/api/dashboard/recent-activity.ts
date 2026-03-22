@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize'
+import { Op } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
@@ -17,42 +17,36 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     }
     // Build WHERE clause for project filter
-    let whereClause = ''
-    let queryParams: any[] = []
-    if (projectId && projectId !== 'system') {
-      whereClause = 'AND f.project_id = $1'
-      queryParams = [projectId]
-    }
+    // (project filter is now applied via Sequelize include below)
     
     // Get recent execution activity
-    const recentRows = await database.sequelize.query(`
-      SELECT 
-        el.id,
-        f.id as function_id,
-        f.name as function_name,
-        el.status_code,
-        el.execution_time_ms,
-        el.executed_at,
-        CASE 
-          WHEN el.status_code < 400 THEN 'success'
-          ELSE 'error'
-        END as status
-      FROM execution_logs el
-      JOIN functions f ON el.function_id = f.id
-      WHERE el.executed_at > NOW() - INTERVAL '1 hour'
-      ${whereClause}
-      ORDER BY el.executed_at DESC
-      LIMIT 10
-    `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
+    const { ExecutionLog, Function: FunctionModel } = database.models
+    const functionWhere = (projectId && projectId !== 'system') ? { project_id: projectId } : undefined
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const recentLogs = await ExecutionLog.findAll({
+      where: { executed_at: { [Op.gt]: oneHourAgo } },
+      attributes: ['id', 'status_code', 'execution_time_ms', 'executed_at'],
+      include: [{
+        model: FunctionModel,
+        attributes: ['id', 'name'],
+        where: functionWhere,
+        required: !!functionWhere,
+      }],
+      order: [['executed_at', 'DESC']],
+      limit: 10,
+    }) as any[]
 
-    const recentActivity = recentRows.map(row => ({
-      id: row.id.toString(),
-      functionId: row.function_id,
-      functionName: row.function_name,
-      status: row.status,
-      executionTime: row.execution_time_ms,
-      executedAt: row.executed_at.toISOString()
-    }))
+    const recentActivity = recentLogs.map((log: any) => {
+      const raw = log.toJSON()
+      return {
+        id: raw.id.toString(),
+        functionId: raw.Function?.id,
+        functionName: raw.Function?.name,
+        status: raw.status_code < 400 ? 'success' : 'error',
+        executionTime: raw.execution_time_ms,
+        executedAt: raw.executed_at instanceof Date ? raw.executed_at.toISOString() : raw.executed_at,
+      }
+    })
 
     res.status(200).json(createResponse(true, recentActivity, 'Recent activity retrieved'))
 

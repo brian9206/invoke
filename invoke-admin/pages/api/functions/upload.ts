@@ -1,6 +1,5 @@
 export const runtime = 'nodejs';
 
-import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { AuthenticatedRequest, withAuthOrApiKeyAndMethods } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -159,18 +158,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Return function details with version info
-    const [finalData] = await database.sequelize.query(`
-      SELECT 
-        f.*,
-        fv.version,
-        fv.file_size,
-        fv.package_hash
-      FROM functions f
-      LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-      WHERE f.id = $1
-    `, { bind: [functionId], type: QueryTypes.SELECT }) as any[];
+    const uploadedFn = await FunctionModel.findByPk(functionId, {
+      include: [{ model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size', 'package_hash'], required: false }],
+    }) as any
+    const uploadedRaw = uploadedFn.toJSON()
+    const finalData = {
+      ...uploadedRaw,
+      version: uploadedRaw.activeVersion?.version ?? null,
+      file_size: uploadedRaw.activeVersion?.file_size ?? null,
+      package_hash: uploadedRaw.activeVersion?.package_hash ?? null,
+    }
+    delete finalData.activeVersion
 
-    return res.status(201).json(createResponse(true, finalData, 
+    return res.status(201).json(createResponse(true, finalData,
       'Function uploaded successfully', 201))
 
   } catch (error) {

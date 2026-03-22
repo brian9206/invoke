@@ -1,4 +1,4 @@
-import { QueryTypes, Op } from 'sequelize';
+import { Op } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired } from '@/lib/middleware';
 import database from '@/lib/database';
@@ -23,22 +23,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Get all users with their project counts
 async function getUsers(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const users = await database.sequelize.query(`
-      SELECT 
-        u.id, 
-        u.username, 
-        u.email, 
-        u.is_admin,
-        u.created_at,
-        u.last_login,
-        COUNT(pm.project_id) as project_count
-      FROM users u
-      LEFT JOIN project_memberships pm ON u.id = pm.user_id
-      GROUP BY u.id, u.username, u.email, u.is_admin, u.created_at, u.last_login
-      ORDER BY u.created_at DESC
-    `, { type: QueryTypes.SELECT });
-    
-    res.json({ users });
+    const { User, ProjectMembership } = database.models
+
+    const users = await User.findAll({
+      attributes: [
+        'id', 'username', 'email', 'is_admin', 'created_at', 'last_login',
+        [database.sequelize.fn('COUNT', database.sequelize.col('ProjectMemberships.project_id')), 'project_count'],
+      ],
+      include: [{
+        model: ProjectMembership,
+        attributes: [],
+        required: false,
+      }],
+      group: ['User.id'],
+      order: [['created_at', 'DESC']],
+      raw: false,
+      nest: true,
+    }) as any[]
+
+    res.json({ users: users.map((u: any) => u.toJSON()) });
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ error: 'Failed to fetch users' });
@@ -181,17 +184,36 @@ async function deleteUser(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Check if user is the sole owner of any projects
-    const soleOwnerProjects = await database.sequelize.query(`
-      SELECT p.id, p.name 
-      FROM projects p
-      WHERE p.id IN (
-        SELECT pm.project_id 
-        FROM project_memberships pm 
-        WHERE pm.user_id = :userId AND pm.role = 'owner'
-        GROUP BY pm.project_id
-        HAVING COUNT(CASE WHEN role = 'owner' THEN 1 END) = 1
-      )
-    `, { replacements: { userId: id }, type: QueryTypes.SELECT });
+    const { Project, ProjectMembership } = database.models
+
+    // Find project IDs where this user is an owner
+    const userOwnerMemberships = await ProjectMembership.findAll({
+      where: { user_id: id, role: 'owner' },
+      attributes: ['project_id'],
+      raw: true,
+    }) as any[]
+
+    let soleOwnerProjects: any[] = []
+    if (userOwnerMemberships.length > 0) {
+      const ownedProjectIds = userOwnerMemberships.map((m: any) => m.project_id)
+      // For each owned project, count how many owners exist — keep only those with exactly 1
+      const ownerCounts = await ProjectMembership.findAll({
+        where: { project_id: { [Op.in]: ownedProjectIds }, role: 'owner' },
+        attributes: ['project_id', [database.sequelize.fn('COUNT', database.sequelize.col('user_id')), 'owner_count']],
+        group: ['project_id'],
+        raw: true,
+      }) as any[]
+      const soleOwnerProjectIds = ownerCounts
+        .filter((r: any) => parseInt(r.owner_count) === 1)
+        .map((r: any) => r.project_id)
+      if (soleOwnerProjectIds.length > 0) {
+        soleOwnerProjects = await Project.findAll({
+          where: { id: { [Op.in]: soleOwnerProjectIds } },
+          attributes: ['id', 'name'],
+          raw: true,
+        }) as any[]
+      }
+    }
 
     if (soleOwnerProjects.length > 0) {
       return res.status(400).json({ 

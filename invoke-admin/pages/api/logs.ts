@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize'
+import { Op } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
@@ -20,49 +20,39 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
   }
 
-  // Build WHERE clause based on status filter and project filter
-  let whereClause = ''
-  let queryParams: any[] = []
-  let paramIndex = 1
-  // Add project filter (skip if system)
-  if (projectId && projectId !== 'system') {
-    whereClause = 'WHERE f.project_id = $' + paramIndex
-    queryParams.push(projectId)
-    paramIndex++
-  }
-  
-  // Add status filter
+  // Build where clauses using Sequelize Op
+  const functionWhere = (projectId && projectId !== 'system') ? { project_id: projectId } : undefined
+  const statusWhere: any = {}
   if (status === 'success') {
-    whereClause += (whereClause ? ' AND' : 'WHERE') + ` el.status_code >= 200 AND el.status_code < 300`
+    statusWhere.status_code = { [Op.gte]: 200, [Op.lt]: 300 }
   } else if (status === 'error') {
-    whereClause += (whereClause ? ' AND' : 'WHERE') + ` el.status_code >= 400`
+    statusWhere.status_code = { [Op.gte]: 400 }
   }
 
-  // Get total count for pagination (with filter)
-  const [countRow] = await database.sequelize.query(`
-    SELECT COUNT(*) as total
-    FROM execution_logs el
-    LEFT JOIN functions f ON el.function_id = f.id
-    ${whereClause}
-  `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
-  const totalCount = parseInt(countRow.total)
-  const totalPages = Math.ceil(totalCount / limit)
+  const { ExecutionLog, Function: FunctionModel } = database.models
+  const { count, rows } = await (ExecutionLog as any).findAndCountAll({
+    where: statusWhere,
+    include: [{
+      model: FunctionModel,
+      attributes: ['name'],
+      where: functionWhere,
+      required: !!functionWhere,
+    }],
+    order: [['executed_at', 'DESC']],
+    limit,
+    offset,
+    distinct: true,
+  })
 
-  // Get execution logs with function names (paginated and filtered)
-  const paginationParams = [...queryParams, limit, offset]
-  const logRows = await database.sequelize.query(`
-    SELECT 
-      el.*,
-      f.name as function_name
-    FROM execution_logs el
-    LEFT JOIN functions f ON el.function_id = f.id
-    ${whereClause}
-    ORDER BY el.executed_at DESC
-    LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-  `, { bind: paginationParams, type: QueryTypes.SELECT }) as any[];
+  const totalCount = count
+  const totalPages = Math.ceil(totalCount / limit)
+  const logs = rows.map((log: any) => {
+    const raw = log.toJSON()
+    return { ...raw, function_name: raw.Function?.name ?? null, Function: undefined }
+  })
 
   const paginationData = {
-    logs: logRows,
+    logs,
     pagination: {
       currentPage: page,
       totalPages,

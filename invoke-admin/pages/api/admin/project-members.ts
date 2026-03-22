@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize';
+import { Op } from 'sequelize';
 import { NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
 import database from '@/lib/database';
@@ -27,21 +27,32 @@ async function getProjectMembers(req: AuthenticatedRequest, res: NextApiResponse
   }
 
   try {
-    const members = await database.sequelize.query(`
-      SELECT 
-        pm.id,
-        pm.role,
-        pm.created_at,
-        u.id as user_id,
-        u.username,
-        u.email,
-        creator.username as added_by
-      FROM project_memberships pm
-      JOIN users u ON pm.user_id = u.id
-      LEFT JOIN users creator ON pm.created_by = creator.id
-      WHERE pm.project_id = :projectId
-      ORDER BY pm.created_at ASC
-    `, { replacements: { projectId }, type: QueryTypes.SELECT });
+    const { ProjectMembership, User } = database.models
+    const memberRows = await ProjectMembership.findAll({
+      where: { project_id: projectId as string },
+      include: [{ model: User, attributes: ['id', 'username', 'email'], required: true }],
+      order: [['created_at', 'ASC']],
+    }) as any[]
+
+    // Fetch creator usernames separately to avoid duplicate User table joins
+    const creatorIds = [...new Set(memberRows.map((m: any) => m.created_by).filter(Boolean))]
+    const creatorUsers = creatorIds.length > 0
+      ? await User.findAll({ where: { id: { [Op.in]: creatorIds } }, attributes: ['id', 'username'], raw: true }) as any[]
+      : []
+    const creatorMap = new Map(creatorUsers.map((u: any) => [u.id, u.username]))
+
+    const members = memberRows.map((m: any) => {
+      const raw = m.toJSON()
+      return {
+        id: raw.id,
+        role: raw.role,
+        created_at: raw.created_at,
+        user_id: raw.User?.id,
+        username: raw.User?.username,
+        email: raw.User?.email,
+        added_by: creatorMap.get(raw.created_by) ?? null,
+      }
+    })
 
     res.json({ members });
   } catch (error) {

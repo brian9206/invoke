@@ -13,11 +13,17 @@ import cache from './services/cache';
 import {
   initialize as initializeExecutionEngine,
   shutdown as shutdownExecutionEngine,
+  updateDefaultTimeout,
+  updateDefaultMemory,
 } from './services/execution-service';
 import {
   invalidateEnvVarCache,
   invalidateNetworkPolicyCache,
 } from './services/function-providers';
+import {
+  reloadExecutionSettings,
+  invalidateExecutionSettings,
+} from './services/execution-settings';
 
 import executionRoutes from './routes/execution';
 import healthRoutes from './routes/health';
@@ -32,6 +38,10 @@ const executionPgNotify = createNotifyListener('execution_cache_invalidated', {
       : payload.table === 'project_network_policies'
         ? `project_network_policies:${payload.project_id}`
         : 'global_network_policies',
+});
+
+const executionSettingsPgNotify = createNotifyListener('execution_settings_invalidated', {
+  debounceMs: 500,
 });
 
 class ExecutionServer {
@@ -174,6 +184,15 @@ class ExecutionServer {
         }
       });
 
+      await executionSettingsPgNotify.connect(async () => {
+        console.log('[ExecutionSettings] Global execution settings changed, reloading...');
+        invalidateExecutionSettings();
+        const newSettings = await reloadExecutionSettings();
+        updateDefaultTimeout(newSettings.defaultTimeoutMs);
+        await updateDefaultMemory(newSettings.defaultMemoryMb);
+        console.log(`[ExecutionSettings] Updated: timeout=${newSettings.defaultTimeoutMs}ms, memory=${newSettings.defaultMemoryMb}MB`);
+      });
+
       await cache.initialize();
 
       console.log('🚀 Initializing execution engine...');
@@ -190,12 +209,7 @@ class ExecutionServer {
         console.log(
           `🏊 Isolate Pool: ${process.env.ISOLATE_POOL_SIZE || 5} base, ${process.env.ISOLATE_MAX_POOL_SIZE || 20} max`,
         );
-        console.log(
-          `💾 Memory Limit: ${process.env.ISOLATE_MEMORY_LIMIT_MB || 128}MB per isolate`,
-        );
-        console.log(
-          `⏱️ Function Timeout: ${process.env.FUNCTION_TIMEOUT_MS || 30000}ms`,
-        );
+
       });
 
       process.on('SIGTERM', this.shutdown.bind(this));
@@ -216,6 +230,7 @@ class ExecutionServer {
     }
 
     await executionPgNotify.stop();
+    await executionSettingsPgNotify.stop();
 
     console.log('🛑 Shutting down execution engine...');
     await shutdownExecutionEngine();

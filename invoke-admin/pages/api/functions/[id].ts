@@ -1,9 +1,8 @@
-import { QueryTypes } from 'sequelize'
+import database from '@/lib/database'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
 import { deleteFunction } from '@/lib/delete-utils'
-import database from '@/lib/database'
 
 // Generate a random API key
 const generateApiKey = () => {
@@ -25,155 +24,121 @@ async function handler(req: AuthenticatedRequest, res: any) {
   const userId = req.user!.id
 
   if (req.method === 'GET') {
-    // Get function details with active version information
-    const [functionData] = await database.sequelize.query(`
-      SELECT 
-        f.id,
-        f.name,
-        f.description,
-        f.is_active,
-        f.created_at,
-        f.updated_at,
-        f.last_executed,
-        f.execution_count,
-        f.requires_api_key,
-        f.api_key,
-        f.active_version_id,
-        f.project_id,
-        p.name as project_name,
-        p.is_active as project_is_active,
-        fv.version as active_version,
-        fv.file_size,
-        fv.package_path,
-        fv.package_hash,
-        fv.created_at as version_created_at
-      FROM functions f
-      LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-      LEFT JOIN projects p ON f.project_id = p.id
-      WHERE f.id = $1
-    `, { bind: [id], type: QueryTypes.SELECT }) as any[];
+    const { Function: FunctionModel, FunctionVersion, Project } = database.models
+    const fn = await FunctionModel.findByPk(id, {
+      include: [
+        {
+          model: FunctionVersion,
+          as: 'activeVersion',
+          attributes: ['version', 'file_size', 'package_path', 'package_hash', 'created_at'],
+          required: false,
+        },
+        {
+          model: Project,
+          attributes: ['name', 'is_active'],
+          required: false,
+        },
+      ],
+    }) as any
 
-      if (!functionData) {
-        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+    if (!fn) {
+      return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+    }
+    if (!req.user?.isAdmin && fn.project_id) {
+      const access = await checkProjectDeveloperAccess(req.user!.id, fn.project_id, false)
+      if (!access.allowed) {
+        return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
       }
-      // Verify project membership for non-admins
-      if (!req.user?.isAdmin && functionData.project_id) {
-        const access = await checkProjectDeveloperAccess(req.user!.id, functionData.project_id, false)
-        if (!access.allowed) {
-          return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
-        }
-      }
-      return res.status(200).json(createResponse(true, functionData, 'Function details retrieved', 200))
+    }
+
+    const raw = fn.toJSON()
+    const functionData = {
+      ...raw,
+      project_name: raw.Project?.name ?? null,
+      project_is_active: raw.Project?.is_active ?? null,
+      active_version: raw.activeVersion?.version ?? null,
+      file_size: raw.activeVersion?.file_size ?? null,
+      package_path: raw.activeVersion?.package_path ?? null,
+      package_hash: raw.activeVersion?.package_hash ?? null,
+      version_created_at: raw.activeVersion?.created_at ?? null,
+    }
+    delete functionData.Project
+    delete functionData.activeVersion
+
+    return res.status(200).json(createResponse(true, functionData, 'Function details retrieved', 200))
 
     } else if (req.method === 'PATCH') {
-      // Update function details
-      const { name, description, requires_api_key, is_active, group_id, sort_order } = req.body
+      const { Function: FunctionModel, GlobalSetting } = database.models
 
-      // Check project access for non-admins (developer can update basic info, owner can update all)
-      if (!req.user?.isAdmin) {
-        const { Function: FunctionModel } = database.models;
-        const fn0 = await FunctionModel.findByPk(id, { attributes: ['project_id'] });
-        if (!fn0) {
-          return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+      const {
+        name, description, requires_api_key, is_active, group_id, sort_order,
+        custom_timeout_enabled, custom_timeout_seconds,
+        custom_memory_enabled, custom_memory_mb,
+      } = req.body
+
+      const fn = await FunctionModel.findByPk(id) as any
+      if (!fn) {
+        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+      }
+
+      if (!req.user?.isAdmin && fn.project_id) {
+        const access = await checkProjectDeveloperAccess(userId, fn.project_id, false)
+        if (!access.allowed) {
+          return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to update function', 403))
         }
-        const projectId = fn0.project_id;
-        if (projectId) {
-          const access = await checkProjectDeveloperAccess(userId, projectId, false)
-          if (!access.allowed) {
-            return res.status(403).json(createResponse(false, null, 'Insufficient project permissions to update function', 403))
-          }
-        }
       }
 
-      let updateFields: string[] = []
-      let updateValues: any[] = []
-      let paramCount = 1
+      const updates: Record<string, unknown> = {}
 
-      if (name !== undefined) {
-        updateFields.push(`name = $${paramCount}`)
-        updateValues.push(name)
-        paramCount++
-      }
-
-      if (description !== undefined) {
-        updateFields.push(`description = $${paramCount}`)
-        updateValues.push(description)
-        paramCount++
-      }
+      if (name !== undefined) updates.name = name
+      if (description !== undefined) updates.description = description
+      if (is_active !== undefined) updates.is_active = is_active
+      if (group_id !== undefined) updates.group_id = group_id ?? null
+      if (sort_order !== undefined) updates.sort_order = sort_order
 
       if (requires_api_key !== undefined) {
-        updateFields.push(`requires_api_key = $${paramCount}`)
-        updateValues.push(requires_api_key)
-        paramCount++
-
-        // If enabling API key requirement and no key exists, generate one
-        if (requires_api_key) {
-          const { Function: FunctionModel } = database.models;
-          const existingRecord = await FunctionModel.findByPk(id, { attributes: ['api_key'] });
-          
-          if (existingRecord && !existingRecord.api_key) {
-            updateFields.push(`api_key = $${paramCount}`)
-            updateValues.push(generateApiKey())
-            paramCount++
-          }
+        updates.requires_api_key = requires_api_key
+        if (requires_api_key && !fn.api_key) {
+          updates.api_key = generateApiKey()
         }
       }
 
-      if (is_active !== undefined) {
-        updateFields.push(`is_active = $${paramCount}`)
-        updateValues.push(is_active)
-        paramCount++
+      if (custom_timeout_enabled !== undefined) updates.custom_timeout_enabled = custom_timeout_enabled
+
+      if (custom_timeout_seconds !== undefined) {
+        if (custom_timeout_seconds !== null) {
+          const tv = Number(custom_timeout_seconds)
+          if (!Number.isInteger(tv) || tv < 10)
+            return res.status(400).json(createResponse(false, null, 'custom_timeout_seconds must be an integer ≥ 10', 400))
+          const maxRow = await GlobalSetting.findOne({ where: { setting_key: 'execution_max_timeout_seconds' } }) as any
+          if (maxRow && tv > parseInt(maxRow.setting_value, 10))
+            return res.status(400).json(createResponse(false, null, `custom_timeout_seconds must be ≤ global max (${maxRow.setting_value}s)`, 400))
+        }
+        updates.custom_timeout_seconds = custom_timeout_seconds ?? null
       }
 
-      if (group_id !== undefined) {
-        updateFields.push(`group_id = $${paramCount}`)
-        updateValues.push(group_id ?? null)
-        paramCount++
+      if (custom_memory_enabled !== undefined) updates.custom_memory_enabled = custom_memory_enabled
+
+      if (custom_memory_mb !== undefined) {
+        if (custom_memory_mb !== null) {
+          const mv = Number(custom_memory_mb)
+          if (!Number.isInteger(mv) || mv < 256 || mv % 256 !== 0)
+            return res.status(400).json(createResponse(false, null, 'custom_memory_mb must be a multiple of 256 and at least 256 MB', 400))
+          const maxRow = await GlobalSetting.findOne({ where: { setting_key: 'execution_max_memory_mb' } }) as any
+          if (maxRow && mv > parseInt(maxRow.setting_value, 10))
+            return res.status(400).json(createResponse(false, null, `custom_memory_mb must be ≤ global max (${maxRow.setting_value} MB)`, 400))
+        }
+        updates.custom_memory_mb = custom_memory_mb ?? null
       }
 
-      if (sort_order !== undefined) {
-        updateFields.push(`sort_order = $${paramCount}`)
-        updateValues.push(sort_order)
-        paramCount++
-      }
-
-      if (updateFields.length === 0) {
+      if (Object.keys(updates).length === 0) {
         return res.status(400).json(createResponse(false, null, 'No fields to update', 400))
       }
 
-      // Add updated_at field
-      updateFields.push(`updated_at = NOW()`)
-      
-      // Add the WHERE condition
-      updateValues.push(id)
+      await fn.update(updates)
+      await fn.reload()
 
-      const updateQuery = `
-        UPDATE functions 
-        SET ${updateFields.join(', ')} 
-        WHERE id = $${paramCount}
-        RETURNING *
-      `
-
-      const { Function: FnModel } = database.models;
-      const fnCheck = await FnModel.findByPk(id, { attributes: ['project_id'] });
-      if (!fnCheck) {
-        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
-      }
-      if (!req.user?.isAdmin) {
-        const projectId = fnCheck.project_id;
-        const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
-        if (!access.allowed) {
-          return res.status(403).json(createResponse(false, null, access.message || 'Insufficient project permissions', 403))
-        }
-      }
-
-      const [updatedResult] = await database.sequelize.query(updateQuery, { bind: updateValues, type: QueryTypes.SELECT }) as any[];
-
-      if (!updatedResult) {
-        return res.status(404).json(createResponse(false, null, 'Function not found', 404))
-      }
-
-      return res.status(200).json(createResponse(true, updatedResult, 'Function updated successfully', 200))
+      return res.status(200).json(createResponse(true, fn.toJSON(), 'Function updated successfully', 200))
 
 
     } else if (req.method === 'DELETE') {

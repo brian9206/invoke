@@ -11,6 +11,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       where: {
         [Op.or]: [
           { setting_key: { [Op.like]: 'log_retention%' } },
+          { setting_key: { [Op.like]: 'execution_%' } },
           { setting_key: 'function_base_url' },
           { setting_key: 'kv_storage_limit_bytes' },
           { setting_key: 'api_gateway_domain' }
@@ -29,6 +30,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         key = 'kv_storage_limit_bytes'
       } else if (row.setting_key === 'api_gateway_domain') {
         key = 'api_gateway_domain'
+      } else if (row.setting_key.startsWith('execution_')) {
+        key = row.setting_key
       } else {
         key = row.setting_key.replace('log_retention_', '')
       }
@@ -47,7 +50,44 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
     
     // Update global settings
-    const { type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain } = req.body
+    const {
+      type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain,
+      execution_default_timeout_seconds, execution_max_timeout_seconds,
+      execution_default_memory_mb, execution_max_memory_mb,
+    } = req.body
+
+    // Validate execution timeout fields
+    if (execution_default_timeout_seconds !== undefined) {
+      const v = Number(execution_default_timeout_seconds)
+      if (!Number.isInteger(v) || v < 10)
+        return res.status(400).json(createResponse(false, null, 'Default timeout must be an integer ≥ 10 seconds', 400))
+    }
+    if (execution_max_timeout_seconds !== undefined) {
+      const v = Number(execution_max_timeout_seconds)
+      if (!Number.isInteger(v) || v < 10)
+        return res.status(400).json(createResponse(false, null, 'Max timeout must be an integer ≥ 10 seconds', 400))
+    }
+    if (execution_default_timeout_seconds !== undefined && execution_max_timeout_seconds !== undefined) {
+      if (Number(execution_max_timeout_seconds) < Number(execution_default_timeout_seconds))
+        return res.status(400).json(createResponse(false, null, 'Max timeout must be ≥ default timeout', 400))
+    }
+
+    // Validate execution memory fields (must be multiples of 256)
+    const isAligned256 = (n: number) => Number.isInteger(n) && n >= 256 && n % 256 === 0
+    if (execution_default_memory_mb !== undefined) {
+      const v = Number(execution_default_memory_mb)
+      if (!isAligned256(v))
+        return res.status(400).json(createResponse(false, null, 'Default memory must be a multiple of 256 MB and at least 256 MB', 400))
+    }
+    if (execution_max_memory_mb !== undefined) {
+      const v = Number(execution_max_memory_mb)
+      if (!isAligned256(v))
+        return res.status(400).json(createResponse(false, null, 'Max memory must be a multiple of 256 MB and at least 256 MB', 400))
+    }
+    if (execution_default_memory_mb !== undefined && execution_max_memory_mb !== undefined) {
+      if (Number(execution_max_memory_mb) < Number(execution_default_memory_mb))
+        return res.status(400).json(createResponse(false, null, 'Max memory must be ≥ default memory', 400))
+    }
 
     const { GlobalSetting } = database.models;
     const queries: Promise<[number, ...unknown[]]>[] = []
@@ -91,6 +131,34 @@ async function handler(req: AuthenticatedRequest, res: any) {
       queries.push(GlobalSetting.update(
         { setting_value: api_gateway_domain, updated_at: new Date() },
         { where: { setting_key: 'api_gateway_domain' } }
+      ))
+    }
+
+    if (execution_default_timeout_seconds !== undefined) {
+      queries.push(GlobalSetting.update(
+        { setting_value: String(execution_default_timeout_seconds), updated_at: new Date() },
+        { where: { setting_key: 'execution_default_timeout_seconds' } }
+      ))
+    }
+
+    if (execution_max_timeout_seconds !== undefined) {
+      queries.push(GlobalSetting.update(
+        { setting_value: String(execution_max_timeout_seconds), updated_at: new Date() },
+        { where: { setting_key: 'execution_max_timeout_seconds' } }
+      ))
+    }
+
+    if (execution_default_memory_mb !== undefined) {
+      queries.push(GlobalSetting.update(
+        { setting_value: String(execution_default_memory_mb), updated_at: new Date() },
+        { where: { setting_key: 'execution_default_memory_mb' } }
+      ))
+    }
+
+    if (execution_max_memory_mb !== undefined) {
+      queries.push(GlobalSetting.update(
+        { setting_value: String(execution_max_memory_mb), updated_at: new Date() },
+        { where: { setting_key: 'execution_max_memory_mb' } }
       ))
     }
 

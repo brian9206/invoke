@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
@@ -8,8 +7,9 @@ import database from '@/lib/database'
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
         const { id: functionId, logId } = req.query
+        const { ExecutionLog, Function: FunctionModel, Project, FunctionVersion } = database.models
+
         // Verify function exists
-        const { Function: FunctionModel } = database.models;
         const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
 
         if (!fn) {
@@ -17,23 +17,31 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         }
 
         // Get detailed execution log
-        const [log] = await database.sequelize.query(`
-            SELECT 
-                el.*,
-                f.name as function_name,
-                f.project_id,
-                p.name as project_name,
-                fv.version as function_version
-            FROM execution_logs el
-            JOIN functions f ON el.function_id = f.id
-            LEFT JOIN projects p ON f.project_id = p.id
-            LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-            WHERE el.id = $1 AND el.function_id = $2
-        `, { bind: [logId, functionId], type: QueryTypes.SELECT }) as any[];
+        const logRecord = await ExecutionLog.findOne({
+            where: { id: logId, function_id: functionId },
+            include: [{
+                model: FunctionModel,
+                attributes: ['name', 'project_id', 'active_version_id'],
+                required: true,
+                include: [
+                    { model: Project, attributes: ['name'], required: false },
+                    { model: FunctionVersion, as: 'activeVersion', attributes: ['version'], required: false },
+                ],
+            }],
+        }) as any
 
-        if (!log) {
+        if (!logRecord) {
             return res.status(404).json(createResponse(false, null, 'Execution log not found', 404))
         }
+        const logRaw = logRecord.toJSON()
+        const log: any = {
+            ...logRaw,
+            function_name: logRaw.Function?.name ?? null,
+            project_id: logRaw.Function?.project_id ?? null,
+            project_name: logRaw.Function?.Project?.name ?? null,
+            function_version: logRaw.Function?.activeVersion?.version ?? null,
+        }
+        delete log.Function
         // Verify project membership for non-admins
         if (!req.user?.isAdmin) {
             const access = await checkProjectDeveloperAccess(req.user!.id, log.project_id, false)

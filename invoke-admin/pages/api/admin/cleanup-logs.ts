@@ -83,18 +83,21 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             }
           });
         } else if (retentionType === 'count') {
-          // Keep only the latest N logs
-          const [, metadata] = await database.sequelize.query(`
-            DELETE FROM execution_logs 
-            WHERE function_id = $1 
-            AND id NOT IN (
-              SELECT id FROM execution_logs 
-              WHERE function_id = $1 
-              ORDER BY executed_at DESC 
-              LIMIT $2
-            )
-          `, { bind: [func.id, retentionValue] });
-          deleted = (metadata as any)?.rowCount || 0;
+          // Keep only the latest N logs — fetch keeper IDs then destroy the rest
+          const keepers = await ExecutionLog.findAll({
+            where: { function_id: func.id },
+            attributes: ['id'],
+            order: [['executed_at', 'DESC']],
+            limit: parseInt(retentionValue),
+            raw: true,
+          }) as any[]
+          const keeperIds = keepers.map((k: any) => k.id)
+          deleted = await ExecutionLog.destroy({
+            where: {
+              function_id: func.id,
+              ...(keeperIds.length > 0 ? { id: { [Op.notIn]: keeperIds } } : {}),
+            },
+          })
         } else {
           continue // Skip if type is 'none'
         }

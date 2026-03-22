@@ -93,6 +93,20 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       },
+      custom_timeout_enabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+      custom_timeout_seconds: {
+        type: DataTypes.INTEGER,
+      },
+      custom_memory_enabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+      custom_memory_mb: {
+        type: DataTypes.INTEGER,
+      },
     },
     {
       sequelize,

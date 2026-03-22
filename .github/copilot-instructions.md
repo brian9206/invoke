@@ -26,7 +26,7 @@ Rules:
 
 All database access goes through **Sequelize v6 ORM**. There is **no raw `pg.Pool`** anywhere.
 Do **not** use `database.query()`, `database.pool`, `new Pool()`, or `new Client()`.
-Do **not** use raw SQL in application code — use Sequelize models and query methods.
+***CRITICAL**: Do **not** use raw SQL in application code — use Sequelize models and query methods.
 
 ### Shared Factories (in `invoke-shared`)
 

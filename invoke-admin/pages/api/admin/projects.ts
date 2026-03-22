@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { adminRequired, AuthenticatedRequest } from '@/lib/middleware';
 import { deleteFunction } from '@/lib/delete-utils';
@@ -22,26 +21,32 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Get all projects with member counts
 async function getProjects(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const projects = await database.sequelize.query(`
-      SELECT 
-        p.id, 
-        p.name, 
-        p.description, 
-        p.is_active,
-        p.kv_storage_limit_bytes,
-        p.created_at,
-        u.username as created_by,
-        COUNT(pm.user_id) as member_count,
-        COUNT(f.id) as function_count
-      FROM projects p
-      LEFT JOIN users u ON p.created_by = u.id
-      LEFT JOIN project_memberships pm ON p.id = pm.project_id
-      LEFT JOIN functions f ON p.id = f.project_id
-      GROUP BY p.id, p.name, p.description, p.is_active, p.kv_storage_limit_bytes, p.created_at, u.username
-      ORDER BY p.created_at DESC
-    `, { type: QueryTypes.SELECT });
-    
-    res.json({ projects });
+    const { Project, User, ProjectMembership, Function: FunctionModel } = database.models
+
+    const projects = await Project.findAll({
+      attributes: {
+        include: [
+          [database.sequelize.fn('COUNT', database.sequelize.fn('DISTINCT', database.sequelize.col('ProjectMemberships.user_id'))), 'member_count'],
+          [database.sequelize.fn('COUNT', database.sequelize.fn('DISTINCT', database.sequelize.col('Functions.id'))), 'function_count'],
+        ],
+      },
+      include: [
+        { model: User, as: 'creator', attributes: ['username'], required: false },
+        { model: ProjectMembership, attributes: [], required: false },
+        { model: FunctionModel, attributes: [], required: false },
+      ],
+      group: ['Project.id', 'creator.id'],
+      order: [['created_at', 'DESC']],
+    }) as any[]
+
+    res.json({ projects: projects.map((p: any) => {
+      const raw = p.toJSON()
+      return {
+        ...raw,
+        created_by: raw.creator?.username ?? null,
+        creator: undefined,
+      }
+    }) });
   } catch (error) {
     console.error('Error fetching projects:', error);
     res.status(500).json({ error: 'Failed to fetch projects' });

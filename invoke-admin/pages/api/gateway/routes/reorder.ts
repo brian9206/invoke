@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize'
+import { Op } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
@@ -29,13 +29,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
   // Verify all routes belong to this project
   const ids = order.map((o) => o.id)
   const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
-  const verifyRows = await database.sequelize.query(
-    `SELECT gr.id FROM api_gateway_routes gr
-     JOIN api_gateway_configs gc ON gc.id = gr.gateway_config_id
-     WHERE gr.id = ANY($1::uuid[]) AND gc.project_id = $2`,
-    { bind: [ids, projectId], type: QueryTypes.SELECT }
-  ) as any[];
-  if (verifyRows.length !== ids.length) {
+  const verifyRoutes = await ApiGatewayRoute.findAll({
+    where: { id: { [Op.in]: ids } },
+    include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }],
+    attributes: ['id'],
+  }) as any[]
+  if (verifyRoutes.length !== ids.length) {
     return res.status(403).json(createResponse(false, null, 'One or more route IDs do not belong to this project', 403))
   }
 

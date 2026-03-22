@@ -2,6 +2,7 @@ import path from 'path';
 import ivm from 'isolated-vm';
 import ExecutionContext from './execution-context';
 import { getInstance as getIsolatePool } from './isolate-pool';
+import { getExecutionSettings } from './execution-settings';
 
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any;
@@ -59,7 +60,7 @@ export class ExecutionEngine {
     this.isolatePool = null;
     this.initialized = false;
 
-    this.functionTimeout = parseInt(process.env.FUNCTION_TIMEOUT_MS ?? '30000', 10);
+    this.functionTimeout = 30_000; // overwritten on initialize() via DB
 
     this.kvStoreFactory = options.kvStoreFactory ?? null;
     this.metadataProvider = options.metadataProvider ?? null;
@@ -80,10 +81,19 @@ export class ExecutionEngine {
       );
     }
 
+    // Load execution settings from DB before initialising the pool
+    const settings = await getExecutionSettings();
+    this.functionTimeout = settings.defaultTimeoutMs;
+
     this.isolatePool = getIsolatePool();
-    await this.isolatePool.initialize();
+    await this.isolatePool.initialize(settings.defaultMemoryMb);
 
     this.initialized = true;
+  }
+
+  /** Update default timeout (called when global settings change). */
+  updateDefaultTimeout(timeoutMs: number): void {
+    this.functionTimeout = timeoutMs;
   }
 
   async executeFunction(
@@ -105,11 +115,20 @@ export class ExecutionEngine {
       const packageHash = metadata.package_hash;
       const projectId = metadata.project_id;
 
+      // Determine effective timeout and memory for this execution
+      const settings = await getExecutionSettings();
+      const effectiveTimeoutMs = metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
+        ? metadata.custom_timeout_seconds * 1000
+        : settings.defaultTimeoutMs;
+      const effectiveMemoryMb = metadata.custom_memory_enabled && metadata.custom_memory_mb
+        ? metadata.custom_memory_mb
+        : settings.defaultMemoryMb;
+
       const envVars = await this.envVarsProvider!(functionId);
       const networkPolicies = await this.networkPoliciesProvider!(projectId);
       const kvStore = this.kvStoreFactory!(projectId);
 
-      const acquired = await this.isolatePool!.acquire();
+      const acquired = await this.isolatePool!.acquireWithMemory(effectiveMemoryMb);
       isolate = acquired.isolate;
       ivmContext = acquired.context;
 
@@ -180,14 +199,14 @@ export class ExecutionEngine {
 
       try {
         await executeScript.run(ivmContext, {
-          timeout: this.functionTimeout,
+          timeout: effectiveTimeoutMs,
           promise: true,
         });
       } catch (error: any) {
         if (error.message && error.message.includes('Script execution timed out')) {
           this.isolatePool!.release(isolate, false);
           isolate = null;
-          throw new Error(`Function execution timeout (${this.functionTimeout}ms)`);
+          throw new Error(`Function execution timeout (${effectiveTimeoutMs}ms)`);
         }
         throw error;
       }

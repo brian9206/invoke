@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { QueryTypes } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 import database from '../services/database';
 
 export function register(program: Command): void {
@@ -14,17 +14,19 @@ export function register(program: Command): void {
         console.log(chalk.green('✅ Database connected successfully'));
 
         // Get statistics
+        const { User, Function: FunctionModel, ExecutionLog } = database.models
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
         const stats = await Promise.all([
-          database.sequelize.query('SELECT COUNT(*) as count FROM users', { type: QueryTypes.SELECT }),
-          database.sequelize.query('SELECT COUNT(*) as count FROM functions WHERE is_active = true', { type: QueryTypes.SELECT }),
-          database.sequelize.query(`SELECT COUNT(*) as count FROM execution_logs WHERE executed_at > NOW() - INTERVAL '1 day'`, { type: QueryTypes.SELECT }),
+          User.count(),
+          FunctionModel.count({ where: { is_active: true } }),
+          ExecutionLog.count({ where: { executed_at: { [Op.gt]: oneDayAgo } } }),
         ]);
 
         console.log('');
         console.log(chalk.cyan('📊 Database Statistics:'));
-        console.log(`Users: ${(stats[0][0] as any).count}`);
-        console.log(`Active Functions: ${(stats[1][0] as any).count}`);
-        console.log(`Executions (24h): ${(stats[2][0] as any).count}`);
+        console.log(`Users: ${stats[0]}`);
+        console.log(`Active Functions: ${stats[1]}`);
+        console.log(`Executions (24h): ${stats[2]}`);
       } catch (error: any) {
         console.log(chalk.red('❌ Database connection failed:'), error.message);
         process.exit(1);

@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize'
+import { Op } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
@@ -13,7 +13,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   // Verify function exists
-  const { Function: FunctionModel } = database.models;
+  const { Function: FunctionModel, ExecutionLog } = database.models;
   const fn = await FunctionModel.findByPk(id, { attributes: ['id'] });
 
   if (!fn) {
@@ -26,45 +26,28 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const status = req.query.status as string || 'all'
     const offset = (page - 1) * limit
 
-    // Build WHERE clause based on status filter
-    let whereClause = 'WHERE function_id = $1'
-    let queryParams = [id]
-    
+    // Build where clause using Sequelize Op
+    const where: any = { function_id: id }
     if (status === 'success') {
-      whereClause += ' AND status_code >= 200 AND status_code < 300'
+      where.status_code = { [Op.gte]: 200, [Op.lt]: 300 }
     } else if (status === 'error') {
-      whereClause += ' AND status_code >= 400'
+      where.status_code = { [Op.gte]: 400 }
     }
-    // 'all' status means no additional filter
 
-    // Get total count for pagination (with filter)
-    const [countData] = await database.sequelize.query(`
-      SELECT COUNT(*) as total 
-      FROM execution_logs 
-      ${whereClause}
-    `, { bind: queryParams, type: QueryTypes.SELECT }) as any[];
-    const totalCount = parseInt((countData as any)?.total || 0)
+    const { count, rows } = await (ExecutionLog as any).findAndCountAll({
+      where,
+      attributes: ['id', 'status_code', 'execution_time_ms', 'request_size', 'response_size', 'error_message', 'client_ip', 'user_agent', 'executed_at'],
+      order: [['executed_at', 'DESC']],
+      limit,
+      offset,
+      distinct: true,
+    })
+
+    const totalCount = count
     const totalPages = Math.ceil(totalCount / limit)
 
-    const logs = await database.sequelize.query(`
-      SELECT 
-        id,
-        status_code,
-        execution_time_ms,
-        request_size,
-        response_size,
-        error_message,
-        client_ip,
-        user_agent,
-        executed_at
-      FROM execution_logs 
-      ${whereClause}
-      ORDER BY executed_at DESC 
-      LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}
-    `, { bind: [...queryParams, limit, offset], type: QueryTypes.SELECT });
-
     return res.status(200).json(createResponse(true, {
-      logs,
+      logs: rows.map((r: any) => r.toJSON()),
       pagination: {
         currentPage: page,
         totalPages,

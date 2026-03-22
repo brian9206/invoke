@@ -1,4 +1,4 @@
-import { QueryTypes } from 'sequelize'
+import { Op, literal } from 'sequelize'
 import { v4 as uuidv4 } from 'uuid'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 import { createResponse, generateApiKey } from '@/lib/utils'
@@ -7,23 +7,22 @@ import database from '@/lib/database'
 async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
     const { projectId } = req.query
-    let query: string
-    let params: any[] = []
-    // If admin and projectId is 'system', show all functions (no filtering)
+    const { Function: FunctionModel, FunctionVersion, User, Project, ProjectMembership } = database.models
+    let fns: any[]
+
     if (req.user?.isAdmin && (projectId === 'system' || !projectId)) {
-      query = `
-        SELECT 
-          f.*,
-          fv.version as active_version,
-          fv.file_size,
-          u.username as deployed_by_username,
-          p.name as project_name
-        FROM functions f
-        LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-        LEFT JOIN users u ON f.deployed_by = u.id
-        LEFT JOIN projects p ON f.project_id = p.id
-        ORDER BY f.group_id NULLS LAST, f.sort_order ASC, f.created_at DESC
-      `
+      fns = await (FunctionModel as any).findAll({
+        include: [
+          { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
+          { model: User, as: 'deployedBy', attributes: ['username'], required: false },
+          { model: Project, attributes: ['name'], required: false },
+        ],
+        order: [
+          [literal('"functions"."group_id" NULLS LAST')],
+          ['sort_order', 'ASC'],
+          ['created_at', 'DESC'],
+        ],
+      })
     } else {
       // Regular users or project-specific query
       let projectIds: string[] = []
@@ -43,25 +42,39 @@ async function handler(req: AuthenticatedRequest, res: any) {
       if (projectIds.length === 0) {
         return res.status(200).json(createResponse(true, [], 'No functions found'))
       }
-      query = `
-        SELECT 
-          f.*,
-          fv.version as active_version,
-          fv.file_size,
-          u.username as deployed_by_username,
-          p.name as project_name,
-          pm.role as user_role
-        FROM functions f
-        LEFT JOIN function_versions fv ON f.active_version_id = fv.id
-        LEFT JOIN users u ON f.deployed_by = u.id
-        LEFT JOIN projects p ON f.project_id = p.id
-        LEFT JOIN project_memberships pm ON p.id = pm.project_id AND pm.user_id = $1
-        WHERE f.project_id = ANY($2)
-        ORDER BY f.group_id NULLS LAST, f.sort_order ASC, f.created_at DESC
-      `
-      params = [req.user!.id, projectIds]
+      fns = await (FunctionModel as any).findAll({
+        where: { project_id: { [Op.in]: projectIds } },
+        include: [
+          { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
+          { model: User, as: 'deployedBy', attributes: ['username'], required: false },
+          {
+            model: Project, attributes: ['name'], required: false,
+            include: [{ model: ProjectMembership, attributes: ['role'], where: { user_id: req.user!.id }, required: false }],
+          },
+        ],
+        order: [
+          [literal('"functions"."group_id" NULLS LAST')],
+          ['sort_order', 'ASC'],
+          ['created_at', 'DESC'],
+        ],
+      })
     }
-    const functions = await database.sequelize.query(query, { bind: params, type: QueryTypes.SELECT });
+
+    const functions = fns.map((fn: any) => {
+      const raw = fn.toJSON()
+      const result: any = { ...raw }
+      result.active_version = raw.activeVersion?.version ?? null
+      result.file_size = raw.activeVersion?.file_size ?? null
+      result.deployed_by_username = raw.deployedBy?.username ?? null
+      result.project_name = raw.Project?.name ?? null
+      if (raw.Project?.ProjectMemberships) {
+        result.user_role = raw.Project.ProjectMemberships[0]?.role ?? null
+      }
+      delete result.activeVersion
+      delete result.deployedBy
+      delete result.Project
+      return result
+    })
 
     return res.status(200).json(createResponse(true, functions, 'Functions retrieved successfully'))
 

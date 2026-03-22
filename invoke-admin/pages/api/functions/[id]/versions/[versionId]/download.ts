@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import fs from 'fs-extra'
 import path from 'path'
@@ -23,23 +22,21 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Get version info from database
-    const [versionInfo] = await database.sequelize.query(`
-      SELECT 
-        fv.package_path,
-        fv.version,
-        f.name
-      FROM function_versions fv
-      JOIN functions f ON fv.function_id = f.id
-      WHERE fv.id = $1 AND f.id = $2
-    `, { bind: [versionId, functionId], type: QueryTypes.SELECT }) as any[];
+    const { FunctionVersion, Function: FunctionModel } = database.models
+    const versionRecord = await FunctionVersion.findOne({
+      where: { id: versionId, function_id: functionId },
+      attributes: ['package_path', 'version'],
+      include: [{ model: FunctionModel, attributes: ['name'], required: true }],
+    }) as any
 
-    if (!versionInfo) {
+    if (!versionRecord) {
       return res.status(404).json({ error: 'Version not found' })
     }
 
-    const objectKey = versionInfo.package_path
-    const functionName = versionInfo.name
-    const versionNumber = versionInfo.version
+    const versionJson = versionRecord.toJSON()
+    const objectKey = versionJson.package_path
+    const functionName = versionJson.Function?.name
+    const versionNumber = versionJson.version
 
     // Stream file from MinIO
     const bucketName = 'invoke-packages'

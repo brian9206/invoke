@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
@@ -61,10 +60,8 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     const userId = authResult.user!.id
 
     // Check if function exists
-    const [existingFunction] = await database.sequelize.query(
-      'SELECT * FROM functions WHERE id = $1',
-      { bind: [functionId], type: QueryTypes.SELECT }
-    ) as any[];
+    const { Function: FunctionModel, FunctionVersion } = database.models
+    const existingFunction = await FunctionModel.findByPk(functionId as string) as any
 
     if (!existingFunction) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -99,12 +96,15 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(400).json(createResponse(false, null, 'No file uploaded', 400))
     }
 
-    // Extract version increment logic
-    const currentVersion = existingFunction.version
-    const versionParts = currentVersion.split('.').map(Number)
-    versionParts[2] = (versionParts[2] || 0) + 1 // Increment patch version
-    const newVersion = versionParts.join('.')
-    
+    // Get next version number from function_versions table
+    const latestVersionRecord = await FunctionVersion.findOne({
+      where: { function_id: functionId },
+      order: [['version', 'DESC']],
+      attributes: ['version'],
+      raw: true,
+    }) as any
+    const newVersion = latestVersionRecord ? Number(latestVersionRecord.version) + 1 : 1
+
     const isUpdate = true
 
     // Prepare package for upload to MinIO
@@ -142,16 +142,17 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     const uploadResult = await s3Service.uploadPackage(functionId, newVersion, packagePath)
     console.log(`✅ Package uploaded: ${uploadResult.objectName}`)
 
-    // Update function in database (only version, file_size, package_hash)
-    await database.sequelize.query(`
-      UPDATE functions 
-      SET version = $1, 
-          file_size = $2, 
-          package_hash = $3,
-          updated_at = NOW()
-      WHERE id = $4
-    `, { bind: [newVersion, uploadResult.size, uploadResult.hash, functionId] });
-    
+    // Create new version record and update active_version_id on the function
+    const newVersionRecord = await FunctionVersion.create({
+      function_id: functionId,
+      version: newVersion,
+      file_size: uploadResult.size,
+      package_hash: uploadResult.hash,
+      package_path: uploadResult.objectName,
+      created_by: userId,
+    })
+    await FunctionModel.update({ active_version_id: newVersionRecord.id }, { where: { id: functionId } })
+
     console.log(`✅ Updated function ${existingFunction.name} to version ${newVersion}`)
 
     // Clean up temporary files
@@ -161,12 +162,19 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Return updated function details
-    const [updatedFunction] = await database.sequelize.query(
-      'SELECT * FROM functions WHERE id = $1',
-      { bind: [functionId], type: QueryTypes.SELECT }
-    ) as any[];
+    const updatedFn = await FunctionModel.findByPk(functionId as string, {
+      include: [{ model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size', 'package_hash'], required: false }],
+    }) as any
+    const fnRaw = updatedFn.toJSON()
+    const updatedFunction = {
+      ...fnRaw,
+      version: fnRaw.activeVersion?.version ?? null,
+      file_size: fnRaw.activeVersion?.file_size ?? null,
+      package_hash: fnRaw.activeVersion?.package_hash ?? null,
+    }
+    delete updatedFunction.activeVersion
 
-    return res.status(200).json(createResponse(true, updatedFunction, 
+    return res.status(200).json(createResponse(true, updatedFunction,
       'Function package updated successfully', 200))
 
   } catch (error) {

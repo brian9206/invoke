@@ -23,6 +23,10 @@ interface FunctionMetadata {
   package_path: string | null;
   package_hash: string | null;
   file_size: number | null;
+  custom_timeout_enabled: boolean;
+  custom_timeout_seconds: number | null;
+  custom_memory_enabled: boolean;
+  custom_memory_mb: number | null;
 }
 
 interface NetworkPolicies {
@@ -82,6 +86,10 @@ export async function fetchFunctionMetadata(functionId: string): Promise<Functio
     package_path: fv ? fv.package_path : null,
     package_hash: fv ? fv.package_hash : null,
     file_size: fv ? fv.file_size : null,
+    custom_timeout_enabled: f.custom_timeout_enabled ?? false,
+    custom_timeout_seconds: f.custom_timeout_seconds ?? null,
+    custom_memory_enabled: f.custom_memory_enabled ?? false,
+    custom_memory_mb: f.custom_memory_mb ?? null,
   };
 }
 

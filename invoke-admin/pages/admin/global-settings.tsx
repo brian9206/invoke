@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { MemoryInput, parseMemoryMb, formatMemoryMb } from '@/components/MemoryInput';
 
 export default function GlobalSettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -31,6 +32,12 @@ export default function GlobalSettingsPage() {
   const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false);
   const [apiGatewayDomain, setApiGatewayDomain] = useState('');
   const [apiGatewayDomainProtocol, setApiGatewayDomainProtocol] = useState<'http' | 'https'>('https');
+
+  // Execution settings
+  const [execDefaultTimeout, setExecDefaultTimeout] = useState('30');
+  const [execMaxTimeout, setExecMaxTimeout] = useState('60');
+  const [execDefaultMemory, setExecDefaultMemory] = useState('256');
+  const [execMaxMemory, setExecMaxMemory] = useState('1024');
 
   const { lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -97,6 +104,15 @@ export default function GlobalSettingsPage() {
           setApiGatewayDomainProtocol('https')
           setApiGatewayEnabled(false)
         }
+
+        const execDefaultTimeoutVal = readSetting('execution_default_timeout_seconds')
+        if (execDefaultTimeoutVal) setExecDefaultTimeout(execDefaultTimeoutVal)
+        const execMaxTimeoutVal = readSetting('execution_max_timeout_seconds')
+        if (execMaxTimeoutVal) setExecMaxTimeout(execMaxTimeoutVal)
+        const execDefaultMemVal = readSetting('execution_default_memory_mb')
+        if (execDefaultMemVal) setExecDefaultMemory(formatMemoryMb(Number(execDefaultMemVal)))
+        const execMaxMemVal = readSetting('execution_max_memory_mb')
+        if (execMaxMemVal) setExecMaxMemory(formatMemoryMb(Number(execMaxMemVal)))
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -110,6 +126,32 @@ export default function GlobalSettingsPage() {
       toast.error('API Gateway domain is required when the gateway is enabled.');
       return;
     }
+
+    // Validate execution settings
+    const defTimeout = Number(execDefaultTimeout);
+    const maxTimeout = Number(execMaxTimeout);
+    const defMemory = parseMemoryMb(execDefaultMemory) ?? NaN;
+    const maxMemory = parseMemoryMb(execMaxMemory) ?? NaN;
+    if (!Number.isInteger(defTimeout) || defTimeout < 10) {
+      toast.error('Default timeout must be an integer ≥ 10 seconds.'); return;
+    }
+    if (!Number.isInteger(maxTimeout) || maxTimeout < 10) {
+      toast.error('Max timeout must be an integer ≥ 10 seconds.'); return;
+    }
+    if (maxTimeout < defTimeout) {
+      toast.error('Max timeout must be ≥ default timeout.'); return;
+    }
+    const isAligned = (n: number) => Number.isInteger(n) && n >= 256 && n % 256 === 0;
+    if (isNaN(defMemory) || !isAligned(defMemory)) {
+      toast.error('Default memory must be a multiple of 256 MB and at least 256 MB.'); return;
+    }
+    if (isNaN(maxMemory) || !isAligned(maxMemory)) {
+      toast.error('Max memory must be a multiple of 256 MB and at least 256 MB.'); return;
+    }
+    if (maxMemory < defMemory) {
+      toast.error('Max memory must be ≥ default memory.'); return;
+    }
+
     setSaving(true);
     try {
       const res = await authenticatedFetch('/api/admin/global-settings', {
@@ -121,6 +163,10 @@ export default function GlobalSettingsPage() {
           function_base_url: functionBaseUrl,
           kv_storage_limit_bytes: kvStorageLimitGB !== '' ? Math.round(Number(kvStorageLimitGB) * (1024 ** 3)) : null,
           api_gateway_domain: apiGatewayEnabled ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : '',
+          execution_default_timeout_seconds: Number(execDefaultTimeout),
+          execution_max_timeout_seconds: Number(execMaxTimeout),
+          execution_default_memory_mb: parseMemoryMb(execDefaultMemory) ?? 256,
+          execution_max_memory_mb: parseMemoryMb(execMaxMemory) ?? 1024,
         }),
       });
       if (res.ok) {
@@ -183,6 +229,7 @@ export default function GlobalSettingsPage() {
           <Tabs defaultValue="general">
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
+              <TabsTrigger value="execution">Execution</TabsTrigger>
               <TabsTrigger value="log-retention">Log Retention</TabsTrigger>
               <TabsTrigger value="api-gateway">API Gateway</TabsTrigger>
             </TabsList>
@@ -240,9 +287,87 @@ export default function GlobalSettingsPage() {
               </Card>
             </TabsContent>
 
-            {/* Log Retention Tab */}
-            <TabsContent value="log-retention" className="space-y-6 mt-0">
+            {/* Execution Tab */}
+            <TabsContent value="execution" className="space-y-6 mt-0">
               <Card>
+                <CardContent className="pt-6 space-y-8">
+                  {/* Timeout Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Timeout Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Control how long functions are allowed to execute.</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Default Timeout (seconds)</Label>
+                        <Input
+                          type="number"
+                          min={10}
+                          step={1}
+                          value={execDefaultTimeout}
+                          onChange={(e) => setExecDefaultTimeout(e.target.value)}
+                          placeholder="e.g. 30"
+                        />
+                        <p className="text-xs text-muted-foreground">Used when a function has no custom timeout. Minimum: 10s.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Maximum Timeout (seconds)</Label>
+                        <Input
+                          type="number"
+                          min={10}
+                          step={1}
+                          value={execMaxTimeout}
+                          onChange={(e) => setExecMaxTimeout(e.target.value)}
+                          placeholder="e.g. 60"
+                        />
+                        <p className="text-xs text-muted-foreground">Upper bound for per-function custom timeouts. Must be ≥ default.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Memory Limit Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Memory Limit Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Control the isolate memory budget per function. Values must be multiples of 256 MB (256, 512, 768, 1024, …).</p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label>Default Memory Limit</Label>
+                        <MemoryInput
+                          value={execDefaultMemory}
+                          onChange={setExecDefaultMemory}
+                          placeholder="e.g. 256M or 1G"
+                        />
+                        <p className="text-xs text-muted-foreground">Used when a function has no custom memory limit. Minimum: 256 MB.</p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Maximum Memory Limit</Label>
+                        <MemoryInput
+                          value={execMaxMemory}
+                          onChange={setExecMaxMemory}
+                          placeholder="e.g. 1G or 2G"
+                        />
+                        <p className="text-xs text-muted-foreground">Upper bound for per-function custom memory limits. Must be ≥ default.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Log Retention Tab */}
+            <TabsContent value="log-retention" className="space-y-6 mt-0">              <Card>
                 <CardContent className="pt-6 space-y-8">
                   <div className="space-y-4">
                     <div>

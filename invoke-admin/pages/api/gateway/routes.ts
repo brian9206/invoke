@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
@@ -21,68 +20,48 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   if (req.method === 'GET') {
-    const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
-    const routeRows = await database.sequelize.query(
-      `SELECT
-         gr.id,
-         gr.route_path,
-         gr.function_id,
-         gr.allowed_methods,
-         gr.sort_order,
-         gr.is_active,
-         gr.auth_logic,
-         gr.created_at,
-         gr.updated_at,
-         f.name AS function_name,
-         gs.cors_enabled,
-         gs.cors_allowed_origins,
-         gs.cors_allowed_headers,
-         gs.cors_expose_headers,
-         gs.cors_max_age,
-         gs.cors_allow_credentials,
-         COALESCE(
-           json_agg(
-             json_build_object('id', am.id, 'name', am.name, 'type', am.type)
-             ORDER BY ram.sort_order ASC, am.name ASC
-           ) FILTER (WHERE am.id IS NOT NULL),
-           '[]'
-         ) AS auth_methods
-       FROM api_gateway_configs gc
-       JOIN api_gateway_routes gr ON gr.gateway_config_id = gc.id
-       LEFT JOIN api_gateway_route_settings gs ON gs.route_id = gr.id
-       LEFT JOIN functions f ON f.id = gr.function_id
-       LEFT JOIN api_gateway_route_auth_methods ram ON ram.route_id = gr.id
-       LEFT JOIN api_gateway_auth_methods am ON am.id = ram.auth_method_id
-       WHERE gc.project_id = $1
-       GROUP BY gr.id, f.name, gs.cors_enabled, gs.cors_allowed_origins,
-                gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials,
-                gr.auth_logic
-       ORDER BY gr.sort_order ASC, gr.created_at ASC`,
-      { bind: [projectId], type: QueryTypes.SELECT }
-    ) as any[];
+    const { ApiGatewayConfig, ApiGatewayRoute, ApiGatewayRouteSettings, ApiGatewayAuthMethod, Function: FunctionModel } = database.models
+    const routeData = await ApiGatewayRoute.findAll({
+      include: [
+        { model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] },
+        { model: FunctionModel, attributes: ['name'], required: false },
+        { model: ApiGatewayRouteSettings, as: 'settings', required: false },
+        { model: ApiGatewayAuthMethod, as: 'authMethods', through: { attributes: ['sort_order'] }, required: false },
+      ],
+      order: [['sort_order', 'ASC'], ['created_at', 'ASC']],
+    }) as any[]
 
-    const routes = routeRows.map((row: any) => ({
-      id: row.id,
-      routePath: row.route_path,
-      functionId: row.function_id,
-      functionName: row.function_name,
-      allowedMethods: row.allowed_methods,
-      sortOrder: row.sort_order,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      corsSettings: {
-        enabled: row.cors_enabled ?? false,
-        allowedOrigins: row.cors_allowed_origins ?? [],
-        allowedHeaders: row.cors_allowed_headers ?? [],
-        exposeHeaders: row.cors_expose_headers ?? [],
-        maxAge: row.cors_max_age ?? 86400,
-        allowCredentials: row.cors_allow_credentials ?? false,
-      },
-      authMethodIds: (row.auth_methods || []).map((m: any) => m.id),
-      authMethodNames: (row.auth_methods || []).map((m: any) => m.name),
-      authLogic: (row.auth_logic as string) || 'or',
-    }))
+    const routes = routeData.map((route: any) => {
+      const raw = route.toJSON()
+      const settings = raw.settings || {}
+      const authMethods = (raw.authMethods || []).sort((a: any, b: any) => {
+        const sortA = a.ApiGatewayRouteAuthMethod?.sort_order ?? 999
+        const sortB = b.ApiGatewayRouteAuthMethod?.sort_order ?? 999
+        return sortA - sortB || a.name.localeCompare(b.name)
+      })
+      return {
+        id: raw.id,
+        routePath: raw.route_path,
+        functionId: raw.function_id,
+        functionName: raw.Function?.name ?? null,
+        allowedMethods: raw.allowed_methods,
+        sortOrder: raw.sort_order,
+        isActive: raw.is_active,
+        createdAt: raw.created_at,
+        updatedAt: raw.updated_at,
+        corsSettings: {
+          enabled: settings.cors_enabled ?? false,
+          allowedOrigins: settings.cors_allowed_origins ?? [],
+          allowedHeaders: settings.cors_allowed_headers ?? [],
+          exposeHeaders: settings.cors_expose_headers ?? [],
+          maxAge: settings.cors_max_age ?? 86400,
+          allowCredentials: settings.cors_allow_credentials ?? false,
+        },
+        authMethodIds: authMethods.map((m: any) => m.id),
+        authMethodNames: authMethods.map((m: any) => m.name),
+        authLogic: (raw.auth_logic as string) || 'or',
+      }
+    })
 
     return res.json(createResponse(true, routes, 'Routes retrieved'))
   }

@@ -1,4 +1,3 @@
-import { QueryTypes } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
@@ -35,64 +34,49 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   if (req.method === 'GET') {
-    const [row] = await database.sequelize.query(
-      `SELECT
-         gr.id,
-         gr.route_path,
-         gr.function_id,
-         gr.allowed_methods,
-         gr.sort_order,
-         gr.is_active,
-         gr.auth_logic,
-         gr.created_at,
-         gr.updated_at,
-         f.name AS function_name,
-         gs.cors_enabled,
-         gs.cors_allowed_origins,
-         gs.cors_allowed_headers,
-         gs.cors_expose_headers,
-         gs.cors_max_age,
-         gs.cors_allow_credentials,
-         COALESCE(
-           json_agg(
-             json_build_object('id', am.id, 'name', am.name, 'type', am.type)
-             ORDER BY ram.sort_order ASC, am.name ASC
-           ) FILTER (WHERE am.id IS NOT NULL),
-           '[]'
-         ) AS auth_methods
-       FROM api_gateway_routes gr
-       LEFT JOIN api_gateway_route_settings gs ON gs.route_id = gr.id
-       LEFT JOIN functions f ON f.id = gr.function_id
-       LEFT JOIN api_gateway_route_auth_methods ram ON ram.route_id = gr.id
-       LEFT JOIN api_gateway_auth_methods am ON am.id = ram.auth_method_id
-       WHERE gr.id = $1
-       GROUP BY gr.id, f.name, gs.cors_enabled, gs.cors_allowed_origins,
-                gs.cors_allowed_headers, gs.cors_expose_headers, gs.cors_max_age, gs.cors_allow_credentials,
-                gr.auth_logic`,
-      { bind: [id], type: QueryTypes.SELECT }
-    ) as any[];
+    const { ApiGatewayRouteSettings, ApiGatewayAuthMethod, Function: FunctionModel } = database.models
+    const routeRecord = await ApiGatewayRoute.findOne({
+      where: { id },
+      include: [
+        { model: FunctionModel, attributes: ['name'], required: false },
+        { model: ApiGatewayRouteSettings, as: 'settings', required: false },
+        { model: ApiGatewayAuthMethod, as: 'authMethods', through: { attributes: ['sort_order'] }, required: false },
+      ],
+    }) as any
+
+    if (!routeRecord) {
+      return res.status(404).json(createResponse(false, null, 'Route not found', 404))
+    }
+
+    const raw = routeRecord.toJSON()
+    const settings = raw.settings || {}
+    const authMethods = (raw.authMethods || []).sort((a: any, b: any) => {
+      const sortA = a.ApiGatewayRouteAuthMethod?.sort_order ?? 999
+      const sortB = b.ApiGatewayRouteAuthMethod?.sort_order ?? 999
+      return sortA - sortB || a.name.localeCompare(b.name)
+    })
 
     return res.json(createResponse(true, {
-      id: row.id,
-      routePath: row.route_path,
-      functionId: row.function_id,
-      functionName: row.function_name,
-      allowedMethods: row.allowed_methods,
-      sortOrder: row.sort_order,
-      isActive: row.is_active,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
+      id: raw.id,
+      routePath: raw.route_path,
+      functionId: raw.function_id,
+      functionName: raw.Function?.name ?? null,
+      allowedMethods: raw.allowed_methods,
+      sortOrder: raw.sort_order,
+      isActive: raw.is_active,
+      createdAt: raw.created_at,
+      updatedAt: raw.updated_at,
       corsSettings: {
-        enabled: row.cors_enabled ?? false,
-        allowedOrigins: row.cors_allowed_origins ?? [],
-        allowedHeaders: row.cors_allowed_headers ?? [],
-        exposeHeaders: row.cors_expose_headers ?? [],
-        maxAge: row.cors_max_age ?? 86400,
-        allowCredentials: row.cors_allow_credentials ?? false,
+        enabled: settings.cors_enabled ?? false,
+        allowedOrigins: settings.cors_allowed_origins ?? [],
+        allowedHeaders: settings.cors_allowed_headers ?? [],
+        exposeHeaders: settings.cors_expose_headers ?? [],
+        maxAge: settings.cors_max_age ?? 86400,
+        allowCredentials: settings.cors_allow_credentials ?? false,
       },
-      authMethodIds: (row.auth_methods || []).map((m: any) => m.id),
-      authMethodNames: (row.auth_methods || []).map((m: any) => m.name),
-      authLogic: (row.auth_logic as string) || 'or',
+      authMethodIds: authMethods.map((m: any) => m.id),
+      authMethodNames: authMethods.map((m: any) => m.name),
+      authLogic: (raw.auth_logic as string) || 'or',
     }, 'Route retrieved'))
   }
 
@@ -104,45 +88,30 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { routePath, functionId, allowedMethods, isActive, corsSettings, authMethodIds, authLogic } = req.body
 
     await database.sequelize.transaction(async (t: any) => {
+      const { ApiGatewayRouteSettings } = database.models
       if (routePath !== undefined || functionId !== undefined || allowedMethods !== undefined || isActive !== undefined || authLogic !== undefined) {
-        const updates: string[] = []
-        const values: any[] = []
-        let idx = 1
-
-        if (routePath !== undefined) { updates.push(`route_path = $${idx++}`); values.push(routePath) }
-        if (functionId !== undefined) { updates.push(`function_id = $${idx++}`); values.push(functionId || null) }
-        if (allowedMethods !== undefined) { updates.push(`allowed_methods = $${idx++}`); values.push(allowedMethods) }
-        if (isActive !== undefined) { updates.push(`is_active = $${idx++}`); values.push(isActive) }
-        if (authLogic !== undefined) { updates.push(`auth_logic = $${idx++}`); values.push(authLogic === 'and' ? 'and' : 'or') }
-
-        updates.push(`updated_at = NOW()`)
-        values.push(id)
-
-        await database.sequelize.query(
-          `UPDATE api_gateway_routes SET ${updates.join(', ')} WHERE id = $${idx}`,
-          { bind: values, transaction: t }
-        );
+        const routeUpdates: any = {}
+        if (routePath !== undefined) routeUpdates.route_path = routePath
+        if (functionId !== undefined) routeUpdates.function_id = functionId || null
+        if (allowedMethods !== undefined) routeUpdates.allowed_methods = allowedMethods
+        if (isActive !== undefined) routeUpdates.is_active = isActive
+        if (authLogic !== undefined) routeUpdates.auth_logic = authLogic === 'and' ? 'and' : 'or'
+        routeUpdates.updated_at = new Date()
+        await ApiGatewayRoute.update(routeUpdates, { where: { id }, transaction: t })
       }
 
       if (corsSettings !== undefined) {
-        const settingUpdates: string[] = []
-        const settingValues: any[] = []
-        let idx = 1
+        const settingUpdates: any = {}
+        if (corsSettings.enabled !== undefined) settingUpdates.cors_enabled = corsSettings.enabled
+        if (corsSettings.allowedOrigins !== undefined) settingUpdates.cors_allowed_origins = corsSettings.allowedOrigins
+        if (corsSettings.allowedHeaders !== undefined) settingUpdates.cors_allowed_headers = corsSettings.allowedHeaders
+        if (corsSettings.exposeHeaders !== undefined) settingUpdates.cors_expose_headers = corsSettings.exposeHeaders
+        if (corsSettings.maxAge !== undefined) settingUpdates.cors_max_age = corsSettings.maxAge
+        if (corsSettings.allowCredentials !== undefined) settingUpdates.cors_allow_credentials = corsSettings.allowCredentials
 
-        if (corsSettings.enabled !== undefined) { settingUpdates.push(`cors_enabled = $${idx++}`); settingValues.push(corsSettings.enabled) }
-        if (corsSettings.allowedOrigins !== undefined) { settingUpdates.push(`cors_allowed_origins = $${idx++}`); settingValues.push(corsSettings.allowedOrigins) }
-        if (corsSettings.allowedHeaders !== undefined) { settingUpdates.push(`cors_allowed_headers = $${idx++}`); settingValues.push(corsSettings.allowedHeaders) }
-        if (corsSettings.exposeHeaders !== undefined) { settingUpdates.push(`cors_expose_headers = $${idx++}`); settingValues.push(corsSettings.exposeHeaders) }
-        if (corsSettings.maxAge !== undefined) { settingUpdates.push(`cors_max_age = $${idx++}`); settingValues.push(corsSettings.maxAge) }
-        if (corsSettings.allowCredentials !== undefined) { settingUpdates.push(`cors_allow_credentials = $${idx++}`); settingValues.push(corsSettings.allowCredentials) }
-
-        if (settingUpdates.length > 0) {
-          settingUpdates.push(`updated_at = NOW()`)
-          settingValues.push(id)
-          await database.sequelize.query(
-            `UPDATE api_gateway_route_settings SET ${settingUpdates.join(', ')} WHERE route_id = $${idx}`,
-            { bind: settingValues, transaction: t }
-          );
+        if (Object.keys(settingUpdates).length > 0) {
+          settingUpdates.updated_at = new Date()
+          await ApiGatewayRouteSettings.update(settingUpdates, { where: { route_id: id }, transaction: t })
         }
       }
 

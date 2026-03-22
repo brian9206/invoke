@@ -24,7 +24,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/cn'
+import { MemoryInput, parseMemoryMb, formatMemoryMb } from '@/components/MemoryInput'
 
 interface FunctionItem {
   id: string
@@ -42,6 +44,10 @@ interface FunctionItem {
   project_id: string
   project_name: string
   project_is_active: boolean
+  custom_timeout_enabled: boolean
+  custom_timeout_seconds: number | null
+  custom_memory_enabled: boolean
+  custom_memory_mb: number | null
 }
 
 interface FunctionVersion {
@@ -92,6 +98,10 @@ export default function FunctionDetails() {
   const hasLockedProject = useRef(false)
   const [dialogState, setDialogState] = useState<{ type: 'alert' | 'confirm' | null; title: string; message: string; onConfirm?: () => void }>({ type: null, title: '', message: '' })
 
+  // ── Tab navigation ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('general')
+  const [pendingTab, setPendingTab] = useState<string | null>(null)
+
   // ── Core function data ──────────────────────────────────────────────────────
   const [functionData, setFunctionData] = useState<FunctionItem | null>(null)
   const [functionUrl, setFunctionUrl] = useState<string>('')
@@ -130,6 +140,7 @@ export default function FunctionDetails() {
   const [scheduleSettings, setScheduleSettings] = useState({ schedule_enabled: false, schedule_cron: '', next_execution: null as any, last_scheduled_execution: null as any })
   const [scheduleLoading, setScheduleLoading] = useState(false)
   const [scheduleCronDraft, setScheduleCronDraft] = useState('')
+  const [scheduleDraftEnabled, setScheduleDraftEnabled] = useState(false)
   const [scheduleSaving, setScheduleSaving] = useState(false)
   const [schedulePreviewNextExecution, setSchedulePreviewNextExecution] = useState<string | null>(null)
   const [schedulePreviewError, setSchedulePreviewError] = useState<string | null>(null)
@@ -150,6 +161,71 @@ export default function FunctionDetails() {
 
   // ── Advanced / API Key ──────────────────────────────────────────────────────
   const [regeneratingKey, setRegeneratingKey] = useState(false)
+
+  // ── Advanced / Execution limits ─────────────────────────────────────────────
+  const [execLimitsSaving, setExecLimitsSaving] = useState(false)
+  const [requiresApiKeyDraft, setRequiresApiKeyDraft] = useState(false)
+  const [customTimeoutEnabled, setCustomTimeoutEnabled] = useState(false)
+  const [customTimeoutSeconds, setCustomTimeoutSeconds] = useState('')
+  const [customMemoryEnabled, setCustomMemoryEnabled] = useState(false)
+  const [customMemoryMb, setCustomMemoryMb] = useState('')
+  const [globalExecSettings, setGlobalExecSettings] = useState({ defaultTimeout: 30, maxTimeout: 60, defaultMemory: 256, maxMemory: 1024 })
+
+  // ── Unsaved-change detection ─────────────────────────────────────────────────
+  const scheduleHasChanges = () =>
+    scheduleDraftEnabled !== scheduleSettings.schedule_enabled ||
+    scheduleCronDraft !== (scheduleSettings.schedule_cron || '')
+
+  const advancedHasChanges = () => {
+    if (!functionData) return false
+    const savedMemory = functionData.custom_memory_mb != null ? formatMemoryMb(functionData.custom_memory_mb) : ''
+    return (
+      requiresApiKeyDraft !== functionData.requires_api_key ||
+      customTimeoutEnabled !== (functionData.custom_timeout_enabled ?? false) ||
+      customTimeoutSeconds !== (functionData.custom_timeout_seconds != null ? String(functionData.custom_timeout_seconds) : '') ||
+      customMemoryEnabled !== (functionData.custom_memory_enabled ?? false) ||
+      customMemoryMb !== savedMemory
+    )
+  }
+
+  const resetScheduleDrafts = () => {
+    setScheduleDraftEnabled(scheduleSettings.schedule_enabled)
+    setScheduleCronDraft(scheduleSettings.schedule_cron || '')
+  }
+
+  const resetAdvancedDrafts = () => {
+    if (!functionData) return
+    setRequiresApiKeyDraft(functionData.requires_api_key ?? false)
+    setCustomTimeoutEnabled(functionData.custom_timeout_enabled ?? false)
+    setCustomTimeoutSeconds(functionData.custom_timeout_seconds != null ? String(functionData.custom_timeout_seconds) : '')
+    setCustomMemoryEnabled(functionData.custom_memory_enabled ?? false)
+    setCustomMemoryMb(functionData.custom_memory_mb != null ? formatMemoryMb(functionData.custom_memory_mb) : '')
+  }
+
+  const handleTabChange = (next: string) => {
+    const dirty =
+      (activeTab === 'schedule' && scheduleHasChanges()) ||
+      (activeTab === 'advanced' && advancedHasChanges())
+
+    if (!dirty) {
+      setActiveTab(next)
+      return
+    }
+
+    setPendingTab(next)
+    setDialogState({
+      type: 'confirm',
+      title: 'Unsaved Changes',
+      message: 'You have unsaved changes on this tab. If you leave, your changes will be discarded.',
+      onConfirm: () => {
+        if (activeTab === 'schedule') resetScheduleDrafts()
+        if (activeTab === 'advanced') resetAdvancedDrafts()
+        setActiveTab(next)
+        setPendingTab(null)
+        setDialogState({ type: null, title: '', message: '' })
+      },
+    })
+  }
 
   // ── Project locking ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -172,7 +248,16 @@ export default function FunctionDetails() {
           authenticatedFetch(`/api/gateway/config?projectId=${functionData.project_id}`),
         ])
         const [settingsData, routesData, configData] = await Promise.all([settingsRes.json(), routesRes.json(), configRes.json()])
-        if (settingsData.success) setGatewayDomain(settingsData.data?.api_gateway_domain?.value || '')
+        if (settingsData.success) {
+          setGatewayDomain(settingsData.data?.api_gateway_domain?.value || '')
+          const s = settingsData.data
+          setGlobalExecSettings({
+            defaultTimeout: parseInt(s?.execution_default_timeout_seconds?.value ?? '30', 10),
+            maxTimeout: parseInt(s?.execution_max_timeout_seconds?.value ?? '60', 10),
+            defaultMemory: parseInt(s?.execution_default_memory_mb?.value ?? '256', 10),
+            maxMemory: parseInt(s?.execution_max_memory_mb?.value ?? '1024', 10),
+          })
+        }
         if (configData.success) setGatewayCustomDomain(configData.data?.customDomain || '')
         if (routesData.success) {
           const matching = (routesData.data as any[]).filter((r: any) => r.functionId === functionData.id)
@@ -195,7 +280,7 @@ export default function FunctionDetails() {
   }, [id])
 
   useEffect(() => {
-    if (!id || !scheduleSettings.schedule_enabled) {
+    if (!id || !scheduleDraftEnabled) {
       setSchedulePreviewError(null)
       setSchedulePreviewNextExecution(null)
       return
@@ -228,7 +313,7 @@ export default function FunctionDetails() {
     }, 250)
 
     return () => clearTimeout(timeout)
-  }, [id, scheduleCronDraft, scheduleSettings.schedule_enabled])
+  }, [id, scheduleCronDraft, scheduleDraftEnabled])
 
   useEffect(() => { if (id) fetchExecutionLogs() }, [logsCurrentPage, logsPageSize, logsFilter])
 
@@ -237,7 +322,14 @@ export default function FunctionDetails() {
     try {
       const r = await authenticatedFetch(`/api/functions/${id}`)
       const d = await r.json()
-      if (d.success) setFunctionData(d.data)
+      if (d.success) {
+        setFunctionData(d.data)
+        setCustomTimeoutEnabled(d.data.custom_timeout_enabled ?? false)
+        setCustomTimeoutSeconds(d.data.custom_timeout_seconds != null ? String(d.data.custom_timeout_seconds) : '')
+        setCustomMemoryEnabled(d.data.custom_memory_enabled ?? false)
+        setCustomMemoryMb(d.data.custom_memory_mb != null ? formatMemoryMb(d.data.custom_memory_mb) : '')
+        setRequiresApiKeyDraft(d.data.requires_api_key ?? false)
+      }
     } catch (e) { console.error('Error fetching function:', e) }
     finally { setLoading(false) }
   }
@@ -266,6 +358,7 @@ export default function FunctionDetails() {
       if (d.success) {
         setScheduleSettings(d.data)
         setScheduleCronDraft(d.data.schedule_cron || '')
+        setScheduleDraftEnabled(d.data.schedule_enabled ?? false)
         setSchedulePreviewNextExecution(d.data.next_execution || null)
         setSchedulePreviewError(null)
       }
@@ -461,75 +554,24 @@ export default function FunctionDetails() {
   }
 
   // ── Schedule ──────────────────────────────────────────────────────────────────
-  const toggleScheduleEnabled = async (checked: boolean) => {
-    if (checked) {
-      if (!scheduleCronDraft.trim()) {
-        setScheduleSettings(prev => ({ ...prev, schedule_enabled: true }))
-        return
-      }
-
-      setScheduleSaving(true)
-      try {
-        const r = await authenticatedFetch(`/api/functions/${id}/schedule`, {
-          method: 'PUT',
-          body: JSON.stringify({ schedule_enabled: true, schedule_cron: scheduleCronDraft }),
-        })
-        const d = await r.json()
-        if (d.success) {
-          setScheduleSettings(d.data)
-          setScheduleCronDraft(d.data.schedule_cron || '')
-          setSchedulePreviewNextExecution(d.data.next_execution || null)
-          setSchedulePreviewError(null)
-        } else {
-          setScheduleSettings(prev => ({ ...prev, schedule_enabled: true }))
-          setDialogState({ type: 'alert', title: 'Error', message: 'Failed to update schedule: ' + (d.error || d.message || 'Unknown') })
-        }
-      } catch {
-        setScheduleSettings(prev => ({ ...prev, schedule_enabled: true }))
-        setDialogState({ type: 'alert', title: 'Error', message: 'Error updating schedule' })
-      } finally {
-        setScheduleSaving(false)
-      }
-      return
-    }
-
+  const saveScheduleSettings = async () => {
     setScheduleSaving(true)
     try {
       const r = await authenticatedFetch(`/api/functions/${id}/schedule`, {
         method: 'PUT',
-        body: JSON.stringify({ schedule_enabled: checked, schedule_cron: scheduleCronDraft }),
+        body: JSON.stringify({ schedule_enabled: scheduleDraftEnabled, schedule_cron: scheduleCronDraft }),
       })
       const d = await r.json()
       if (d.success) {
         setScheduleSettings(d.data)
         setScheduleCronDraft(d.data.schedule_cron || '')
+        setScheduleDraftEnabled(d.data.schedule_enabled ?? false)
         setSchedulePreviewNextExecution(d.data.next_execution || null)
         setSchedulePreviewError(null)
+        const { toast } = await import('sonner'); toast.success('Settings saved successfully.')
       } else {
-        setDialogState({ type: 'alert', title: 'Error', message: 'Failed to update schedule: ' + (d.error || d.message || 'Unknown') })
+        setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save schedule: ' + (d.error || d.message || 'Unknown') })
       }
-    } catch {
-      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating schedule' })
-    } finally {
-      setScheduleSaving(false)
-    }
-  }
-
-  const saveScheduleCron = async () => {
-    setScheduleSaving(true)
-    try {
-      const r = await authenticatedFetch(`/api/functions/${id}/schedule`, {
-        method: 'PUT',
-        body: JSON.stringify({ schedule_enabled: scheduleSettings.schedule_enabled, schedule_cron: scheduleCronDraft }),
-      })
-      const d = await r.json()
-      if (d.success) {
-        setScheduleSettings(d.data)
-        setScheduleCronDraft(d.data.schedule_cron || '')
-        setSchedulePreviewNextExecution(d.data.next_execution || null)
-        setSchedulePreviewError(null)
-      }
-      else setDialogState({ type: 'alert', title: 'Error', message: 'Failed to save schedule: ' + (d.error || d.message || 'Unknown') })
     } catch { setDialogState({ type: 'alert', title: 'Error', message: 'Error saving schedule' }) }
     finally { setScheduleSaving(false) }
   }
@@ -555,12 +597,6 @@ export default function FunctionDetails() {
   }
 
   // ── API Key ────────────────────────────────────────────────────────────────────
-  const toggleApiKeyRequirement = async (checked: boolean) => {
-    try {
-      const r = await authenticatedFetch(`/api/functions/${id}`, { method: 'PATCH', body: JSON.stringify({ requires_api_key: checked }) })
-      if (r.ok) await fetchFunctionData()
-    } catch { console.error('Error updating API key requirement') }
-  }
   const regenerateApiKey = async () => {
     setRegeneratingKey(true)
     try {
@@ -568,6 +604,52 @@ export default function FunctionDetails() {
       if (r.ok) await fetchFunctionData()
     } catch { console.error('Error regenerating API key') }
     finally { setRegeneratingKey(false) }
+  }
+
+  const saveExecutionLimits = async () => {
+    const timeoutVal = customTimeoutEnabled ? Number(customTimeoutSeconds) : null
+    const memoryVal = customMemoryEnabled ? parseMemoryMb(customMemoryMb) : null
+
+    if (customTimeoutEnabled) {
+      if (!Number.isInteger(timeoutVal) || (timeoutVal as number) < 10) {
+        const { toast } = await import('sonner'); toast.error('Timeout must be an integer ≥ 10 seconds.'); return
+      }
+      if ((timeoutVal as number) > globalExecSettings.maxTimeout) {
+        const { toast } = await import('sonner'); toast.error(`Timeout must be ≤ global max (${globalExecSettings.maxTimeout}s).`); return
+      }
+    }
+
+    if (customMemoryEnabled) {
+      if (memoryVal === null || isNaN(memoryVal as number)) {
+        const { toast } = await import('sonner'); toast.error('Enter a valid memory value (e.g. 512 or 512M or 1G).'); return
+      }
+      if ((memoryVal as number) < 256 || (memoryVal as number) % 256 !== 0) {
+        const { toast } = await import('sonner'); toast.error('Memory must be a multiple of 256 MB and at least 256 MB.'); return
+      }
+      if ((memoryVal as number) > globalExecSettings.maxMemory) {
+        const { toast } = await import('sonner'); toast.error(`Memory must be ≤ global max (${globalExecSettings.maxMemory} MB).`); return
+      }
+    }
+
+    setExecLimitsSaving(true)
+    try {
+      const body: Record<string, unknown> = {
+        requires_api_key: requiresApiKeyDraft,
+        custom_timeout_enabled: customTimeoutEnabled,
+        custom_timeout_seconds: timeoutVal,
+        custom_memory_enabled: customMemoryEnabled,
+        custom_memory_mb: memoryVal,
+      }
+      const r = await authenticatedFetch(`/api/functions/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      if (r.ok) {
+        await fetchFunctionData()
+        const { toast } = await import('sonner'); toast.success('Settings saved successfully.')
+      } else {
+        const d = await r.json()
+        const { toast } = await import('sonner'); toast.error(d.error || d.message || 'Failed to save execution limits.')
+      }
+    } catch { const { toast } = await import('sonner'); toast.error('Error saving execution limits.') }
+    finally { setExecLimitsSaving(false) }
   }
 
   // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -658,7 +740,7 @@ export default function FunctionDetails() {
           </div>
 
           {/* ── Tabs ───────────────────────────────────────────────────────── */}
-          <Tabs defaultValue="general">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="deployment">Deployment</TabsTrigger>
@@ -991,13 +1073,13 @@ export default function FunctionDetails() {
                           <p className="text-sm text-muted-foreground mt-0.5">Run this function automatically based on a cron schedule</p>
                         </div>
                         <Switch
-                          checked={scheduleSettings.schedule_enabled}
-                          onCheckedChange={toggleScheduleEnabled}
+                          checked={scheduleDraftEnabled}
+                          onCheckedChange={setScheduleDraftEnabled}
                           disabled={scheduleSaving}
                         />
                       </div>
 
-                      {scheduleSettings.schedule_enabled ? (
+                      {scheduleDraftEnabled ? (
                         <div className="mt-4 space-y-3 pl-0">
                           <div className="space-y-1.5">
                             <Label>Cron Expression</Label>
@@ -1009,18 +1091,6 @@ export default function FunctionDetails() {
                                 placeholder="*/5 * * * *"
                                 className="font-mono"
                               />
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    onClick={saveScheduleCron}
-                                    disabled={scheduleSaving || scheduleCronDraft === (scheduleSettings.schedule_cron || '') || !scheduleCronDraft.trim() || !!schedulePreviewError}
-                                  >
-                                    <Save className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Save cron expression</TooltipContent>
-                              </Tooltip>
                             </div>
                             <p className="text-xs text-muted-foreground">Format: minute hour day month weekday<br />Examples: "*/5 * * * *" (every 5 min), "0 * * * *" (hourly)</p>
                           </div>
@@ -1042,6 +1112,12 @@ export default function FunctionDetails() {
                       )}
                     </div>
                   )}
+
+                  <div className="pt-4">
+                    <Button onClick={saveScheduleSettings} disabled={scheduleSaving}>
+                      {scheduleSaving ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Saving…</> : 'Save Settings'}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -1174,18 +1250,18 @@ export default function FunctionDetails() {
               <Card>
                 <CardContent className="pt-6">
                   {/* API Key Authentication */}
-                  <div className="py-2">
+                  <div className="pt-2 py-8">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-foreground">Restrict Execution</p>
                         <p className="text-sm text-muted-foreground mt-0.5">Require an API key to execute this function. <br/><br/>For API gateway upstream, the API authentication will be bypassed. <br/>Recommended to configure the authentication in the API gateway settings instead.<br/><br/>Turn this on if you want to ensure the function is executed from the API gateway.</p>
                       </div>
                       <Switch
-                        checked={functionData.requires_api_key}
-                        onCheckedChange={toggleApiKeyRequirement}
+                        checked={requiresApiKeyDraft}
+                        onCheckedChange={setRequiresApiKeyDraft}
                       />
                     </div>
-                    {functionData.requires_api_key && (
+                    {requiresApiKeyDraft && functionData.requires_api_key && (
                       <div className="mt-4 space-y-2 pl-0">
                         <Label className="text-xs text-muted-foreground"><Key className="w-3.5 h-3.5 inline mr-1" />API Key</Label>
                         <div className="flex min-w-0">
@@ -1210,6 +1286,86 @@ export default function FunctionDetails() {
                         <p className="text-xs text-muted-foreground">Include as: Authorization: Bearer &lt;key&gt; or ?api_key=&lt;key&gt;</p>
                       </div>
                     )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Execution Timeout */}
+                  <div className="py-8">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">Custom Execution Timeout</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Override the global default timeout for this function. Not needed for most functions —
+                          only enable this for functions that are known to require longer execution times.
+                          <br />Global default: <span className="font-medium text-foreground">{globalExecSettings.defaultTimeout}s</span> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxTimeout}s</span>
+                        </p>
+                      </div>
+                      <Switch
+                        checked={customTimeoutEnabled}
+                        onCheckedChange={(v) => {
+                          setCustomTimeoutEnabled(v)
+                          if (!v) setCustomTimeoutSeconds('')
+                        }}
+                      />
+                    </div>
+                    {customTimeoutEnabled && (
+                      <div className="flex items-center justify-between gap-3 mt-3 bg-muted/40 rounded-lg px-3 py-2">
+                        <Label className="text-sm text-muted-foreground whitespace-nowrap">Timeout (seconds)</Label>
+                        <Input
+                          type="number"
+                          min={10}
+                          max={globalExecSettings.maxTimeout}
+                          step={1}
+                          value={customTimeoutSeconds}
+                          onChange={(e) => setCustomTimeoutSeconds(e.target.value)}
+                          placeholder={`10 – ${globalExecSettings.maxTimeout}`}
+                          className="w-36 text-right h-8"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Memory Limit */}
+                  <div className="py-8">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-foreground">Custom Memory Limit</p>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                          Override the global default memory limit for this function. Not needed for most functions —
+                          only enable this if the function consistently runs out of memory under the default limit.
+                          Values must be multiples of 256 MB (e.g. 256, 512, 768, 1024). You can use a suffix: <code className="text-xs">512M</code> or <code className="text-xs">1G</code>.
+                          <br />Global default: <span className="font-medium text-foreground">{globalExecSettings.defaultMemory} MB</span> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxMemory} MB</span>
+                        </p>
+                      </div>
+                      <Switch
+                        checked={customMemoryEnabled}
+                        onCheckedChange={(v) => {
+                          setCustomMemoryEnabled(v)
+                          if (!v) setCustomMemoryMb('')
+                        }}
+                      />
+                    </div>
+                    {customMemoryEnabled && (
+                      <div className="flex items-center justify-between gap-3 mt-3 bg-muted/40 rounded-lg px-3 py-2">
+                        <Label className="text-sm text-muted-foreground whitespace-nowrap">Memory limit</Label>
+                        <MemoryInput
+                          value={customMemoryMb}
+                          onChange={setCustomMemoryMb}
+                          className="w-36 text-right h-8"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  <div className="pt-6">
+                    <Button onClick={saveExecutionLimits} disabled={execLimitsSaving}>
+                      {execLimitsSaving ? <><Loader className="w-4 h-4 mr-2 animate-spin" />Saving…</> : 'Save Settings'}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
