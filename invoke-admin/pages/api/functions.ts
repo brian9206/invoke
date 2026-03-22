@@ -18,7 +18,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { model: Project, attributes: ['name'], required: false },
         ],
         order: [
-          [literal('"functions"."group_id" NULLS LAST')],
+          [literal('"Function"."group_id" NULLS LAST')],
           ['sort_order', 'ASC'],
           ['created_at', 'DESC'],
         ],
@@ -53,7 +53,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
           },
         ],
         order: [
-          [literal('"functions"."group_id" NULLS LAST')],
+          [literal('"Function"."group_id" NULLS LAST')],
           ['sort_order', 'ASC'],
           ['created_at', 'DESC'],
         ],
