@@ -19,10 +19,12 @@ declare global {
  * header.
  */
 export function gatewayAuth(req: Request, res: Response, next: NextFunction): void {
+  // Always initialize a safe fallback so execution logs never store a blank client IP.
+  req.trustedClientIp = req.ip;
+
   const secret = process.env.INTERNAL_SERVICE_SECRET;
 
   if (!secret) {
-    req.trustedClientIp = req.ip;
     return next();
   }
 
@@ -34,7 +36,7 @@ export function gatewayAuth(req: Request, res: Response, next: NextFunction): vo
 
   try {
     const payload = jwt.verify(token, secret, { algorithms: ['HS256'] }) as jwt.JwtPayload;
-    req.trustedClientIp = (payload.clientIp as string) || req.ip;
+    req.trustedClientIp = (payload.clientIp as string) || req.trustedClientIp;
     req.isFromGateway = true;
     next();
   } catch {

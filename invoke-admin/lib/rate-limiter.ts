@@ -16,18 +16,6 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
 
 /**
- * Parse TRUST_PROXY env var using the same logic as Express app.set('trust proxy', ...).
- */
-function buildTrustFn(): Parameters<typeof proxyAddr>[1] {
-  const val = process.env.TRUST_PROXY
-  if (!val || val === 'false') return () => false
-  if (val === 'true') return () => true
-  const n = Number(val)
-  if (!isNaN(n)) return proxyAddr.compile([]) // numeric hops handled below via proxyAddr overload
-  return proxyAddr.compile(val.split(',').map((s) => s.trim()))
-}
-
-/**
  * Extract the real client IP from an incoming request, honouring TRUST_PROXY.
  * Mirrors Express's req.ip behaviour.
  */
