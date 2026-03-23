@@ -31,6 +31,11 @@ RUN npm run build
 # Prune devDependencies
 RUN npm prune --production -w invoke-admin
 
+# Run as non-root user
+RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+RUN chown -R appuser:appgroup /app
+USER appuser
+
 # Expose port
 EXPOSE 3000
 

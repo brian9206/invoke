@@ -88,6 +88,7 @@ services:
     env_file:
       - .env
     environment:
+      - TRUST_PROXY=${TRUST_PROXY}
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_NAME=${DB_NAME}

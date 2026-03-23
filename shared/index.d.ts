@@ -45,6 +45,7 @@ declare module 'invoke-shared' {
     ApiGatewayRouteSettings: AnyModelStatic;
     ApiGatewayAuthMethod: AnyModelStatic;
     ApiGatewayRouteAuthMethod: AnyModelStatic;
+    LoginAttempt: AnyModelStatic;
   }
 
   // ─── Sequelize-like instance ──────────────────────────────────────────────────
@@ -116,7 +117,7 @@ declare module 'invoke-shared' {
     initialized: boolean;
 
     initialize(): Promise<void>;
-    getClient(): unknown;
+
     listBuckets(): Promise<unknown[]>;
     fPutObject(
       bucket: string,
@@ -143,8 +144,6 @@ declare module 'invoke-shared' {
     downloadPackageFromPath(packagePath: string, downloadPath: string): Promise<string>;
     deletePackage(functionId: string, version: string): Promise<void>;
     deleteAllPackagesForFunction(functionId: string): Promise<number>;
-    packageExists(functionId: string, version: string): Promise<boolean>;
-    listPackageVersions(functionId: string): Promise<string[]>;
     listFunctionPackages(functionId: string): Promise<unknown[]>;
   }
 

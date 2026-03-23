@@ -31,6 +31,7 @@ function initModels(sequelize) {
   const ApiGatewayRouteSettings   = require('./ApiGatewayRouteSettings')(sequelize);
   const ApiGatewayAuthMethod      = require('./ApiGatewayAuthMethod')(sequelize);
   const ApiGatewayRouteAuthMethod = require('./ApiGatewayRouteAuthMethod')(sequelize);
+  const LoginAttempt               = require('./LoginAttempt')(sequelize);
 
   const models = {
     User,
@@ -51,6 +52,7 @@ function initModels(sequelize) {
     ApiGatewayRouteSettings,
     ApiGatewayAuthMethod,
     ApiGatewayRouteAuthMethod,
+    LoginAttempt,
   };
 
   // Wire up associations once all models exist

@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
-const bcrypt = require('bcrypt')
 import database from '@/lib/database'
-import { createResponse, validatePasswordStrength } from '@/lib/utils'
+import { createResponse, validatePasswordStrength, hashPassword, verifyPassword } from '@/lib/utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'PUT') {
@@ -60,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Verify current password
-    const isValidPassword = await bcrypt.compare(currentPassword, userRecord.password_hash)
+    const isValidPassword = await verifyPassword(currentPassword, userRecord.password_hash)
 
     if (!isValidPassword) {
       return res.status(401).json(createResponse(
@@ -72,7 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Hash new password
-    const newPasswordHash = await bcrypt.hash(newPassword, 10)
+    const newPasswordHash = await hashPassword(newPassword)
 
     // Update password in database
     await userRecord.update({ password_hash: newPasswordHash, updated_at: new Date() })
@@ -85,11 +84,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('Change password error:', error)
-    res.status(500).json(createResponse(
-      false, 
-      null, 
-      'Failed to change password: ' + error.message, 
-      500
-    ))
+    res.status(500).json(createResponse(false, null, 'An internal error occurred', 500))
   }
 }

@@ -3,6 +3,11 @@ import jwt from 'jsonwebtoken'
 import { createResponse, hashApiKey } from '@/lib/utils'
 import database from '@/lib/database'
 
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) {
+  throw new Error('FATAL: JWT_SECRET environment variable is required')
+}
+
 interface AuthenticatedRequest extends NextApiRequest {
   user?: {
     id: number
@@ -26,7 +31,7 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
       const token = authHeader.substring(7)
       
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+        const decoded = jwt.verify(token, JWT_SECRET) as any
         
         // Get fresh user data from database
         const { User } = database.models
@@ -100,7 +105,7 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
       const token = authHeader.substring(7)
       
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+        const decoded = jwt.verify(token, JWT_SECRET) as any
         
         // Get fresh user data from database
         const { User } = database.models
@@ -228,7 +233,7 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
         const token = authHeader.substring(7)
         
         try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret') as any
+          const decoded = jwt.verify(token, JWT_SECRET) as any
           
           const { User } = database.models
           const jwtUser = await User.findByPk(decoded.userId, {

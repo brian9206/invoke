@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let decoded: any
 
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'default-secret')
+      decoded = jwt.verify(token, process.env.JWT_SECRET!)
     } catch (error) {
       return res.status(401).json(createResponse(false, null, 'Invalid or expired token', 401))
     }
@@ -82,11 +82,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   } catch (error: any) {
     console.error('Change email error:', error)
-    res.status(500).json(createResponse(
-      false, 
-      null, 
-      'Failed to update email: ' + error.message, 
-      500
-    ))
+    res.status(500).json(createResponse(false, null, 'An internal error occurred', 500))
   }
 }

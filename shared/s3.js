@@ -44,8 +44,8 @@ class S3Service {
     const endpoint = process.env.S3_ENDPOINT || 'localhost'
     const port = parseInt(process.env.S3_PORT || '9000', 10)
     const useSSL = process.env.S3_USE_SSL === 'true'
-    const accessKey = process.env.S3_ACCESS_KEY || 'invoke-minio'
-    const secretKey = process.env.S3_SECRET_KEY || 'invoke-minio-password-123'
+    const accessKey = process.env.S3_ACCESS_KEY
+    const secretKey = process.env.S3_SECRET_KEY
     const scheme = useSSL ? 'https' : 'http'
 
     const config = {
@@ -100,14 +100,6 @@ class S3Service {
   }
 
   // ─── Low-level S3 Operations ──────────────────────────────────────────────────
-
-  /**
-   * Returns the raw S3Client for advanced usage.
-   * @returns {S3Client}
-   */
-  getClient() {
-    return this._ensureClient()
-  }
 
   /**
    * List all buckets.
@@ -295,37 +287,6 @@ class S3Service {
     await Promise.all(packages.map((pkg) => this.removeObject(this.bucketName, pkg.name)))
     console.log(`✅ Deleted ${packages.length} packages for function ${functionId}`)
     return packages.length
-  }
-
-  /**
-   * Check whether a specific package version exists in S3.
-   * @param {string} functionId
-   * @param {string|number} version
-   * @returns {Promise<boolean>}
-   */
-  async packageExists(functionId, version) {
-    await this.initialize()
-
-    const objectName = `packages/${functionId}/${version}.tgz`
-    try {
-      await this.client.send(new HeadObjectCommand({ Bucket: this.bucketName, Key: objectName }))
-      return true
-    } catch (error) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
-        return false
-      }
-      throw error
-    }
-  }
-
-  /**
-   * List all version strings for a function's packages.
-   * @param {string} functionId
-   * @returns {Promise<string[]>} sorted version strings
-   */
-  async listPackageVersions(functionId) {
-    const packages = await this.listFunctionPackages(functionId)
-    return packages.map((pkg) => pkg.version).sort()
   }
 
   /**

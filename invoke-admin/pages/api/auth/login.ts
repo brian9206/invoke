@@ -3,13 +3,13 @@ import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
 import { hashPassword, verifyPassword, createResponse } from '@/lib/utils'
 import database from '@/lib/database'
-import { 
-  recordFailedLogin, 
-  recordSuccessfulLogin, 
-  isAccountLocked, 
+import {
+  recordFailedLogin,
+  recordSuccessfulLogin,
+  isAccountLocked,
   getRemainingLockoutTime,
-  getFailedAttemptCount,
-  getLockoutConfig 
+  getLockoutConfig,
+  getClientIp,
 } from '@/lib/rate-limiter'
 import { getUserProjects } from '@/lib/middleware'
 
@@ -51,8 +51,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check if account is locked due to too many failed attempts
-    if (isAccountLocked(username)) {
-      const remainingTime = getRemainingLockoutTime(username)
+    const clientIp = getClientIp(req)
+    if (await isAccountLocked(username, clientIp)) {
+      const remainingTime = await getRemainingLockoutTime(username, clientIp)
       const config = getLockoutConfig()
       return res.status(429).json(createResponse(false, null,
         `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds. (Max ${config.maxAttempts} attempts per ${config.attemptWindowMinutes} minutes)`,
@@ -67,35 +68,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     if (!user) {
-      recordFailedLogin(username)
-      const attempts = getFailedAttemptCount(username)
-      const config = getLockoutConfig()
-      return res.status(401).json(createResponse(false, null,
-        `Invalid credentials. Failed attempts: ${attempts}/${config.maxAttempts}`,
-        401
-      ))
+      await recordFailedLogin(username, clientIp)
+      return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
     }
 
     // Verify password
     const isValidPassword = await verifyPassword(password, user.password_hash)
 
     if (!isValidPassword) {
-      recordFailedLogin(username)
-      const attempts = getFailedAttemptCount(username)
-      const config = getLockoutConfig()
+      await recordFailedLogin(username, clientIp)
 
-      if (isAccountLocked(username)) {
-        const remainingTime = getRemainingLockoutTime(username)
+      if (await isAccountLocked(username, clientIp)) {
+        const remainingTime = await getRemainingLockoutTime(username, clientIp)
         return res.status(429).json(createResponse(false, null,
           `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds.`,
           429
         ))
       }
 
-      return res.status(401).json(createResponse(false, null,
-        `Invalid credentials. Failed attempts: ${attempts}/${config.maxAttempts}`,
-        401
-      ))
+      return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
     }
 
     // If not admin, check project membership
@@ -110,7 +101,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await user.update({ last_login: new Date() })
 
     // Clear failed login attempts on successful login
-    recordSuccessfulLogin(username)
+    await recordSuccessfulLogin(username, clientIp)
 
     // Generate JWT token
     const token = jwt.sign(
@@ -120,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: user.email,
         isAdmin: user.is_admin,
       },
-      process.env.JWT_SECRET || 'default-secret',
+      process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     )
 

@@ -1,17 +1,14 @@
 /**
  * Rate Limiter for Brute Force Protection
- * Tracks failed login attempts and locks accounts temporarily
+ *
+ * Tracks failed login attempts in the database (UNLOGGED table) keyed by
+ * a composite of the normalised client IP and the lowercased username.
+ * This survives service restarts and is shared across multiple instances.
  */
 
-interface LoginAttempt {
-  attempts: number
-  lastAttempt: number
-  lockedUntil?: number
-}
-
-// In-memory store for failed login attempts
-// In production, consider using Redis
-const loginAttempts = new Map<string, LoginAttempt>()
+import proxyAddr from 'proxy-addr'
+import type { IncomingMessage } from 'http'
+import database from '@/lib/database'
 
 // Configuration
 const MAX_ATTEMPTS = 5
@@ -19,116 +16,156 @@ const LOCKOUT_DURATION_MS = 15 * 60 * 1000 // 15 minutes
 const ATTEMPT_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
 
 /**
- * Record a failed login attempt
+ * Parse TRUST_PROXY env var using the same logic as Express app.set('trust proxy', ...).
  */
-export function recordFailedLogin(username: string): void {
-  const key = username.toLowerCase()
-  const now = Date.now()
-  
-  const attempt = loginAttempts.get(key)
-  
-  if (!attempt) {
-    loginAttempts.set(key, {
-      attempts: 1,
-      lastAttempt: now,
-    })
+function buildTrustFn(): Parameters<typeof proxyAddr>[1] {
+  const val = process.env.TRUST_PROXY
+  if (!val || val === 'false') return () => false
+  if (val === 'true') return () => true
+  const n = Number(val)
+  if (!isNaN(n)) return proxyAddr.compile([]) // numeric hops handled below via proxyAddr overload
+  return proxyAddr.compile(val.split(',').map((s) => s.trim()))
+}
+
+/**
+ * Extract the real client IP from an incoming request, honouring TRUST_PROXY.
+ * Mirrors Express's req.ip behaviour.
+ */
+export function getClientIp(req: IncomingMessage): string {
+  const val = process.env.TRUST_PROXY
+  let trust: Parameters<typeof proxyAddr>[1]
+
+  if (!val || val === 'false') {
+    trust = () => false
+  } else if (val === 'true') {
+    trust = () => true
   } else {
-    // Reset attempts if outside window
-    if (now - attempt.lastAttempt > ATTEMPT_WINDOW_MS) {
-      loginAttempts.set(key, {
-        attempts: 1,
-        lastAttempt: now,
-      })
+    const n = Number(val)
+    if (!isNaN(n)) {
+      // Numeric hop count — trust that many proxies
+      trust = (_addr: string, i: number) => i < n
     } else {
-      attempt.attempts++
-      attempt.lastAttempt = now
-      
-      // Lock account if max attempts exceeded
-      if (attempt.attempts >= MAX_ATTEMPTS) {
-        attempt.lockedUntil = now + LOCKOUT_DURATION_MS
-      }
+      trust = proxyAddr.compile(val.split(',').map((s) => s.trim()))
     }
   }
+
+  return proxyAddr(req as any, trust) ?? 'unknown'
 }
 
 /**
- * Record a successful login and clear attempts
+ * Build the composite lookup key: "<ip>:<username-lowercase>"
  */
-export function recordSuccessfulLogin(username: string): void {
-  const key = username.toLowerCase()
-  loginAttempts.delete(key)
+function buildKey(username: string, ip: string): string {
+  return `${ip}:${username.toLowerCase()}`
 }
 
 /**
- * Check if account is locked due to too many failed attempts
+ * Record a failed login attempt for the given username + client IP.
+ * Increments the counter atomically using a serialisable transaction.
  */
-export function isAccountLocked(username: string): boolean {
-  const key = username.toLowerCase()
-  const attempt = loginAttempts.get(key)
-  
-  if (!attempt || !attempt.lockedUntil) {
+export async function recordFailedLogin(username: string, ip: string): Promise<void> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  const now = new Date()
+
+  await database.sequelize.transaction(async (t: any) => {
+    const record = await LoginAttempt.findOne({ where: { key }, lock: true, transaction: t })
+
+    if (!record) {
+      await LoginAttempt.create({ key, attempts: 1, last_attempt_at: now }, { transaction: t })
+      return
+    }
+
+    const windowExpired = now.getTime() - new Date(record.last_attempt_at).getTime() > ATTEMPT_WINDOW_MS
+
+    if (windowExpired) {
+      await record.update(
+        { attempts: 1, last_attempt_at: now, locked_until: null },
+        { transaction: t }
+      )
+      return
+    }
+
+    const newAttempts = record.attempts + 1
+    const lockedUntil = newAttempts >= MAX_ATTEMPTS ? new Date(now.getTime() + LOCKOUT_DURATION_MS) : null
+    await record.update({ attempts: newAttempts, last_attempt_at: now, locked_until: lockedUntil }, { transaction: t })
+  })
+}
+
+/**
+ * Record a successful login and clear all attempts for that username + IP.
+ */
+export async function recordSuccessfulLogin(username: string, ip: string): Promise<void> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  await LoginAttempt.destroy({ where: { key } })
+}
+
+/**
+ * Check if the username + IP combination is currently locked out.
+ * Lazily cleans up expired locks.
+ */
+export async function isAccountLocked(username: string, ip: string): Promise<boolean> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  const record = await LoginAttempt.findOne({ where: { key } })
+
+  if (!record || !record.locked_until) return false
+
+  const now = new Date()
+
+  if (now > new Date(record.locked_until)) {
+    await LoginAttempt.destroy({ where: { key } })
     return false
   }
-  
-  const now = Date.now()
-  
-  if (now > attempt.lockedUntil) {
-    // Unlock account
-    loginAttempts.delete(key)
-    return false
-  }
-  
+
   return true
 }
 
 /**
- * Get remaining lockout time in seconds
+ * Get remaining lockout time in seconds for a username + IP.
  */
-export function getRemainingLockoutTime(username: string): number {
-  const key = username.toLowerCase()
-  const attempt = loginAttempts.get(key)
-  
-  if (!attempt || !attempt.lockedUntil) {
-    return 0
-  }
-  
-  const now = Date.now()
-  const remaining = attempt.lockedUntil - now
-  
+export async function getRemainingLockoutTime(username: string, ip: string): Promise<number> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  const record = await LoginAttempt.findOne({ where: { key } })
+
+  if (!record || !record.locked_until) return 0
+
+  const remaining = new Date(record.locked_until).getTime() - Date.now()
   return remaining > 0 ? Math.ceil(remaining / 1000) : 0
 }
 
 /**
- * Get current failed attempt count
+ * Get the current failed attempt count for a username + IP.
  */
-export function getFailedAttemptCount(username: string): number {
-  const key = username.toLowerCase()
-  const attempt = loginAttempts.get(key)
-  
-  if (!attempt) {
+export async function getFailedAttemptCount(username: string, ip: string): Promise<number> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  const record = await LoginAttempt.findOne({ where: { key } })
+
+  if (!record) return 0
+
+  const windowExpired = Date.now() - new Date(record.last_attempt_at).getTime() > ATTEMPT_WINDOW_MS
+  if (windowExpired) {
+    await LoginAttempt.destroy({ where: { key } })
     return 0
   }
-  
-  // Reset if outside window
-  const now = Date.now()
-  if (now - attempt.lastAttempt > ATTEMPT_WINDOW_MS) {
-    loginAttempts.delete(key)
-    return 0
-  }
-  
-  return attempt.attempts
+
+  return record.attempts
 }
 
 /**
- * Clear all attempts for a username
+ * Clear all attempts for a username + IP.
  */
-export function clearAttempts(username: string): void {
-  const key = username.toLowerCase()
-  loginAttempts.delete(key)
+export async function clearAttempts(username: string, ip: string): Promise<void> {
+  const { LoginAttempt } = database.models
+  const key = buildKey(username, ip)
+  await LoginAttempt.destroy({ where: { key } })
 }
 
 /**
- * Get lockout config for display purposes
+ * Get lockout config for display purposes.
  */
 export function getLockoutConfig() {
   return {

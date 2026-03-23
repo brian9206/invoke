@@ -1,6 +1,6 @@
-import bcrypt from 'bcrypt';
 import crypto from 'crypto';
 import database from './database';
+import { hashPassword } from './utils';
 
 interface AdminResult {
   id: unknown;
@@ -53,7 +53,7 @@ async function createDefaultAdmin(): Promise<AdminResult | null> {
     console.log('👤 No users found, creating default admin user...');
 
     const password = generatePassword(16);
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
 
     const { User } = database.models;
     const admin = await User.create({
@@ -88,4 +88,4 @@ async function createDefaultAdmin(): Promise<AdminResult | null> {
   }
 }
 
-export { createDefaultAdmin, usersExist, generatePassword };
+export { createDefaultAdmin };

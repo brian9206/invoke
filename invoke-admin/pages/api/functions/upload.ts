@@ -186,7 +186,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     const errorMessage = (error as any).message || 'Upload failed'
-    return res.status(500).json(createResponse(false, null, 'Upload failed: ' + errorMessage, 500))
+    console.error('Upload error details:', errorMessage)
+    return res.status(500).json(createResponse(false, null, 'Upload failed. Please try again.', 500))
   }
 }
 
@@ -199,7 +200,7 @@ export default async function adapter(req: NextApiRequest, res: NextApiResponse)
     await runMiddleware(upload.single('function'))(req, res)
   } catch (err: any) {
     console.error('Multer parse error:', err)
-    return res.status(400).json(createResponse(false, null, 'Failed to parse multipart form: ' + (err.message || err), 400))
+    return res.status(400).json(createResponse(false, null, 'Failed to parse multipart form data', 400))
   }
 
   // Now that req.body and req.file are populated, call the guarded handler
