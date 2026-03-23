@@ -20,10 +20,37 @@ interface AuthenticatedRequest extends NextApiRequest {
 
 type NextApiHandler = (req: AuthenticatedRequest, res: NextApiResponse) => void | Promise<void>
 
+// CSRF protection: validate Origin header on state-changing requests
+function validateOrigin(req: NextApiRequest): boolean {
+  const method = (req.method || '').toUpperCase()
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return true
+
+  const origin = req.headers.origin as string | undefined
+  const referer = req.headers.referer as string | undefined
+  const source = origin || referer
+
+  // Non-browser clients (CLI, API keys) typically don't send Origin/Referer — allow through
+  if (!source) return true
+
+  try {
+    const sourceHost = new URL(source).host
+    const host = req.headers.host
+    if (!host) return true
+    return sourceHost === host
+  } catch {
+    return false
+  }
+}
+
 // Authentication middleware
 export function withAuth(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
+      // CSRF origin validation for state-changing requests
+      if (!validateOrigin(req)) {
+        return res.status(403).json(createResponse(false, null, 'Cross-origin request blocked', 403))
+      }
+
       // Try access_token cookie first, then Authorization header
       const cookies = parseCookies(req)
       let token = cookies.access_token || null
@@ -44,7 +71,7 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
         
         // Get fresh user data from database
         const { User } = database.models
-        const user = await User.findByPk(decoded.userId, {
+        const user = await User.findByPk(decoded.sub, {
           attributes: ['id', 'username', 'email', 'is_admin'],
         })
 
@@ -121,7 +148,7 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
         const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
         
         const { User } = database.models
-        const jwtUser = await User.findByPk(decoded.userId, {
+        const jwtUser = await User.findByPk(decoded.sub, {
           attributes: ['id', 'username', 'email', 'is_admin'],
         })
 
@@ -195,16 +222,12 @@ export function withApiKeyAuth(handler: NextApiHandler) {
       
       const { ApiKey, User: UserModel } = database.models
       const apiKeyRecord = await ApiKey.findOne({
-        where: { key_hash: keyHash },
+        where: { key_hash: keyHash, is_active: true },
         include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
       })
 
       if (!apiKeyRecord) {
         return res.status(401).json(createResponse(false, null, 'Invalid API key', 401))
-      }
-
-      if (!apiKeyRecord.is_active) {
-        return res.status(401).json(createResponse(false, null, 'API key has been revoked', 401))
       }
 
       // Update last_used and usage_count
@@ -235,6 +258,11 @@ export function withApiKeyAuth(handler: NextApiHandler) {
 export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
+      // CSRF origin validation for state-changing requests
+      if (!validateOrigin(req)) {
+        return res.status(403).json(createResponse(false, null, 'Cross-origin request blocked', 403))
+      }
+
       const cookies = parseCookies(req)
       const authHeader = req.headers.authorization
       const apiKeyHeader = req.headers['x-api-key'] as string
@@ -252,7 +280,7 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
           const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
           
           const { User } = database.models
-          const jwtUser = await User.findByPk(decoded.userId, {
+          const jwtUser = await User.findByPk(decoded.sub, {
             attributes: ['id', 'username', 'email', 'is_admin'],
           })
 

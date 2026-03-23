@@ -62,6 +62,13 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
     return res.status(400).json({ error: 'Project name is required' });
   }
 
+  if (typeof name !== 'string' || name.length > 100) {
+    return res.status(400).json({ error: 'Project name must be 100 characters or less' });
+  }
+  if (description !== undefined && typeof description === 'string' && description.length > 1000) {
+    return res.status(400).json({ error: 'Project description must be 1000 characters or less' });
+  }
+
   try {
     const { Project, ProjectMembership, ProjectNetworkPolicy, GlobalSetting } = database.models;
 
@@ -114,6 +121,13 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
 
   if (!id || !name) {
     return res.status(400).json({ error: 'Project ID and name are required' });
+  }
+
+  if (typeof name !== 'string' || name.length > 100) {
+    return res.status(400).json({ error: 'Project name must be 100 characters or less' });
+  }
+  if (description !== undefined && typeof description === 'string' && description.length > 1000) {
+    return res.status(400).json({ error: 'Project description must be 1000 characters or less' });
   }
 
   try {

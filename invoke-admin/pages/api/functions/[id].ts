@@ -1,18 +1,8 @@
 import database from '@/lib/database'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
-import { createResponse } from '@/lib/utils'
+import { createResponse, generateApiKey } from '@/lib/utils'
 import { deleteFunction } from '@/lib/delete-utils'
-
-// Generate a random API key
-const generateApiKey = () => {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let result = ''
-  for (let i = 0; i < 64; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
-}
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const { id } = req.query as { id: string }

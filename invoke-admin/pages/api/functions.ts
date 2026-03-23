@@ -86,6 +86,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(400).json(createResponse(false, null, 'Name and project_id are required', 400))
     }
 
+    if (typeof name !== 'string' || name.length > 100) {
+      return res.status(400).json(createResponse(false, null, 'Function name must be 100 characters or less', 400))
+    }
+    if (description !== undefined && typeof description === 'string' && description.length > 255) {
+      return res.status(400).json(createResponse(false, null, 'Function description must be 255 characters or less', 400))
+    }
+
     // Check project access for non-admins
     if (!req.user?.isAdmin) {
       const userProjects = await getUserProjects(req.user!.id)

@@ -110,7 +110,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await recordSuccessfulLogin(username, clientIp)
 
     // Generate short-lived access token + refresh token
-    const tokenUser = { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin }
+    const tokenUser = { id: user.id }
     const accessToken = generateAccessToken(tokenUser)
     const refreshTokenRaw = generateRefreshToken()
     const refreshTokenHash = hashRefreshToken(refreshTokenRaw)

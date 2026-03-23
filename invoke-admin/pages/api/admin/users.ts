@@ -56,6 +56,13 @@ async function createUser(req: NextApiRequest, res: NextApiResponse) {
     return res.status(400).json({ error: 'Username, email, and password are required' });
   }
 
+  if (typeof username !== 'string' || username.length > 50) {
+    return res.status(400).json({ error: 'Username must be 50 characters or less' });
+  }
+  if (typeof email !== 'string' || email.length > 255) {
+    return res.status(400).json({ error: 'Email must be 255 characters or less' });
+  }
+
   // Validate password strength
   const passwordValidation = validatePasswordStrength(password);
   if (!passwordValidation.success) {
@@ -102,7 +109,7 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Get current user ID from the request
-  const currentUserId = (req as any).user?.userId;
+  const currentUserId = (req as any).user?.id;
 
   // Prevent users from changing their own password through this endpoint
   if (password && currentUserId && id === currentUserId) {
@@ -116,6 +123,13 @@ async function updateUser(req: NextApiRequest, res: NextApiResponse) {
     return res.status(403).json({ 
       error: 'You cannot remove your own admin rights. Please use another admin account to modify your role.' 
     });
+  }
+
+  if (username !== undefined && (typeof username !== 'string' || username.length > 50)) {
+    return res.status(400).json({ error: 'Username must be 50 characters or less' });
+  }
+  if (email !== undefined && (typeof email !== 'string' || email.length > 255)) {
+    return res.status(400).json({ error: 'Email must be 255 characters or less' });
   }
 
   try {
@@ -162,7 +176,7 @@ async function deleteUser(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Get current user ID from the request
-  const currentUserId = (req as any).user?.userId;
+  const currentUserId = (req as any).user?.id;
 
   // Prevent users from deleting themselves
   if (currentUserId && id === currentUserId) {

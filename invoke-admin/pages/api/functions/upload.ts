@@ -4,6 +4,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { AuthenticatedRequest, withAuthOrApiKeyAndMethods } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
+import os from 'os'
 import fs from 'fs-extra'
 import path from 'path'
 import * as tar from 'tar'
@@ -17,7 +18,7 @@ import runMiddleware from '@/lib/multer'
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: '/tmp/uploads/',
+  dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },

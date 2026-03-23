@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
+import os from 'os'
 import fs from 'fs-extra'
 import crypto from 'crypto'
 import path from 'path'
@@ -13,7 +14,7 @@ const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: '/tmp/uploads/',
+  dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
     fileSize: 100 * 1024 * 1024, // 100MB limit
   },

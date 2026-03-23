@@ -1,6 +1,7 @@
 import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import multer from 'multer'
+import os from 'os'
 import path from 'path'
 import fs from 'fs-extra'
 import * as tar from 'tar'
@@ -12,7 +13,7 @@ const { s3Service } = require('invoke-shared')
 
 // Configure multer for file uploads
 const upload = multer({
-  dest: 'uploads/',
+  dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit
   },

@@ -50,7 +50,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await user.update({ last_login: new Date() })
 
     // Issue new token pair
-    const tokenUser = { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin }
+    const tokenUser = { id: user.id }
     const newAccessToken = generateAccessToken(tokenUser)
     const newRefreshTokenRaw = generateRefreshToken()
     const newRefreshTokenHash = hashRefreshToken(newRefreshTokenRaw)

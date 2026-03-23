@@ -14,19 +14,11 @@ const ACCESS_TOKEN_MAX_AGE = 15 * 60 // 15 minutes
 
 interface TokenUser {
   id: number
-  username: string
-  email: string
-  isAdmin: boolean
 }
 
 export function generateAccessToken(user: TokenUser): string {
   return jwt.sign(
-    {
-      userId: user.id,
-      username: user.username,
-      email: user.email,
-      isAdmin: user.isAdmin,
-    },
+    { sub: String(user.id) },
     JWT_SECRET!,
     { expiresIn: ACCESS_TOKEN_EXPIRY }
   )
@@ -57,7 +49,7 @@ export function setAuthCookies(req: NextApiRequest, res: NextApiResponse, access
     serialize('access_token', accessToken, {
       httpOnly: true,
       secure,
-      sameSite: 'lax',
+      sameSite: 'strict',
       path: '/',
       maxAge: ACCESS_TOKEN_MAX_AGE,
     }),
@@ -80,7 +72,7 @@ export function clearAuthCookies(req: NextApiRequest, res: NextApiResponse): voi
     serialize('access_token', '', {
       httpOnly: true,
       secure,
-      sameSite: 'lax',
+      sameSite: 'strict',
       path: '/',
       maxAge: 0,
     }),
