@@ -711,7 +711,7 @@ export default function FunctionDetails() {
           )}
 
           {/* ── Header ─────────────────────────────────────────────────────── */}
-          <div className="space-y-3">
+          <div className="space-y-3 mb-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <PageHeader
                 title={functionData.name}

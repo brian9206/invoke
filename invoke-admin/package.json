@@ -4,6 +4,10 @@
   "description": "Invoke Admin Panel - Next.js frontend and API routes for managing serverless functions",
   "main": "server.js",
   "scripts": {
+    "copy:monaco-assets": "node scripts/copy-monaco-assets.js",
+    "predev": "npm run copy:monaco-assets",
+    "prebuild": "npm run copy:monaco-assets",
+    "prestart": "npm run copy:monaco-assets",
     "dev": "node ../shared/scripts/migrate.js && next dev",
     "build": "next build",
     "start": "node ../shared/scripts/migrate.js && next start",
