@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';\nimport database from '../services/database';
+import express, { Request, Response } from 'express';
+import database from '../services/database';
 
 const router = express.Router();
 

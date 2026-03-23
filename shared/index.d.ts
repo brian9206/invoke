@@ -46,6 +46,7 @@ declare module 'invoke-shared' {
     ApiGatewayAuthMethod: AnyModelStatic;
     ApiGatewayRouteAuthMethod: AnyModelStatic;
     LoginAttempt: AnyModelStatic;
+    RefreshToken: AnyModelStatic;
   }
 
   // ─── Sequelize-like instance ──────────────────────────────────────────────────

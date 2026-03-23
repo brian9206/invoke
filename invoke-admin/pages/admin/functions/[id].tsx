@@ -1069,7 +1069,7 @@ export default function FunctionDetails() {
                     <div className="py-2">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">Enable Scheduling</p>
+                          <p className="text-sm font-medium text-foreground">Run on Schedule</p>
                           <p className="text-sm text-muted-foreground mt-0.5">Run this function automatically based on a cron schedule</p>
                         </div>
                         <Switch
@@ -1112,6 +1112,8 @@ export default function FunctionDetails() {
                       )}
                     </div>
                   )}
+
+                  <Separator />
 
                   <div className="pt-4">
                     <Button onClick={saveScheduleSettings} disabled={scheduleSaving}>
@@ -1253,7 +1255,7 @@ export default function FunctionDetails() {
                   <div className="pt-2 py-8">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">Restrict Execution</p>
+                        <p className="text-sm font-medium text-foreground">Protected Function</p>
                         <p className="text-sm text-muted-foreground mt-0.5">Require an API key to execute this function. <br/><br/>For API gateway upstream, the API authentication will be bypassed. <br/>Recommended to configure the authentication in the API gateway settings instead.<br/><br/>Turn this on if you want to ensure the function is executed from the API gateway.</p>
                       </div>
                       <Switch
@@ -1298,7 +1300,8 @@ export default function FunctionDetails() {
                         <p className="text-sm text-muted-foreground mt-0.5">
                           Override the global default timeout for this function. Not needed for most functions —
                           only enable this for functions that are known to require longer execution times.
-                          <br />Global default: <span className="font-medium text-foreground">{globalExecSettings.defaultTimeout}s</span> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxTimeout}s</span>
+                          <br />{customTimeoutEnabled ? 'Global default' : 'Current setting'}: <span className="font-medium text-foreground">{globalExecSettings.defaultTimeout}s</span> 
+                          {customTimeoutEnabled ? <> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxTimeout}s</span></> : null}
                         </p>
                       </div>
                       <Switch
@@ -1337,7 +1340,8 @@ export default function FunctionDetails() {
                           Override the global default memory limit for this function. Not needed for most functions —
                           only enable this if the function consistently runs out of memory under the default limit.
                           Values must be multiples of 256 MB (e.g. 256, 512, 768, 1024). You can use a suffix: <code className="text-xs">512M</code> or <code className="text-xs">1G</code>.
-                          <br />Global default: <span className="font-medium text-foreground">{globalExecSettings.defaultMemory} MB</span> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxMemory} MB</span>
+                          <br />{customMemoryEnabled ? 'Global default' : 'Current setting'}: <span className="font-medium text-foreground">{globalExecSettings.defaultMemory} MB</span>
+                          {customMemoryEnabled ? <> &nbsp;·&nbsp; Maximum: <span className="font-medium text-foreground">{globalExecSettings.maxMemory} MB</span></> : null}
                         </p>
                       </div>
                       <Switch

@@ -3,7 +3,7 @@ import Layout from '@/components/Layout';
 import PageHeader from '@/components/PageHeader';
 import Modal from '@/components/Modal';
 import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
-import { Edit, Trash2, Users, UserCircle, Loader } from 'lucide-react';
+import { Edit, Trash2, Users, UserCircle, Loader, Clock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { authenticatedFetch } from '@/lib/frontend-utils';
@@ -28,6 +28,19 @@ interface User {
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();
+
+  function formatLastSeen(lastLogin: string | null): { label: string; isRecent: boolean } {
+    if (!lastLogin) return { label: 'Never', isRecent: false };
+    const diff = Date.now() - new Date(lastLogin).getTime();
+    if (diff < 15 * 60 * 1000) return { label: 'Recent', isRecent: true };
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return { label: `${mins}m ago`, isRecent: false };
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return { label: `${hours}h ago`, isRecent: false };
+    const days = Math.floor(hours / 24);
+    if (days < 30) return { label: `${days}d ago`, isRecent: false };
+    return { label: new Date(lastLogin).toLocaleDateString(), isRecent: false };
+  }
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -205,6 +218,19 @@ export default function UsersPage() {
                           {user.is_admin && <Badge variant="purple" className="text-xs px-1.5 py-0">Admin</Badge>}
                         </div>
                         <p className="text-muted-foreground text-xs mt-0.5 truncate">{user.email}</p>
+                        {(() => {
+                          const { label, isRecent } = formatLastSeen(user.last_login);
+                          return (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Clock className="w-3 h-3 text-muted-foreground shrink-0" />
+                              {isRecent ? (
+                                <Badge variant="default" className="text-xs px-1.5 py-0 bg-green-900/30 text-green-400 border-green-800/50">Recent</Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">{label}</span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div
                         className="flex items-center gap-0.5 shrink-0"

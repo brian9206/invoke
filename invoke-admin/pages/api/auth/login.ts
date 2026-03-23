@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { Op } from 'sequelize'
-import jwt from 'jsonwebtoken'
-import { hashPassword, verifyPassword, createResponse } from '@/lib/utils'
+import { verifyPassword, createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 import {
   recordFailedLogin,
@@ -12,6 +11,13 @@ import {
   getClientIp,
 } from '@/lib/rate-limiter'
 import { getUserProjects } from '@/lib/middleware'
+import {
+  generateAccessToken,
+  generateRefreshToken,
+  hashRefreshToken,
+  getRefreshTokenExpiresAt,
+  setAuthCookies,
+} from '@/lib/token-utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -103,21 +109,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Clear failed login attempts on successful login
     await recordSuccessfulLogin(username, clientIp)
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        username: user.username,
-        email: user.email,
-        isAdmin: user.is_admin,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    )
+    // Generate short-lived access token + refresh token
+    const tokenUser = { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin }
+    const accessToken = generateAccessToken(tokenUser)
+    const refreshTokenRaw = generateRefreshToken()
+    const refreshTokenHash = hashRefreshToken(refreshTokenRaw)
+
+    // Store refresh token hash in database
+    const { RefreshToken } = database.models
+    await RefreshToken.create({
+      user_id: user.id,
+      token_hash: refreshTokenHash,
+      expires_at: getRefreshTokenExpiresAt(),
+      created_at: new Date(),
+    })
+
+    // Set HttpOnly cookies
+    setAuthCookies(req, res, accessToken, refreshTokenRaw)
 
     res.status(200).json(createResponse(true, {
       user: { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin },
-      token
     }, 'Login successful'))
 
   } catch (error) {

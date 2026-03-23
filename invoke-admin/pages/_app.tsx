@@ -8,7 +8,7 @@ import { ProjectProvider } from '@/contexts/ProjectContext'
 import { FeatureFlagsProvider, FeatureFlags } from '@/contexts/FeatureFlagsContext'
 import PageTransition from '@/components/PageTransition'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', preload: false })
 
 type AppPropsWithFlags = AppProps & { featureFlags: FeatureFlags }
 

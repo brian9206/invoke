@@ -4,33 +4,63 @@
 
 let cachedFunctionBaseUrl: string | null = null;
 let fetchPromise: Promise<string> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
 /**
- * Make an authenticated API request
- * @param url - The API endpoint URL
- * @param options - Fetch options
- * @returns Promise<Response>
+ * Attempt to refresh the access token using the refresh token cookie.
+ * Returns true if refresh succeeded, false otherwise.
+ * Deduplicates concurrent refresh calls.
+ */
+async function tryRefreshToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+/**
+ * Make an authenticated API request.
+ * Cookies are sent automatically. On 401, attempts a token refresh and retries once.
  */
 export async function authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
-  
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   // Don't set Content-Type for FormData - let browser set it with boundary
   const isFormData = options.body instanceof FormData;
   
   const headers = {
-    'Authorization': `Bearer ${token}`,
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   };
 
-  return fetch(url, {
+  const doFetch = () => fetch(url, {
     ...options,
     headers,
+    credentials: 'include',
   });
+
+  const response = await doFetch();
+
+  // On 401, try refreshing the access token and retry once
+  if (response.status === 401) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return doFetch();
+    }
+  }
+
+  return response;
 }
 
 /**

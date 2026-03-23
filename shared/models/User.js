@@ -53,6 +53,7 @@ module.exports = (sequelize) => {
     User.hasMany(models.Project, { foreignKey: 'created_by', as: 'ownedProjects' });
     User.hasMany(models.ApiKey, { foreignKey: 'created_by', as: 'apiKeys' });
     User.hasMany(models.FunctionVersion, { foreignKey: 'created_by', as: 'deployedVersions' });
+    User.hasMany(models.RefreshToken, { foreignKey: 'user_id' });
   };
 
   return User;

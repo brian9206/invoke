@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import jwt from 'jsonwebtoken'
 import { createResponse, hashApiKey } from '@/lib/utils'
+import { parseCookies } from '@/lib/token-utils'
 import database from '@/lib/database'
 
 const JWT_SECRET = process.env.JWT_SECRET
@@ -23,12 +24,20 @@ type NextApiHandler = (req: AuthenticatedRequest, res: NextApiResponse) => void 
 export function withAuth(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
-      const authHeader = req.headers.authorization
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json(createResponse(false, null, 'No token provided', 401))
+      // Try access_token cookie first, then Authorization header
+      const cookies = parseCookies(req)
+      let token = cookies.access_token || null
+
+      if (!token) {
+        const authHeader = req.headers.authorization
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7)
+        }
       }
 
-      const token = authHeader.substring(7)
+      if (!token) {
+        return res.status(401).json(createResponse(false, null, 'No token provided', 401))
+      }
       
       try {
         const decoded = jwt.verify(token, JWT_SECRET) as any
@@ -97,17 +106,20 @@ export function withAuthOrApiKeyAndMethods(allowedMethods: string[], authOptions
 // Auth-only middleware for routes with special requirements (like multer)
 export async function authenticate(req: AuthenticatedRequest): Promise<{ success: boolean, user?: any, error?: string }> {
   try {
+    const cookies = parseCookies(req)
     const authHeader = req.headers.authorization
     const apiKeyHeader = req.headers['x-api-key'] as string
 
-    // Try JWT authentication first
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7)
-      
+    // Try access_token cookie first, then JWT from header
+    let jwtToken = cookies.access_token || null
+    if (!jwtToken && authHeader && authHeader.startsWith('Bearer ')) {
+      jwtToken = authHeader.substring(7)
+    }
+
+    if (jwtToken) {
       try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any
+        const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
         
-        // Get fresh user data from database
         const { User } = database.models
         const jwtUser = await User.findByPk(decoded.userId, {
           attributes: ['id', 'username', 'email', 'is_admin'],
@@ -223,17 +235,21 @@ export function withApiKeyAuth(handler: NextApiHandler) {
 export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequired?: boolean }) {
   return async (req: AuthenticatedRequest, res: NextApiResponse) => {
     try {
+      const cookies = parseCookies(req)
       const authHeader = req.headers.authorization
       const apiKeyHeader = req.headers['x-api-key'] as string
 
       let authenticatedUser = null
 
-      // Try JWT authentication first
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7)
-        
+      // Try access_token cookie first, then JWT from header
+      let jwtToken = cookies.access_token || null
+      if (!jwtToken && authHeader && authHeader.startsWith('Bearer ')) {
+        jwtToken = authHeader.substring(7)
+      }
+
+      if (jwtToken) {
         try {
-          const decoded = jwt.verify(token, JWT_SECRET) as any
+          const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
           
           const { User } = database.models
           const jwtUser = await User.findByPk(decoded.userId, {

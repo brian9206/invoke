@@ -113,10 +113,25 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     }
 
+    // Clean up expired refresh tokens
+    let expiredTokensDeleted = 0
+    try {
+      const { RefreshToken } = database.models
+      expiredTokensDeleted = await RefreshToken.destroy({
+        where: { expires_at: { [Op.lt]: new Date() } },
+      })
+      if (expiredTokensDeleted > 0) {
+        console.log(`Cleaned ${expiredTokensDeleted} expired refresh tokens`)
+      }
+    } catch (tokenError) {
+      console.error('Error cleaning expired refresh tokens:', tokenError)
+    }
+
     res.json(createResponse(true, { 
       deleted: totalDeleted, 
-      functions: functions.length 
-    }, `Cleanup completed: ${totalDeleted} logs deleted from ${functions.length} functions`))
+      functions: functions.length,
+      expiredTokensDeleted,
+    }, `Cleanup completed: ${totalDeleted} logs deleted from ${functions.length} functions, ${expiredTokensDeleted} expired tokens removed`))
 
   } catch (error) {
     console.error('Cleanup error:', error)

@@ -1,31 +1,12 @@
-import { NextApiRequest, NextApiResponse } from 'next'
+import { NextApiResponse } from 'next'
 import { Op } from 'sequelize'
-import jwt from 'jsonwebtoken'
 import database from '@/lib/database'
 import { createResponse } from '@/lib/utils'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'PUT') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
-  }
-
+async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    // Verify JWT token
-    const authHeader = req.headers.authorization
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json(createResponse(false, null, 'Unauthorized', 401))
-    }
-
-    const token = authHeader.substring(7)
-    let decoded: any
-
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET!)
-    } catch (error) {
-      return res.status(401).json(createResponse(false, null, 'Invalid or expired token', 401))
-    }
-
-    const userId = decoded.userId
+    const userId = req.user!.id
     const { email } = req.body
 
     // Validate input
@@ -85,3 +66,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json(createResponse(false, null, 'An internal error occurred', 500))
   }
 }
+
+export default withAuthAndMethods(['PUT'])(handler)

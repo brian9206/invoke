@@ -18,7 +18,7 @@ interface AuthContextType {
   user: User | null
   setUser: (user: User | null) => void
   login: (username: string, password: string, turnstileToken?: string) => Promise<LoginResult>
-  logout: () => void
+  logout: () => Promise<void>
   loading: boolean
 }
 
@@ -35,27 +35,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
-      if (!token) {
-        setLoading(false)
-        return
-      }
-
       const response = await authenticatedFetch('/api/auth/me')
 
       if (response.ok) {
         const userData = await response.json()
         setUser(userData.data)
-      } else {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth-token')
-        }
       }
     } catch (error) {
       console.error('Auth check failed:', error)
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('auth-token')
-      }
     } finally {
       setLoading(false)
     }
@@ -68,15 +55,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ username, password, turnstileToken }),
       })
 
       const result = await response.json()
 
       if (response.ok && result.success) {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('auth-token', result.data.token)
-        }
         setUser(result.data.user)
         return { success: true, message: 'Login successful' }
       }
@@ -88,9 +73,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const logout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth-token')
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch (error) {
+      console.error('Logout request failed:', error)
     }
     setUser(null)
     router.push('/login')
