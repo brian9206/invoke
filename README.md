@@ -1,8 +1,61 @@
-﻿# Invoke - Serverless Function Management Platform
+﻿
+<h1 style="text-align: center;">
+    <img src="docs/static/img/logo.svg" style="height: 1em" />
+    Invoke
+</h1>
 
-[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://brianchoi.me/invoke/)
+<div style="text-align: center;">
+    <a href="https://brianchoi.me/invoke/" aria-label="Docs">
+        <img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github" alt="Docs" />
+    </a>
+    <a href="LICENSE" aria-label="License">
+        <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License" />
+    </a>
+    <a href="docker-compose.yml" aria-label="Docker Compose">
+        <img src="https://img.shields.io/badge/docker--compose-ready-2496ED?style=for-the-badge&logo=docker" alt="Docker Compose" />
+    </a>
+    <a href="https://nodejs.org/" aria-label="Node.js">
+        <img src="https://img.shields.io/badge/Node.js-24%2B-339933?style=for-the-badge&logo=node.js" alt="Node.js" />
+    </a>
+    <a href="https://www.typescriptlang.org/" aria-label="TypeScript">
+        <img src="https://img.shields.io/badge/TypeScript-5%2B-3178C6?style=for-the-badge&logo=typescript" alt="TypeScript" />
+    </a>
+</div>
 
-Invoke is a modern microservices-based serverless function management platform that allows you to deploy, manage, and execute serverless functions with advanced versioning, authentication, logging, and monitoring capabilities.
+---
+
+> **Open-source, self-hosted serverless platform.** Deploy, manage, and run serverless functions using familiar Express.js route handlers and Socket.IO
+
+Invoke is a modern, production-ready serverless function management platform designed for teams and organizations that demand complete control over their infrastructure. Deploy custom functions, manage versions, authenticate users, and monitor execution—all within your own infrastructure.
+
+<div style="text-align: center; margin: 50px 0">
+    <img src="docs/static/img/screenshot.png" style="max-width: 80%"/>
+</div>
+
+---
+
+## ✨ Features
+
+### Core Capabilities
+- **🔧 Serverless Functions** — Deploy, version, and manage functions via the admin panel and CLI.
+- **🚦 API Gateway** — Expose functions as HTTP endpoints with custom domains, route patterns, and per-route auth.
+- **⚡ Socket.IO Support** — Build real-time applications without managing servers.
+- **🗄️ Built-in Storage** — Ready-to-use key‑value store with a simple, documented API.
+- **🔐 Advanced Authentication** — JWT, API keys, and OAuth‑compatible auth with role controls.
+- **📊 Logging & Monitoring** — Execution logs, performance metrics, and health monitoring.
+- **🔄 Versioning & Rollbacks** — Deploy multiple versions, promote releases, and perform instant rollbacks.
+- **⏰ Scheduled Execution** — Cron‑style scheduler for automated and recurring runs.
+- **🎯 Secure Sandboxing** — Isolated execution environments for safe code execution.
+- **🛡️ Multi‑tenancy** — Project‑level isolation and fine‑grained access control.
+
+### Open Source & Community Driven
+- **🎁 MIT Licensed** — Free to use, modify, and distribute.
+- **👥 Community Supported** — Active development and community contributions.
+- **🏠 Self-Hosted** — Full control, no vendor lock-in, no recurring SaaS fees.
+- **📚 Well Documented** — Comprehensive guides and API documentation.
+- **🐳 Docker-Ready** — Single-command deployment with docker-compose.
+
+---
 
 ## Quick Start with Docker
 
@@ -183,20 +236,21 @@ The platform consists of several microservices with containerized deployment:
 - **Purpose**: Admin panel with React frontend + API routes
 - **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, API gateway configuration, MinIO integration
 - **Technology**: Next.js 16.x, React 19.x, TypeScript, TailwindCSS, PostgreSQL, MinIO client
+- **Status**: High availability ready
 
 ### ⚡ invoke-execution (Express.js)
 - **Port**: 3001 (configurable via `EXECUTION_PORT`)
 - **Purpose**: Function execution service with caching and package management
 - **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
 - **Technology**: Express.js v5, isolated-vm sandboxing, PostgreSQL, MinIO client
-- **Scalable**: Yes (horizontal scaling supported)
+- **Scalability**: ✅ Horizontal scaling supported
 
 ### 🌐 invoke-gateway (Express.js)
 - **Port**: 3002 (configurable via `GATEWAY_PORT`)
 - **Purpose**: API gateway that exposes deployed functions as public HTTP endpoints
 - **Features**: Route-based proxying to execution service, per-route authentication (Basic Auth, Bearer JWT, API Key), CORS policies, allowed methods enforcement, real-IP forwarding, in-memory route cache with instant PostgreSQL NOTIFY invalidation, custom domain and project-slug URL patterns
 - **Technology**: Express.js, PostgreSQL (pg-notify), Node.js HTTP/HTTPS proxy
-- **Scalable**: Yes (stateless; route cache refreshes independently per instance)
+- **Scalability**: ✅ Stateless; route cache refreshes independently per instance
 
 ### ⏰ invoke-scheduler
 - **Port**: 8080 (internal)
@@ -216,12 +270,42 @@ The platform consists of several microservices with containerized deployment:
 - **Features**: Function metadata, versioning system, user management, execution history, API gateway route and auth method configuration
 - **Technology**: PostgreSQL 15
 
+---
+
+## 🌟 Why Invoke?
+
+| Feature | Invoke | Traditional SaaS |
+|---------|--------|------------------|
+| **Cost Control** | One-time setup, no per-invocation fees | Monthly + usage charges |
+| **Data Privacy** | Full ownership, on-premises option | Vendor control |
+| **Customization** | Full source code access | Limited customization |
+| **Vendor Lock-in** | None, standard APIs | Proprietary ecosystem |
+| **Support** | Community + self-support | Corporate support only |
+
+---
+
+## 🤝 Community & Support
+
+We believe in **open-source software built by the community, for the community**.
+
+- **🐛 Found a bug?** — [Open an issue](https://github.com/brian9206/invoke/issues)
+- **💡 Have an idea?** — [Start a discussion](https://github.com/brian9206/invoke/discussions)
+- **🔧 Want to contribute?** — [Send a pull request](#contributing)
+- **📖 Need help?** — Check our [documentation](https://brianchoi.me/invoke/)
+- **💬 Questions?** — Join our community discussions
+
+### For Developers
+
+Invoke is built by developers, for developers. Whether you're:
+- Running a startup and need cost-effective function execution
+- Building enterprise applications with data sovereignty requirements
+- Learning serverless architecture and microservices
+- Contributing to open-source software
+
+**You're in the right place.** Star ⭐ this repository to show your support!
+
+---
+
 ## License
 
 MIT License - see LICENSE file for details.
-
-## Support
-
-- **Issues**: GitHub Issues for bugs and feature requests
-- **Documentation**: Visit [http://brianchoi.me/invoke](http://brianchoi.me/invoke)
-- **Admin Guide**: Access admin panel for visual management
