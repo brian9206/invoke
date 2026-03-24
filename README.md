@@ -1,5 +1,5 @@
 ﻿
-# <img src="docs/static/img/logo.svg" style="height: .8em" /> Invoke
+# <img src="docs/static/img/logo.svg" height="24"/> Invoke
 
 [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://brianchoi.me/invoke/)
 [![MIT License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge) ](LICENSE)
