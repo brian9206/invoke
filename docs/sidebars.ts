@@ -54,6 +54,7 @@ const sidebars: SidebarsConfig = {
         'api/response',
         'api/router',
         'api/kv-store',
+        'api/realtime',
       ],
     },
     {
@@ -75,6 +76,7 @@ const sidebars: SidebarsConfig = {
         'guides/cryptography',
         'guides/environment-vars',
         'guides/websockets',
+        'guides/realtime',
         'guides/compression',
         'guides/timers-async',
       ],
@@ -92,6 +94,7 @@ const sidebars: SidebarsConfig = {
         'examples/crypto-hashing',
         'examples/kv-store-usage',
         'examples/webhook-handler',
+        'examples/realtime-chat',
       ],
     },
     {

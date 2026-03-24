@@ -134,3 +134,4 @@ minio-data/
 /invoke-execution/bundles/vm-modules/assert.js
 /invoke-execution/bundles/vm-modules/string_decoder.js
 /invoke-execution/bundles/vm-modules/_router.js
+/invoke-execution/bundles/vm-modules/_realtime.js

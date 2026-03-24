@@ -45,6 +45,9 @@ declare module 'invoke-shared' {
     ApiGatewayRouteSettings: AnyModelStatic;
     ApiGatewayAuthMethod: AnyModelStatic;
     ApiGatewayRouteAuthMethod: AnyModelStatic;
+    RealtimeNamespace: AnyModelStatic;
+    RealtimeEventHandler: AnyModelStatic;
+    RealtimeNamespaceAuthMethod: AnyModelStatic;
     LoginAttempt: AnyModelStatic;
     RefreshToken: AnyModelStatic;
   }

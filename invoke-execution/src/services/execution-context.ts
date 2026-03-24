@@ -1,5 +1,6 @@
 import ivm from 'isolated-vm';
 import mime from 'mime-types';
+import axios from 'axios';
 import BuiltinBridge from './builtin-bridge';
 import NetworkPolicy from './network-policy';
 
@@ -47,6 +48,7 @@ class ExecutionContext {
   private envVars: Record<string, string>;
   private compiledScript: ivm.Script;
   private projectId: string;
+  private projectSlug: string;
   private kvStore: any;
   private networkPolicy: NetworkPolicy;
   public vfs: any;
@@ -62,6 +64,7 @@ class ExecutionContext {
     envVars: Record<string, string>,
     compiledScript: ivm.Script,
     projectId: string,
+    projectSlug: string,
     kvStore: any,
     networkPolicies: { globalRules?: any[]; projectRules?: any[] },
   ) {
@@ -73,6 +76,7 @@ class ExecutionContext {
     this.envVars = this._sanitizeEnvVars(envVars);
     this.compiledScript = compiledScript;
     this.projectId = projectId;
+    this.projectSlug = projectSlug;
     this.kvStore = kvStore;
 
     const globalRules = networkPolicies?.globalRules || [];
@@ -108,6 +112,7 @@ class ExecutionContext {
     await this._setupResponseRefs();
     await this._setupTextEncoderDecoder();
     await this._setupKVStore();
+    await this._setupRealtimeSocketBridge();
 
     await this.compiledScript.run(this.context);
   }
@@ -264,6 +269,36 @@ class ExecutionContext {
     await this.context.global.set('_kvDelete', kvDelete);
     await this.context.global.set('_kvClear', kvClear);
     await this.context.global.set('_kvHas', kvHas);
+  }
+
+  private async _setupRealtimeSocketBridge(): Promise<void> {
+    const self = this;
+    const gatewayInternalUrl = process.env.GATEWAY_SERVICE_URL || 'http://localhost:3000';
+    const internalSecret = process.env.INTERNAL_SERVICE_SECRET || '';
+
+    const realtimeSocketCommand = new ivm.Reference(async (cmdJson: string) => {
+      const cmd = JSON.parse(cmdJson);
+
+      // Resolve namespace: prepend project slug if not already prefixed
+      if (cmd.namespace) {
+        const prefix = `/${self.projectSlug}/`;
+        if (!cmd.namespace.startsWith(prefix) && cmd.namespace !== `/${self.projectSlug}`) {
+          const cleanNamespace = cmd.namespace.replace(/^\//, '');
+          cmd.namespace = `/${self.projectSlug}/${cleanNamespace}`;
+        }
+      }
+
+      try {
+        await axios.post(`${gatewayInternalUrl}/_realtime/command`, cmd, {
+          headers: { 'x-internal-secret': internalSecret },
+          timeout: 5000,
+        });
+      } catch (error: any) {
+        throw new Error(`Realtime socket command failed: ${error.message}`);
+      }
+    });
+
+    await this.context.global.set('_realtimeSocketCommand', realtimeSocketCommand);
   }
 
   private async _setupResponseRefs(): Promise<void> {

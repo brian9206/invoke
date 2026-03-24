@@ -60,6 +60,13 @@ const { buildModule, patchModule } = require('./utils');
         inputFileName: './modules/_router.js'
     });
 
+    // _realtime (Socket.IO-compatible VM module, exposed as globalThis.RealtimeNamespace)
+    await buildModule({
+        moduleName: '_realtime',
+        exportModuleName: '_realtime',
+        inputFileName: './modules/_realtime.js'
+    });
+
     console.log(chalk.green('VM module build complete'));
 
 })();

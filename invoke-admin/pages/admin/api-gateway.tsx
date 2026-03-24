@@ -20,6 +20,9 @@ import {
   KeyRound,
   Eye,
   EyeOff,
+  Zap,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
@@ -120,6 +123,24 @@ interface GatewayConfig {
 interface FunctionOption {
   id: string
   name: string
+}
+
+interface EventHandlerEntry {
+  id?: string
+  eventName: string
+  functionId: string | null
+}
+
+interface RealtimeNamespace {
+  id: string
+  namespacePath: string
+  isActive: boolean
+  authLogic: 'or' | 'and'
+  createdAt: string
+  updatedAt: string
+  eventHandlers: EventHandlerEntry[]
+  authMethodIds: string[]
+  authMethodNames: string[]
 }
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -732,6 +753,342 @@ function RouteEditorModal({
   )
 }
 
+// ─── Realtime Namespace Row ───────────────────────────────────────────────────
+
+function RealtimeNamespaceRow({
+  namespace,
+  onEdit,
+  onDelete,
+  gatewayDomain,
+  projectSlug,
+  customDomain,
+}: {
+  namespace: RealtimeNamespace
+  onEdit: (ns: RealtimeNamespace) => void
+  onDelete: (id: string) => void
+  gatewayDomain?: string
+  projectSlug?: string
+  customDomain?: string | null
+}) {
+  const [copied, setCopied] = useState(false)
+
+  const getNamespaceUrl = () => {
+    if (customDomain) return `${customDomain}${namespace.namespacePath}`
+    if (gatewayDomain && projectSlug) return `${gatewayDomain}/${projectSlug}${namespace.namespacePath}`
+    return namespace.namespacePath
+  }
+
+  const copyToClipboard = () => {
+    const url = getNamespaceUrl()
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    toast.success('Namespace URL copied to clipboard')
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={copyToClipboard}
+            className="flex items-center gap-2 text-sm text-primary font-mono hover:underline cursor-pointer"
+            title="Click to copy full URL"
+          >
+            {namespace.namespacePath}
+            {copied ? (
+              <Check className="w-4 h-4 text-green-400" />
+            ) : (
+              <Copy className="w-4 h-4 opacity-60 transition-opacity group-hover:opacity-100" />
+            )}
+          </button>
+          {!namespace.isActive && <Badge variant="secondary" className="text-xs">disabled</Badge>}
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-wrap gap-1">
+          {namespace.eventHandlers.length === 0 ? (
+            <span className="text-muted-foreground text-xs">—</span>
+          ) : (
+            namespace.eventHandlers.map((eh, i) => (
+              <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+                {eh.eventName}
+              </span>
+            ))
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        {!namespace.authMethodNames || namespace.authMethodNames.length === 0 ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1">
+            {namespace.authMethodNames.map((name) => (
+              <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
+                {name}
+              </span>
+            ))}
+            {namespace.authMethodNames.length > 1 && (
+              <span className="text-xs text-muted-foreground ml-1">
+                ({namespace.authLogic === 'and' ? 'All match' : 'Any match'})
+              </span>
+            )}
+          </div>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            onClick={() => onEdit(namespace)}
+          >
+            <Edit2 className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+            onClick={() => onDelete(namespace.id)}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  )
+}
+
+// ─── Namespace Editor Modal ───────────────────────────────────────────────────
+
+function NamespaceEditorModal({
+  isOpen,
+  namespace,
+  functions,
+  authMethods,
+  onSave,
+  onClose,
+  projectSlug,
+  customDomain,
+  gatewayDomain,
+}: {
+  isOpen: boolean
+  namespace: Partial<RealtimeNamespace> | null
+  functions: FunctionOption[]
+  authMethods: AuthMethod[]
+  onSave: (data: any) => Promise<void>
+  onClose: () => void
+  projectSlug?: string
+  customDomain?: string | null
+  gatewayDomain?: string
+}) {
+  const NO_FUNCTION_VALUE = '__none__'
+  const [namespacePath, setNamespacePath] = useState('')
+  const [isActive, setIsActive] = useState(true)
+  const [authLogic, setAuthLogic] = useState<'or' | 'and'>('or')
+  const [eventHandlers, setEventHandlers] = useState<EventHandlerEntry[]>([])
+  const [selectedAuthMethodIds, setSelectedAuthMethodIds] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const authDndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  useEffect(() => {
+    if (isOpen && namespace) {
+      setNamespacePath(namespace.namespacePath || '')
+      setIsActive(namespace.isActive !== undefined ? namespace.isActive : true)
+      setAuthLogic(namespace.authLogic || 'or')
+      setEventHandlers(namespace.eventHandlers ? [...namespace.eventHandlers] : [])
+      setSelectedAuthMethodIds(namespace.authMethodIds ? [...namespace.authMethodIds] : [])
+    }
+  }, [isOpen, namespace])
+
+  const addEventHandler = () => {
+    setEventHandlers((prev) => [...prev, { eventName: '', functionId: null }])
+  }
+
+  const removeEventHandler = (index: number) => {
+    setEventHandlers((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateEventHandler = (index: number, field: keyof EventHandlerEntry, value: string | null) => {
+    setEventHandlers((prev) => prev.map((eh, i) => i === index ? { ...eh, [field]: value } : eh))
+  }
+
+  const handleSave = async () => {
+    if (!namespacePath.trim()) { toast.error('Namespace path is required'); return }
+    if (!namespacePath.startsWith('/')) { toast.error('Namespace path must start with /'); return }
+    setSaving(true)
+    try {
+      await onSave({
+        namespacePath: namespacePath.trim(),
+        isActive,
+        authLogic,
+        eventHandlers: eventHandlers.filter((eh) => eh.eventName.trim()),
+        authMethodIds: selectedAuthMethodIds,
+      })
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const selectedAuthMethods = selectedAuthMethodIds
+    .map((id) => authMethods.find((m) => m.id === id))
+    .filter((m): m is AuthMethod => !!m)
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      title={namespace?.id ? 'Edit Namespace' : 'Add Namespace'}
+      onConfirm={handleSave}
+      onCancel={onClose}
+      confirmText="Save Namespace"
+      cancelText="Cancel"
+      loading={saving}
+      size="lg"
+    >
+      <div className="overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1">
+        {/* Namespace Path */}
+        <div className="space-y-1.5">
+          <Label>Namespace Path <span className="text-red-400">*</span></Label>
+          <Input
+            value={namespacePath}
+            onChange={(e) => setNamespacePath(e.target.value)}
+            placeholder="e.g. /chat"
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground">
+            {customDomain ? (
+              <>
+                Clients connect to <code className="bg-muted px-1 rounded">{customDomain}{namespacePath || '/chat'}</code> on the gateway domain.
+              </>
+            ) : gatewayDomain && projectSlug ? (
+              <>
+                Clients connect to <code className="bg-muted px-1 rounded">{gatewayDomain}/{projectSlug}{namespacePath || '/chat'}</code> on the gateway domain.
+              </>
+            ) : (
+              <>
+                Clients connect to <code className="bg-muted px-1 rounded">/{'<'}project-slug{'>'}{namespacePath || '/chat'}</code> on the gateway domain.
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Active Toggle */}
+        <div className="flex items-center gap-2">
+          <Switch id="nsIsActive" checked={isActive} onCheckedChange={setIsActive} />
+          <Label htmlFor="nsIsActive" className="cursor-pointer">Namespace is active</Label>
+        </div>
+
+        {/* Event Handlers */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Event Handlers</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addEventHandler}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> Add Handler
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Use <code className="bg-muted px-1 rounded">$connect</code>, <code className="bg-muted px-1 rounded">$disconnect</code>, or a custom event name.
+          </p>
+          <div className="space-y-2">
+            {eventHandlers.map((eh, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Input
+                  value={eh.eventName}
+                  onChange={(e) => updateEventHandler(i, 'eventName', e.target.value)}
+                  placeholder="Event name (e.g. message)"
+                  className="font-mono flex-1"
+                />
+                <Select
+                  value={eh.functionId || NO_FUNCTION_VALUE}
+                  onValueChange={(v) => updateEventHandler(i, 'functionId', v === NO_FUNCTION_VALUE ? null : v)}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="— Select function —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_FUNCTION_VALUE}>— Select function —</SelectItem>
+                    {functions.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-red-400 shrink-0"
+                  onClick={() => removeEventHandler(i)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+            {eventHandlers.length === 0 && (
+              <p className="text-xs text-muted-foreground italic">No event handlers configured.</p>
+            )}
+          </div>
+        </div>
+
+        {/* Auth Methods */}
+        <div className="space-y-2">
+          <Label>Authentication Methods</Label>
+          <Select onValueChange={(id) => { if (!selectedAuthMethodIds.includes(id)) setSelectedAuthMethodIds((prev) => [...prev, id]) }}>
+            <SelectTrigger>
+              <SelectValue placeholder="— Add auth method —" />
+            </SelectTrigger>
+            <SelectContent>
+              {authMethods
+                .filter((m) => !selectedAuthMethodIds.includes(m.id))
+                .map((m) => (
+                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          {selectedAuthMethods.length > 0 && (
+            <div className="space-y-1.5 mt-2">
+              <DndContext
+                sensors={authDndSensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={(event: DragEndEvent) => {
+                  const { active, over } = event
+                  if (over && active.id !== over.id) {
+                    const oldIdx = selectedAuthMethodIds.indexOf(String(active.id))
+                    const newIdx = selectedAuthMethodIds.indexOf(String(over.id))
+                    setSelectedAuthMethodIds(arrayMove(selectedAuthMethodIds, oldIdx, newIdx))
+                  }
+                }}
+              >
+                <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
+                  {selectedAuthMethods.map((m) => (
+                    <SortableAuthMethodItem
+                      key={m.id}
+                      method={m}
+                      showHandle={selectedAuthMethods.length > 1}
+                      onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((id) => id !== m.id))}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
+          {selectedAuthMethods.length > 1 && (
+            <div className="mt-2 space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Auth Logic</Label>
+              <Select value={authLogic} onValueChange={(v: 'or' | 'and') => setAuthLogic(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="or">Any match (OR)</SelectItem>
+                  <SelectItem value="and">All match (AND)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ─── Auth Method Modal ────────────────────────────────────────────────────────
 
 function AuthMethodModal({
@@ -1023,7 +1380,11 @@ export default function ApiGatewayPage() {
   const { activeProject } = useProject()
   const [projectIsActive, setProjectIsActive] = useState<boolean | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'routes' | 'authentication'>('routes')
+  const [activeTab, setActiveTab] = useState<'routes' | 'authentication' | 'realtime'>('routes')
+  const [realtimeNamespaces, setRealtimeNamespaces] = useState<RealtimeNamespace[]>([])
+  const [namespaceModalOpen, setNamespaceModalOpen] = useState(false)
+  const [editingNamespace, setEditingNamespace] = useState<Partial<RealtimeNamespace> | null>(null)
+  const [deleteNamespaceId, setDeleteNamespaceId] = useState<string | null>(null)
   const [config, setConfig] = useState<GatewayConfig>({ enabled: false, customDomain: null })
   const [routes, setRoutes] = useState<GatewayRoute[]>([])
   const [functions, setFunctions] = useState<FunctionOption[]>([])
@@ -1066,12 +1427,13 @@ export default function ApiGatewayPage() {
     if (!activeProject?.id || !UUID_RE.test(activeProject.id)) return
     setLoadingConfig(true)
     try {
-      const [cfgRes, routesRes, funcsRes, gsRes, authRes] = await Promise.all([
+      const [cfgRes, routesRes, funcsRes, gsRes, authRes, nsRes] = await Promise.all([
         authenticatedFetch(`/api/gateway/config?projectId=${activeProject.id}`),
         authenticatedFetch(`/api/gateway/routes?projectId=${activeProject.id}`),
         authenticatedFetch(`/api/functions?projectId=${activeProject.id}`),
         authenticatedFetch('/api/admin/global-settings'),
         authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`),
+        authenticatedFetch(`/api/gateway/realtime-namespaces?projectId=${activeProject.id}`),
       ])
       if (cfgRes.ok) {
         const d = await cfgRes.json()
@@ -1084,6 +1446,7 @@ export default function ApiGatewayPage() {
       if (funcsRes.ok) { const d = await funcsRes.json(); setFunctions((d.data || []).map((f: any) => ({ id: f.id, name: f.name }))) }
       if (gsRes.ok) { const d = await gsRes.json(); setGatewayDomain(d.data?.api_gateway_domain?.value || '') }
       if (authRes.ok) { const d = await authRes.json(); setAuthMethods(d.data || []) }
+      if (nsRes.ok) { const d = await nsRes.json(); setRealtimeNamespaces(d.data || []) }
     } catch {
       toast.error('Failed to load gateway settings')
     } finally {
@@ -1199,6 +1562,45 @@ export default function ApiGatewayPage() {
     setDeleteAuthMethodId(null)
   }
 
+  const handleSaveNamespace = async (data: {
+    namespacePath: string
+    isActive: boolean
+    authLogic: 'or' | 'and'
+    eventHandlers: EventHandlerEntry[]
+    authMethodIds: string[]
+  }) => {
+    if (!activeProject?.id) return
+    if (editingNamespace?.id) {
+      const res = await authenticatedFetch(
+        `/api/gateway/realtime-namespaces/${editingNamespace.id}?projectId=${activeProject.id}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+      )
+      const body = await res.json()
+      if (!res.ok) { toast.error(body.message || 'Failed to update namespace'); throw new Error(body.message) }
+      toast.success('Namespace updated')
+    } else {
+      const res = await authenticatedFetch(
+        `/api/gateway/realtime-namespaces?projectId=${activeProject.id}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+      )
+      const body = await res.json()
+      if (!res.ok) { toast.error(body.message || 'Failed to create namespace'); throw new Error(body.message) }
+      toast.success('Namespace created')
+    }
+    await loadAll()
+  }
+
+  const handleDeleteNamespace = async (id: string) => {
+    if (!activeProject?.id) return
+    const res = await authenticatedFetch(
+      `/api/gateway/realtime-namespaces/${id}?projectId=${activeProject.id}`,
+      { method: 'DELETE' }
+    )
+    if (res.ok) { toast.success('Namespace deleted'); setRealtimeNamespaces((prev) => prev.filter((ns) => ns.id !== id)) }
+    else toast.error('Failed to delete namespace')
+    setDeleteNamespaceId(null)
+  }
+
   const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
   const gatewayFull = gatewayDomain ? (gatewayDomain.startsWith('http') ? gatewayDomain : `https://${gatewayDomain}`) : ''
   const customFull = customDomainInput
@@ -1259,6 +1661,7 @@ export default function ApiGatewayPage() {
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
                 <TabsList>
                   <TabsTrigger value="routes">Routes</TabsTrigger>
+                  <TabsTrigger value="realtime">Realtime</TabsTrigger>
                   <TabsTrigger value="authentication">Authentication</TabsTrigger>
                 </TabsList>
 
@@ -1359,6 +1762,58 @@ export default function ApiGatewayPage() {
                       </CardContent>
                     </Card>
                   )}
+                </TabsContent>
+
+                {/* Realtime Tab */}
+                <TabsContent value="realtime" className="mt-4">
+                  <Card>
+                    <CardContent className="pt-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                          <Zap className="w-5 h-5 text-primary" />
+                          Realtime Namespaces
+                          <span className="text-sm font-normal text-muted-foreground">({realtimeNamespaces.length})</span>
+                        </h2>
+                        <Button size="sm" onClick={() => { setEditingNamespace({}); setNamespaceModalOpen(true) }}>
+                          <Plus className="w-4 h-4 mr-1" /> Add Namespace
+                        </Button>
+                      </div>
+
+                      {realtimeNamespaces.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">
+                          <Zap className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                          <p className="text-sm">No realtime namespaces configured yet.</p>
+                          <p className="text-xs mt-1">Add a namespace to enable Socket.IO connections for this project.</p>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Namespace Path</TableHead>
+                                <TableHead>Event Handlers</TableHead>
+                                <TableHead>Auth</TableHead>
+                                <TableHead>Actions</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {realtimeNamespaces.map((ns) => (
+                                <RealtimeNamespaceRow
+                                  key={ns.id}
+                                  namespace={ns}
+                                  onEdit={(ns) => { setEditingNamespace(ns); setNamespaceModalOpen(true) }}
+                                  onDelete={setDeleteNamespaceId}
+                                  gatewayDomain={gatewayFull}
+                                  projectSlug={projectSlug}
+                                  customDomain={customFull}
+                                />
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
                 {/* Authentication Tab */}
@@ -1544,6 +1999,29 @@ export default function ApiGatewayPage() {
           description="Are you sure you want to delete this authentication method? Routes using it will become public."
           onConfirm={() => { if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId) }}
           onCancel={() => setDeleteAuthMethodId(null)}
+          confirmText="Delete"
+          cancelText="Cancel"
+          confirmVariant="danger"
+        />
+
+        <NamespaceEditorModal
+          isOpen={namespaceModalOpen}
+          namespace={editingNamespace}
+          functions={functions}
+          authMethods={authMethods}
+          onSave={handleSaveNamespace}
+          onClose={() => { setNamespaceModalOpen(false); setEditingNamespace(null) }}
+          projectSlug={projectSlug}
+          customDomain={customFull}
+          gatewayDomain={gatewayFull}
+        />
+
+        <Modal
+          isOpen={!!deleteNamespaceId}
+          title="Delete Namespace"
+          description="Are you sure you want to delete this namespace? All event handlers will also be removed."
+          onConfirm={() => { if (deleteNamespaceId) handleDeleteNamespace(deleteNamespaceId) }}
+          onCancel={() => setDeleteNamespaceId(null)}
           confirmText="Delete"
           cancelText="Cancel"
           confirmVariant="danger"

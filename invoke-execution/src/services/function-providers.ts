@@ -16,6 +16,7 @@ interface FunctionMetadata {
   id: string;
   name: string;
   project_id: string;
+  project_slug: string;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -79,6 +80,7 @@ export async function fetchFunctionMetadata(functionId: string): Promise<Functio
     id: f.id,
     name: f.name,
     project_id: f.project_id,
+    project_slug: (f.Project as any).slug as string,
     is_active: f.is_active,
     created_at: f.created_at,
     updated_at: f.updated_at,

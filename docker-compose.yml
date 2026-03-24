@@ -66,6 +66,7 @@ services:
       - CACHE_TTL_DAYS=${CACHE_TTL_DAYS}
       - MAX_CACHE_SIZE_GB=${MAX_CACHE_SIZE_GB}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      - GATEWAY_SERVICE_URL=http://gateway:3000
     volumes:
       - execution_cache:/app/cache
     depends_on:

@@ -29,11 +29,26 @@ export interface RouteEntry {
   authLogic: string;
 }
 
+export interface RealtimeEventHandlerEntry {
+  eventName: string;
+  functionId: string | null;
+}
+
+export interface RealtimeNamespaceEntry {
+  id: string;
+  namespacePath: string;
+  isActive: boolean;
+  authLogic: string;
+  eventHandlers: RealtimeEventHandlerEntry[];
+  authMethods: AuthMethodEntry[];
+}
+
 export interface ProjectConfig {
   projectId: string;
   projectSlug: string;
   configId: string;
   routes: RouteEntry[];
+  realtimeNamespaces: RealtimeNamespaceEntry[];
 }
 
 export interface ResolvedRoute {
@@ -93,6 +108,8 @@ async function refresh(): Promise<void> {
       ApiGatewayRoute,
       ApiGatewayRouteSettings,
       ApiGatewayAuthMethod,
+      RealtimeNamespace,
+      RealtimeEventHandler,
       Project,
     } = database.models;
 
@@ -107,6 +124,20 @@ async function refresh(): Promise<void> {
             required: false,
             include: [
               { model: ApiGatewayRouteSettings, as: 'settings', required: false },
+              {
+                model: ApiGatewayAuthMethod,
+                as: 'authMethods',
+                through: { attributes: ['sort_order'] },
+                required: false,
+              },
+            ],
+          },
+          {
+            model: RealtimeNamespace,
+            as: 'realtimeNamespaces',
+            required: false,
+            include: [
+              { model: RealtimeEventHandler, as: 'eventHandlers', required: false },
               {
                 model: ApiGatewayAuthMethod,
                 as: 'authMethods',
@@ -139,13 +170,48 @@ async function refresh(): Promise<void> {
       const customDomain = config.custom_domain as string | undefined;
 
       // Ensure project entry exists in slug map
+      // Build realtime namespace entries for this config
+      const activeNamespaces = ((config as any).realtimeNamespaces || []).filter(
+        (ns: any) => ns.is_active,
+      ) as any[];
+
+      const realtimeNamespaces: RealtimeNamespaceEntry[] = activeNamespaces.map((ns: any) => {
+        const nsAuthMethods: AuthMethodEntry[] = ((ns.authMethods as any[]) || [])
+          .slice()
+          .sort((a: any, b: any) => {
+            const aSort = (a.RealtimeNamespaceAuthMethod?.sort_order as number) || 0;
+            const bSort = (b.RealtimeNamespaceAuthMethod?.sort_order as number) || 0;
+            return aSort - bSort;
+          })
+          .map((am: any) => ({ type: am.type as string, config: am.config as Record<string, any> }));
+
+        const eventHandlers: RealtimeEventHandlerEntry[] = ((ns.eventHandlers as any[]) || []).map(
+          (eh: any) => ({
+            eventName: eh.event_name as string,
+            functionId: eh.function_id as string | null,
+          }),
+        );
+
+        return {
+          id: ns.id as string,
+          namespacePath: ns.namespace_path as string,
+          isActive: ns.is_active as boolean,
+          authLogic: (ns.auth_logic as string) || 'or',
+          eventHandlers,
+          authMethods: nsAuthMethods,
+        };
+      });
+
       if (!newProjectSlugMap[projectSlug]) {
         newProjectSlugMap[projectSlug] = {
           projectId: config.project_id as string,
           projectSlug,
           configId: config.id as string,
           routes: [],
+          realtimeNamespaces,
         };
+      } else {
+        newProjectSlugMap[projectSlug].realtimeNamespaces = realtimeNamespaces;
       }
 
       // Ensure project entry exists in custom domain map (if domain is set)
@@ -157,7 +223,10 @@ async function refresh(): Promise<void> {
             projectSlug,
             configId: config.id as string,
             routes: [],
+            realtimeNamespaces,
           };
+        } else {
+          newCustomDomainMap[domainKey].realtimeNamespaces = realtimeNamespaces;
         }
       }
 
@@ -300,6 +369,56 @@ function resolveRoute(
   return null;
 }
 
+/**
+ * Resolve a Socket.IO namespace path to a namespace entry for a given hostname.
+ *
+ * @param hostname      - The request Host header (without port)
+ * @param namespacePath - The full Socket.IO namespace path (e.g. "/myproject/chat")
+ * @param gatewayDomain - The configured default gateway domain
+ */
+function resolveRealtimeNamespace(
+  hostname: string,
+  namespacePath: string,
+  gatewayDomain: string,
+): { projectConfig: ProjectConfig; namespace: RealtimeNamespaceEntry } | null {
+  let projectConfig: ProjectConfig | null = null;
+
+  const normalizedHost = normalizeHostname(hostname);
+
+  // Try custom domain lookup — namespace path is absolute (e.g. "/chat")
+  if (customDomainMap[normalizedHost]) {
+    projectConfig = customDomainMap[normalizedHost];
+  }
+
+  // Try default gateway domain — namespace path starts with /<slug>/...
+  if (!projectConfig && gatewayDomain) {
+    const normalizedDomain = normalizeHostname(gatewayDomain);
+    if (normalizedHost === normalizedDomain) {
+      const parts = namespacePath.split('/').filter(Boolean);
+      if (parts.length >= 1) {
+        const slug = parts[0];
+        if (projectSlugMap[slug]) {
+          projectConfig = projectSlugMap[slug];
+        }
+      }
+    }
+  }
+
+  if (!projectConfig) return null;
+
+  for (const ns of projectConfig.realtimeNamespaces) {
+    // Full path for slug-based: /<slug>/<ns.namespacePath stripped leading slash>
+    const expectedPath = gatewayDomain
+      ? `/${projectConfig.projectSlug}/${ns.namespacePath.replace(/^\//, '')}`
+      : ns.namespacePath;
+    if (namespacePath === expectedPath || namespacePath === ns.namespacePath) {
+      return { projectConfig, namespace: ns };
+    }
+  }
+
+  return null;
+}
+
 function getDefaultDomain(): string {
   return defaultGatewayDomain;
 }
@@ -311,5 +430,5 @@ function getStatus(): CacheStatus {
   };
 }
 
-const routeCache = { start, stop, forceRefresh, resolveRoute, getDefaultDomain, getStatus };
+const routeCache = { start, stop, forceRefresh, resolveRoute, resolveRealtimeNamespace, getDefaultDomain, getStatus };
 export default routeCache;

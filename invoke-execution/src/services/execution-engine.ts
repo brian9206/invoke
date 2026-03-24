@@ -114,6 +114,7 @@ export class ExecutionEngine {
       const metadata = await this.metadataProvider!(functionId);
       const packageHash = metadata.package_hash;
       const projectId = metadata.project_id;
+      const projectSlug = metadata.project_slug;
 
       // Determine effective timeout and memory for this execution
       const settings = await getExecutionSettings();
@@ -141,6 +142,7 @@ export class ExecutionEngine {
         envVars,
         acquired.compiledScript,
         projectId,
+        projectSlug,
         kvStore,
         networkPolicies,
       );

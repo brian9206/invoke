@@ -47,6 +47,7 @@ module.exports = (sequelize) => {
     ApiGatewayConfig.belongsTo(models.Project, { foreignKey: 'project_id' });
     ApiGatewayConfig.hasMany(models.ApiGatewayRoute, { foreignKey: 'gateway_config_id' });
     ApiGatewayConfig.hasMany(models.ApiGatewayAuthMethod, { foreignKey: 'gateway_config_id' });
+    ApiGatewayConfig.hasMany(models.RealtimeNamespace, { foreignKey: 'gateway_config_id', as: 'realtimeNamespaces' });
   };
 
   return ApiGatewayConfig;

@@ -34,6 +34,11 @@ function initModels(sequelize) {
   const LoginAttempt               = require('./LoginAttempt')(sequelize);
   const RefreshToken               = require('./RefreshToken')(sequelize);
 
+  // ── Realtime ──────────────────────────────────────────────────────────────
+  const RealtimeNamespace           = require('./RealtimeNamespace')(sequelize);
+  const RealtimeEventHandler        = require('./RealtimeEventHandler')(sequelize);
+  const RealtimeNamespaceAuthMethod = require('./RealtimeNamespaceAuthMethod')(sequelize);
+
   const models = {
     User,
     Project,
@@ -55,6 +60,9 @@ function initModels(sequelize) {
     ApiGatewayRouteAuthMethod,
     LoginAttempt,
     RefreshToken,
+    RealtimeNamespace,
+    RealtimeEventHandler,
+    RealtimeNamespaceAuthMethod,
   };
 
   // Wire up associations once all models exist

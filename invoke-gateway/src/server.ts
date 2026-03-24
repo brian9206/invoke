@@ -1,13 +1,19 @@
 import 'dotenv/config';
+import http from 'http';
 import express from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
+import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/postgres-adapter';
+import pg from 'pg';
 
 import { createNotifyListener } from 'invoke-shared';
 import database from './services/database';
 import routeCache from './services/route-cache';
 import healthRoutes from './routes/health';
 import gatewayRoutes from './routes/gateway';
+import realtimeSocketCommandRoute, { registerIo } from './routes/realtime-socket-command';
+import { setupRealtimeHandler } from './services/realtime-handler';
 
 const pgNotifyListener = createNotifyListener('gateway_invalidated');
 
@@ -83,10 +89,32 @@ async function main(): Promise<void> {
 
   // Routes
   app.use(healthRoutes);
+  app.use(realtimeSocketCommandRoute);
   app.use(gatewayRoutes);
 
-  // Start server
-  const server = app.listen(PORT, () => {
+  // Create HTTP server and attach Socket.IO
+  const server = http.createServer(app);
+
+  const dbConfig = database.getConnectionConfig();
+  const pgPool = new pg.Pool({
+    host: dbConfig.host,
+    port: dbConfig.port,
+    database: dbConfig.database,
+    user: dbConfig.user,
+    password: dbConfig.password,
+    max: 5,
+  });
+
+  const io = new Server(server, {
+    cors: { origin: '*' },
+    transports: ['websocket'],
+  });
+  io.adapter(createAdapter(pgPool));
+
+  registerIo(io);
+  setupRealtimeHandler(io, routeCache);
+
+  server.listen(PORT, () => {
     console.log(`[Gateway] Listening on port ${PORT}`);
   });
 
@@ -96,6 +124,7 @@ async function main(): Promise<void> {
     routeCache.stop();
     await pgNotifyListener.stop();
     await database.close();
+    await pgPool.end();
     server.close(() => process.exit(0));
   };
 

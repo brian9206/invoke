@@ -44,6 +44,7 @@ module.exports = (sequelize) => {
       timestamps: false,
       underscored: true,
       freezeTableName: true,
+      freezeTableName: true,
       indexes: [{ unique: true, fields: ['gateway_config_id', 'name'] }],
     }
   );
@@ -55,6 +56,12 @@ module.exports = (sequelize) => {
       foreignKey: 'auth_method_id',
       otherKey: 'route_id',
       as: 'routes',
+    });
+    ApiGatewayAuthMethod.belongsToMany(models.RealtimeNamespace, {
+      through: models.RealtimeNamespaceAuthMethod,
+      foreignKey: 'auth_method_id',
+      otherKey: 'realtime_namespace_id',
+      as: 'realtimeNamespaces',
     });
   };
 

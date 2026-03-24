@@ -215,6 +215,31 @@ module.exports = router;
 
 See the [Router API](/docs/api/router) for full documentation.
 
+## RealtimeNamespace
+
+Socket.IO-compatible realtime namespace for building event-driven functions with rooms, broadcasting, and authentication:
+
+```javascript
+const ns = new RealtimeNamespace('/chat');
+
+ns.socket.on('$connect', function () {
+    ns.socket.join('lobby');
+    ns.socket.emit('welcome', { message: 'Hello!' });
+});
+
+ns.socket.on('message', function (data) {
+    ns.socket.to('lobby').emit('message', { from: ns.socket.id, text: data.text });
+});
+
+ns.socket.on('$disconnect', function (reason) {
+    console.log('Left:', ns.socket.id, reason);
+});
+
+module.exports = ns;
+```
+
+See the [RealtimeNamespace API](/docs/api/realtime) for full documentation.
+
 ## Buffer
 
 Binary data handling:

@@ -44,4 +44,7 @@
 
     const Router = require('_router');
     globalThis.Router = Router;
+
+    const RealtimeNamespace = require('_realtime');
+    globalThis.RealtimeNamespace = RealtimeNamespace;
 })();
