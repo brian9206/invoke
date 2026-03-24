@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   const app = express();
 
   // Security + compression
-  app.use(helmet());
+  app.use(helmet({ contentSecurityPolicy: false }));
   app.use(compression());
 
   // Trust proxy
