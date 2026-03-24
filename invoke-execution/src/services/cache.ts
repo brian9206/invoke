@@ -1,5 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { s3Service } from 'invoke-shared';
 
 interface CacheMetadata {
@@ -49,7 +50,7 @@ class CacheService {
   private cacheLocks: Map<string, LockEntry>;
 
   constructor() {
-    this.cacheDir = path.resolve(process.env.CACHE_DIR || '/tmp/invoke-cache');
+    this.cacheDir = path.join(os.tmpdir(), 'cache');
     this.maxCacheSizeGB = parseInt(process.env.MAX_CACHE_SIZE_GB ?? '10') || 10;
     this.cacheTTLDays = parseInt(process.env.CACHE_TTL_DAYS ?? '7') || 7;
     this.initialized = false;

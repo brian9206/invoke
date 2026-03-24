@@ -202,7 +202,6 @@ class ExecutionServer {
       this.server = this.app.listen(this.port, () => {
         console.log(`⚡ Invoke Execution Service running on port ${this.port}`);
         console.log(`🗄️ S3 Endpoint: ${process.env.S3_ENDPOINT}`);
-        console.log(`💾 Cache Directory: ${process.env.CACHE_DIR || '/tmp/invoke-cache'}`);
         console.log(
           `🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`,
         );
