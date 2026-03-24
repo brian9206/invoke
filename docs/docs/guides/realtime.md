@@ -329,6 +329,6 @@ ns.socket.on('message', function (data) {
 
 ## Next Steps
 
-- [RealtimeNamespace API](/docs/api/realtime) — Full API reference with all methods and properties
+- [Realtime APIs](/docs/api/realtime) — Full API reference with all methods and properties
 - [Realtime Chat Example](/docs/examples/realtime-chat) — Complete chat application walkthrough
 - [KV Store](/docs/api/kv-store) — Persist data across connections

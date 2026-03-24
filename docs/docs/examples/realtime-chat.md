@@ -20,10 +20,11 @@ const ns = new RealtimeNamespace('/chat');
 
 // ─── Connection ──────────────────────────────────────────────────
 
-ns.socket.on('$connect', function () {
+ns.socket.on('$connect', async function () {
     const username = ns.socket.handshake.auth.username || 'Anonymous';
-    ns.socket.data.username = username;
-    ns.socket.data.currentRoom = null;
+
+    await kv.set(`${ns.socket.id}:username`, username);
+    await kv.set(`${ns.socket.id}:currentRoom`, null);
 
     ns.socket.emit('welcome', {
         message: `Welcome, ${username}!`,
@@ -33,80 +34,76 @@ ns.socket.on('$connect', function () {
 
 // ─── Room Management ─────────────────────────────────────────────
 
-ns.socket.on('joinRoom', function (data) {
+ns.socket.on('joinRoom', async function (data) {
     if (!data || typeof data.room !== 'string') return;
 
     const room = data.room;
+    const currentRoom = await kv.get(`${ns.socket.id}:currentRoom`);
+    const username = await kv.get(`${ns.socket.id}:username`);
 
     // Leave current room if already in one
-    if (ns.socket.data.currentRoom) {
-        ns.socket.to(ns.socket.data.currentRoom).emit('userLeft', {
-            username: ns.socket.data.username,
-        });
-        ns.socket.leave(ns.socket.data.currentRoom);
+    if (currentRoom) {
+        ns.socket.to(currentRoom).emit('userLeft', { username });
+        ns.socket.leave(currentRoom);
     }
 
     ns.socket.join(room);
-    ns.socket.data.currentRoom = room;
+    await kv.set(`${ns.socket.id}:currentRoom`, room);
 
     ns.socket.emit('joinedRoom', { room });
-    ns.socket.to(room).emit('userJoined', {
-        username: ns.socket.data.username,
-    });
+    ns.socket.to(room).emit('userJoined', { username });
 });
 
-ns.socket.on('leaveRoom', function () {
-    const room = ns.socket.data.currentRoom;
+ns.socket.on('leaveRoom', async function () {
+    const room = await kv.get(`${ns.socket.id}:currentRoom`);
+    const username = await kv.get(`${ns.socket.id}:username`);
     if (!room) return;
 
-    ns.socket.to(room).emit('userLeft', {
-        username: ns.socket.data.username,
-    });
+    ns.socket.to(room).emit('userLeft', { username });
     ns.socket.leave(room);
-    ns.socket.data.currentRoom = null;
+    await kv.set(`${ns.socket.id}:currentRoom`, null);
 
     ns.socket.emit('leftRoom', { room });
 });
 
 // ─── Messaging ───────────────────────────────────────────────────
 
-ns.socket.on('message', function (data) {
+ns.socket.on('message', async function (data) {
     if (!data || typeof data.text !== 'string' || !data.text.trim()) return;
     if (data.text.length > 2000) return;
 
-    const room = ns.socket.data.currentRoom;
+    const room = await kv.get(`${ns.socket.id}:currentRoom`);
+    const username = await kv.get(`${ns.socket.id}:username`);
+
     if (!room) {
         ns.socket.emit('error', { message: 'Join a room first' });
         return;
     }
 
     const message = {
-        from: ns.socket.data.username,
+        from: username,
         text: data.text.trim(),
         timestamp: Date.now(),
     };
 
-    // Send to everyone in the room including the sender
     ns.to(room).emit('message', message);
 });
 
-ns.socket.on('typing', function () {
-    const room = ns.socket.data.currentRoom;
+ns.socket.on('typing', async function () {
+    const room = await kv.get(`${ns.socket.id}:currentRoom`);
+    const username = await kv.get(`${ns.socket.id}:username`);
     if (!room) return;
 
-    ns.socket.to(room).emit('typing', {
-        username: ns.socket.data.username,
-    });
+    ns.socket.to(room).emit('typing', { username });
 });
 
 // ─── Disconnect ──────────────────────────────────────────────────
 
-ns.socket.on('$disconnect', function (reason) {
-    const room = ns.socket.data.currentRoom;
+ns.socket.on('$disconnect', async function (reason) {
+    const room = await kv.get(`${ns.socket.id}:currentRoom`);
+    const username = await kv.get(`${ns.socket.id}:username`);
     if (room) {
-        ns.to(room).emit('userLeft', {
-            username: ns.socket.data.username,
-        });
+        ns.to(room).emit('userLeft', { username });
     }
 });
 
@@ -166,7 +163,7 @@ A minimal HTML client that connects and interacts with the chat:
     </div>
     <div id="typing" style="color:#888; height:1.2em;"></div>
 
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="/socket.io/socket.io.min.js"></script>
     <script>
         let socket;
         const messagesEl = document.getElementById('messages');
@@ -183,8 +180,9 @@ A minimal HTML client that connects and interacts with the chat:
         function connect() {
             const username = document.getElementById('username').value;
             // Replace with your gateway URL and project slug
-            socket = io('https://gateway.example.com/myproject/chat', {
+            socket = io('https://api.brianchoi.me/testing/chat', {
                 auth: { username },
+                transports: ["websocket"],
             });
 
             socket.on('connect', () => log('Connected as ' + username, 'system'));
@@ -226,6 +224,6 @@ A minimal HTML client that connects and interacts with the chat:
 
 ## Next Steps
 
-- [RealtimeNamespace API](/docs/api/realtime) — Full API reference
+- [Realtime APIs](/docs/api/realtime) — Full API reference
 - [Realtime Functions Guide](/docs/guides/realtime) — Architecture, rooms, auth, and best practices
 - [KV Store](/docs/api/kv-store) — Persist chat history or user profiles

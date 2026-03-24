@@ -141,7 +141,7 @@ ns.socket.on('$connect', function () {
 
 ### ns.socket.data
 
-An arbitrary object for storing per-socket state. Persists for the lifetime of the connection (in-memory only).
+An arbitrary object for storing per-socket state. Persists for the lifetime of the connection (in-memory only). Highly **not** recommended to use as the serverless function is stateless.
 
 ```javascript
 ns.socket.on('$connect', function () {

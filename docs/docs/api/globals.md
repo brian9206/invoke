@@ -238,7 +238,7 @@ ns.socket.on('$disconnect', function (reason) {
 module.exports = ns;
 ```
 
-See the [RealtimeNamespace API](/docs/api/realtime) for full documentation.
+See the [Realtime APIs](/docs/api/realtime) for full documentation.
 
 ## Buffer
 
