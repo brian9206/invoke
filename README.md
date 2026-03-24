@@ -1,38 +1,14 @@
 ﻿
-<h1 style="text-align: center;">
-    <img src="docs/static/img/logo.svg" style="height: 1em" />
-    Invoke
-</h1>
+# <img src="docs/static/img/logo.svg" style="height: .8em" /> Invoke
 
-<div style="text-align: center;">
-    <a href="https://brianchoi.me/invoke/" aria-label="Docs">
-        <img src="https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github" alt="Docs" />
-    </a>
-    <a href="LICENSE" aria-label="License">
-        <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License" />
-    </a>
-    <a href="docker-compose.yml" aria-label="Docker Compose">
-        <img src="https://img.shields.io/badge/docker--compose-ready-2496ED?style=for-the-badge&logo=docker" alt="Docker Compose" />
-    </a>
-    <a href="https://nodejs.org/" aria-label="Node.js">
-        <img src="https://img.shields.io/badge/Node.js-24%2B-339933?style=for-the-badge&logo=node.js" alt="Node.js" />
-    </a>
-    <a href="https://www.typescriptlang.org/" aria-label="TypeScript">
-        <img src="https://img.shields.io/badge/TypeScript-5%2B-3178C6?style=for-the-badge&logo=typescript" alt="TypeScript" />
-    </a>
-</div>
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://brianchoi.me/invoke/)
+[![MIT License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge) ](LICENSE)
 
----
-
-> **Open-source, self-hosted serverless platform.** Deploy, manage, and run serverless functions using familiar Express.js route handlers and Socket.IO
-
-Invoke is a modern, production-ready serverless function management platform designed for teams and organizations that demand complete control over their infrastructure. Deploy custom functions, manage versions, authenticate users, and monitor execution—all within your own infrastructure.
-
-<div style="text-align: center; margin: 50px 0">
-    <img src="docs/static/img/screenshot.png" style="max-width: 80%"/>
-</div>
-
----
+**Open-source, self-hosted serverless platform.**    
+Deploy, manage, and run serverless functions using familiar Express.js route handlers and Socket.IO
+    
+![Invoke Admin Panel - Screenshot](docs/static/img/screenshot.png)
+    
 
 ## ✨ Features
 
