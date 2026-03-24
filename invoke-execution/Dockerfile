@@ -5,23 +5,29 @@ FROM node:24-alpine
 # Install curl for health checks
 RUN apk add --no-cache curl
 
+# Create non-root user first
+RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+
 WORKDIR /app
 
 # Copy root workspace manifest and lockfile
-COPY package.json package-lock.json tsconfig.base.json ./
+COPY --chown=appuser:appgroup package.json package-lock.json tsconfig.base.json ./
 
 # Copy workspace package manifests (needed before npm ci)
-COPY shared/package.json ./shared/
-COPY invoke-execution/package.json ./invoke-execution/
+COPY --chown=appuser:appgroup shared/package.json ./shared/
+COPY --chown=appuser:appgroup invoke-execution/package.json ./invoke-execution/
 
-# Install all dependencies (including devDeps for TypeScript build)
+# Switch to non-root user before npm ci
+USER appuser
+
+# Install all dependencies (including devDeps for TypeScript build, runs as appuser)
 RUN npm ci -w invoke-execution -w invoke-shared
 
 # Copy shared source
-COPY shared/ ./shared/
+COPY --chown=appuser:appgroup shared/ ./shared/
 
 # Copy execution source
-COPY invoke-execution/ ./invoke-execution/
+COPY --chown=appuser:appgroup invoke-execution/ ./invoke-execution/
 
 WORKDIR /app/invoke-execution
 
@@ -32,8 +38,6 @@ RUN npm run build
 RUN npm prune --production -w invoke-execution
 
 # Run as non-root user
-RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
-RUN chown -R appuser:appgroup /app
 USER appuser
 
 # Expose port
