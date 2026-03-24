@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Server, Socket } from 'socket.io';
+import { Server } from 'socket.io';
 
 const router = Router();
 
@@ -74,61 +74,63 @@ async function handleRealtimeCommand(req: Request, res: Response): Promise<void>
 
     switch (command) {
       case 'emit': {
-        // Emit directly to a specific socket
+        // Emit directly to a specific socket.
+        // Use nsp.to(socketId) so the adapter routes it to whichever server
+        // the target socket is connected to, not just the local server.
         if (!socketId || !event) break;
-        const socket: Socket | undefined = nsp.sockets.get(socketId);
-        if (socket) socket.emit(event, ...(args || []));
+        nsp.to(socketId).emit(event, ...(args || []));
         break;
       }
 
       case 'ns-emit': {
         // Broadcast from namespace level (with optional room/except filters)
         if (!event) break;
-        let op: ReturnType<typeof nsp.to> | typeof nsp = nsp;
+        let emitter: any = nsp;
         if (roomIds && roomIds.length > 0) {
-          op = nsp.to(roomIds);
+          emitter = nsp.to(roomIds);
         }
         if (exceptRooms && exceptRooms.length > 0) {
-          (op as ReturnType<typeof nsp.to>).except(exceptRooms).emit(event, ...(args || []));
-        } else {
-          (op as any).emit(event, ...(args || []));
+          emitter = emitter.except(exceptRooms);
         }
+        emitter.emit(event, ...(args || []));
         break;
       }
 
       case 'broadcast': {
-        // Broadcast from a socket (excludes sender)
+        // Broadcast excluding the sender socket.
+        // Use nsp.except(socketId) so the adapter propagates to all servers
+        // and excludes the sender regardless of which server it lives on.
         if (!socketId || !event) break;
-        const socket: Socket | undefined = nsp.sockets.get(socketId);
-        if (!socket) break;
-        let op = roomIds && roomIds.length > 0 ? socket.to(roomIds) : socket.broadcast;
+        let broadcaster: any = roomIds && roomIds.length > 0 ? nsp.to(roomIds) : nsp;
+        broadcaster = broadcaster.except(socketId);
         if (exceptRooms && exceptRooms.length > 0) {
-          op = (op as any).except(exceptRooms);
+          broadcaster = broadcaster.except(exceptRooms);
         }
-        op.emit(event, ...(args || []));
+        broadcaster.emit(event, ...(args || []));
         break;
       }
 
       case 'join': {
+        // Use socketsJoin so the adapter forwards the join to the server that
+        // owns the target socket.
         if (!socketId || !roomIds) break;
-        const socket: Socket | undefined = nsp.sockets.get(socketId);
-        if (socket) await socket.join(roomIds);
+        await nsp.in(socketId).socketsJoin(roomIds);
         break;
       }
 
       case 'leave': {
+        // Use socketsLeave so the adapter forwards the leave to the server that
+        // owns the target socket.
         if (!socketId || !roomIds) break;
-        const socket: Socket | undefined = nsp.sockets.get(socketId);
-        if (socket) {
-          for (const room of roomIds) socket.leave(room);
-        }
+        await nsp.in(socketId).socketsLeave(roomIds);
         break;
       }
 
       case 'disconnect': {
+        // Use disconnectSockets so the adapter forwards the disconnect to the
+        // server that owns the target socket.
         if (!socketId) break;
-        const socket: Socket | undefined = nsp.sockets.get(socketId);
-        if (socket) socket.disconnect(true);
+        await nsp.in(socketId).disconnectSockets(true);
         break;
       }
 
