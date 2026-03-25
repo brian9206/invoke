@@ -174,6 +174,45 @@ declare module 'invoke-shared' {
 
   // ─── Exports ──────────────────────────────────────────────────────────────────
 
+  // ─── Logging ──────────────────────────────────────────────────────────────────
+
+  type LogType = 'request' | 'app';
+  type LogSource = 'execution' | 'gateway';
+
+  interface InsertLogOptions {
+    projectId: string;
+    functionId?: string;
+    type: LogType;
+    source: LogSource;
+    payload: Record<string, unknown>;
+    executedAt?: Date;
+  }
+
+  interface RequestLogInfo {
+    requestSize?: number | null;
+    responseSize?: number | null;
+    clientIp?: string;
+    userAgent?: string;
+    consoleOutput?: unknown[];
+    requestHeaders?: Record<string, unknown>;
+    responseHeaders?: Record<string, string | string[]>;
+    requestMethod?: string;
+    requestUrl?: string;
+    requestBody?: string;
+    responseBody?: Buffer | string | unknown;
+  }
+
+  interface InsertRequestLogOptions {
+    projectId?: string;
+    functionId?: string;
+    source: LogSource;
+    traceId?: string;
+    executionTime: number;
+    statusCode: number;
+    error?: string | null;
+    requestInfo?: RequestLogInfo;
+  }
+
   export function createDatabase(opts?: CreateDatabaseOptions): SequelizeLike;
   export function initModels(sequelize: SequelizeLike): ServiceModels;
   export function createServiceDatabase(opts?: CreateServiceDatabaseOptions): ServiceDatabase;
@@ -183,4 +222,6 @@ declare module 'invoke-shared' {
   ): NotifyListener;
   export const s3Service: S3Service;
   export { MigrationManager };
+  export function insertLog(database: ServiceDatabase, opts: InsertLogOptions): Promise<AnyModel>;
+  export function insertRequestLog(database: ServiceDatabase, opts: InsertRequestLogOptions): Promise<void>;
 }

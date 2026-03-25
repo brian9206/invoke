@@ -14,11 +14,31 @@ module.exports = {
         autoIncrement: true,
         allowNull: false,
       },
+      // Nullable: execution logs always carry a function_id; gateway logs may not.
       function_id: {
         type: Sequelize.UUID,
-        allowNull: false,
+        allowNull: true,
         references: { model: 'functions', key: 'id' },
         onDelete: 'CASCADE',
+      },
+      // Mandatory: every log is associated with a project.
+      project_id: {
+        type: Sequelize.UUID,
+        allowNull: false,
+        references: { model: 'projects', key: 'id' },
+        onDelete: 'CASCADE',
+      },
+      // 'request' = request/response log; 'app' = application log
+      type: {
+        type: Sequelize.STRING(10),
+        allowNull: false,
+        defaultValue: 'request',
+      },
+      // 'execution' = emitted by invoke-execution; 'gateway' = emitted by invoke-gateway
+      source: {
+        type: Sequelize.STRING(20),
+        allowNull: false,
+        defaultValue: 'execution',
       },
       executed_at: {
         type: Sequelize.DATE,
@@ -63,6 +83,24 @@ module.exports = {
     await queryInterface.sequelize.query(
       `CREATE INDEX idx_function_logs_response_status ON function_logs (((payload->'response'->>'status')::int));`
     );
+
+    // B-tree on project_id for project-scoped log queries
+    await queryInterface.addIndex('function_logs', {
+      fields: ['project_id'],
+      name: 'idx_function_logs_project_id',
+    });
+
+    // B-tree on type for filtering request vs app logs
+    await queryInterface.addIndex('function_logs', {
+      fields: ['type'],
+      name: 'idx_function_logs_type',
+    });
+
+    // B-tree on source for filtering execution vs gateway logs
+    await queryInterface.addIndex('function_logs', {
+      fields: ['source'],
+      name: 'idx_function_logs_source',
+    });
 
     // ── Trigger function: populate payload_search from payload JSONB values ──
     await queryInterface.sequelize.query(`

@@ -1,9 +1,10 @@
+import crypto from 'crypto';
 import express, { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { CronJob } from 'cron';
+import { insertRequestLog } from 'invoke-shared';
 import database from '../services/database';
 import { executeFunction, createExecutionContext, getFunctionPackage } from '../services/execution-service';
-import { logExecution } from '../services/utils';
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ function calculateNextExecution(cronExpression: string): Date | null {
 
 async function executeScheduledFunction(functionData: any): Promise<any> {
   const startTime = Date.now();
+  const traceId = crypto.randomUUID();
 
   try {
     console.log(`Executing scheduled function: ${functionData.name} (ID: ${functionData.id})`);
@@ -61,18 +63,27 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       responseSize = JSON.stringify(responseData).length;
     }
 
-    await logExecution(functionData.id, executionTime, statusCode, result.error, {
-      requestMethod: 'POST',
-      requestUrl: '/scheduled',
-      requestBody: '',
-      requestSize: null,
-      responseBody: responseData,
-      responseSize,
-      requestHeaders: { 'x-scheduled-execution': 'true' },
-      responseHeaders: result.headers || {},
-      consoleOutput: result.logs || [],
-      clientIp: '127.0.0.1',
-      userAgent: 'Invoke-Scheduler/1.0',
+    await insertRequestLog(database, {
+      projectId: functionData.project_id,
+      functionId: functionData.id,
+      source: 'execution',
+      traceId,
+      executionTime,
+      statusCode,
+      error: result.error,
+      requestInfo: {
+        requestMethod: 'POST',
+        requestUrl: '/scheduled',
+        requestBody: '',
+        requestSize: null,
+        responseBody: responseData,
+        responseSize,
+        requestHeaders: { 'x-scheduled-execution': 'true' },
+        responseHeaders: result.headers || {},
+        consoleOutput: result.logs || [],
+        clientIp: '127.0.0.1',
+        userAgent: 'Invoke-Scheduler/1.0',
+      },
     });
 
     console.log(`✓ Scheduled function ${functionData.name} executed successfully in ${executionTime}ms`);
@@ -88,28 +99,20 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     console.error(`✗ Scheduled function ${functionData.name} failed:`, error.message);
 
     try {
-      const { FunctionLog } = database.models;
-      const executedAt = new Date();
-      await FunctionLog.create({
-        function_id: functionData.id,
-        executed_at: executedAt,
-        payload: {
-          function_id: functionData.id,
-          executed_at: executedAt.toISOString(),
-          execution_time_ms: executionTime,
-          request: {
-            url: '/scheduled',
-            method: 'SCHEDULED',
-            ip: '127.0.0.1',
-            headers: { 'x-scheduled-execution': 'true' },
-            body: { size: null },
-          },
-          response: {
-            status: 500,
-            headers: {},
-            body: { size: null },
-          },
-          error: error.message,
+      await insertRequestLog(database, {
+        projectId: functionData.project_id,
+        functionId: functionData.id,
+        source: 'execution',
+        traceId,
+        executionTime,
+        statusCode: 500,
+        error: error.message,
+        requestInfo: {
+          requestMethod: 'POST',
+          requestUrl: '/scheduled',
+          requestHeaders: { 'x-scheduled-execution': 'true' },
+          clientIp: '127.0.0.1',
+          userAgent: 'Invoke-Scheduler/1.0',
         },
       });
     } catch (logError) {
@@ -134,7 +137,7 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
         next_execution: { [Op.lte]: now },
       },
       include: [{ model: Project, where: { is_active: true }, required: true }],
-      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active'],
+      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active', 'project_id'],
       order: [['next_execution', 'ASC']],
     });
 

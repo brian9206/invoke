@@ -1,5 +1,6 @@
+import crypto from 'crypto';
 import express, { Request, Response, NextFunction } from 'express';
-import { logExecution } from '../services/utils';
+import { insertRequestLog } from 'invoke-shared';
 import database from '../services/database';
 import cache from '../services/cache';
 import { executeFunction, createExecutionContext, getFunctionPackage } from '../services/execution-service';
@@ -136,6 +137,11 @@ function filterHeaders(headers: Record<string, string | string[] | undefined>): 
 router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
 
+  // Propagate or generate a trace ID.
+  const traceId: string =
+    (req.headers['x-trace-id'] as string) || crypto.randomUUID();
+  res.setHeader('x-trace-id', traceId);
+
   const parseContentLength = (value: string | string[] | undefined): number | null => {
     if (!value) return null;
     const raw = Array.isArray(value) ? value[0] : value;
@@ -199,7 +205,17 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
       responseBody: result.data,
     };
 
-    await logExecution(functionId, executionTime, statusCode, result.error ?? undefined, requestInfo);
+    const projectId = (req as any).functionInfo?.project_id;
+    await insertRequestLog(database, {
+      projectId,
+      functionId,
+      source: 'execution',
+      traceId,
+      executionTime,
+      statusCode,
+      error: result.error ?? undefined,
+      requestInfo,
+    });
 
     if (result.error) {
       res.status(statusCode).json({
@@ -222,7 +238,18 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
     console.error('Execution error:', error);
-    await logExecution((req.params as any)[0], executionTime, 500, error.message);
+    const projectId = (req as any).functionInfo?.project_id;
+    if (projectId) {
+      await insertRequestLog(database, {
+        projectId,
+        functionId: (req.params as any)[0],
+        source: 'execution',
+        traceId,
+        executionTime,
+        statusCode: 500,
+        error: error.message,
+      });
+    }
     res.status(500).json(createResponse(false, null, 'Execution failed', 500));
   }
 });

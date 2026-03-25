@@ -10,11 +10,31 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
+      // Nullable: execution logs carry a function_id; gateway logs may not.
       function_id: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
         references: { model: 'functions', key: 'id' },
         onDelete: 'CASCADE',
+      },
+      // Mandatory: every log is scoped to a project.
+      project_id: {
+        type: DataTypes.UUID,
+        allowNull: false,
+        references: { model: 'projects', key: 'id' },
+        onDelete: 'CASCADE',
+      },
+      // 'request' = request/response log; 'app' = application log
+      type: {
+        type: DataTypes.STRING(10),
+        allowNull: false,
+        defaultValue: 'request',
+      },
+      // 'execution' = emitted by invoke-execution; 'gateway' = emitted by invoke-gateway
+      source: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'execution',
       },
       executed_at: {
         type: DataTypes.DATE,
@@ -40,6 +60,7 @@ module.exports = (sequelize) => {
 
   FunctionLog.associate = (models) => {
     FunctionLog.belongsTo(models.Function, { foreignKey: 'function_id' });
+    FunctionLog.belongsTo(models.Project, { foreignKey: 'project_id' });
   };
 
   return FunctionLog;

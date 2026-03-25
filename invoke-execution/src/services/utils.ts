@@ -1,45 +1,12 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 
-// Validate and parse MAX_RESPONSE_LOG_SIZE environment variable
-const parseMaxResponseLogSize = (): number => {
-  const envValue = process.env.MAX_RESPONSE_LOG_SIZE;
-
-  if (!envValue) {
-    return 10 * 1024 * 1024; // Default 10MB
-  }
-
-  const parsed = parseInt(envValue, 10);
-
-  if (isNaN(parsed) || parsed <= 0) {
-    throw new Error(`MAX_RESPONSE_LOG_SIZE must be a positive integer, got: ${envValue}`);
-  }
-
-  return parsed;
-};
-
-const MAX_RESPONSE_LOG_SIZE = parseMaxResponseLogSize();
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data: T;
   message: string;
   statusCode: number;
   timestamp: string;
-}
-
-export interface LogExecutionOptions {
-  requestSize?: number | null;
-  responseSize?: number | null;
-  clientIp?: string;
-  userAgent?: string;
-  consoleOutput?: unknown[];
-  requestHeaders?: Record<string, unknown>;
-  responseHeaders?: Record<string, string | string[]>;
-  requestMethod?: string;
-  requestUrl?: string;
-  requestBody?: string;
-  responseBody?: Buffer | string | unknown;
 }
 
 export function generateApiKey(length = 32): string {
@@ -98,107 +65,4 @@ export function createResponse<T = unknown>(
     statusCode,
     timestamp: new Date().toISOString(),
   };
-}
-
-export async function logExecution(
-  functionId: string,
-  executionTime: number,
-  statusCode: number,
-  error: string | null = null,
-  requestInfo: LogExecutionOptions = {},
-): Promise<void> {
-  const database = require('./database').default;
-
-  const toNullableSize = (value: number | null | undefined): number | null => {
-    if (value == null || !Number.isFinite(value) || value < 0) return null;
-    return Math.trunc(value);
-  };
-
-  try {
-    let responseBodyLog = '';
-    if (requestInfo.responseBody) {
-      const contentType = (
-        (requestInfo.responseHeaders?.['content-type'] as string) || ''
-      ).toLowerCase();
-
-      const isTextContent =
-        contentType.startsWith('text/') ||
-        contentType.includes('application/json') ||
-        contentType.includes('application/xml') ||
-        contentType.includes('application/javascript') ||
-        contentType.includes('application/x-www-form-urlencoded') ||
-        contentType.includes('+json') ||
-        contentType.includes('+xml');
-
-      if (isTextContent) {
-        if (Buffer.isBuffer(requestInfo.responseBody)) {
-          responseBodyLog = requestInfo.responseBody.toString('utf8');
-        } else if (typeof requestInfo.responseBody === 'string') {
-          responseBodyLog = requestInfo.responseBody;
-        } else {
-          responseBodyLog = JSON.stringify(requestInfo.responseBody);
-        }
-
-        if (responseBodyLog.length > MAX_RESPONSE_LOG_SIZE) {
-          const sizeMB = (MAX_RESPONSE_LOG_SIZE / (1024 * 1024)).toFixed(1);
-          responseBodyLog =
-            responseBodyLog.substring(0, MAX_RESPONSE_LOG_SIZE) +
-            `...<TRUNCATED at ${sizeMB}MB>`;
-        }
-      } else {
-        responseBodyLog = '<BINARY>';
-      }
-    }
-
-    const { FunctionLog, Function: FunctionModel } = database.models;
-
-    const requestBody = requestInfo.requestBody || '';
-    const requestSize = toNullableSize(requestInfo.requestSize);
-    const responseSize = toNullableSize(requestInfo.responseSize);
-    const executedAt = new Date();
-
-    const payload: Record<string, unknown> = {
-      function_id: functionId,
-      executed_at: executedAt.toISOString(),
-      execution_time_ms: executionTime,
-      request: {
-        url: requestInfo.requestUrl || '',
-        method: requestInfo.requestMethod || 'POST',
-        ip: requestInfo.clientIp || null,
-        headers: requestInfo.requestHeaders || {},
-        body: {
-          size: requestSize,
-          ...(requestBody ? { payload: requestBody } : {}),
-        },
-      },
-      response: {
-        ...(statusCode ? { status: statusCode } : {}),
-        headers: requestInfo.responseHeaders || {},
-        body: {
-          size: responseSize,
-          ...(responseBodyLog ? { payload: responseBodyLog } : {}),
-        },
-      },
-      ...(error ? { error } : {}),
-      ...(requestInfo.consoleOutput && requestInfo.consoleOutput.length > 0
-        ? { console: requestInfo.consoleOutput }
-        : {}),
-    };
-
-    await FunctionLog.create({
-      function_id: functionId,
-      executed_at: executedAt,
-      payload,
-    });
-
-    await FunctionModel.update(
-      {
-        execution_count: database.sequelize.literal('execution_count + 1'),
-        last_executed: new Date(),
-      },
-      { where: { id: functionId } },
-    );
-  } catch (dbError) {
-    console.error('Failed to log execution:', dbError);
-  }
 }
