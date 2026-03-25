@@ -63,14 +63,13 @@ interface FunctionVersion {
 
 interface ExecutionLog {
   id: number
-  status_code: number
-  execution_time_ms: number
-  request_size: number
-  response_size: number
-  error_message?: string
-  client_ip: string
-  user_agent: string
   executed_at: string
+  payload: {
+    execution_time_ms: number
+    request: { ip: string; body: { size: number | null } }
+    response: { status: number; body: { size: number | null } }
+    error?: string
+  }
 }
 
 interface LogsPaginationInfo {
@@ -1195,17 +1194,17 @@ export default function FunctionDetails() {
                           {executionLogs.map((log) => (
                             <TableRow key={log.id}>
                               <TableCell className="text-sm text-muted-foreground">{formatDate(log.executed_at)}</TableCell>
-                              <TableCell><Badge variant={getStatusBadgeVariant(log.status_code)}>{log.status_code}</Badge></TableCell>
-                              <TableCell className="text-sm">{log.execution_time_ms}ms</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.request_size)}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.response_size)}</TableCell>
-                              <TableCell className="text-sm font-mono text-muted-foreground">{log.client_ip}</TableCell>
+                              <TableCell><Badge variant={getStatusBadgeVariant(log.payload.response.status)}>{log.payload.response.status}</Badge></TableCell>
+                              <TableCell className="text-sm">{log.payload.execution_time_ms}ms</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.payload.request.body.size)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.payload.response.body.size)}</TableCell>
+                              <TableCell className="text-sm font-mono text-muted-foreground">{log.payload.request.ip}</TableCell>
                               <TableCell className="text-sm">
-                                {log.error_message ? (
+                                {log.payload.error ? (
                                   <div className="flex items-center gap-1 text-destructive">
                                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="text-xs truncate max-w-[150px]" title={log.error_message}>
-                                      {(log.error_message.split('\n').find(s => s.trim()) ?? log.error_message).substring(0, 40)}
+                                    <span className="text-xs truncate max-w-[150px]" title={log.payload.error}>
+                                      {(log.payload.error.split('\n').find((s: string) => s.trim()) ?? log.payload.error).substring(0, 40)}
                                     </span>
                                   </div>
                                 ) : <span className="text-muted-foreground">—</span>}

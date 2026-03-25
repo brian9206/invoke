@@ -150,24 +150,45 @@ export async function logExecution(
       }
     }
 
-    const { ExecutionLog, Function: FunctionModel } = database.models;
+    const { FunctionLog, Function: FunctionModel } = database.models;
 
-    await ExecutionLog.create({
+    const requestBody = requestInfo.requestBody || '';
+    const requestSize = toNullableSize(requestInfo.requestSize);
+    const responseSize = toNullableSize(requestInfo.responseSize);
+    const executedAt = new Date();
+
+    const payload: Record<string, unknown> = {
       function_id: functionId,
-      status_code: statusCode,
+      executed_at: executedAt.toISOString(),
       execution_time_ms: executionTime,
-      request_size: toNullableSize(requestInfo.requestSize),
-      response_size: toNullableSize(requestInfo.responseSize),
-      error_message: error,
-      client_ip: requestInfo.clientIp || null,
-      user_agent: requestInfo.userAgent || null,
-      console_logs: requestInfo.consoleOutput || [],
-      request_headers: requestInfo.requestHeaders || {},
-      response_headers: requestInfo.responseHeaders || {},
-      request_body: requestInfo.requestBody || '',
-      response_body: responseBodyLog,
-      request_method: requestInfo.requestMethod || 'POST',
-      request_url: requestInfo.requestUrl || '',
+      request: {
+        url: requestInfo.requestUrl || '',
+        method: requestInfo.requestMethod || 'POST',
+        ip: requestInfo.clientIp || null,
+        headers: requestInfo.requestHeaders || {},
+        body: {
+          size: requestSize,
+          ...(requestBody ? { payload: requestBody } : {}),
+        },
+      },
+      response: {
+        ...(statusCode ? { status: statusCode } : {}),
+        headers: requestInfo.responseHeaders || {},
+        body: {
+          size: responseSize,
+          ...(responseBodyLog ? { payload: responseBodyLog } : {}),
+        },
+      },
+      ...(error ? { error } : {}),
+      ...(requestInfo.consoleOutput && requestInfo.consoleOutput.length > 0
+        ? { console: requestInfo.consoleOutput }
+        : {}),
+    };
+
+    await FunctionLog.create({
+      function_id: functionId,
+      executed_at: executedAt,
+      payload,
     });
 
     await FunctionModel.update(

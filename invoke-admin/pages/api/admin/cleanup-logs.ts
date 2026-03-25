@@ -10,7 +10,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { functionId } = req.body // Optional - if not provided, cleans all functions
 
     // Get global settings to determine if cleanup is enabled
-    const { GlobalSetting, Function: FunctionModel, ExecutionLog } = database.models;
+    const { GlobalSetting, Function: FunctionModel, FunctionLog } = database.models;
     const globalEnabledRecord = await GlobalSetting.findOne({
       where: { setting_key: 'log_retention_enabled' },
       attributes: ['setting_value']
@@ -77,7 +77,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
         if (retentionType === 'time') {
           // Delete logs older than specified days
-          deleted = await ExecutionLog.destroy({
+          deleted = await FunctionLog.destroy({
             where: {
               function_id: func.id,
               executed_at: { [Op.lt]: database.sequelize.literal(`NOW() - INTERVAL '${parseInt(retentionValue)} days'`) }
@@ -85,7 +85,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           });
         } else if (retentionType === 'count') {
           // Keep only the latest N logs — fetch keeper IDs then destroy the rest
-          const keepers = await ExecutionLog.findAll({
+          const keepers = await FunctionLog.findAll({
             where: { function_id: func.id },
             attributes: ['id'],
             order: [['executed_at', 'DESC']],
@@ -93,7 +93,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             raw: true,
           }) as any[]
           const keeperIds = keepers.map((k: any) => k.id)
-          deleted = await ExecutionLog.destroy({
+          deleted = await FunctionLog.destroy({
             where: {
               function_id: func.id,
               ...(keeperIds.length > 0 ? { id: { [Op.notIn]: keeperIds } } : {}),

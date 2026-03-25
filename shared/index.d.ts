@@ -35,7 +35,7 @@ declare module 'invoke-shared' {
     Function: AnyModelStatic;
     FunctionVersion: AnyModelStatic;
     ApiKey: AnyModelStatic;
-    ExecutionLog: AnyModelStatic;
+    FunctionLog: AnyModelStatic;
     FunctionEnvironmentVariable: AnyModelStatic;
     GlobalSetting: AnyModelStatic;
     ProjectNetworkPolicy: AnyModelStatic;

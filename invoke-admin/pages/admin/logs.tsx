@@ -1,12 +1,11 @@
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
-import Link from 'next/link'
+import { useEffect, useState, useCallback } from 'react'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
-import { Activity, AlertCircle, Filter, Globe, ChevronLeft, ChevronRight, Loader } from 'lucide-react'
+import { Activity, Filter, Globe, ChevronLeft, ChevronRight, Loader, Layers } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -14,27 +13,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { cn } from '@/lib/cn'
 
-interface ExecutionLog {
-  id: number
-  function_id: string
-  function_name: string
-  status_code: number
-  execution_time_ms: number
-  request_size: number
-  response_size: number
-  error_message?: string
-  client_ip: string
-  user_agent: string
-  executed_at: string
-  api_key_used?: boolean
-}
+import { KqlSearchBar } from '@/components/logs/KqlSearchBar'
+import { TimeHistogram } from '@/components/logs/TimeHistogram'
+import { LogRow, ALL_COLUMN_DEFS, DEFAULT_COLUMN_KEYS } from '@/components/logs/LogRow'
+import type { ExecutionLog } from '@/components/logs/LogRow'
+import { FieldSidebar } from '@/components/logs/FieldSidebar'
+import { ColumnSelector } from '@/components/logs/ColumnSelector'
+import { TimeRangePicker, DEFAULT_TIME_RANGE } from '@/components/logs/TimeRangePicker'
+import type { TimeRange } from '@/components/logs/TimeRangePicker'
 
 interface PaginationInfo {
   currentPage: number
@@ -46,114 +37,141 @@ interface PaginationInfo {
 }
 
 export default function Logs() {
-  const router = useRouter()
   const { activeProject, loading: projectLoading } = useProject()
-  const [logs, setLogs] = useState<ExecutionLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all')
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    currentPage: 1,
-    totalPages: 1,
-    totalCount: 0,
-    limit: 20,
-    hasNextPage: false,
-    hasPrevPage: false,
-  })
+
+  // ── filter / search state ──────────────────────────────────────────────
+  const [kqlInput, setKqlInput] = useState('')    // live text in search bar
+  const [kqlQuery, setKqlQuery] = useState('')    // committed (after Enter)
+  const [status, setStatus] = useState<'all' | 'success' | 'error'>('all')
+
+  // ── pagination ────────────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
-  useEffect(() => {
-    if (!projectLoading && activeProject) {
-      fetchLogs()
-    }
-  }, [currentPage, pageSize, filter, activeProject, projectLoading])
+  // ── table state ───────────────────────────────────────────────────────
+  const [selectedColumns, setSelectedColumns] = useState<string[]>(DEFAULT_COLUMN_KEYS)
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
 
-  const fetchLogs = async (page = currentPage, limit = pageSize, statusFilter = filter) => {
-    if (!activeProject) return
+  // ── data ──────────────────────────────────────────────────────────────
+  const [logs, setLogs] = useState<ExecutionLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [pagination, setPagination] = useState<PaginationInfo>({
+    currentPage: 1, totalPages: 1, totalCount: 0, limit: 20,
+    hasNextPage: false, hasPrevPage: false,
+  })
 
+  // ── UI panels ─────────────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [timeRange, setTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE)
+
+  // ── fetch logs ────────────────────────────────────────────────────────
+  const fetchLogs = useCallback(async (
+    page: number,
+    limit: number,
+    statusFilter: string,
+    q: string,
+    projectId: string,
+    from: Date,
+    to: Date,
+  ) => {
     setLoading(true)
     try {
-      const response = await authenticatedFetch(
-        `/api/logs?page=${page}&limit=${limit}&status=${statusFilter}&projectId=${activeProject.id}`
-      )
-      const result = await response.json()
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        status: statusFilter,
+        projectId,
+        from: from.toISOString(),
+        to: to.toISOString(),
+      })
+      if (q) params.set('q', q)
 
-      if (result.success && result.data) {
-        setLogs(result.data.logs || [])
-        setPagination(
-          result.data.pagination || {
-            currentPage: 1,
-            totalPages: 1,
-            totalCount: 0,
-            limit: 20,
-            hasNextPage: false,
-            hasPrevPage: false,
-          }
-        )
+      const res = await authenticatedFetch(`/api/logs?${params}`)
+      const json = await res.json()
+
+      if (res.status === 400) {
+        toast.error(json.message || 'Invalid KQL query')
+        setLoading(false)
+        return
+      }
+
+      if (json.success && json.data) {
+        setLogs(json.data.logs ?? [])
+        setPagination(json.data.pagination ?? { currentPage: 1, totalPages: 1, totalCount: 0, limit: 20, hasNextPage: false, hasPrevPage: false })
       } else {
         setLogs([])
       }
-    } catch (error) {
-      console.error('Error fetching logs:', error)
+    } catch {
       setLogs([])
     } finally {
       setLoading(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    if (!projectLoading && activeProject) {
+      fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)
+    }
+  }, [currentPage, pageSize, status, kqlQuery, activeProject, projectLoading, timeRange, fetchLogs])
+
+  // ── handlers ──────────────────────────────────────────────────────────
+  const handleSearch = (query: string) => {
+    setKqlQuery(query)
+    setCurrentPage(1)
+    setExpandedRows(new Set())
   }
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage)
+  const handleStatusChange = (newStatus: 'all' | 'success' | 'error') => {
+    setStatus(newStatus)
+    setCurrentPage(1)
+    setExpandedRows(new Set())
   }
 
-  const handlePageSizeChange = (newPageSize: number) => {
-    setPageSize(newPageSize)
+  const handleTimeRangeChange = (range: TimeRange) => {
+    setTimeRange(range)
+    setCurrentPage(1)
+    setExpandedRows(new Set())
+  }
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
     setCurrentPage(1)
   }
 
-  const handleFilterChange = (newFilter: 'all' | 'success' | 'error') => {
-    setFilter(newFilter)
+  const handleToggleRow = (id: number) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleClickFilter = useCallback((field: string, value: string) => {
+    const escaped = value.includes(' ') ? `"${value}"` : value
+    const term = `${field}:${escaped}`
+    const newQuery = kqlQuery ? `${kqlQuery} AND ${term}` : term
+    setKqlInput(newQuery)
+    setKqlQuery(newQuery)
     setCurrentPage(1)
-  }
+    setExpandedRows(new Set())
+    setSidebarOpen(false)
+  }, [kqlQuery])
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString()
-  }
+  const visibleColumns = ALL_COLUMN_DEFS.filter(c => selectedColumns.includes(c.key))
 
-  const formatBytes = (bytes: number | string | null | undefined) => {
-    const value = typeof bytes === 'string' ? Number(bytes) : bytes
-    if (value == null || !Number.isFinite(value) || value < 0) return 'N/A'
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    if (value === 0) return '0 Bytes'
-    const index = Math.floor(Math.log(value) / Math.log(1024))
-    const i = Math.min(index, sizes.length - 1)
-    return Math.round((value / Math.pow(1024, i)) * 100) / 100 + ' ' + sizes[i]
-  }
-
-  const getStatusVariant = (code: number) => {
-    if (code >= 200 && code < 300) return 'success'
-    if (code >= 400) return 'destructive'
-    return 'warning'
-  }
-
-  if (projectLoading || loading || !activeProject) {
+  // ── loading / no-project guard ─────────────────────────────────────────
+  if (projectLoading || !activeProject) {
     return (
       <ProtectedRoute>
         <Layout title="Execution Logs">
           <div className="flex justify-center items-center h-64">
-            <div className="text-muted-foreground">
-              {projectLoading ? (
-                <div className="flex items-center gap-2">
-                  <Loader className="w-5 h-5 text-primary animate-spin" />
-                  <span className="animate-pulse">Loading projects...</span>
-                </div>
-              ) : !activeProject ? (
-                'No project selected'
-              ) : (
-                <div className="flex items-center gap-2">
-                  <Loader className="w-5 h-5 text-primary animate-spin" />
-                  <span className="animate-pulse">Loading execution logs...</span>
-                </div>
-              )}
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader className="w-5 h-5 text-primary animate-spin" />
+              <span className="animate-pulse">
+                {projectLoading ? 'Loading projects...' : 'No project selected'}
+              </span>
             </div>
           </div>
         </Layout>
@@ -164,161 +182,140 @@ export default function Logs() {
   return (
     <ProtectedRoute>
       <Layout title="Execution Logs">
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Page Header */}
           <PageHeader
             title="Execution Logs"
-            subtitle="Monitor all function execution history and performance across your serverless functions"
+            subtitle="Search and explore function execution history"
             icon={<Activity className="w-8 h-8" />}
           >
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-muted-foreground" />
-                <Select value={filter} onValueChange={(v) => handleFilterChange(v as any)}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="success">Success Only</SelectItem>
-                    <SelectItem value="error">Errors Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" onClick={() => fetchLogs(currentPage, pageSize, filter)}>
-                <Activity className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs"
+              onClick={() => fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)}
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Refresh
+            </Button>
+            <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
           </PageHeader>
 
+          {/* Search Toolbar */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <KqlSearchBar
+              value={kqlInput}
+              onChange={setKqlInput}
+              onSearch={handleSearch}
+            />
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <Select value={status} onValueChange={v => handleStatusChange(v as any)}>
+                <SelectTrigger className="w-36 h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="success">Success Only</SelectItem>
+                  <SelectItem value="error">Errors Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <ColumnSelector selectedKeys={selectedColumns} onChange={setSelectedColumns} />
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 gap-1.5 text-xs flex-shrink-0"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Fields
+            </Button>
+          </div>
+
+          {/* Histogram */}
+          <TimeHistogram
+            projectId={activeProject.id}
+            status={status}
+            kqlQuery={kqlQuery}
+            from={timeRange.from}
+            to={timeRange.to}
+          />
+
+          {/* Log Table */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                  <Globe className="w-5 h-5" />
+            <CardContent className="pt-4 px-4 pb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-muted-foreground" />
                   All Function Executions
-                  <Badge variant="secondary" className="ml-1">
-                    {filter === 'all'
-                      ? `${pagination.totalCount} total`
-                      : `${pagination.totalCount} ${filter}`}
+                  <Badge variant="secondary" className="text-xs">
+                    {pagination.totalCount.toLocaleString()} {status !== 'all' ? status : 'total'}
                   </Badge>
+                  {kqlQuery && (
+                    <Badge variant="outline" className="text-xs font-mono max-w-[200px] truncate">
+                      {kqlQuery}
+                    </Badge>
+                  )}
                 </h2>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Show:</span>
-                  <Select
-                    value={String(pageSize)}
-                    onValueChange={(v) => handlePageSizeChange(parseInt(v))}
-                  >
-                    <SelectTrigger className="w-20">
+                  <span className="text-xs text-muted-foreground">Show:</span>
+                  <Select value={String(pageSize)} onValueChange={v => handlePageSizeChange(parseInt(v))}>
+                    <SelectTrigger className="w-16 h-7 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="10">10</SelectItem>
-                      <SelectItem value="20">20</SelectItem>
-                      <SelectItem value="50">50</SelectItem>
-                      <SelectItem value="100">100</SelectItem>
+                      {[10, 20, 50, 100].map(n => (
+                        <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <span className="text-sm text-muted-foreground">per page</span>
                 </div>
               </div>
 
-              {logs.length === 0 && !loading ? (
-                <div className="text-center py-12">
-                  <Activity className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    {pagination.totalCount === 0 ? 'No Execution Logs' : `No ${filter} executions found`}
+              {loading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader className="w-5 h-5 animate-spin text-primary" />
+                </div>
+              ) : logs.length === 0 ? (
+                <div className="text-center py-16">
+                  <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                  <h3 className="text-sm font-semibold text-foreground mb-1">
+                    {pagination.totalCount === 0 ? 'No Execution Logs' : 'No matching logs'}
                   </h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {pagination.totalCount === 0
-                      ? 'Function execution logs will appear here once functions are invoked'
-                      : 'Try adjusting your filter or refresh the logs'}
+                      ? 'Logs will appear here once functions are invoked'
+                      : 'Try adjusting your search or filters'}
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-md border border-border">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Function</TableHead>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Duration</TableHead>
-                        <TableHead>Request Size</TableHead>
-                        <TableHead>Response Size</TableHead>
-                        <TableHead>Client IP</TableHead>
-                        <TableHead>Error</TableHead>
-                        <TableHead>Actions</TableHead>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-8 p-2" />
+                        {visibleColumns.map(col => (
+                          <TableHead key={col.key} className="text-xs font-medium py-2">
+                            {col.label}
+                          </TableHead>
+                        ))}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {logs.map((log) => (
-                        <TableRow key={log.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/admin/functions/${log.function_id}`}
-                                className="text-foreground font-medium hover:text-primary transition-colors"
-                              >
-                                {log.function_name}
-                              </Link>
-                              {log.api_key_used && (
-                                <Badge variant="warning">API Key</Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {formatDate(log.executed_at)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getStatusVariant(log.status_code) as any}>
-                              {log.status_code}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {log.execution_time_ms}ms
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {formatBytes(log.request_size)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {formatBytes(log.response_size)}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground font-mono text-xs">
-                            {log.client_ip}
-                          </TableCell>
-                          <TableCell>
-                            {log.error_message ? (
-                              <div className="flex items-center gap-1 text-red-400">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                                <span className="text-xs" title={log.error_message}>
-                                  {(() => {
-                                    const msg = log.error_message.split('\n').find(s => s.trim()) ?? log.error_message
-                                    return msg.length > 30 ? `${msg.substring(0, 30)}...` : msg
-                                  })()}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                router.push(
-                                  `/admin/functions/${log.function_id}/execution-logs/${log.id}`
-                                )
-                              }
-                              className="text-primary hover:text-primary"
-                            >
-                              <Activity className="w-4 h-4 mr-1" />
-                              View Details
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                      {logs.map(log => (
+                        <LogRow
+                          key={log.id}
+                          log={log}
+                          columns={visibleColumns}
+                          isExpanded={expandedRows.has(log.id)}
+                          onToggle={handleToggleRow}
+                          onClickFilter={handleClickFilter}
+                        />
                       ))}
                     </TableBody>
                   </Table>
@@ -326,58 +323,55 @@ export default function Logs() {
               )}
 
               {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((pagination.currentPage - 1) * pagination.limit) + 1} to{' '}
+                <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Showing{' '}
+                    {((pagination.currentPage - 1) * pagination.limit) + 1}–
                     {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)} of{' '}
-                    {pagination.totalCount} results
-                  </div>
+                    {pagination.totalCount.toLocaleString()}
+                  </p>
 
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handlePageChange(currentPage - 1)}
+                      className="w-7 h-7"
+                      onClick={() => setCurrentPage(p => p - 1)}
                       disabled={!pagination.hasPrevPage || loading}
                     >
-                      <ChevronLeft className="w-4 h-4" />
+                      <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
 
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                        let pageNum: number
-                        if (pagination.totalPages <= 5) {
-                          pageNum = i + 1
-                        } else if (pagination.currentPage <= 3) {
-                          pageNum = i + 1
-                        } else if (pagination.currentPage >= pagination.totalPages - 2) {
-                          pageNum = pagination.totalPages - 4 + i
-                        } else {
-                          pageNum = pagination.currentPage - 2 + i
-                        }
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum: number
+                      if (pagination.totalPages <= 5) pageNum = i + 1
+                      else if (pagination.currentPage <= 3) pageNum = i + 1
+                      else if (pagination.currentPage >= pagination.totalPages - 2)
+                        pageNum = pagination.totalPages - 4 + i
+                      else pageNum = pagination.currentPage - 2 + i
 
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={pageNum === pagination.currentPage ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => handlePageChange(pageNum)}
-                            disabled={loading}
-                            className="w-8 h-8 p-0"
-                          >
-                            {pageNum}
-                          </Button>
-                        )
-                      })}
-                    </div>
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === pagination.currentPage ? 'default' : 'ghost'}
+                          size="sm"
+                          className="w-7 h-7 p-0 text-xs"
+                          onClick={() => setCurrentPage(pageNum)}
+                          disabled={loading}
+                        >
+                          {pageNum}
+                        </Button>
+                      )
+                    })}
 
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handlePageChange(currentPage + 1)}
+                      className="w-7 h-7"
+                      onClick={() => setCurrentPage(p => p + 1)}
                       disabled={!pagination.hasNextPage || loading}
                     >
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -385,6 +379,16 @@ export default function Logs() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Field Sidebar */}
+        <FieldSidebar
+          open={sidebarOpen}
+          onOpenChange={setSidebarOpen}
+          projectId={activeProject.id}
+          status={status}
+          kqlQuery={kqlQuery}
+          onClickFilter={handleClickFilter}
+        />
       </Layout>
     </ProtectedRoute>
   )

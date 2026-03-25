@@ -20,12 +20,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // (project filter is now applied via Sequelize include below)
     
     // Get recent execution activity
-    const { ExecutionLog, Function: FunctionModel } = database.models
+    const { FunctionLog, Function: FunctionModel } = database.models
     const functionWhere = (projectId && projectId !== 'system') ? { project_id: projectId } : undefined
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-    const recentLogs = await ExecutionLog.findAll({
+    const recentLogs = await FunctionLog.findAll({
       where: { executed_at: { [Op.gt]: oneHourAgo } },
-      attributes: ['id', 'status_code', 'execution_time_ms', 'executed_at'],
+      attributes: ['id', 'executed_at', 'payload'],
       include: [{
         model: FunctionModel,
         attributes: ['id', 'name'],
@@ -38,12 +38,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     const recentActivity = recentLogs.map((log: any) => {
       const raw = log.toJSON()
+      const statusCode: number = raw.payload?.response?.status ?? 0
       return {
         id: raw.id.toString(),
         functionId: raw.Function?.id,
         functionName: raw.Function?.name,
-        status: raw.status_code < 400 ? 'success' : 'error',
-        executionTime: raw.execution_time_ms,
+        status: statusCode > 0 && statusCode < 400 ? 'success' : 'error',
+        executionTime: raw.payload?.execution_time_ms ?? null,
         executedAt: raw.executed_at instanceof Date ? raw.executed_at.toISOString() : raw.executed_at,
       }
     })

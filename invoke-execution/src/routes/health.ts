@@ -48,7 +48,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
 
 router.get('/detailed', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const recentCount = await database.models.ExecutionLog.count({
+    const recentCount = await database.models.FunctionLog.count({
       where: { executed_at: { [Op.gt]: new Date(Date.now() - 3600 * 1000) } },
     });
 

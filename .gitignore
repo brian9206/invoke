@@ -124,6 +124,7 @@ minio-data/
 # Admin service stuff
 /invoke-admin/package-lock.json
 /invoke-admin/public/monaco/
+/invoke-admin/lib/dsl/grammar.js
 
 # VM bundles (will be built with npm run build:vm-modules)
 /invoke-execution/bundles/vm-modules/events.js

@@ -39,12 +39,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       required: true,
     }]
 
-    const executionStatsRow: any = await database.models.ExecutionLog.findOne({
+    const executionStatsRow: any = await database.models.FunctionLog.findOne({
       attributes: [
-        [fn('COUNT', col('ExecutionLog.id')), 'recent_executions'],
-        [literal(`COUNT(*) FILTER (WHERE "ExecutionLog"."status_code" >= 400)`), 'recent_errors'],
-        [literal(`AVG("ExecutionLog"."execution_time_ms")::int`), 'avg_response_time'],
-        [literal(`CASE WHEN COUNT(*) = 0 THEN 100.0 ELSE ROUND((COUNT(*) FILTER (WHERE "ExecutionLog"."status_code" < 400) * 100.0 / COUNT(*)), 1) END`), 'success_rate'],
+        [fn('COUNT', col('FunctionLog.id')), 'recent_executions'],
+        [literal(`COUNT(*) FILTER (WHERE (payload->'response'->>'status')::int >= 400)`), 'recent_errors'],
+        [literal(`AVG((payload->>'execution_time_ms')::int)::int`), 'avg_response_time'],
+        [literal(`CASE WHEN COUNT(*) = 0 THEN 100.0 ELSE ROUND((COUNT(*) FILTER (WHERE (payload->'response'->>'status')::int < 400) * 100.0 / COUNT(*)), 1) END`), 'success_rate'],
       ],
       include: execInclude,
       where: { executed_at: { [Op.gt]: cutoff } },

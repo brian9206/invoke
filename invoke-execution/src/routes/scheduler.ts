@@ -62,7 +62,7 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     }
 
     await logExecution(functionData.id, executionTime, statusCode, result.error, {
-      requestMethod: 'SCHEDULED',
+      requestMethod: 'POST',
       requestUrl: '/scheduled',
       requestBody: '',
       requestSize: null,
@@ -88,17 +88,29 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     console.error(`✗ Scheduled function ${functionData.name} failed:`, error.message);
 
     try {
-      const { ExecutionLog } = database.models;
-      await ExecutionLog.create({
+      const { FunctionLog } = database.models;
+      const executedAt = new Date();
+      await FunctionLog.create({
         function_id: functionData.id,
-        status_code: 500,
-        execution_time_ms: executionTime,
-        request_method: 'SCHEDULED',
-        request_url: '/scheduled',
-        request_size: null,
-        executed_at: new Date(),
-        response_body: JSON.stringify({ error: error.message }),
-        console_logs: [],
+        executed_at: executedAt,
+        payload: {
+          function_id: functionData.id,
+          executed_at: executedAt.toISOString(),
+          execution_time_ms: executionTime,
+          request: {
+            url: '/scheduled',
+            method: 'SCHEDULED',
+            ip: '127.0.0.1',
+            headers: { 'x-scheduled-execution': 'true' },
+            body: { size: null },
+          },
+          response: {
+            status: 500,
+            headers: {},
+            body: { size: null },
+          },
+          error: error.message,
+        },
       });
     } catch (logError) {
       console.error('Failed to log execution error:', logError);

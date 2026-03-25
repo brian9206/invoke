@@ -1,4 +1,4 @@
-import { Op } from 'sequelize'
+import { Op, literal } from 'sequelize'
 import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
@@ -13,7 +13,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   // Verify function exists
-  const { Function: FunctionModel, ExecutionLog } = database.models;
+  const { Function: FunctionModel, FunctionLog } = database.models;
   const fn = await FunctionModel.findByPk(id, { attributes: ['id'] });
 
   if (!fn) {
@@ -27,16 +27,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const offset = (page - 1) * limit
 
     // Build where clause using Sequelize Op
-    const where: any = { function_id: id }
+    const statusFilter: ReturnType<typeof literal>[] = []
     if (status === 'success') {
-      where.status_code = { [Op.gte]: 200, [Op.lt]: 300 }
+      statusFilter.push(literal(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`))
     } else if (status === 'error') {
-      where.status_code = { [Op.gte]: 400 }
+      statusFilter.push(literal(`(payload->'response'->>'status')::int >= 400`))
+    }
+    const where: any = {
+      function_id: id,
+      ...(statusFilter.length > 0 ? { [Op.and]: statusFilter } : {}),
     }
 
-    const { count, rows } = await (ExecutionLog as any).findAndCountAll({
+    const { count, rows } = await (FunctionLog as any).findAndCountAll({
       where,
-      attributes: ['id', 'status_code', 'execution_time_ms', 'request_size', 'response_size', 'error_message', 'client_ip', 'user_agent', 'executed_at'],
+      attributes: ['id', 'function_id', 'executed_at', 'payload'],
       order: [['executed_at', 'DESC']],
       limit,
       offset,

@@ -7,7 +7,7 @@ import database from '@/lib/database'
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
         const { id: functionId, logId } = req.query
-        const { ExecutionLog, Function: FunctionModel, Project, FunctionVersion } = database.models
+        const { FunctionLog, Function: FunctionModel, Project, FunctionVersion } = database.models
 
         // Verify function exists
         const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
@@ -17,7 +17,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         }
 
         // Get detailed execution log
-        const logRecord = await ExecutionLog.findOne({
+        const logRecord = await FunctionLog.findOne({
             where: { id: logId, function_id: functionId },
             include: [{
                 model: FunctionModel,
@@ -35,13 +35,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         }
         const logRaw = logRecord.toJSON()
         const log: any = {
-            ...logRaw,
+            id: logRaw.id,
+            function_id: logRaw.function_id,
+            executed_at: logRaw.executed_at,
+            payload: logRaw.payload,
             function_name: logRaw.Function?.name ?? null,
             project_id: logRaw.Function?.project_id ?? null,
             project_name: logRaw.Function?.Project?.name ?? null,
             function_version: logRaw.Function?.activeVersion?.version ?? null,
         }
-        delete log.Function
         // Verify project membership for non-admins
         if (!req.user?.isAdmin) {
             const access = await checkProjectDeveloperAccess(req.user!.id, log.project_id, false)
@@ -49,31 +51,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
                 return res.status(403).json(createResponse(false, null, access.message || 'Access denied to this project', 403))
             }
         }
-        
-        // Safe JSON parsing function
-        const safeJSONParse = (field: any, defaultValue: any) => {
-            if (!field) return defaultValue
-            if (typeof field === 'object') return field  // Already parsed
-            if (typeof field === 'string') {
-                try {
-                    return JSON.parse(field)
-                } catch (e) {
-                    console.warn(`Failed to parse JSON field:`, field, e)
-                    return defaultValue
-                }
-            }
-            return defaultValue
-        }
-        
-        // Parse JSON fields safely
-        const parsedLog = {
-            ...log,
-            console_output: safeJSONParse(log.console_logs, []),
-            request_headers: safeJSONParse(log.request_headers, {}),
-            response_headers: safeJSONParse(log.response_headers, {})
-        }
 
-        res.json(createResponse(true, parsedLog, 'Execution log details retrieved successfully'))
+        res.json(createResponse(true, log, 'Execution log details retrieved successfully'))
     } catch (error) {
         console.error('Execution log details error:', error)
         res.status(500).json(createResponse(false, null, 'Internal server error'))

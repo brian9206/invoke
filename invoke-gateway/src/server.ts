@@ -107,7 +107,7 @@ async function main(): Promise<void> {
 
   const io = new Server(server, {
     cors: { origin: '*' },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
   });
   io.adapter(createAdapter(pgPool));
 
