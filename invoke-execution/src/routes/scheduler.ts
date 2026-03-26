@@ -64,25 +64,30 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     }
 
     await insertRequestLog(database, {
-      projectId: functionData.project_id,
-      functionId: functionData.id,
+      project: { id: functionData.project_id },
+      function: { id: functionData.id, name: functionData.name },
       source: 'execution',
       traceId,
       executionTime,
       statusCode,
       error: result.error,
       requestInfo: {
-        requestMethod: 'POST',
-        requestUrl: '/scheduled',
-        requestBody: '',
-        requestSize: null,
-        responseBody: responseData,
-        responseSize,
-        requestHeaders: { 'x-scheduled-execution': 'true' },
-        responseHeaders: result.headers || {},
-        consoleOutput: result.logs || [],
-        clientIp: '127.0.0.1',
-        userAgent: 'Invoke-Scheduler/1.0',
+        request: {
+          url: '/scheduled',
+          method: 'POST',
+          ip: '127.0.0.1',
+          userAgent: 'Invoke-Scheduler/1.0',
+          headers: { 'x-scheduled-execution': 'true' },
+          body: { size: null },
+        },
+        response: {
+          headers: result.headers || {},
+          body: {
+            size: responseSize,
+            payload: responseData,
+          },
+        },
+        console: result.logs || [],
       },
     });
 
@@ -100,19 +105,26 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
 
     try {
       await insertRequestLog(database, {
-        projectId: functionData.project_id,
-        functionId: functionData.id,
+        project: { id: functionData.project_id },
+        function: { id: functionData.id, name: functionData.name },
         source: 'execution',
         traceId,
         executionTime,
         statusCode: 500,
         error: error.message,
         requestInfo: {
-          requestMethod: 'POST',
-          requestUrl: '/scheduled',
-          requestHeaders: { 'x-scheduled-execution': 'true' },
-          clientIp: '127.0.0.1',
-          userAgent: 'Invoke-Scheduler/1.0',
+          request: {
+            url: '/scheduled',
+            method: 'POST',
+            ip: '127.0.0.1',
+            userAgent: 'Invoke-Scheduler/1.0',
+            headers: { 'x-scheduled-execution': 'true' },
+            body: { size: null },
+          },
+          response: {
+            headers: {},
+            body: { size: null },
+          },
         },
       });
     } catch (logError) {

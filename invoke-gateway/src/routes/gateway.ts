@@ -246,19 +246,25 @@ router.all('/{*path}', async (req: Request, res: Response) => {
     });
 
     await insertRequestLog(database, {
-      projectId,
-      functionId: route.functionId,
+      project: { id: projectId },
+      function: { id: route.functionId },
       source: 'gateway',
       traceId,
       executionTime: Date.now() - startTime,
       statusCode,
       requestInfo: {
-        requestMethod: req.method,
-        requestUrl: req.path,
-        clientIp,
-        userAgent: req.headers['user-agent'],
-        requestHeaders: req.headers,
-        responseSize,
+        request: {
+          url: req.path,
+          method: req.method,
+          ip: clientIp,
+          userAgent: req.headers['user-agent'],
+          headers: req.headers,
+          body: { size: null },
+        },
+        response: {
+          headers: {},
+          body: { size: responseSize },
+        },
       },
     });
   } catch (err) {

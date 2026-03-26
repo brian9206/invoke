@@ -8,7 +8,7 @@ import { gatewayAuth } from '../middleware/gateway-auth';
 
 const router = express.Router();
 
-async function authenticateApiKey(req: Request, res: Response, next: NextFunction): Promise<void> {
+async function fetchFunctionInfo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const functionId: string = (req.params as any)[0] || (req.params as any).functionId;
 
@@ -23,37 +23,6 @@ async function authenticateApiKey(req: Request, res: Response, next: NextFunctio
 
     const { Function: FunctionModel, FunctionVersion } = database.models;
 
-    if ((req as any).isFromGateway) {
-      const func = await FunctionModel.findOne({
-        where: { id: functionId, is_active: true },
-        include: [
-          { model: FunctionVersion, as: 'activeVersion' },
-          { model: database.models.Project, where: { is_active: true }, required: true },
-        ],
-      });
-
-      if (!func) {
-        res.status(404).json({ success: false, message: 'Function not found' });
-        return;
-      }
-
-      (req as any).functionInfo = func.get({ plain: true });
-      return next();
-    }
-
-    let apiKey: string | null = null;
-
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      apiKey = authHeader.substring(7);
-    }
-    if (!apiKey) {
-      apiKey = (req.query.api_key || req.query.apiKey) as string ?? null;
-    }
-    if (!apiKey) {
-      apiKey = req.headers['x-api-key'] as string ?? null;
-    }
-
     const func = await FunctionModel.findOne({
       where: { id: functionId, is_active: true },
       include: [
@@ -67,25 +36,46 @@ async function authenticateApiKey(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    const functionInfo = func.get({ plain: true });
-
-    if (functionInfo.requires_api_key && functionInfo.api_key) {
-      if (!apiKey) {
-        res.status(401).json({ success: false, message: 'API key required' });
-        return;
-      }
-      if (apiKey !== functionInfo.api_key) {
-        res.status(403).json({ success: false, message: 'Invalid API key' });
-        return;
-      }
-    }
-
-    (req as any).functionInfo = functionInfo;
+    req.functionInfo = func.get({ plain: true });
     next();
   } catch (error) {
-    console.error('API key authentication error:', error);
+    console.error('fetchFunctionInfo error:', error);
     res.status(500).json({ success: false, message: 'Authentication error' });
   }
+}
+
+async function authenticateApiKey(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.isFromGateway) {
+    return next();
+  }
+
+  let apiKey: string | null = null;
+
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    apiKey = authHeader.substring(7);
+  }
+  if (!apiKey) {
+    apiKey = (req.query.api_key || req.query.apiKey) as string ?? null;
+  }
+  if (!apiKey) {
+    apiKey = req.headers['x-api-key'] as string ?? null;
+  }
+
+  const functionInfo = req.functionInfo!;
+
+  if (functionInfo.requires_api_key && functionInfo.api_key) {
+    if (!apiKey) {
+      res.status(401).json({ success: false, message: 'API key required' });
+      return;
+    }
+    if (apiKey !== functionInfo.api_key) {
+      res.status(403).json({ success: false, message: 'Invalid API key' });
+      return;
+    }
+  }
+
+  next();
 }
 
 function createResponse(
@@ -134,7 +124,7 @@ function filterHeaders(headers: Record<string, string | string[] | undefined>): 
 }
 
 // All function invocations — handles GET, POST, PUT, DELETE, PATCH, etc.
-router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
+router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticateApiKey, async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
 
   // Propagate or generate a trace ID.
@@ -192,23 +182,30 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
     const requestBody = req.body === undefined || req.body === null ? '' : JSON.stringify(req.body);
 
     const requestInfo = {
-      requestSize,
-      responseSize,
-      clientIp: (req as any).trustedClientIp,
-      userAgent: req.headers['user-agent'],
-      consoleOutput: result.logs || [],
-      requestHeaders: req.headers,
-      responseHeaders: result.headers || {},
-      requestMethod: req.method,
-      requestUrl: executionContext.req.url,
-      requestBody,
-      responseBody: result.data,
+      request: {
+        url: executionContext.req.url,
+        method: req.method,
+        ip: req.trustedClientIp,
+        userAgent: req.headers['user-agent'],
+        headers: req.headers,
+        body: {
+          size: requestSize,
+          payload: requestBody,
+        },
+      },
+      response: {
+        headers: result.headers || {},
+        body: {
+          size: responseSize,
+          payload: result.data,
+        },
+      },
+      console: result.logs || [],
     };
 
-    const projectId = (req as any).functionInfo?.project_id;
     await insertRequestLog(database, {
-      projectId,
-      functionId,
+      project: { id: req.functionInfo?.project_id, name: req.functionInfo?.Project?.name },
+      function: { id: functionId, name: req.functionInfo?.name },
       source: 'execution',
       traceId,
       executionTime,
@@ -238,11 +235,10 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, authenticateApiKey, async (req
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
     console.error('Execution error:', error);
-    const projectId = (req as any).functionInfo?.project_id;
-    if (projectId) {
+    if (req.functionInfo?.project_id) {
       await insertRequestLog(database, {
-        projectId,
-        functionId: (req.params as any)[0],
+        project: { id: req.functionInfo.project_id, name: req.functionInfo?.Project?.name },
+        function: { id: (req.params as any)[0], name: req.functionInfo?.name },
         source: 'execution',
         traceId,
         executionTime,

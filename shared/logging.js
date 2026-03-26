@@ -92,29 +92,37 @@ async function insertLog(database, { projectId, functionId, type, source, payloa
  *
  * @param {import('./service-database').ServiceDatabase} database
  * @param {object}   opts
- * @param {string}   [opts.projectId]
- * @param {string}   [opts.functionId]
+ * @param {object}   [opts.function]
+ * @param {string}   [opts.function.id]
+ * @param {string}   [opts.function.name]
+ * @param {object}   [opts.project]
+ * @param {string}   [opts.project.id]
+ * @param {string}   [opts.project.name]
  * @param {'execution'|'gateway'} opts.source
  * @param {string}   [opts.traceId]
  * @param {number}   opts.executionTime          Milliseconds.
  * @param {number}   opts.statusCode
  * @param {string}   [opts.error]                Error message if the execution failed.
  * @param {object}   [opts.requestInfo]
- * @param {number|null}  [opts.requestInfo.requestSize]
- * @param {number|null}  [opts.requestInfo.responseSize]
- * @param {string}       [opts.requestInfo.clientIp]
- * @param {string}       [opts.requestInfo.userAgent]
- * @param {unknown[]}    [opts.requestInfo.consoleOutput]
- * @param {object}       [opts.requestInfo.requestHeaders]
- * @param {object}       [opts.requestInfo.responseHeaders]
- * @param {string}       [opts.requestInfo.requestMethod]
- * @param {string}       [opts.requestInfo.requestUrl]
- * @param {string}       [opts.requestInfo.requestBody]
- * @param {Buffer|string|unknown} [opts.requestInfo.responseBody]
+ * @param {object}   [opts.requestInfo.request]
+ * @param {string}   [opts.requestInfo.request.url]
+ * @param {string}   [opts.requestInfo.request.method]
+ * @param {string|null} [opts.requestInfo.request.ip]
+ * @param {string}   [opts.requestInfo.request.userAgent]
+ * @param {object}   [opts.requestInfo.request.headers]
+ * @param {object}   [opts.requestInfo.request.body]
+ * @param {number|null} [opts.requestInfo.request.body.size]
+ * @param {string}   [opts.requestInfo.request.body.payload]
+ * @param {object}   [opts.requestInfo.response]
+ * @param {object}   [opts.requestInfo.response.headers]
+ * @param {object}   [opts.requestInfo.response.body]
+ * @param {number|null} [opts.requestInfo.response.body.size]
+ * @param {Buffer|string|unknown} [opts.requestInfo.response.body.payload]
+ * @param {unknown[]} [opts.requestInfo.console]
  */
 async function insertRequestLog(database, {
-  projectId,
-  functionId,
+  project = null,
+  function: functionArg = null,
   source,
   traceId,
   executionTime,
@@ -122,23 +130,31 @@ async function insertRequestLog(database, {
   error = null,
   requestInfo = {},
 }) {
-  // ── Resolve projectId if not supplied ────────────────────────────────────
-  let resolvedProjectId = projectId;
-  if (!resolvedProjectId && functionId) {
+  // ── Resolve projectId / functionName / projectName if not supplied ───────
+  let resolvedProjectId = project?.id ?? null;
+  let resolvedFunctionName = functionArg?.name ?? null;
+  let resolvedProjectName = project?.name ?? null;
+
+  if (functionArg?.id && (!resolvedProjectId || resolvedFunctionName === null || resolvedProjectName === null)) {
     try {
-      const { Function: FunctionModel } = database.models;
+      const { Function: FunctionModel, Project } = database.models;
       const func = await FunctionModel.findOne({
-        where: { id: functionId },
-        attributes: ['project_id'],
+        where: { id: functionArg.id },
+        attributes: ['project_id', 'name'],
+        include: [{ model: Project, attributes: ['name'], required: false }],
       });
-      if (func) resolvedProjectId = func.get('project_id');
+      if (func) {
+        if (!resolvedProjectId) resolvedProjectId = func.get('project_id');
+        if (resolvedFunctionName === null) resolvedFunctionName = func.get('name') ?? null;
+        if (resolvedProjectName === null) resolvedProjectName = func.Project?.get('name') ?? null;
+      }
     } catch (lookupErr) {
-      console.error('[insertRequestLog] Failed to resolve projectId:', lookupErr);
+      console.error('[insertRequestLog] Failed to resolve function/project info:', lookupErr);
     }
   }
 
   if (!resolvedProjectId) {
-    console.error('[insertRequestLog] Skipping log — no projectId for functionId:', functionId);
+    console.error('[insertRequestLog] Skipping log — no projectId for functionId:', functionArg?.id);
     return;
   }
 
@@ -146,16 +162,16 @@ async function insertRequestLog(database, {
   const MAX_RESPONSE_LOG_SIZE = getMaxResponseLogSize();
   let responseBodyLog = '';
 
-  if (requestInfo.responseBody) {
-    const contentType = (requestInfo.responseHeaders?.['content-type'] || '');
+  if (requestInfo.response?.body?.payload) {
+    const contentType = (requestInfo.response?.headers?.['content-type'] || '');
 
     if (isTextContentType(contentType)) {
-      if (Buffer.isBuffer(requestInfo.responseBody)) {
-        responseBodyLog = requestInfo.responseBody.toString('utf8');
-      } else if (typeof requestInfo.responseBody === 'string') {
-        responseBodyLog = requestInfo.responseBody;
+      if (Buffer.isBuffer(requestInfo.response.body.payload)) {
+        responseBodyLog = requestInfo.response.body.payload.toString('utf8');
+      } else if (typeof requestInfo.response.body.payload === 'string') {
+        responseBodyLog = requestInfo.response.body.payload;
       } else {
-        responseBodyLog = JSON.stringify(requestInfo.responseBody);
+        responseBodyLog = JSON.stringify(requestInfo.response.body.payload);
       }
 
       if (responseBodyLog.length > MAX_RESPONSE_LOG_SIZE) {
@@ -171,36 +187,35 @@ async function insertRequestLog(database, {
 
   // ── Build payload ─────────────────────────────────────────────────────────
   const executedAt = new Date();
-  const requestBody = requestInfo.requestBody || '';
-  const requestSize = toNullableSize(requestInfo.requestSize);
-  const responseSize = toNullableSize(requestInfo.responseSize);
 
   const payload = {
     executed_at: executedAt.toISOString(),
     execution_time_ms: executionTime,
     ...(traceId ? { trace_id: traceId } : {}),
-    ...(functionId ? { function_id: functionId } : {}),
+    ...(functionArg?.id ? { function: { id: functionArg.id, name: resolvedFunctionName } } : {}),
+    ...(resolvedProjectId ? { project: { id: resolvedProjectId, name: resolvedProjectName } } : {}),
     request: {
-      url: requestInfo.requestUrl || '',
-      method: requestInfo.requestMethod || 'POST',
-      ip: requestInfo.clientIp || null,
-      headers: requestInfo.requestHeaders || {},
+      url: requestInfo.request?.url || '',
+      method: requestInfo.request?.method || 'POST',
+      ip: requestInfo.request?.ip || null,
+      ...(requestInfo.request?.userAgent ? { userAgent: requestInfo.request.userAgent } : {}),
+      headers: requestInfo.request?.headers || {},
       body: {
-        size: requestSize,
-        ...(requestBody ? { payload: requestBody } : {}),
+        size: toNullableSize(requestInfo.request?.body?.size),
+        ...(requestInfo.request?.body?.payload ? { payload: requestInfo.request.body.payload } : {}),
       },
     },
     response: {
       ...(statusCode ? { status: statusCode } : {}),
-      headers: requestInfo.responseHeaders || {},
+      headers: requestInfo.response?.headers || {},
       body: {
-        size: responseSize,
+        size: toNullableSize(requestInfo.response?.body?.size),
         ...(responseBodyLog ? { payload: responseBodyLog } : {}),
       },
     },
     ...(error ? { error } : {}),
-    ...(requestInfo.consoleOutput && requestInfo.consoleOutput.length > 0
-      ? { console: requestInfo.consoleOutput }
+    ...(requestInfo.console && requestInfo.console.length > 0
+      ? { console: requestInfo.console }
       : {}),
   };
 
@@ -208,7 +223,7 @@ async function insertRequestLog(database, {
   try {
     await insertLog(database, {
       projectId: resolvedProjectId,
-      functionId,
+      functionId: functionArg?.id,
       type: 'request',
       source,
       payload,
@@ -216,14 +231,14 @@ async function insertRequestLog(database, {
     });
 
     // Update execution metrics for function invocations
-    if (source === 'execution' && functionId) {
+    if (source === 'execution' && functionArg?.id) {
       const { Function: FunctionModel } = database.models;
       await FunctionModel.update(
         {
           execution_count: database.sequelize.literal('execution_count + 1'),
           last_executed: new Date(),
         },
-        { where: { id: functionId } },
+        { where: { id: functionArg.id } },
       );
     }
   } catch (dbError) {

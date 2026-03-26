@@ -189,22 +189,30 @@ declare module 'invoke-shared' {
   }
 
   interface RequestLogInfo {
-    requestSize?: number | null;
-    responseSize?: number | null;
-    clientIp?: string;
-    userAgent?: string;
-    consoleOutput?: unknown[];
-    requestHeaders?: Record<string, unknown>;
-    responseHeaders?: Record<string, string | string[]>;
-    requestMethod?: string;
-    requestUrl?: string;
-    requestBody?: string;
-    responseBody?: Buffer | string | unknown;
+    request?: {
+      url?: string;
+      method?: string;
+      ip?: string | null;
+      userAgent?: string;
+      headers?: Record<string, unknown>;
+      body?: {
+        size?: number | null;
+        payload?: string;
+      };
+    };
+    response?: {
+      headers?: Record<string, string | string[]>;
+      body?: {
+        size?: number | null;
+        payload?: unknown;
+      };
+    };
+    console?: unknown[];
   }
 
   interface InsertRequestLogOptions {
-    projectId?: string;
-    functionId?: string;
+    project?: { id?: string; name?: string | null };
+    function?: { id?: string; name?: string | null };
     source: LogSource;
     traceId?: string;
     executionTime: number;
