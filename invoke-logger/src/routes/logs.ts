@@ -46,7 +46,7 @@ router.get('/logs/search', async (req: Request, res: Response) => {
         whereParts.push(`(payload->'response'->>'status')::int >= 400`);
       }
 
-      if (projectId) {
+      if (projectId && projectId !== 'system') {
         binds.push(projectId);
         whereParts.push(`project_id = $${binds.length}`);
       }
@@ -109,7 +109,7 @@ router.get('/logs/search', async (req: Request, res: Response) => {
     } else if (status === 'error') {
       andConditions.push(literal(`(payload->'response'->>'status')::int >= 400`));
     }
-    if (projectId) andConditions.push({ project_id: projectId });
+    if (projectId && projectId !== 'system') andConditions.push({ project_id: projectId });
     if (functionId) andConditions.push({ function_id: functionId });
     if (fromDate && !isNaN(fromDate.getTime())) {
       andConditions.push({ executed_at: { [Op.gte]: fromDate } });
@@ -193,7 +193,7 @@ router.get('/logs/fields', async (req: Request, res: Response) => {
       baseParts.push(`(payload->'response'->>'status')::int >= 400`);
     }
 
-    if (projectId) {
+    if (projectId && projectId !== 'system') {
       baseBinds.push(projectId);
       baseParts.push(`project_id = $${baseBinds.length}`);
     }
@@ -286,7 +286,7 @@ router.get('/logs/histogram', async (req: Request, res: Response) => {
     binds.push(toDate.toISOString());
     whereParts.push(`executed_at <= $${binds.length}`);
 
-    if (projectId) {
+    if (projectId && projectId !== 'system') {
       binds.push(projectId);
       whereParts.push(`project_id = $${binds.length}`);
     }

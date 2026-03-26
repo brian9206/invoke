@@ -1191,20 +1191,25 @@ export default function FunctionDetails() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {executionLogs.map((log) => (
+                          {executionLogs.map((log) => {
+                            const payload = log.payload as any
+                            const status = payload?.response?.status
+                            const duration = payload?.execution_time_ms
+                            const error = payload?.error
+                            return (
                             <TableRow key={log.id}>
                               <TableCell className="text-sm text-muted-foreground">{formatDate(log.executed_at)}</TableCell>
-                              <TableCell><Badge variant={getStatusBadgeVariant(log.payload.response.status)}>{log.payload.response.status}</Badge></TableCell>
-                              <TableCell className="text-sm">{log.payload.execution_time_ms}ms</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.payload.request.body.size)}</TableCell>
-                              <TableCell className="text-sm text-muted-foreground">{formatBytes(log.payload.response.body.size)}</TableCell>
-                              <TableCell className="text-sm font-mono text-muted-foreground">{log.payload.request.ip}</TableCell>
+                              <TableCell><Badge variant={getStatusBadgeVariant(status ?? 0)}>{status ?? '—'}</Badge></TableCell>
+                              <TableCell className="text-sm">{duration ?? '—'}ms</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{formatBytes(payload?.request?.body?.size)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{formatBytes(payload?.response?.body?.size)}</TableCell>
+                              <TableCell className="text-sm font-mono text-muted-foreground">{payload?.request?.ip ?? '—'}</TableCell>
                               <TableCell className="text-sm">
-                                {log.payload.error ? (
+                                {error ? (
                                   <div className="flex items-center gap-1 text-destructive">
                                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="text-xs truncate max-w-[150px]" title={log.payload.error}>
-                                      {(log.payload.error.split('\n').find((s: string) => s.trim()) ?? log.payload.error).substring(0, 40)}
+                                    <span className="text-xs truncate max-w-[150px]" title={error}>
+                                      {(error.split('\n').find((s: string) => s.trim()) ?? error).substring(0, 40)}
                                     </span>
                                   </div>
                                 ) : <span className="text-muted-foreground">—</span>}
@@ -1215,7 +1220,8 @@ export default function FunctionDetails() {
                                 </Button>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            )
+                          })}
                         </TableBody>
                       </Table>
                     </div>
