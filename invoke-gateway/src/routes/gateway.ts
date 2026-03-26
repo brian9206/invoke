@@ -1,10 +1,9 @@
 import crypto from 'crypto';
 import express, { Request, Response } from 'express';
-import { insertRequestLog } from 'invoke-shared';
+import { insertRequestLog } from '../services/logger-client';
 import routeCache, { CorsSettings } from '../services/route-cache';
 import { authenticate } from '../services/auth';
 import { executionClient, buildGatewayHeaders, buildInvokeUrl } from '../services/execution-client';
-import database from '../services/database';
 
 const router = express.Router();
 
@@ -245,7 +244,7 @@ router.all('/{*path}', async (req: Request, res: Response) => {
       traceId,
     });
 
-    await insertRequestLog(database, {
+    insertRequestLog({
       project: { id: projectId },
       function: { id: route.functionId },
       source: 'gateway',

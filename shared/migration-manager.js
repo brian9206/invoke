@@ -17,12 +17,17 @@ const { Umzug, SequelizeStorage } = require('umzug');
 class MigrationManager {
   /**
    * @param {object} sequelize - Connected Sequelize instance
+   * @param {object} [options]
+   * @param {string} [options.migrationsPath] - Absolute path to the migrations directory.
+   *   Defaults to MIGRATIONS_DIR env var, then shared/migrations/.
    */
-  constructor(sequelize) {
+  constructor(sequelize, options = {}) {
     this.sequelize = sequelize;
 
     const migrationsPath = (
-      process.env.MIGRATIONS_DIR || path.resolve(__dirname, 'migrations')
+      options.migrationsPath ||
+      process.env.MIGRATIONS_DIR ||
+      path.resolve(__dirname, 'migrations')
     ).replace(/\\/g, '/');
 
     console.log('🔧 Initializing MigrationManager with migrations path:', migrationsPath);

@@ -261,7 +261,7 @@ function astToJsonb(node: AstNode, config: DslConfig, binds: unknown[]): AstResu
  * Parse a Kibana field-filter string and return parameters for sequelize.query().
  *
  * Usage:
- *   const { sql, bind, type, predicate } = dslToSequelize(input, config);
+ *   const { sql, bind, type, predicate } = kqlToSequelizeQuery(input, config);
  *   const rows = await sequelize.query(
  *     `SELECT * FROM function_logs WHERE ${sql}`,
  *     { bind, type }

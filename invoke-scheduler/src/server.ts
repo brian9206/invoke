@@ -8,6 +8,7 @@ const port = process.env.PORT || 3000;
 // Environment configuration
 const EXECUTION_SERVICE_URL = process.env.EXECUTION_SERVICE_URL || 'http://invoke-execution:3000';
 const ADMIN_SERVICE_URL = process.env.ADMIN_SERVICE_URL || 'http://invoke-admin:3000';
+const LOGGER_SERVICE_URL = (process.env.LOGGER_SERVICE_URL || 'http://invoke-logger:3000').replace(/\/$/, '');
 const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET || '';
 const SCHEDULER_INTERVAL = parseInt(process.env.SCHEDULER_INTERVAL ?? '60000', 10) || 60000; // 1 minute default
 const LOG_CLEANUP_INTERVAL = parseInt(process.env.LOG_CLEANUP_INTERVAL ?? '3600000', 10) || 3600000; // 1 hour default
@@ -98,7 +99,7 @@ async function triggerCleanupLogs(): Promise<void> {
       return;
     }
 
-    const response = await fetch(`${ADMIN_SERVICE_URL}/api/admin/cleanup-logs`, {
+    const response = await fetch(`${LOGGER_SERVICE_URL}/cleanup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -137,6 +138,7 @@ function startScheduler(): void {
   console.log(`Starting Invoke Function Scheduler (interval: ${SCHEDULER_INTERVAL}ms)`);
   console.log(`Execution service URL: ${EXECUTION_SERVICE_URL}`);
   console.log(`Admin service URL: ${ADMIN_SERVICE_URL}`);
+  console.log(`Logger service URL: ${LOGGER_SERVICE_URL}`);
   console.log(`Log cleanup interval: ${LOG_CLEANUP_INTERVAL}ms`);
 
   // calculate next :00 second to align with minute intervals

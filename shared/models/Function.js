@@ -129,7 +129,6 @@ module.exports = (sequelize) => {
       as: 'activeVersion',
       constraints: false, // constraint already exists at DB level
     });
-    FunctionModel.hasMany(models.FunctionLog, { foreignKey: 'function_id' });
     FunctionModel.hasMany(models.FunctionEnvironmentVariable, { foreignKey: 'function_id' });
   };
 

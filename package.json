@@ -10,6 +10,7 @@
     "invoke-admin",
     "invoke-execution",
     "invoke-gateway",
+    "invoke-logger",
     "invoke-scheduler"
   ],
   "scripts": {

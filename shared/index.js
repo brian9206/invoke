@@ -10,6 +10,4 @@ function createNotifyListener(...args) {
   return require('./pg-notify').createNotifyListener(...args);
 }
 
-const { insertLog, insertRequestLog } = require('./logging');
-
-module.exports = { createDatabase, initModels, createServiceDatabase, createNotifyListener, s3Service, MigrationManager, insertLog, insertRequestLog };
+module.exports = { createDatabase, initModels, createServiceDatabase, createNotifyListener, s3Service, MigrationManager };

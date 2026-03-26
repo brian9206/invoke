@@ -1,67 +1,34 @@
-import { Op, literal } from 'sequelize'
-import { NextApiRequest, NextApiResponse } from 'next'
+import { NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
+import { proxyToLogger } from '@/lib/logger-proxy'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-  const { id } = req.query as { id: string }
+    const { id } = req.query as { id: string }
 
-  if (!id || typeof id !== 'string') {
-    return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
-  }
-
-  // Verify function exists
-  const { Function: FunctionModel, FunctionLog } = database.models;
-  const fn = await FunctionModel.findByPk(id, { attributes: ['id'] });
-
-  if (!fn) {
-    return res.status(404).json(createResponse(false, null, 'Function not found', 404))
-  }
-
-    // Get execution logs for the function
-    const page = parseInt(req.query.page as string) || 1
-    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100) // Max 100, default 20
-    const status = req.query.status as string || 'all'
-    const offset = (page - 1) * limit
-
-    // Build where clause using Sequelize Op
-    const statusFilter: ReturnType<typeof literal>[] = []
-    if (status === 'success') {
-      statusFilter.push(literal(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`))
-    } else if (status === 'error') {
-      statusFilter.push(literal(`(payload->'response'->>'status')::int >= 400`))
-    }
-    const where: any = {
-      function_id: id,
-      ...(statusFilter.length > 0 ? { [Op.and]: statusFilter } : {}),
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json(createResponse(false, null, 'Function ID is required', 400))
     }
 
-    const { count, rows } = await (FunctionLog as any).findAndCountAll({
-      where,
-      attributes: ['id', 'function_id', 'executed_at', 'payload'],
-      order: [['executed_at', 'DESC']],
-      limit,
-      offset,
-      distinct: true,
+    // Verify function exists using app DB
+    const { Function: FunctionModel } = database.models
+    const fn = await FunctionModel.findByPk(id, { attributes: ['id'] })
+    if (!fn) {
+      return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+    }
+
+    const result = await proxyToLogger('/logs/search', {
+      query: {
+        functionId: id,
+        status: req.query.status as string,
+        page: req.query.page as string,
+        limit: req.query.limit as string,
+      },
     })
 
-    const totalCount = count
-    const totalPages = Math.ceil(totalCount / limit)
-
-    return res.status(200).json(createResponse(true, {
-      logs: rows.map((r: any) => r.toJSON()),
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalCount,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
-      }
-    }, 'Execution logs retrieved', 200))
-
+    res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))
   } catch (error) {
     console.error('Function logs API error:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))

@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import express, { Request, Response, NextFunction } from 'express';
-import { insertRequestLog } from 'invoke-shared';
 import database from '../services/database';
+import { insertRequestLog } from '../services/logger-client';
 import cache from '../services/cache';
 import { executeFunction, createExecutionContext, getFunctionPackage } from '../services/execution-service';
 import { gatewayAuth } from '../middleware/gateway-auth';
@@ -146,15 +146,15 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
 
     const packageInfo = await getFunctionPackage(functionId);
 
-    const executionContext = createExecutionContext(
-      req.method,
-      req.body ?? {},
-      queryParams as Record<string, string>,
-      filterHeaders(headers as Record<string, string | string[]>),
-      { functionId },
-      req as any,
-      packageInfo.tempDir,
-    );
+    const executionContext = createExecutionContext({
+      method: req.method,
+      body: req.body ?? {},
+      query: queryParams as Record<string, string>,
+      headers: filterHeaders(headers as Record<string, string | string[]>),
+      params: { functionId },
+      originalReq: req as any,
+      traceId,
+    });
 
     const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
 
@@ -200,10 +200,9 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
           payload: result.data,
         },
       },
-      console: result.logs || [],
     };
 
-    await insertRequestLog(database, {
+    insertRequestLog({
       project: { id: req.functionInfo?.project_id, name: req.functionInfo?.Project?.name },
       function: { id: functionId, name: req.functionInfo?.name },
       source: 'execution',
@@ -213,6 +212,12 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       error: result.error ?? undefined,
       requestInfo,
     });
+
+    const { Function: FunctionModel } = database.models;
+    await FunctionModel.update(
+      { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
+      { where: { id: functionId } },
+    );
 
     if (result.error) {
       res.status(statusCode).json({
@@ -236,15 +241,21 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
     const executionTime = Date.now() - startTime;
     console.error('Execution error:', error);
     if (req.functionInfo?.project_id) {
-      await insertRequestLog(database, {
+      const errorFunctionId = (req.params as any)[0];
+      insertRequestLog({
         project: { id: req.functionInfo.project_id, name: req.functionInfo?.Project?.name },
-        function: { id: (req.params as any)[0], name: req.functionInfo?.name },
+        function: { id: errorFunctionId, name: req.functionInfo?.name },
         source: 'execution',
         traceId,
         executionTime,
         statusCode: 500,
         error: error.message,
       });
+      const { Function: FunctionModel } = database.models;
+      await FunctionModel.update(
+        { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
+        { where: { id: errorFunctionId } },
+      );
     }
     res.status(500).json(createResponse(false, null, 'Execution failed', 500));
   }

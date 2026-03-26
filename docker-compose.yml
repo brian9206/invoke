@@ -1,6 +1,6 @@
 services:
   # PostgreSQL Database
-  postgres:
+  postgres_app:
     image: postgres:15-alpine
     env_file:
       - .env
@@ -17,6 +17,25 @@ services:
       timeout: 10s
       start_period: 5s
       retries: 3
+
+  postgres_logs:
+    image: postgres:15-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${LOG_DB_NAME}
+      POSTGRES_USER: ${LOG_DB_USER}
+      POSTGRES_PASSWORD: ${LOG_DB_PASSWORD}
+    volumes:
+      - postgres_logs_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+
 
   # MinIO Object Storage (S3-compatible)
   minio:
@@ -49,8 +68,8 @@ services:
       - .env
     environment:
       - TRUST_PROXY=${TRUST_PROXY}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=postgres_app
+      - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -66,10 +85,11 @@ services:
       - MAX_CACHE_SIZE_GB=${MAX_CACHE_SIZE_GB}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - GATEWAY_SERVICE_URL=http://gateway:3000
+      - LOGGER_SERVICE_URL=http://logger:3000
     volumes:
       - execution_cache:/app/cache
     depends_on:
-      postgres:
+      postgres_app:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -89,8 +109,8 @@ services:
       - .env
     environment:
       - TRUST_PROXY=${TRUST_PROXY}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=postgres_app
+      - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -105,8 +125,9 @@ services:
       - TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY}
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      - LOGGER_SERVICE_URL=http://logger:3000
     depends_on:
-      postgres:
+      postgres_app:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -124,8 +145,8 @@ services:
       - .env
     environment:
       - TRUST_PROXY=${TRUST_PROXY}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=postgres_app
+      - DB_PORT=5432
       - DB_NAME=${DB_NAME}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
@@ -133,8 +154,9 @@ services:
       - CACHE_REFRESH_INTERVAL=${CACHE_REFRESH_INTERVAL}
       - JWT_SECRET=${JWT_SECRET}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+      - LOGGER_SERVICE_URL=http://logger:3000
     depends_on:
-      postgres:
+      postgres_app:
         condition: service_healthy
       execution:
         condition: service_healthy
@@ -142,7 +164,27 @@ services:
     deploy:
       replicas: ${GATEWAY_REPLICAS}
 
-  # Scheduler Service
+  # Logger Service
+  logger:
+    build:
+      context: .
+      dockerfile: invoke-logger/Dockerfile
+    image: ghcr.io/brian9206/invoke/logger:latest
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres_app
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - LOG_DB_HOST=postgres_logs
+      - LOG_DB_PORT=5432
+      - LOG_DB_NAME=${LOG_DB_NAME}
+      - LOG_DB_USER=${LOG_DB_USER}
+      - LOG_DB_PASSWORD=${LOG_DB_PASSWORD}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+    depends_on:
   scheduler:
     build:
       context: .
@@ -153,6 +195,7 @@ services:
     environment:
       - EXECUTION_SERVICE_URL=http://execution:3000
       - ADMIN_SERVICE_URL=http://admin:3000
+      - LOGGER_SERVICE_URL=http://logger:3000
       - SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL}
       - LOG_CLEANUP_INTERVAL=${LOG_CLEANUP_INTERVAL}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
@@ -161,6 +204,8 @@ services:
       execution:
         condition: service_healthy
       admin:
+        condition: service_started
+      logger:
         condition: service_started
     restart: unless-stopped
 

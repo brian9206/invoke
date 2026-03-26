@@ -1,8 +1,16 @@
-const { Model, DataTypes } = require('sequelize');
+import { Model, DataTypes, Sequelize, ModelStatic } from 'sequelize';
 
-module.exports = (sequelize) => {
-  class FunctionLog extends Model {}
+export class FunctionLog extends Model {
+  declare id: number;
+  declare function_id: string | null;
+  declare project_id: string;
+  declare type: string;
+  declare source: string;
+  declare executed_at: Date;
+  declare payload: Record<string, unknown>;
+}
 
+export function initFunctionLogModel(sequelize: Sequelize): ModelStatic<FunctionLog> {
   FunctionLog.init(
     {
       id: {
@@ -10,27 +18,21 @@ module.exports = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
-      // Nullable: execution logs carry a function_id; gateway logs may not.
       function_id: {
         type: DataTypes.UUID,
         allowNull: true,
-        references: { model: 'functions', key: 'id' },
-        onDelete: 'CASCADE',
+        // No FK reference — cross-DB FK constraints not possible
       },
-      // Mandatory: every log is scoped to a project.
       project_id: {
         type: DataTypes.UUID,
         allowNull: false,
-        references: { model: 'projects', key: 'id' },
-        onDelete: 'CASCADE',
+        // No FK reference
       },
-      // 'request' = request/response log; 'app' = application log
       type: {
         type: DataTypes.STRING(10),
         allowNull: false,
         defaultValue: 'request',
       },
-      // 'execution' = emitted by invoke-execution; 'gateway' = emitted by invoke-gateway
       source: {
         type: DataTypes.STRING(20),
         allowNull: false,
@@ -45,8 +47,6 @@ module.exports = (sequelize) => {
         type: DataTypes.JSONB,
         allowNull: false,
       },
-      // payload_search is a TSVECTOR populated by the DB trigger.
-      // It is intentionally excluded from the model — do not write to it.
     },
     {
       sequelize,
@@ -58,10 +58,5 @@ module.exports = (sequelize) => {
     },
   );
 
-  FunctionLog.associate = (models) => {
-    FunctionLog.belongsTo(models.Function, { foreignKey: 'function_id' });
-    FunctionLog.belongsTo(models.Project, { foreignKey: 'project_id' });
-  };
-
   return FunctionLog;
-};
+}

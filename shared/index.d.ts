@@ -35,7 +35,6 @@ declare module 'invoke-shared' {
     Function: AnyModelStatic;
     FunctionVersion: AnyModelStatic;
     ApiKey: AnyModelStatic;
-    FunctionLog: AnyModelStatic;
     FunctionEnvironmentVariable: AnyModelStatic;
     GlobalSetting: AnyModelStatic;
     ProjectNetworkPolicy: AnyModelStatic;
@@ -77,7 +76,7 @@ declare module 'invoke-shared' {
     port: number;
   }
 
-  interface ServiceDatabase {
+  export interface ServiceDatabase {
     sequelize: SequelizeLike;
     models: ServiceModels;
     getConnectionConfig(): ConnectionConfig;
@@ -174,53 +173,6 @@ declare module 'invoke-shared' {
 
   // ─── Exports ──────────────────────────────────────────────────────────────────
 
-  // ─── Logging ──────────────────────────────────────────────────────────────────
-
-  type LogType = 'request' | 'app';
-  type LogSource = 'execution' | 'gateway';
-
-  interface InsertLogOptions {
-    projectId: string;
-    functionId?: string;
-    type: LogType;
-    source: LogSource;
-    payload: Record<string, unknown>;
-    executedAt?: Date;
-  }
-
-  interface RequestLogInfo {
-    request?: {
-      url?: string;
-      method?: string;
-      ip?: string | null;
-      userAgent?: string;
-      headers?: Record<string, unknown>;
-      body?: {
-        size?: number | null;
-        payload?: string;
-      };
-    };
-    response?: {
-      headers?: Record<string, string | string[]>;
-      body?: {
-        size?: number | null;
-        payload?: unknown;
-      };
-    };
-    console?: unknown[];
-  }
-
-  interface InsertRequestLogOptions {
-    project?: { id?: string; name?: string | null };
-    function?: { id?: string; name?: string | null };
-    source: LogSource;
-    traceId?: string;
-    executionTime: number;
-    statusCode: number;
-    error?: string | null;
-    requestInfo?: RequestLogInfo;
-  }
-
   export function createDatabase(opts?: CreateDatabaseOptions): SequelizeLike;
   export function initModels(sequelize: SequelizeLike): ServiceModels;
   export function createServiceDatabase(opts?: CreateServiceDatabaseOptions): ServiceDatabase;
@@ -230,6 +182,4 @@ declare module 'invoke-shared' {
   ): NotifyListener;
   export const s3Service: S3Service;
   export { MigrationManager };
-  export function insertLog(database: ServiceDatabase, opts: InsertLogOptions): Promise<AnyModel>;
-  export function insertRequestLog(database: ServiceDatabase, opts: InsertRequestLogOptions): Promise<void>;
 }

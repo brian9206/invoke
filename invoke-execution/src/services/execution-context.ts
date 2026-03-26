@@ -7,12 +7,6 @@ import NetworkPolicy from './network-policy';
 // sandbox-fs has no TS types; use require to avoid declaration errors
 const { VirtualFileSystem } = require('sandbox-fs');
 
-interface LogEntry {
-  level: string;
-  message: string;
-  timestamp: number;
-}
-
 interface ResponseState {
   statusCode: number;
   headers: Record<string, string | string[]>;
@@ -52,7 +46,7 @@ class ExecutionContext {
   private kvStore: any;
   private networkPolicy: NetworkPolicy;
   public vfs: any;
-  private logs: LogEntry[];
+  private consoleLogger: ((data: { level: string; message: string; timestamp: number }) => void) | null;
   private response: ResponseState;
 
   constructor(
@@ -67,6 +61,7 @@ class ExecutionContext {
     projectSlug: string,
     kvStore: any,
     networkPolicies: { globalRules?: any[]; projectRules?: any[] },
+    consoleLogger?: (data: { level: string; message: string; timestamp: number }) => void,
   ) {
     this.isolate = isolate;
     this.context = context;
@@ -86,7 +81,7 @@ class ExecutionContext {
     this.vfs = new VirtualFileSystem({});
     this.vfs.mountSync(this.packageDir, '/app');
 
-    this.logs = [];
+    this.consoleLogger = consoleLogger ?? null;
     this.response = {
       statusCode: 200,
       headers: {},
@@ -121,21 +116,18 @@ class ExecutionContext {
     await this.context.global.set(
       '_consoleWrite',
       new ivm.Reference((data: any) => {
-        this.logs.push({
-          level: data.level || 'log',
-          message: data.message.map((arg: any) => String(arg)).join(' '),
-          timestamp: Date.now(),
-        });
+        const level = data.level || 'log';
+        const message = data.message.map((arg: any) => String(arg)).join(' ');
+        this.consoleLogger?.({ level, message, timestamp: Date.now() });
 
         if (process.env.REDIRECT_OUTPUT === 'true') {
-          (console as any)[data.level || 'log'](
-            `[Function ${this.functionId}] ${data.message.map((arg: any) => String(arg)).join(' ')}`,
+          (console as any)[level](
+            `[Function ${this.functionId}] ${message}`,
           );
         } else if (process.env.REDIRECT_OUTPUT === 'no-func-id') {
-          const level = data.level || 'log';
           const readableLevel = level === 'log' ? 'info' : level;
           (console as any)[level](
-            `[${readableLevel.toUpperCase().substring(0, 3)}] ${data.message.map((arg: any) => String(arg)).join(' ')}`,
+            `[${readableLevel.toUpperCase().substring(0, 3)}] ${message}`,
           );
         }
       }),
@@ -144,17 +136,13 @@ class ExecutionContext {
     await this.context.global.set(
       '_consoleClear',
       new ivm.Reference(() => {
-        this.logs = [];
+        // console.clear() is a no-op in sandboxed execution
       }),
     );
   }
 
   consoleLog(message: string): void {
-    this.logs.push({
-      level: 'log',
-      message: String(message),
-      timestamp: Date.now(),
-    });
+    this.consoleLogger?.({ level: 'log', message: String(message), timestamp: Date.now() });
   }
 
   private async _setupBuiltinModuleRef(): Promise<void> {
@@ -403,10 +391,6 @@ class ExecutionContext {
 
   async setupResponse(): Promise<void> {
     // Response references are already set up in bootstrap via _setupResponseRefs
-  }
-
-  getLogs(): LogEntry[] {
-    return this.logs;
   }
 
   getResponse(): ResponseState {

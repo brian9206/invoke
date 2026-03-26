@@ -54,6 +54,7 @@
     "keyv": "^5.1.0",
     "lucide-react": "^0.562.0",
     "minimatch": "^9.0.3",
+    "monaco-editor": "^0.55.1",
     "moo": "^0.5.3",
     "multer": "2.1.0",
     "nearley": "^2.20.1",
