@@ -40,7 +40,6 @@ export default function Logs() {
   const { activeProject, loading: projectLoading } = useProject()
 
   // ── filter / search state ──────────────────────────────────────────────
-  const [kqlInput, setKqlInput] = useState('')    // live text in search bar
   const [kqlQuery, setKqlQuery] = useState('')    // committed (after Enter)
   const [status, setStatus] = useState<'all' | 'success' | 'error'>('all')
 
@@ -152,7 +151,6 @@ export default function Logs() {
     const escaped = value.includes(' ') ? `"${value}"` : value
     const term = `${field}:${escaped}`
     const newQuery = kqlQuery ? `${kqlQuery} AND ${term}` : term
-    setKqlInput(newQuery)
     setKqlQuery(newQuery)
     setCurrentPage(1)
     setExpandedRows(new Set())
@@ -204,9 +202,8 @@ export default function Logs() {
           {/* Search Toolbar */}
           <div className="flex items-center gap-2 flex-wrap">
             <KqlSearchBar
-              value={kqlInput}
-              onChange={setKqlInput}
               onSearch={handleSearch}
+              initialValue={kqlQuery}
             />
 
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -250,8 +247,7 @@ export default function Logs() {
             <CardContent className="pt-4 px-4 pb-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-muted-foreground" />
-                  All Function Executions
+                  Log Entries
                   <Badge variant="secondary" className="text-xs">
                     {pagination.totalCount.toLocaleString()} {status !== 'all' ? status : 'total'}
                   </Badge>

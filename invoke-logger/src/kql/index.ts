@@ -179,8 +179,22 @@ function astToJsonb(node: AstNode, config: DslConfig, binds: unknown[]): AstResu
 
       // Wildcard value → tsvector coarse filter + field-specific predicate
       if (value && typeof value === "object" && value.type === "wildcard") {
-        const terms = extractSearchTerms(value.value);
-        const re = wildcardToRegex(value.value);
+        const wildcardValue = value.value;
+
+        // Bare `*` or `?` means "field exists with any value"
+        if (wildcardValue === "*" || wildcardValue === "?") {
+          return {
+            sql: `${jsonbPath(col, field)} IS NOT NULL`,
+            predicate: (row: QueryRow): boolean => {
+              const v = getNestedValue(row[col], field);
+              return v != null;
+            },
+          };
+        }
+
+        // Pattern wildcard → tsvector coarse filter + field-specific predicate
+        const terms = extractSearchTerms(wildcardValue);
+        const re = wildcardToRegex(wildcardValue);
         const p = bind(terms);
         return {
           sql: `"${tsCol}" @@ plainto_tsquery('english', ${p})`,

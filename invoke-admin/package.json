@@ -6,7 +6,7 @@
   "scripts": {
     "copy:monaco-assets": "node scripts/copy-monaco-assets.js",
     "predev": "npm run copy:monaco-assets",
-    "prebuild": "npm run copy:monaco-assets && nearleyc -o lib/kql/grammar.js lib/kql/grammar.ne",
+    "prebuild": "npm run copy:monaco-assets",
     "prestart": "npm run copy:monaco-assets",
     "dev": "node ../shared/scripts/migrate.js && next dev",
     "build": "next build",
