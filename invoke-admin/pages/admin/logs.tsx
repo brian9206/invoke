@@ -1,14 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import PageHeader from '@/components/PageHeader'
 import { useProject } from '@/contexts/ProjectContext'
-import { Activity, Filter, Globe, ChevronLeft, ChevronRight, Loader, Layers } from 'lucide-react'
+import { Activity, Filter, Layers, ChevronLeft, ChevronRight, Loader, RefreshCw, ChevronsUpDown } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
@@ -17,6 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable'
+import type { PanelImperativeHandle } from 'react-resizable-panels'
 
 import { KqlSearchBar } from '@/components/logs/KqlSearchBar'
 import { TimeHistogram } from '@/components/logs/TimeHistogram'
@@ -62,6 +62,8 @@ export default function Logs() {
   // ── UI panels ─────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [timeRange, setTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE)
+  const [histogramCollapsed, setHistogramCollapsed] = useState(false)
+  const histogramPanelRef = useRef<PanelImperativeHandle | null>(null)
 
   // ── fetch logs ────────────────────────────────────────────────────────
   const fetchLogs = useCallback(async (
@@ -180,74 +182,76 @@ export default function Logs() {
   return (
     <ProtectedRoute>
       <Layout title="Execution Logs">
-        <div className="space-y-4">
-          {/* Page Header */}
-          <PageHeader
-            title="Execution Logs"
-            subtitle="Search and explore function execution history"
-            icon={<Activity className="w-8 h-8" />}
-          >
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 text-xs"
-              onClick={() => fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)}
-            >
-              <Activity className="w-3.5 h-3.5" />
-              Refresh
-            </Button>
-            <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
-          </PageHeader>
+        <div className="flex flex-col h-[calc(100vh-var(--header-height,4rem)-2rem)] gap-3">
 
-          {/* Search Toolbar */}
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* ── Top Toolbar ────────────────────────────────────────────── */}
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <KqlSearchBar
               onSearch={handleSearch}
               initialValue={kqlQuery}
             />
-
             <div className="flex items-center gap-2 flex-shrink-0">
-              <Filter className="w-4 h-4 text-muted-foreground" />
-              <Select value={status} onValueChange={v => handleStatusChange(v as any)}>
-                <SelectTrigger className="w-36 h-9 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="success">Success Only</SelectItem>
-                  <SelectItem value="error">Errors Only</SelectItem>
-                </SelectContent>
-              </Select>
+              <TimeRangePicker value={timeRange} onChange={handleTimeRangeChange} />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs"
+                onClick={() => fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Refresh
+              </Button>
             </div>
-
-            <ColumnSelector selectedKeys={selectedColumns} onChange={setSelectedColumns} />
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 text-xs flex-shrink-0"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              Fields
-            </Button>
           </div>
 
-          {/* Histogram */}
-          <TimeHistogram
-            projectId={activeProject.id}
-            status={status}
-            kqlQuery={kqlQuery}
-            from={timeRange.from}
-            to={timeRange.to}
-          />
+          {/* ── Resizable panels ────────────────────────────────────────── */}
+          <ResizablePanelGroup
+            orientation="vertical"
+            className="flex-1 min-h-0 rounded-lg border border-border overflow-hidden"
+          >
+            {/* Panel 1: Histogram */}
+            <ResizablePanel
+              panelRef={histogramPanelRef}
+              defaultSize={25}
+              minSize={10}
+              collapsible
+              collapsedSize={0}
+              onResize={(size) => setHistogramCollapsed(size.asPercentage === 0)}
+              className="bg-card"
+            >
+              <TimeHistogram
+                projectId={activeProject.id}
+                status={status}
+                kqlQuery={kqlQuery}
+                from={timeRange.from}
+                to={timeRange.to}
+              />
+            </ResizablePanel>
 
-          {/* Log Table */}
-          <Card>
-            <CardContent className="pt-4 px-4 pb-4">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                  Log Entries
+            {/* Resize handle with collapse toggle */}
+            <ResizableHandle withHandle className="data-[panel-group-direction=vertical]:h-2">
+              <button
+                onClick={() => {
+                  if (histogramCollapsed) {
+                    histogramPanelRef.current?.expand()
+                  } else {
+                    histogramPanelRef.current?.collapse()
+                  }
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-10 flex h-5 w-5 items-center justify-center rounded-sm bg-border hover:bg-muted-foreground/20 transition-colors"
+                title={histogramCollapsed ? 'Expand histogram' : 'Collapse histogram'}
+              >
+                <ChevronsUpDown className="h-3 w-3 text-muted-foreground" />
+              </button>
+            </ResizableHandle>
+
+            {/* Panel 2: Log Entries */}
+            <ResizablePanel defaultSize={75} minSize={30} className="bg-card flex flex-col">
+
+              {/* Filter bar */}
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-border flex-shrink-0 flex-wrap">
+                <div className="flex items-center gap-2 mr-auto">
+                  <span className="text-sm font-semibold text-foreground">Log Entries</span>
                   <Badge variant="secondary" className="text-xs">
                     {pagination.totalCount.toLocaleString()} {status !== 'all' ? status : 'total'}
                   </Badge>
@@ -256,77 +260,102 @@ export default function Logs() {
                       {kqlQuery}
                     </Badge>
                   )}
-                </h2>
-
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Show:</span>
-                  <Select value={String(pageSize)} onValueChange={v => handlePageSizeChange(parseInt(v))}>
-                    <SelectTrigger className="w-16 h-7 text-xs">
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={status} onValueChange={v => handleStatusChange(v as any)}>
+                    <SelectTrigger className="w-36 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {[10, 20, 50, 100].map(n => (
-                        <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
-                      ))}
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="success">Success Only</SelectItem>
+                      <SelectItem value="error">Errors Only</SelectItem>
                     </SelectContent>
                   </Select>
+                  <ColumnSelector selectedKeys={selectedColumns} onChange={setSelectedColumns} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => setSidebarOpen(true)}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Fields
+                  </Button>
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <span className="text-xs text-muted-foreground">Show:</span>
+                    <Select value={String(pageSize)} onValueChange={v => handlePageSizeChange(parseInt(v))}>
+                      <SelectTrigger className="w-16 h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 50, 100].map(n => (
+                          <SelectItem key={n} value={String(n)} className="text-xs">{n}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
-              {loading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader className="w-5 h-5 animate-spin text-primary" />
-                </div>
-              ) : logs.length === 0 ? (
-                <div className="text-center py-16">
-                  <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                  <h3 className="text-sm font-semibold text-foreground mb-1">
-                    {pagination.totalCount === 0 ? 'No Execution Logs' : 'No matching logs'}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    {pagination.totalCount === 0
-                      ? 'Logs will appear here once functions are invoked'
-                      : 'Try adjusting your search or filters'}
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-md border border-border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-8 p-2" />
-                        {visibleColumns.map(col => (
-                          <TableHead key={col.key} className="text-xs font-medium py-2">
-                            {col.label}
-                          </TableHead>
+              {/* Table (scrollable) */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                {loading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader className="w-5 h-5 animate-spin text-primary" />
+                  </div>
+                ) : logs.length === 0 ? (
+                  <div className="text-center py-16">
+                    <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                    <h3 className="text-sm font-semibold text-foreground mb-1">
+                      {pagination.totalCount === 0 ? 'No Execution Logs' : 'No matching logs'}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {pagination.totalCount === 0
+                        ? 'Logs will appear here once functions are invoked'
+                        : 'Try adjusting your search or filters'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead className="w-8 p-2" />
+                          {visibleColumns.map(col => (
+                            <TableHead key={col.key} className="text-xs font-medium py-2">
+                              {col.label}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {logs.map(log => (
+                          <LogRow
+                            key={log.id}
+                            log={log}
+                            columns={visibleColumns}
+                            isExpanded={expandedRows.has(log.id)}
+                            onToggle={handleToggleRow}
+                            onClickFilter={handleClickFilter}
+                          />
                         ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {logs.map(log => (
-                        <LogRow
-                          key={log.id}
-                          log={log}
-                          columns={visibleColumns}
-                          isExpanded={expandedRows.has(log.id)}
-                          onToggle={handleToggleRow}
-                          onClickFilter={handleClickFilter}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
 
+              {/* Pagination (pinned bottom) */}
               {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                <div className="flex items-center justify-between px-4 py-2 border-t border-border flex-shrink-0">
                   <p className="text-xs text-muted-foreground">
                     Showing{' '}
                     {((pagination.currentPage - 1) * pagination.limit) + 1}–
                     {Math.min(pagination.currentPage * pagination.limit, pagination.totalCount)} of{' '}
                     {pagination.totalCount.toLocaleString()}
                   </p>
-
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -337,7 +366,6 @@ export default function Logs() {
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
                     </Button>
-
                     {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                       let pageNum: number
                       if (pagination.totalPages <= 5) pageNum = i + 1
@@ -345,7 +373,6 @@ export default function Logs() {
                       else if (pagination.currentPage >= pagination.totalPages - 2)
                         pageNum = pagination.totalPages - 4 + i
                       else pageNum = pagination.currentPage - 2 + i
-
                       return (
                         <Button
                           key={pageNum}
@@ -359,7 +386,6 @@ export default function Logs() {
                         </Button>
                       )
                     })}
-
                     <Button
                       variant="ghost"
                       size="icon"
@@ -372,8 +398,8 @@ export default function Logs() {
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         </div>
 
         {/* Field Sidebar */}
