@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Plus, ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Plus, ChevronDown, ChevronRight, Columns3 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { cn } from '@/lib/cn'
@@ -23,18 +22,20 @@ interface FieldSidebarProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   projectId: string
-  status: string
   kqlQuery: string
+  selectedColumns: string[]
   onClickFilter: (field: string, value: string) => void
+  onToggleColumn: (fieldPath: string) => void
 }
 
 export function FieldSidebar({
   open,
   onOpenChange,
   projectId,
-  status,
   kqlQuery,
+  selectedColumns,
   onClickFilter,
+  onToggleColumn,
 }: FieldSidebarProps) {
   const [fields, setFields] = useState<FieldStat[]>([])
   const [loading, setLoading] = useState(false)
@@ -47,13 +48,12 @@ export function FieldSidebar({
     const fetchFields = async () => {
       setLoading(true)
       try {
-        const params = new URLSearchParams({ projectId, status })
+        const params = new URLSearchParams({ projectId })
         if (kqlQuery) params.set('q', kqlQuery)
         const res = await authenticatedFetch(`/api/logs/fields?${params}`)
         const json = await res.json()
         if (!cancelled && json.success) {
           setFields(json.data?.fields ?? [])
-          // Auto-expand all fields initially
           setExpandedFields(new Set(json.data?.fields?.map((f: FieldStat) => f.name) ?? []))
         }
       } catch {
@@ -65,7 +65,7 @@ export function FieldSidebar({
 
     fetchFields()
     return () => { cancelled = true }
-  }, [open, projectId, status, kqlQuery])
+  }, [open, projectId, kqlQuery])
 
   const toggleField = (name: string) => {
     setExpandedFields(prev => {
@@ -108,14 +108,29 @@ export function FieldSidebar({
                   onOpenChange={() => toggleField(field.name)}
                 >
                   <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2.5 hover:bg-muted/50 transition-colors text-left">
-                    <span className="text-xs font-mono font-medium text-foreground truncate">
+                    <span className="text-xs font-mono font-medium text-foreground truncate flex-1 min-w-0 mr-1">
                       {field.name}
                     </span>
-                    {expandedFields.has(field.name) ? (
-                      <ChevronDown className="w-3 h-3 text-muted-foreground flex-shrink-0 ml-1" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-muted-foreground flex-shrink-0 ml-1" />
-                    )}
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        title={selectedColumns.includes(field.name) ? 'Remove column' : 'Add as column'}
+                        onClick={e => { e.stopPropagation(); onToggleColumn(field.name) }}
+                        className={cn(
+                          'p-0.5 rounded transition-colors',
+                          selectedColumns.includes(field.name)
+                            ? 'text-primary'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        <Columns3 className="w-3 h-3" />
+                      </button>
+                      {expandedFields.has(field.name) ? (
+                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                      )}
+                    </div>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>

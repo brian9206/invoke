@@ -89,6 +89,18 @@ function extractSearchTerms(pattern: string): string {
 }
 
 /**
+ * Convert a Kibana wildcard pattern to a SQL LIKE pattern.
+ * `*` → `%`, `?` → `_`, existing `%`/`_` are escaped.
+ */
+function wildcardToLike(pattern: string): string {
+  return pattern
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_')
+    .replace(/\*/g, '%')
+    .replace(/\?/g, '_');
+}
+
+/**
  * Convert a Kibana wildcard pattern to a JS RegExp (anchored).
  */
 function wildcardToRegex(pattern: string): RegExp {
@@ -192,12 +204,12 @@ function astToJsonb(node: AstNode, config: DslConfig, binds: unknown[]): AstResu
           };
         }
 
-        // Pattern wildcard → tsvector coarse filter + field-specific predicate
-        const terms = extractSearchTerms(wildcardValue);
+        // Pattern wildcard → JSONB ILIKE for exact field match (SQL and predicate are consistent)
+        const likePattern = wildcardToLike(wildcardValue);
         const re = wildcardToRegex(wildcardValue);
-        const p = bind(terms);
+        const p = bind(likePattern);
         return {
-          sql: `"${tsCol}" @@ plainto_tsquery('english', ${p})`,
+          sql: `${jsonbPath(col, field)} ILIKE ${p}`,
           predicate: (row: QueryRow): boolean => {
             const v = getNestedValue(row[col], field);
             return v != null && re.test(String(v));

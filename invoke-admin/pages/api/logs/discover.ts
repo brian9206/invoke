@@ -9,21 +9,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const userProjects = await getUserProjects(req.user!.id)
     const hasAccess = req.user?.isAdmin || userProjects.some((p: any) => p.id === projectId)
     if (!hasAccess) {
-      return res.status(403).json(createResponse(false, null, 'Access denied to this project', 403))
+      return res.status(403).json(createResponse(false, null, 'Access denied', 403))
     }
   }
 
-  const result = await proxyToLogger('/logs/search', {
-    query: {
-      q: req.query.q as string,
-      from: req.query.from as string,
-      to: req.query.to as string,
-      projectId,
-      functionId: req.query.functionId as string,
-      page: req.query.page as string,
-      limit: req.query.limit as string,
-      logType: req.query.logType as string,
-    },
+  const result = await proxyToLogger('/logs/fields/discover', {
+    query: { projectId },
   })
 
   res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))

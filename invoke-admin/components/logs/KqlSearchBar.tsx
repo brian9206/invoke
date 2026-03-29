@@ -51,7 +51,7 @@ export function KqlSearchBar({ onSearch, initialValue = '' }: KqlSearchBarProps)
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search logs... e.g. response.status:500 AND request.method:POST"
+          placeholder="Input KQL query to search logs..."
           className="pl-9 pr-9 font-mono text-sm h-9"
         />
         {input && (
@@ -73,13 +73,13 @@ export function KqlSearchBar({ onSearch, initialValue = '' }: KqlSearchBarProps)
               <HelpCircle className="w-4 h-4 text-muted-foreground" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="w-96 p-4" align="end">
+          <TooltipContent side="bottom" className="w-[26rem] max-w-[90vw] p-4" align="end">
             <p className="text-xs font-semibold mb-3 text-foreground">KQL Syntax</p>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {HELP_EXAMPLES.map(ex => (
-                <div key={ex.syntax} className="flex items-start justify-between gap-4 text-xs">
-                  <code className="text-primary font-mono shrink-0">{ex.syntax}</code>
-                  <span className="text-muted-foreground text-right">{ex.desc}</span>
+                <div key={ex.syntax} className="flex flex-col gap-0.5 text-xs">
+                  <code className="text-primary font-mono break-all">{ex.syntax}</code>
+                  <span className="text-muted-foreground">{ex.desc}</span>
                 </div>
               ))}
             </div>

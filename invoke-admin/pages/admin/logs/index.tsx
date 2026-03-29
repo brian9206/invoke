@@ -1,8 +1,9 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { useProject } from '@/contexts/ProjectContext'
-import { Activity, Filter, Layers, ChevronLeft, ChevronRight, Loader, RefreshCw, ChevronsUpDown } from 'lucide-react'
+import { Activity, Layers, ChevronLeft, ChevronRight, Loader, RefreshCw, ChevronsUpDown } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -20,11 +21,11 @@ import type { PanelImperativeHandle } from 'react-resizable-panels'
 
 import { KqlSearchBar } from '@/components/logs/KqlSearchBar'
 import { TimeHistogram } from '@/components/logs/TimeHistogram'
-import { LogRow, ALL_COLUMN_DEFS, DEFAULT_COLUMN_KEYS } from '@/components/logs/LogRow'
-import type { ExecutionLog } from '@/components/logs/LogRow'
+import { LogRow, ALL_COLUMN_DEFS, getDefaultColumnKeys, makeDynamicColumnDef } from '@/components/logs/LogRow'
+import type { ExecutionLog, ColumnDef } from '@/components/logs/LogRow'
 import { FieldSidebar } from '@/components/logs/FieldSidebar'
 import { ColumnSelector } from '@/components/logs/ColumnSelector'
-import { TimeRangePicker, DEFAULT_TIME_RANGE } from '@/components/logs/TimeRangePicker'
+import { TimeRangePicker, DEFAULT_TIME_RANGE, parseExprToDate, exprToLabel } from '@/components/logs/TimeRangePicker'
 import type { TimeRange } from '@/components/logs/TimeRangePicker'
 
 interface PaginationInfo {
@@ -37,18 +38,49 @@ interface PaginationInfo {
 }
 
 export default function Logs() {
+  const router = useRouter()
   const { activeProject, loading: projectLoading } = useProject()
 
-  // ── filter / search state ──────────────────────────────────────────────
-  const [kqlQuery, setKqlQuery] = useState('')    // committed (after Enter)
-  const [status, setStatus] = useState<'all' | 'success' | 'error'>('all')
+  // ── URL-derived filter state ────────────────────────────────────────
+  const kqlQuery = (router.query.q as string) ?? ''
+  const logType = ((router.query.type as string) === 'app' ? 'app' : 'request') as 'app' | 'request'
+  const currentPage = Math.max(1, parseInt((router.query.page as string) ?? '1', 10) || 1)
+  const pageSize = parseInt((router.query.limit as string) ?? '20', 10) || 20
 
-  // ── pagination ────────────────────────────────────────────────────────
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const timeRange = useMemo<TimeRange>(() => {
+    const fromExpr = router.query.from as string | undefined
+    const toExpr = router.query.to as string | undefined
+    if (fromExpr && toExpr) {
+      const from = parseExprToDate(fromExpr)
+      const to = parseExprToDate(toExpr)
+      if (from && to) {
+        return { from, to, label: `${exprToLabel(fromExpr)} → ${exprToLabel(toExpr)}`, fromExpr, toExpr }
+      }
+    }
+    return DEFAULT_TIME_RANGE
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router.query.from, router.query.to])
 
-  // ── table state ───────────────────────────────────────────────────────
-  const [selectedColumns, setSelectedColumns] = useState<string[]>(DEFAULT_COLUMN_KEYS)
+  const selectedColumns = useMemo<string[]>(() => {
+    const colsStr = router.query.cols as string | undefined
+    if (colsStr) return colsStr.split(',')
+    return getDefaultColumnKeys(logType)
+  }, [router.query.cols, logType])
+
+  // ── URL params helper ───────────────────────────────────────────────
+  const pushParams = useCallback((updates: Record<string, string | null>) => {
+    const query = { ...router.query }
+    for (const [k, v] of Object.entries(updates)) {
+      if (v === null || v === '') {
+        delete query[k]
+      } else {
+        query[k] = v
+      }
+    }
+    router.push({ pathname: router.pathname, query })
+  }, [router])
+
+  // ── table state ─────────────────────────────────────────────────────
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
 
   // ── data ──────────────────────────────────────────────────────────────
@@ -61,7 +93,6 @@ export default function Logs() {
 
   // ── UI panels ─────────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [timeRange, setTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE)
   const [histogramCollapsed, setHistogramCollapsed] = useState(false)
   const histogramPanelRef = useRef<PanelImperativeHandle | null>(null)
 
@@ -69,23 +100,23 @@ export default function Logs() {
   const fetchLogs = useCallback(async (
     page: number,
     limit: number,
-    statusFilter: string,
     q: string,
     projectId: string,
     from: Date,
     to: Date,
+    type: string,
   ) => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
         page: String(page),
         limit: String(limit),
-        status: statusFilter,
         projectId,
         from: from.toISOString(),
         to: to.toISOString(),
       })
       if (q) params.set('q', q)
+      params.set('logType', type)
 
       const res = await authenticatedFetch(`/api/logs?${params}`)
       const json = await res.json()
@@ -111,33 +142,34 @@ export default function Logs() {
   }, [])
 
   useEffect(() => {
-    if (!projectLoading && activeProject) {
-      fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)
-    }
-  }, [currentPage, pageSize, status, kqlQuery, activeProject, projectLoading, timeRange, fetchLogs])
+    if (!router.isReady || projectLoading || !activeProject) return
+    fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, timeRange.from, timeRange.to, logType)
+  }, [router.isReady, currentPage, pageSize, kqlQuery, activeProject, projectLoading, timeRange, logType, fetchLogs])
 
   // ── handlers ──────────────────────────────────────────────────────────
   const handleSearch = (query: string) => {
-    setKqlQuery(query)
-    setCurrentPage(1)
+    pushParams({ q: query || null, page: null })
     setExpandedRows(new Set())
   }
 
-  const handleStatusChange = (newStatus: 'all' | 'success' | 'error') => {
-    setStatus(newStatus)
-    setCurrentPage(1)
+  const handleLogTypeChange = (value: string) => {
+    pushParams({ type: value === 'request' ? null : value, page: null, cols: null })
     setExpandedRows(new Set())
   }
 
   const handleTimeRangeChange = (range: TimeRange) => {
-    setTimeRange(range)
-    setCurrentPage(1)
+    const p2 = (n: number) => String(n).padStart(2, '0')
+    const absExpr = (d: Date) => `${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}T${p2(d.getHours())}${p2(d.getMinutes())}`
+    pushParams({
+      from: range.fromExpr ?? absExpr(range.from),
+      to: range.toExpr ?? absExpr(range.to),
+      page: null,
+    })
     setExpandedRows(new Set())
   }
 
   const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize)
-    setCurrentPage(1)
+    pushParams({ limit: newSize === 20 ? null : String(newSize), page: null })
   }
 
   const handleToggleRow = (id: number) => {
@@ -150,22 +182,34 @@ export default function Logs() {
   }
 
   const handleClickFilter = useCallback((field: string, value: string) => {
-    const escaped = value.includes(' ') ? `"${value}"` : value
+    const escaped = `"${value}"`
     const term = `${field}:${escaped}`
     const newQuery = kqlQuery ? `${kqlQuery} AND ${term}` : term
-    setKqlQuery(newQuery)
-    setCurrentPage(1)
+    pushParams({ q: newQuery, page: null })
     setExpandedRows(new Set())
     setSidebarOpen(false)
-  }, [kqlQuery])
+  }, [kqlQuery, pushParams])
 
-  const visibleColumns = ALL_COLUMN_DEFS.filter(c => selectedColumns.includes(c.key))
+  const handleToggleColumn = useCallback((fieldPath: string) => {
+    const next = selectedColumns.includes(fieldPath)
+      ? selectedColumns.filter(k => k !== fieldPath)
+      : [...selectedColumns, fieldPath]
+    const defaults = getDefaultColumnKeys(logType)
+    const isDefault = next.length === defaults.length && next.every((k, i) => k === defaults[i])
+    pushParams({ cols: isDefault ? null : next.join(',') })
+  }, [logType, selectedColumns, pushParams])
+
+  // Merge static column defs with any dynamic field paths in selectedColumns
+  const visibleColumns: ColumnDef[] = selectedColumns.map(key => {
+    const staticDef = ALL_COLUMN_DEFS.find(c => c.key === key)
+    return staticDef ?? makeDynamicColumnDef(key)
+  })
 
   // ── loading / no-project guard ─────────────────────────────────────────
   if (projectLoading || !activeProject) {
     return (
       <ProtectedRoute>
-        <Layout title="Execution Logs">
+        <Layout title="Monitoring">
           <div className="flex justify-center items-center h-64">
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader className="w-5 h-5 text-primary animate-spin" />
@@ -181,11 +225,20 @@ export default function Logs() {
 
   return (
     <ProtectedRoute>
-      <Layout title="Execution Logs">
+      <Layout title="Monitoring">
         <div className="flex flex-col h-[calc(100vh-var(--header-height,4rem)-2rem)] gap-3">
 
           {/* ── Top Toolbar ────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <Select value={logType} onValueChange={v => handleLogTypeChange(v)}>
+              <SelectTrigger className="w-36 h-9 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="request" className="text-xs">HTTP</SelectItem>
+                <SelectItem value="app" className="text-xs">Application</SelectItem>
+              </SelectContent>
+            </Select>
             <KqlSearchBar
               onSearch={handleSearch}
               initialValue={kqlQuery}
@@ -196,7 +249,7 @@ export default function Logs() {
                 variant="outline"
                 size="sm"
                 className="h-9 gap-1.5 text-xs"
-                onClick={() => fetchLogs(currentPage, pageSize, status, kqlQuery, activeProject.id, timeRange.from, timeRange.to)}
+                onClick={() => fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, timeRange.from, timeRange.to, logType)}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Refresh
@@ -221,7 +274,6 @@ export default function Logs() {
             >
               <TimeHistogram
                 projectId={activeProject.id}
-                status={status}
                 kqlQuery={kqlQuery}
                 from={timeRange.from}
                 to={timeRange.to}
@@ -253,27 +305,20 @@ export default function Logs() {
                 <div className="flex items-center gap-2 mr-auto">
                   <span className="text-sm font-semibold text-foreground">Log Entries</span>
                   <Badge variant="secondary" className="text-xs">
-                    {pagination.totalCount.toLocaleString()} {status !== 'all' ? status : 'total'}
+                    {pagination.totalCount.toLocaleString()} total
                   </Badge>
-                  {kqlQuery && (
-                    <Badge variant="outline" className="text-xs font-mono max-w-[200px] truncate">
-                      {kqlQuery}
-                    </Badge>
-                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <Filter className="w-4 h-4 text-muted-foreground" />
-                  <Select value={status} onValueChange={v => handleStatusChange(v as any)}>
-                    <SelectTrigger className="w-36 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="success">Success Only</SelectItem>
-                      <SelectItem value="error">Errors Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <ColumnSelector selectedKeys={selectedColumns} onChange={setSelectedColumns} />
+                  <ColumnSelector
+                    selectedKeys={selectedColumns}
+                    onChange={(keys) => {
+                      const defaults = getDefaultColumnKeys(logType)
+                      const isDefault = keys.length === defaults.length && keys.every((k, i) => k === defaults[i])
+                      pushParams({ cols: isDefault ? null : keys.join(',') })
+                    }}
+                    projectId={activeProject.id}
+                    logType={logType}
+                  />
                   <Button
                     variant="outline"
                     size="sm"
@@ -309,7 +354,7 @@ export default function Logs() {
                   <div className="text-center py-16">
                     <Activity className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                     <h3 className="text-sm font-semibold text-foreground mb-1">
-                      {pagination.totalCount === 0 ? 'No Execution Logs' : 'No matching logs'}
+                      {pagination.totalCount === 0 ? 'No logs' : 'No matching logs'}
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       {pagination.totalCount === 0
@@ -339,6 +384,8 @@ export default function Logs() {
                             isExpanded={expandedRows.has(log.id)}
                             onToggle={handleToggleRow}
                             onClickFilter={handleClickFilter}
+                            selectedColumns={selectedColumns}
+                            onToggleColumn={handleToggleColumn}
                           />
                         ))}
                       </TableBody>
@@ -361,7 +408,7 @@ export default function Logs() {
                       variant="ghost"
                       size="icon"
                       className="w-7 h-7"
-                      onClick={() => setCurrentPage(p => p - 1)}
+                      onClick={() => pushParams({ page: String(currentPage - 1) })}
                       disabled={!pagination.hasPrevPage || loading}
                     >
                       <ChevronLeft className="w-3.5 h-3.5" />
@@ -379,7 +426,7 @@ export default function Logs() {
                           variant={pageNum === pagination.currentPage ? 'default' : 'ghost'}
                           size="sm"
                           className="w-7 h-7 p-0 text-xs"
-                          onClick={() => setCurrentPage(pageNum)}
+                          onClick={() => pushParams({ page: pageNum === 1 ? null : String(pageNum) })}
                           disabled={loading}
                         >
                           {pageNum}
@@ -390,7 +437,7 @@ export default function Logs() {
                       variant="ghost"
                       size="icon"
                       className="w-7 h-7"
-                      onClick={() => setCurrentPage(p => p + 1)}
+                      onClick={() => pushParams({ page: String(currentPage + 1) })}
                       disabled={!pagination.hasNextPage || loading}
                     >
                       <ChevronRight className="w-3.5 h-3.5" />
@@ -407,9 +454,10 @@ export default function Logs() {
           open={sidebarOpen}
           onOpenChange={setSidebarOpen}
           projectId={activeProject.id}
-          status={status}
           kqlQuery={kqlQuery}
+          selectedColumns={selectedColumns}
           onClickFilter={handleClickFilter}
+          onToggleColumn={handleToggleColumn}
         />
       </Layout>
     </ProtectedRoute>

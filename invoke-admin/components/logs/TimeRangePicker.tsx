@@ -13,6 +13,8 @@ export interface TimeRange {
   from: Date
   to: Date
   label: string
+  fromExpr?: string
+  toExpr?: string
 }
 
 interface TimeRangePickerProps {
@@ -64,12 +66,62 @@ const UNIT_MS: Record<RelUnit, number> = {
 
 // ─── Public helpers ────────────────────────────────────────────────────────────
 
+const UNIT_ABBR: Record<RelUnit, string> = {
+  seconds: 's', minutes: 'm', hours: 'h', days: 'd', weeks: 'w', months: 'mo', years: 'y',
+}
+
+const ABBR_TO_UNIT: Record<string, RelUnit> = {
+  s: 'seconds', m: 'minutes', h: 'hours', d: 'days', w: 'weeks', mo: 'months', y: 'years',
+}
+
+function endpointExpr(ep: EndpointState): string {
+  if (ep.mode === 'now') return 'now'
+  if (ep.mode === 'relative') {
+    const n = Math.max(1, parseInt(ep.relValue) || 1)
+    return `ago:${n}${UNIT_ABBR[ep.relUnit]}`
+  }
+  const d = resolveEndpoint(ep)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}`
+}
+
+export function parseExprToDate(expr: string): Date | null {
+  if (expr === 'now') return new Date()
+  const ago = expr.match(/^ago:(\d+)(s|m|h|d|w|mo|y)$/)
+  if (ago) {
+    const n = parseInt(ago[1])
+    const unit = ABBR_TO_UNIT[ago[2]]
+    return unit ? new Date(Date.now() - n * UNIT_MS[unit]) : null
+  }
+  const abs = expr.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})$/)
+  if (abs) return new Date(+abs[1], +abs[2] - 1, +abs[3], +abs[4], +abs[5])
+  return null
+}
+
+export function exprToLabel(expr: string): string {
+  if (expr === 'now') return 'now'
+  const ago = expr.match(/^ago:(\d+)(s|m|h|d|w|mo|y)$/)
+  if (ago) {
+    const n = parseInt(ago[1])
+    const unit = ABBR_TO_UNIT[ago[2]]
+    const unitLabel = REL_UNITS.find(u => u.value === unit)?.label ?? ''
+    return `~ ${n} ${unitLabel.toLowerCase()}`
+  }
+  const d = parseExprToDate(expr)
+  if (d) return d.toLocaleString([], { month: 'short', day: 'numeric', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+  return expr
+}
+
 export function makePresetRange(ms: number, label: string): TimeRange {
   const to = new Date()
   return { from: new Date(to.getTime() - ms), to, label }
 }
 
-export const DEFAULT_TIME_RANGE: TimeRange = makePresetRange(24 * 3_600_000, '~ 24 hours → now')
+export const DEFAULT_TIME_RANGE: TimeRange = {
+  ...makePresetRange(15 * 60_000, '~ 15 minutes ago → now'),
+  fromExpr: 'ago:15m',
+  toExpr: 'now',
+}
 
 // ─── Private helpers ───────────────────────────────────────────────────────────
 
@@ -352,7 +404,7 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
     const from = resolveEndpoint(startState)
     if (from >= value.to) { setStartError('"Start" must be before the current end.'); return }
     const right = labelParts.length > 1 ? labelParts.slice(1).join(' → ') : endpointLabel(initTo(value.to))
-    onChange({ from, to: value.to, label: `${endpointLabel(startState)} → ${right}` })
+    onChange({ from, to: value.to, label: `${endpointLabel(startState)} → ${right}`, fromExpr: endpointExpr(startState), toExpr: value.toExpr })
     setStartOpen(false)
   }
 
@@ -360,7 +412,7 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
     const to = resolveEndpoint(endState)
     if (value.from >= to) { setEndError('"End" must be after the current start.'); return }
     const left = labelParts[0] ?? endpointLabel(initFrom(value.from))
-    onChange({ from: value.from, to, label: `${left} → ${endpointLabel(endState)}` })
+    onChange({ from: value.from, to, label: `${left} → ${endpointLabel(endState)}`, fromExpr: value.fromExpr, toExpr: endpointExpr(endState) })
     setEndOpen(false)
   }
 

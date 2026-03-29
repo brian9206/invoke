@@ -3,6 +3,7 @@ import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import { logSequelize, appDb } from './database';
 import { initFunctionLogModel } from './models/FunctionLog';
+import { initPayloadFieldModel } from './models/PayloadField';
 import ingestRouter from './routes/ingest';
 import logsRouter from './routes/logs';
 import statsRouter from './routes/stats';
@@ -30,8 +31,9 @@ async function validateEnvironment(): Promise<void> {
 async function main(): Promise<void> {
   await validateEnvironment();
 
-  // 1. Register the local FunctionLog model on the log Sequelize instance
+  // 1. Register the local models on the log Sequelize instance
   initFunctionLogModel(logSequelize);
+  initPayloadFieldModel(logSequelize);
 
   // 2. Run log DB migrations
   const migrationsPath = path.resolve(__dirname, '..', 'migrations');

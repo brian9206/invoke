@@ -1,6 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
-import { ChevronRight, Plus, ExternalLink } from 'lucide-react'
+import { ChevronRight, Plus, ExternalLink, Columns3 } from 'lucide-react'
 import { TableRow, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,10 @@ export interface FunctionLogPayload {
   }
   error?: string
   console?: Array<{ level: string; message: string; timestamp: number }>
+  trace_id?: string
+  source?: string
+  level?: string
+  message?: string
 }
 
 export interface ExecutionLog {
@@ -46,6 +50,41 @@ interface LogRowProps {
   isExpanded: boolean
   onToggle: (id: number) => void
   onClickFilter: (field: string, value: string) => void
+  selectedColumns?: string[]
+  onToggleColumn?: (field: string) => void
+}
+
+/** Walk a nested object using a dot-notation path and return the value, or undefined */
+export function getNestedValue(obj: unknown, path: string): unknown {
+  const parts = path.split('.')
+  let cur: unknown = obj
+  for (const part of parts) {
+    if (cur == null || typeof cur !== 'object') return undefined
+    cur = (cur as Record<string, unknown>)[part]
+  }
+  return cur
+}
+
+/** Create a generic ColumnDef for a dynamic payload field path */
+export function makeDynamicColumnDef(fieldPath: string): ColumnDef {
+  const label = fieldPath
+  return {
+    key: fieldPath,
+    label,
+    render: (log) => {
+      const value = getNestedValue(log.payload, fieldPath)
+      if (value == null) return <span className="text-muted-foreground text-xs">—</span>
+      const display = typeof value === 'object' ? JSON.stringify(value) : String(value)
+      return (
+        <span
+          className="text-xs font-mono text-muted-foreground truncate max-w-[180px] block"
+          title={display}
+        >
+          {display}
+        </span>
+      )
+    },
+  }
 }
 
 /** Flatten a nested object to `[dotPath, value]` pairs */
@@ -78,7 +117,25 @@ function FilterButton({ field, value, onClick }: { field: string; value: string;
   )
 }
 
-export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter }: LogRowProps) {
+function ColumnToggleButton({ field, isActive, onClick }: { field: string; isActive: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onClick() }}
+      title={isActive ? `Remove column: ${field}` : `Add as column: ${field}`}
+      className={cn(
+        'inline-flex items-center justify-center w-4 h-4 rounded transition-colors flex-shrink-0',
+        isActive
+          ? 'text-primary hover:text-destructive hover:bg-destructive/10'
+          : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
+      )}
+    >
+      <Columns3 className="w-3 h-3" />
+    </button>
+  )
+}
+
+export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, selectedColumns, onToggleColumn }: LogRowProps) {
   const totalCols = columns.length + 1 // +1 for chevron
 
   const addFilter = (field: string, value: unknown) => {
@@ -113,7 +170,7 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter }: Lo
 
       {isExpanded && (
         <TableRow className="hover:bg-transparent border-0">
-          <TableCell colSpan={totalCols} className="p-0 pb-1">
+          <TableCell colSpan={totalCols} className="p-0 pb-1 pt-2">
             <div className="mx-2 mb-1 rounded-md border border-border bg-card shadow-sm">
               <Tabs defaultValue="table" className="w-full">
                 <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-border">
@@ -125,18 +182,20 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter }: Lo
                       JSON
                     </TabsTrigger>
                   </TabsList>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    <Link href={`/admin/functions/${log.function_id}/execution-logs/${log.id}`}>
-                      <ExternalLink className="w-3 h-3" />
-                      Full details
-                    </Link>
-                  </Button>
+                  {log.payload.trace_id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <Link href={`/admin/logs/${log.payload.trace_id}`}>
+                        <ExternalLink className="w-3 h-3" />
+                        Full details
+                      </Link>
+                    </Button>
+                  )}
                 </div>
 
                 {/* ── Table view ── */}
@@ -160,6 +219,13 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter }: Lo
                                     field={field}
                                     value={String(value)}
                                     onClick={() => addFilter(field, value)}
+                                  />
+                                )}
+                                {onToggleColumn && (
+                                  <ColumnToggleButton
+                                    field={field}
+                                    isActive={selectedColumns?.includes(field) ?? false}
+                                    onClick={() => onToggleColumn(field)}
                                   />
                                 )}
                               </div>
@@ -250,6 +316,20 @@ export const ALL_COLUMN_DEFS: ColumnDef[] = [
     ),
   },
   {
+    key: 'source',
+    label: 'Source',
+    render: (log) => {
+      const v = (log.payload as any)?.source
+      if (!v) return <span className="text-muted-foreground text-xs">—</span>
+      const colorMap: Record<string, string> = {
+        execution: 'text-blue-400',
+        gateway: 'text-purple-400',
+      }
+      const cls = colorMap[String(v).toLowerCase()] ?? 'text-foreground'
+      return <Badge variant="outline" className={`font-mono text-xs ${cls}`}>{String(v)}</Badge>
+    },
+  },
+  {
     key: 'method',
     label: 'Method',
     render: (log) => (
@@ -259,11 +339,61 @@ export const ALL_COLUMN_DEFS: ColumnDef[] = [
     ),
   },
   {
+    key: 'url',
+    label: 'URL',
+    render: (log) => {
+      const url = (log.payload as any)?.request?.url
+      return url ? (
+        <span className="text-xs font-mono text-muted-foreground truncate max-w-[240px] block" title={url}>{url}</span>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      )
+    },
+  },
+  {
     key: 'ip',
     label: 'Client IP',
     render: (log) => (
       <span className="text-muted-foreground font-mono text-xs">{(log.payload as any)?.request?.ip ?? '—'}</span>
     ),
+  },
+  {
+    key: 'trace_id',
+    label: 'Trace ID',
+    render: (log) => {
+      const v = (log.payload as any)?.trace_id
+      return v ? (
+        <span className="text-xs font-mono text-muted-foreground truncate max-w-[160px] block" title={String(v)}>{String(v)}</span>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      )
+    },
+  },
+  {
+    key: 'level',
+    label: 'Level',
+    render: (log) => {
+      const v = (log.payload as any)?.level
+      if (!v) return <span className="text-muted-foreground text-xs">—</span>
+      const colorMap: Record<string, string> = {
+        error: 'text-red-400', warn: 'text-yellow-400', warning: 'text-yellow-400',
+        info: 'text-blue-400', debug: 'text-muted-foreground',
+      }
+      const cls = colorMap[String(v).toLowerCase()] ?? 'text-foreground'
+      return <span className={`text-xs font-mono font-medium uppercase ${cls}`}>{String(v)}</span>
+    },
+  },
+  {
+    key: 'message',
+    label: 'Message',
+    render: (log) => {
+      const v = (log.payload as any)?.message
+      return v ? (
+        <span className="text-xs truncate max-w-[280px] block" title={String(v)}>{String(v)}</span>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      )
+    },
   },
   {
     key: 'req_size',
@@ -298,4 +428,12 @@ export const ALL_COLUMN_DEFS: ColumnDef[] = [
   },
 ]
 
-export const DEFAULT_COLUMN_KEYS = ['timestamp', 'function', 'status', 'duration', 'method', 'ip']
+export const DEFAULT_HTTP_COLUMN_KEYS = ['timestamp', 'function', 'method', 'url', 'status', 'duration', 'ip']
+export const DEFAULT_APP_COLUMN_KEYS = ['timestamp', 'function', 'trace_id', 'level', 'message']
+
+/** @deprecated use DEFAULT_HTTP_COLUMN_KEYS */
+export const DEFAULT_COLUMN_KEYS = DEFAULT_HTTP_COLUMN_KEYS
+
+export function getDefaultColumnKeys(type: 'request' | 'app'): string[] {
+  return type === 'app' ? DEFAULT_APP_COLUMN_KEYS : DEFAULT_HTTP_COLUMN_KEYS
+}

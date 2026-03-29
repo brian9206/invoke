@@ -16,10 +16,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
   const result = await proxyToLogger('/logs/histogram', {
     query: {
       q: req.query.q as string,
-      status: req.query.status as string,
       from: req.query.from as string,
       to: req.query.to as string,
       projectId,
+      interval: req.query.interval as string,
     },
   })
 

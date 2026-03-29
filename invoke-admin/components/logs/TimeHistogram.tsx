@@ -10,6 +10,18 @@ import {
 } from 'recharts'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Loader, BarChart2 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+type Interval = 'auto' | 'minute' | 'hour' | 'day' | 'week' | 'month'
+
+const INTERVAL_OPTIONS: { value: Interval; label: string }[] = [
+  { value: 'auto',   label: 'Auto' },
+  { value: 'minute', label: 'By minute' },
+  { value: 'hour',   label: 'By hour' },
+  { value: 'day',    label: 'By day' },
+  { value: 'week',   label: 'By week' },
+  { value: 'month',  label: 'By month' },
+]
 
 interface HistogramBucket {
   time: string
@@ -19,7 +31,6 @@ interface HistogramBucket {
 
 interface TimeHistogramProps {
   projectId: string
-  status: string
   kqlQuery: string
   from: Date
   to: Date
@@ -27,9 +38,10 @@ interface TimeHistogramProps {
   className?: string
 }
 
-export function TimeHistogram({ projectId, status, kqlQuery, from, to, className }: TimeHistogramProps) {
+export function TimeHistogram({ projectId, kqlQuery, from, to, className }: TimeHistogramProps) {
   const [data, setData] = useState<HistogramBucket[]>([])
   const [loading, setLoading] = useState(false)
+  const [interval, setInterval] = useState<Interval>('auto')
 
   useEffect(() => {
     if (!projectId) return
@@ -40,11 +52,11 @@ export function TimeHistogram({ projectId, status, kqlQuery, from, to, className
       try {
         const params = new URLSearchParams({
           projectId,
-          status,
           from: from.toISOString(),
           to: to.toISOString(),
         })
         if (kqlQuery) params.set('q', kqlQuery)
+        if (interval !== 'auto') params.set('interval', interval)
         const res = await authenticatedFetch(`/api/logs/histogram?${params}`)
         const json = await res.json()
         if (!cancelled && json.success) setData(json.data || [])
@@ -57,28 +69,48 @@ export function TimeHistogram({ projectId, status, kqlQuery, from, to, className
 
     fetchData()
     return () => { cancelled = true }
-  }, [projectId, status, kqlQuery, from, to])
+  }, [projectId, kqlQuery, from, to, interval])
 
   const rangeMs = to.getTime() - from.getTime()
 
+  const effectiveInterval: Interval = interval !== 'auto' ? interval : (
+    rangeMs <= 3_600_000 ? 'minute' :
+    rangeMs <= 172_800_000 ? 'hour' :
+    rangeMs <= 90 * 86_400_000 ? 'day' :
+    rangeMs <= 365 * 86_400_000 ? 'week' : 'month'
+  )
+
   const formatTime = (t: string) => {
     const d = new Date(t)
-    if (rangeMs <= 3_600_000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    if (rangeMs <= 172_800_000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    if (effectiveInterval === 'minute') return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (effectiveInterval === 'hour')   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (effectiveInterval === 'day')    return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    if (effectiveInterval === 'week')   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    return d.toLocaleDateString([], { month: 'short', year: '2-digit' })
   }
 
   const chartData = data.map(d => ({
     time: formatTime(d.time),
-    Success: Math.max(0, Number(d.count) - Number(d.error_count)),
-    Errors: Number(d.error_count),
+    Count: Number(d.count),
   }))
 
   return (
     <div className={`flex flex-col h-full${className ? ' ' + className : ''}`}>
-      <div className="flex items-center gap-2 px-4 pt-3 pb-1 text-xs font-medium text-muted-foreground flex-shrink-0">
-        <BarChart2 className="w-3.5 h-3.5" />
-        Log Volume
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1 flex-shrink-0">
+        <BarChart2 className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-xs font-medium text-muted-foreground">Log Volume</span>
+        <div className="ml-auto">
+          <Select value={interval} onValueChange={v => setInterval(v as Interval)}>
+            <SelectTrigger className="h-6 w-28 text-[11px] border-0 bg-transparent shadow-none px-1 focus:ring-0 focus-visible:ring-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INTERVAL_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="flex-1 min-h-0 px-4 pb-3">
         {loading ? (
@@ -106,6 +138,7 @@ export function TimeHistogram({ projectId, status, kqlQuery, from, to, className
                 allowDecimals={false}
               />
               <RechartsTooltip
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
                   border: '1px solid hsl(var(--border))',
@@ -116,8 +149,7 @@ export function TimeHistogram({ projectId, status, kqlQuery, from, to, className
                 labelStyle={{ color: 'hsl(var(--foreground))', marginBottom: 4 }}
                 itemStyle={{ color: 'hsl(var(--muted-foreground))' }}
               />
-              <Bar dataKey="Success" stackId="a" fill="#22c55e" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="Errors" stackId="a" fill="#ef4444" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="Count" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

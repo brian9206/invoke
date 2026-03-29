@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
-import { Op, literal, QueryTypes } from 'sequelize';
+import { Op, QueryTypes } from 'sequelize';
 import { logSequelize } from '../database';
 import { FunctionLog } from '../models/FunctionLog';
+import { PayloadField } from '../models/PayloadField';
 import { kqlToSequelizeQuery } from '../kql';
 
 const router = Router();
@@ -10,16 +11,16 @@ const router = Router();
  * GET /logs/search
  *
  * Unified log search — supports both KQL (?q=...) and plain filter params.
- * Query params: q, status, from, to, projectId, functionId, page, limit
+ * Query params: q, from, to, projectId, functionId, page, limit
  */
 router.get('/logs/search', async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 200);
-    const status = (req.query.status as string) || 'all';
     const projectId = req.query.projectId as string | undefined;
     const functionId = req.query.functionId as string | undefined;
     const q = ((req.query.q as string) || '').trim();
+    const logType = req.query.logType as string | undefined;
     const offset = (page - 1) * limit;
     const fromDate = req.query.from ? new Date(req.query.from as string) : null;
     const toDate = req.query.to ? new Date(req.query.to as string) : null;
@@ -40,12 +41,6 @@ router.get('/logs/search', async (req: Request, res: Response) => {
       const binds: unknown[] = [...kqlBind];
       const whereParts: string[] = [`(${kqlSql})`];
 
-      if (status === 'success') {
-        whereParts.push(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`);
-      } else if (status === 'error') {
-        whereParts.push(`(payload->'response'->>'status')::int >= 400`);
-      }
-
       if (projectId && projectId !== 'system') {
         binds.push(projectId);
         whereParts.push(`project_id = $${binds.length}`);
@@ -63,6 +58,10 @@ router.get('/logs/search', async (req: Request, res: Response) => {
       if (toDate && !isNaN(toDate.getTime())) {
         binds.push(toDate.toISOString());
         whereParts.push(`executed_at <= $${binds.length}`);
+      }
+      if (logType === 'app' || logType === 'request') {
+        binds.push(logType);
+        whereParts.push(`type = $${binds.length}`);
       }
 
       const whereStr = whereParts.join(' AND ');
@@ -104,13 +103,9 @@ router.get('/logs/search', async (req: Request, res: Response) => {
 
     // ── ORM path (no KQL) ───────────────────────────────────────────────────
     const andConditions: any[] = [];
-    if (status === 'success') {
-      andConditions.push(literal(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`));
-    } else if (status === 'error') {
-      andConditions.push(literal(`(payload->'response'->>'status')::int >= 400`));
-    }
     if (projectId && projectId !== 'system') andConditions.push({ project_id: projectId });
     if (functionId) andConditions.push({ function_id: functionId });
+    if (logType === 'app' || logType === 'request') andConditions.push({ type: logType });
     if (fromDate && !isNaN(fromDate.getTime())) {
       andConditions.push({ executed_at: { [Op.gte]: fromDate } });
     }
@@ -160,11 +155,10 @@ router.get('/logs/search', async (req: Request, res: Response) => {
  * GET /logs/fields
  *
  * Returns top-5 values per known payload field, for use in KQL autocomplete/faceting.
- * Query params: q (KQL), status, projectId
+ * Query params: q (KQL), projectId
  */
 router.get('/logs/fields', async (req: Request, res: Response) => {
   const projectId = req.query.projectId as string | undefined;
-  const status = (req.query.status as string) || 'all';
   const q = ((req.query.q as string) || '').trim();
 
   const KNOWN_FIELDS = [
@@ -185,12 +179,6 @@ router.get('/logs/fields', async (req: Request, res: Response) => {
       });
       baseBinds.push(...kqlBind);
       baseParts.push(`(${kqlSql})`);
-    }
-
-    if (status === 'success') {
-      baseParts.push(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`);
-    } else if (status === 'error') {
-      baseParts.push(`(payload->'response'->>'status')::int >= 400`);
     }
 
     if (projectId && projectId !== 'system') {
@@ -245,22 +233,53 @@ router.get('/logs/fields', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /logs/fields/discover
+ *
+ * Returns all unique payload field paths learned from inserted logs for this project.
+ * Backed by the payload_fields registry table, populated on log insert.
+ * Query params: projectId
+ */
+router.get('/logs/fields/discover', async (req: Request, res: Response) => {
+  const projectId = req.query.projectId as string | undefined;
+  try {
+    const where: any = {};
+    if (projectId && projectId !== 'system') where.project_id = projectId;
+    const fields = await PayloadField.findAll({
+      where,
+      attributes: ['field_path', 'field_type'],
+      order: [['field_path', 'ASC']],
+      raw: true,
+    });
+    return res.status(200).json({
+      success: true,
+      data: { fields: fields.map((f: any) => ({ path: f.field_path, type: f.field_type })) },
+    });
+  } catch (err) {
+    console.error('[Logger] /logs/fields/discover error:', err);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+/**
  * GET /logs/histogram
  *
  * Time-bucketed count of log entries for charting.
- * Query params: q (KQL), status, from, to, projectId
+ * Query params: q (KQL), from, to, projectId
  */
 router.get('/logs/histogram', async (req: Request, res: Response) => {
   const projectId = req.query.projectId as string | undefined;
-  const status = (req.query.status as string) || 'all';
   const q = ((req.query.q as string) || '').trim();
   const toDate = req.query.to ? new Date(req.query.to as string) : new Date();
   const fromDate = req.query.from
     ? new Date(req.query.from as string)
     : new Date(toDate.getTime() - 24 * 60 * 60 * 1000);
 
+  const VALID_GRANULARITIES = new Set(['minute', 'hour', 'day', 'week', 'month'])
+  const requestedInterval = (req.query.interval as string | undefined)?.toLowerCase()
   const rangeHours = (toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60);
-  const granularity = rangeHours <= 1 ? 'minute' : rangeHours <= 48 ? 'hour' : 'day';
+  const granularity = (requestedInterval && VALID_GRANULARITIES.has(requestedInterval))
+    ? requestedInterval
+    : rangeHours <= 1 ? 'minute' : rangeHours <= 48 ? 'hour' : 'day';
 
   try {
     const binds: unknown[] = [];
@@ -273,12 +292,6 @@ router.get('/logs/histogram', async (req: Request, res: Response) => {
       });
       binds.push(...kqlBind);
       whereParts.push(`(${kqlSql})`);
-    }
-
-    if (status === 'success') {
-      whereParts.push(`(payload->'response'->>'status')::int BETWEEN 200 AND 299`);
-    } else if (status === 'error') {
-      whereParts.push(`(payload->'response'->>'status')::int >= 400`);
     }
 
     binds.push(fromDate.toISOString());

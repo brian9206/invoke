@@ -13,7 +13,7 @@ import {
   BarChart3,
   Package,
   FolderOpen,
-  FileText,
+  MonitorCloud,
   Settings,
   LogOut,
   User,
@@ -73,7 +73,7 @@ export default function Layout({ children, title }: LayoutProps) {
     { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
     { name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' },
     ...(gatewayEnabled ? [{ name: 'API Gateway', href: '/admin/api-gateway', icon: Globe, active: router.pathname === '/admin/api-gateway' }] : []),
-    { name: 'Execution Logs', href: '/admin/logs', icon: FileText, active: router.pathname === '/admin/logs' },
+    { name: 'Monitoring', href: '/admin/logs', icon: MonitorCloud, active: router.pathname === '/admin/logs' },
   ]
 
   const adminNavItems: NavItem[] = [
