@@ -62,7 +62,6 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     insertRequestLog({
       project: { id: functionData.project_id },
       function: { id: functionData.id, name: functionData.name },
-      source: 'execution',
       traceId,
       executionTime,
       statusCode,
@@ -108,7 +107,6 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       insertRequestLog({
         project: { id: functionData.project_id },
         function: { id: functionData.id, name: functionData.name },
-        source: 'execution',
         traceId,
         executionTime,
         statusCode: 500,

@@ -48,19 +48,15 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
 
 router.get('/detailed', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const recentCount = await database.models.FunctionLog.count({
-      where: { executed_at: { [Op.gt]: new Date(Date.now() - 3600 * 1000) } },
-    });
-
-    let minioInfo: Record<string, any> = { status: 'unknown' };
+    let s3Info: Record<string, any> = { status: 'unknown' };
     try {
       const buckets = await s3Service.listBuckets();
-      minioInfo = {
+      s3Info = {
         status: 'connected',
         buckets: buckets.map((b: any) => b.Name),
       };
     } catch (error: any) {
-      minioInfo = { status: 'disconnected', error: error.message };
+      s3Info = { status: 'disconnected', error: error.message };
     }
 
     let cacheInfo: Record<string, any> = { status: 'unknown' };
@@ -93,8 +89,8 @@ router.get('/detailed', async (_req: Request, res: Response): Promise<void> => {
       version: '1.0.0',
       timestamp: new Date().toISOString(),
       checks: {
-        database: { status: 'connected', recentExecutions: recentCount },
-        minio: minioInfo,
+        database: { status: 'connected' },
+        s3: s3Info,
         cache: cacheInfo,
         system: systemInfo,
       },

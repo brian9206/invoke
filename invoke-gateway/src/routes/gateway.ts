@@ -247,7 +247,6 @@ router.all('/{*path}', async (req: Request, res: Response) => {
     insertRequestLog({
       project: { id: projectId },
       function: { id: route.functionId },
-      source: 'gateway',
       traceId,
       executionTime: Date.now() - startTime,
       statusCode,
