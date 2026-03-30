@@ -137,6 +137,7 @@ function ColumnToggleButton({ field, isActive, onClick }: { field: string; isAct
 
 export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, selectedColumns, onToggleColumn }: LogRowProps) {
   const totalCols = columns.length + 1 // +1 for chevron
+  const [activeTab, setActiveTab] = React.useState<'table' | 'json'>('table')
 
   const addFilter = (field: string, value: unknown) => {
     if (value == null) return
@@ -172,7 +173,7 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, sele
         <TableRow className="hover:bg-transparent border-0">
           <TableCell colSpan={totalCols} className="p-0 pb-1 pt-2">
             <div className="mx-2 mb-1 rounded-md border border-border bg-card shadow-sm">
-              <Tabs defaultValue="table" className="w-full">
+                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'table' | 'json')} className="w-full">
                 <div className="flex items-center justify-between px-3 pt-2 pb-1 border-b border-border">
                   <TabsList className="h-6 gap-0.5 bg-muted/50 overflow-hidden">
                     <TabsTrigger value="table" className="text-xs h-5 px-2.5 data-[state=active]:bg-background">
@@ -200,48 +201,52 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, sele
 
                 {/* ── Table view ── */}
                 <TabsContent value="table" className="m-0 p-0">
-                  <div className="max-h-64 overflow-y-auto border-t border-border">
-                    <table className="w-full text-xs">
-                      <tbody>
-                        {flattenPayload(log.payload).map(([field, value]) => (
-                          <tr
-                            key={field}
-                            className="group border-b border-border/40 last:border-0 hover:bg-muted/30"
-                          >
-                            <td className="py-1 pl-3 pr-2 text-muted-foreground font-mono align-top text-xs break-all w-[250px]">
-                              {field}
-                            </td>
-                            <td className="py-1 pr-3 font-mono">
-                              <div className="flex items-start gap-1.5">
-                                <span className="break-all text-foreground">{String(value ?? '—')}</span>
-                                {value != null && value !== '' && (
-                                  <FilterButton
-                                    field={field}
-                                    value={String(value)}
-                                    onClick={() => addFilter(field, value)}
-                                  />
-                                )}
-                                {onToggleColumn && (
-                                  <ColumnToggleButton
-                                    field={field}
-                                    isActive={selectedColumns?.includes(field) ?? false}
-                                    onClick={() => onToggleColumn(field)}
-                                  />
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  {activeTab === 'table' && (
+                    <div className="max-h-64 overflow-y-auto border-t border-border">
+                      <table className="w-full text-xs">
+                        <tbody>
+                          {flattenPayload(log.payload).map(([field, value]) => (
+                            <tr
+                              key={field}
+                              className="group border-b border-border/40 last:border-0 hover:bg-muted/30"
+                            >
+                              <td className="py-1 pl-3 pr-2 text-muted-foreground font-mono align-top text-xs break-all w-[250px]">
+                                {field}
+                              </td>
+                              <td className="py-1 pr-3 font-mono">
+                                <div className="flex items-start gap-1.5">
+                                  <span className="break-all text-foreground">{String(value ?? '—')}</span>
+                                  {value != null && value !== '' && (
+                                    <FilterButton
+                                      field={field}
+                                      value={String(value)}
+                                      onClick={() => addFilter(field, value)}
+                                    />
+                                  )}
+                                  {onToggleColumn && (
+                                    <ColumnToggleButton
+                                      field={field}
+                                      isActive={selectedColumns?.includes(field) ?? false}
+                                      onClick={() => onToggleColumn(field)}
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </TabsContent>
 
                 {/* ── JSON view ── */}
                 <TabsContent value="json" className="m-0 p-0">
-                  <pre className="text-xs font-mono max-h-32 overflow-y-auto p-3 leading-relaxed whitespace-pre-wrap break-all text-foreground border-t border-border">
-                    {JSON.stringify(log.payload, null, 2)}
-                  </pre>
+                  {activeTab === 'json' && (
+                    <pre className="text-xs font-mono max-h-32 overflow-y-auto p-3 leading-relaxed whitespace-pre-wrap break-all text-foreground border-t border-border">
+                      {JSON.stringify(log.payload, null, 2)}
+                    </pre>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>

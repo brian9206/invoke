@@ -20,6 +20,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       to: req.query.to as string,
       projectId,
       interval: req.query.interval as string,
+      logType: req.query.logType as string,
     },
   })
 

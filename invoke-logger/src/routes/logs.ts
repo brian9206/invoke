@@ -268,6 +268,8 @@ router.get('/logs/fields/discover', async (req: Request, res: Response) => {
  */
 router.get('/logs/histogram', async (req: Request, res: Response) => {
   const projectId = req.query.projectId as string | undefined;
+  const functionId = req.query.functionId as string | undefined;
+  const logType = req.query.logType as string | undefined;
   const q = ((req.query.q as string) || '').trim();
   const toDate = req.query.to ? new Date(req.query.to as string) : new Date();
   const fromDate = req.query.from
@@ -302,6 +304,16 @@ router.get('/logs/histogram', async (req: Request, res: Response) => {
     if (projectId && projectId !== 'system') {
       binds.push(projectId);
       whereParts.push(`project_id = $${binds.length}`);
+    }
+
+    if (functionId) {
+      binds.push(functionId);
+      whereParts.push(`function_id = $${binds.length}`);
+    }
+
+    if (logType === 'app' || logType === 'request') {
+      binds.push(logType);
+      whereParts.push(`type = $${binds.length}`);
     }
 
     const whereStr = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';

@@ -72,7 +72,6 @@ export interface RequestLogInfo {
 export interface InsertRequestLogOptions {
   project?: { id?: string; name?: string | null };
   function?: { id?: string; name?: string | null };
-  source: 'execution' | 'gateway';
   traceId?: string;
   executionTime: number;
   statusCode: number;
@@ -89,7 +88,6 @@ export function insertRequestLog(opts: InsertRequestLogOptions): void {
   const {
     project,
     function: functionArg,
-    source,
     traceId,
     executionTime,
     statusCode,
@@ -157,7 +155,7 @@ export function insertRequestLog(opts: InsertRequestLogOptions): void {
     project,
     function: functionArg,
     type: 'request',
-    source,
+    source: 'gateway',
     payload,
     executedAt: executedAt.toISOString(),
   });

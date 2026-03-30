@@ -34,11 +34,12 @@ interface TimeHistogramProps {
   kqlQuery: string
   from: Date
   to: Date
+  logType?: string
   /** Optional additional className for the root element */
   className?: string
 }
 
-export function TimeHistogram({ projectId, kqlQuery, from, to, className }: TimeHistogramProps) {
+export function TimeHistogram({ projectId, kqlQuery, from, to, logType, className }: TimeHistogramProps) {
   const [data, setData] = useState<HistogramBucket[]>([])
   const [loading, setLoading] = useState(false)
   const [interval, setInterval] = useState<Interval>('auto')
@@ -57,6 +58,7 @@ export function TimeHistogram({ projectId, kqlQuery, from, to, className }: Time
         })
         if (kqlQuery) params.set('q', kqlQuery)
         if (interval !== 'auto') params.set('interval', interval)
+        if (logType) params.set('logType', logType)
         const res = await authenticatedFetch(`/api/logs/histogram?${params}`)
         const json = await res.json()
         if (!cancelled && json.success) setData(json.data || [])
@@ -69,7 +71,7 @@ export function TimeHistogram({ projectId, kqlQuery, from, to, className }: Time
 
     fetchData()
     return () => { cancelled = true }
-  }, [projectId, kqlQuery, from, to, interval])
+  }, [projectId, kqlQuery, from, to, logType, interval])
 
   const rangeMs = to.getTime() - from.getTime()
 

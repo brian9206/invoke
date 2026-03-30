@@ -27,7 +27,6 @@ const executionEngine = new ExecutionEngine({
     insertLog({
       project: { id: entry.projectId },
       function: { id: entry.functionId },
-      source: 'execution',
       payload: {
         level: entry.level,
         message: entry.message,

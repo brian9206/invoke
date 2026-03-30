@@ -51,7 +51,6 @@ function postLog(body: Record<string, unknown>): void {
 export interface AppLogOptions {
   project?: { id?: string; name?: string | null };
   function?: { id?: string; name?: string | null };
-  source: 'execution' | 'gateway';
   payload: Record<string, unknown>;
   executedAt?: Date;
 }
@@ -80,7 +79,6 @@ export interface RequestLogInfo {
 export interface InsertRequestLogOptions {
   project?: { id?: string; name?: string | null };
   function?: { id?: string; name?: string | null };
-  source: 'execution' | 'gateway';
   traceId?: string;
   executionTime: number;
   statusCode: number;
@@ -96,7 +94,7 @@ export function insertLog(opts: AppLogOptions): void {
     project: opts.project,
     function: opts.function,
     type: 'app',
-    source: opts.source,
+    source: 'execution',
     payload: opts.payload,
     executedAt: opts.executedAt?.toISOString(),
   });
@@ -111,7 +109,6 @@ export function insertRequestLog(opts: InsertRequestLogOptions): void {
   const {
     project,
     function: functionArg,
-    source,
     traceId,
     executionTime,
     statusCode,
@@ -179,7 +176,7 @@ export function insertRequestLog(opts: InsertRequestLogOptions): void {
     project,
     function: functionArg,
     type: 'request',
-    source,
+    source: 'execution',
     payload,
     executedAt: executedAt.toISOString(),
   });

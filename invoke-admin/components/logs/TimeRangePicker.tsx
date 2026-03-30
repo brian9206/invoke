@@ -352,25 +352,25 @@ function EndpointEditor({
           </div>
         </TabsContent>
 
-        {/* Now — only show for End endpoint */}
-        {!isStart && (
-          <TabsContent value="now" className="mt-0">
-            <p className="text-xs text-muted-foreground leading-relaxed py-3">
-              Setting the time to &ldquo;now&rdquo; means that on every refresh this time will be
-              set to the time of the refresh.
-            </p>
-            <Button size="sm" className="w-full text-xs" onClick={() => onChange({ ...state, mode: 'now' })}>
-              Set {title.toLowerCase()} date and time to now
-            </Button>
-          </TabsContent>
-        )}
+        {/* Now */}
+        <TabsContent value="now" className="mt-0">
+          <p className="text-xs text-muted-foreground leading-relaxed py-3">
+            Setting the time to &ldquo;now&rdquo; means that on every refresh this time will be
+            set to the time of the refresh.
+          </p>
+          <Button size="sm" className="w-full text-xs" onClick={() => onChange({ ...state, mode: 'now' })}>
+            Set {title.toLowerCase()} date and time to now
+          </Button>
+        </TabsContent>
       </Tabs>
 
-      {/* Resolved preview */}
-      <p className="text-[11px] text-muted-foreground border-t border-border pt-2 mt-auto">
-        <span className="font-medium text-foreground capitalize">{title} date</span>
-        {' '}{resolvedStr}
-      </p>
+      {/* Resolved preview — only meaningful for absolute mode */}
+      {state.mode === 'absolute' && (
+        <p className="text-[11px] text-muted-foreground border-t border-border pt-2 mt-auto">
+          <span className="font-medium text-foreground capitalize">{title} date</span>
+          {' '}{resolvedStr}
+        </p>
+      )}
     </div>
   )
 }
@@ -417,7 +417,7 @@ export function TimeRangePicker({ value, onChange }: TimeRangePickerProps) {
   }
 
   return (
-    <div className="flex items-center h-9 border border-border rounded-md text-xs font-mono bg-background shrink-0">
+    <div className="flex items-center h-9 border border-border rounded-md text-xs font-mono bg-background shrink-0 pe-2">
       <Calendar className="w-3.5 h-3.5 text-muted-foreground mx-2 shrink-0" />
 
       {/* Start trigger */}

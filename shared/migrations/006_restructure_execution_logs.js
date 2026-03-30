@@ -8,22 +8,6 @@ module.exports = {
   },
 
   async down({ context: { queryInterface, Sequelize } }) {
-    // ── Drop index on response.status ────────────────────────────────────────
-    await queryInterface.sequelize.query(
-      'DROP INDEX IF EXISTS idx_function_logs_response_status;'
-    );
-
-    // ── Drop trigger and trigger function ────────────────────────────────────
-    await queryInterface.sequelize.query(
-      'DROP TRIGGER IF EXISTS trg_update_payload_search ON function_logs;',
-    );
-    await queryInterface.sequelize.query(
-      'DROP FUNCTION IF EXISTS update_payload_search();',
-    );
-
-    // ── Drop the new function_logs table ─────────────────────────────────────
-    await queryInterface.dropTable('function_logs');
-
     // ── Restore original execution_logs table (from migration 001) ───────────
     await queryInterface.createTable('execution_logs', {
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },

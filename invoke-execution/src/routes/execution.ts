@@ -205,7 +205,6 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
     insertRequestLog({
       project: { id: req.functionInfo?.project_id, name: req.functionInfo?.Project?.name },
       function: { id: functionId, name: req.functionInfo?.name },
-      source: 'execution',
       traceId,
       executionTime,
       statusCode,
@@ -245,7 +244,6 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       insertRequestLog({
         project: { id: req.functionInfo.project_id, name: req.functionInfo?.Project?.name },
         function: { id: errorFunctionId, name: req.functionInfo?.name },
-        source: 'execution',
         traceId,
         executionTime,
         statusCode: 500,

@@ -44,11 +44,70 @@ module.exports = {
       },
     });
 
-    // ── Indexes ──────────────────────────────────────────────────────────────
+    // ── Create payload_fields table ──────────────────────────────────────────
+    await queryInterface.createTable('payload_fields', {
+      id: {
+        type: Sequelize.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+        allowNull: false,
+      },
+      project_id: {
+        type: Sequelize.UUID,
+        allowNull: false,
+      },
+      field_path: {
+        type: Sequelize.STRING(255),
+        allowNull: false,
+      },
+      field_type: {
+        type: Sequelize.STRING(20),
+        allowNull: false,
+        defaultValue: 'string',
+      },
+      first_seen_at: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('NOW()'),
+      },
+      last_seen_at: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('NOW()'),
+      },
+    });
+
+    // ── payload_fields constraints & indexes ─────────────────────────────────
+    await queryInterface.addConstraint('payload_fields', {
+      fields: ['project_id', 'field_path'],
+      type: 'unique',
+      name: 'uq_payload_fields_project_path',
+    });
+
+    await queryInterface.addIndex('payload_fields', {
+      fields: ['project_id'],
+      name: 'idx_payload_fields_project_id',
+    });
+
+    // ── function_logs basic indexes ──────────────────────────────────────────
+    await queryInterface.addIndex('function_logs', {
+      fields: ['project_id'],
+      name: 'idx_function_logs_project_id',
+    });
 
     await queryInterface.addIndex('function_logs', {
       fields: ['executed_at'],
       name: 'idx_function_logs_executed_at',
+    });
+
+    await queryInterface.addIndex('function_logs', {
+      fields: ['type'],
+      name: 'idx_function_logs_type',
+    });
+
+    await queryInterface.addIndex('function_logs', {
+      fields: ['source'],
+      name: 'idx_function_logs_source',
     });
 
     await queryInterface.addIndex('function_logs', {
@@ -63,24 +122,38 @@ module.exports = {
       name: 'idx_function_logs_payload_search',
     });
 
+    // ── function_logs expression indexes (JSONB payload paths) ──────────────
     await queryInterface.sequelize.query(
       `CREATE INDEX idx_function_logs_response_status ON function_logs (((payload->'response'->>'status')::int));`,
     );
 
-    await queryInterface.addIndex('function_logs', {
-      fields: ['project_id'],
-      name: 'idx_function_logs_project_id',
-    });
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_execution_time_ms ON function_logs (((payload->>'execution_time_ms')::numeric));`,
+    );
 
-    await queryInterface.addIndex('function_logs', {
-      fields: ['type'],
-      name: 'idx_function_logs_type',
-    });
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_payload_source ON function_logs ((payload->>'source'));`,
+    );
 
-    await queryInterface.addIndex('function_logs', {
-      fields: ['source'],
-      name: 'idx_function_logs_source',
-    });
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_payload_function_id ON function_logs ((payload->'function'->>'id'));`,
+    );
+
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_payload_function_name ON function_logs ((payload->'function'->>'name'));`,
+    );
+
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_request_method ON function_logs ((payload->'request'->>'method'));`,
+    );
+
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_request_path ON function_logs ((payload->'request'->>'path'));`,
+    );
+
+    await queryInterface.sequelize.query(
+      `CREATE INDEX idx_function_logs_request_ip ON function_logs ((payload->'request'->>'ip'));`,
+    );
 
     // ── TSVECTOR trigger ─────────────────────────────────────────────────────
     await queryInterface.sequelize.query(`
@@ -112,5 +185,6 @@ module.exports = {
     );
     await queryInterface.sequelize.query(`DROP FUNCTION IF EXISTS update_payload_search();`);
     await queryInterface.dropTable('function_logs');
+    await queryInterface.dropTable('payload_fields');
   },
 };

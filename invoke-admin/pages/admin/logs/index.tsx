@@ -143,7 +143,9 @@ export default function Logs() {
 
   useEffect(() => {
     if (!router.isReady || projectLoading || !activeProject) return
-    fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, timeRange.from, timeRange.to, logType)
+    const from = timeRange.fromExpr ? (parseExprToDate(timeRange.fromExpr) ?? timeRange.from) : timeRange.from
+    const to = timeRange.toExpr ? (parseExprToDate(timeRange.toExpr) ?? timeRange.to) : timeRange.to
+    fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, from, to, logType)
   }, [router.isReady, currentPage, pageSize, kqlQuery, activeProject, projectLoading, timeRange, logType, fetchLogs])
 
   // ── handlers ──────────────────────────────────────────────────────────
@@ -249,7 +251,11 @@ export default function Logs() {
                 variant="outline"
                 size="sm"
                 className="h-9 gap-1.5 text-xs"
-                onClick={() => fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, timeRange.from, timeRange.to, logType)}
+                onClick={() => {
+                  const from = timeRange.fromExpr ? (parseExprToDate(timeRange.fromExpr) ?? timeRange.from) : timeRange.from
+                  const to = timeRange.toExpr ? (parseExprToDate(timeRange.toExpr) ?? timeRange.to) : timeRange.to
+                  fetchLogs(currentPage, pageSize, kqlQuery, activeProject.id, from, to, logType)
+                }}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Refresh
@@ -277,6 +283,7 @@ export default function Logs() {
                 kqlQuery={kqlQuery}
                 from={timeRange.from}
                 to={timeRange.to}
+                logType={logType}
               />
             </ResizablePanel>
 
