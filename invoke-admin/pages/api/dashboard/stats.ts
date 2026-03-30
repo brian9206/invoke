@@ -41,9 +41,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       totalFunctions: parseInt(functionStatsRow?.total_functions ?? 0),
       activeFunctions: parseInt(functionStatsRow?.active_functions ?? 0),
       totalExecutions: parseInt(functionStatsRow?.total_executions ?? 0),
-      recentErrors: parseInt(logStats.recent_errors ?? 0),
-      avgResponseTime: logStats.avg_response_time ?? 0,
-      successRate: logStats.success_rate ?? 100,
+      recentErrors: parseInt(logStats.recentErrors ?? 0),
+      avgResponseTime: logStats.avgResponseTime ?? 0,
+      successRate: logStats.successRate ?? 0,
     }
 
     res.status(200).json(createResponse(true, stats, 'Statistics retrieved'))
