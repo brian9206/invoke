@@ -16,7 +16,7 @@ router.get('/stats', async (req: Request, res: Response) => {
     const projectId = req.query.projectId as string | undefined;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const whereParts: string[] = ['executed_at > $1'];
+    const whereParts: string[] = ['executed_at > $1', "type = 'request'", "source = 'execution'"];
     const binds: unknown[] = [cutoff.toISOString()];
 
     if (projectId && projectId !== 'system') {
@@ -68,7 +68,11 @@ router.get('/recent-activity', async (req: Request, res: Response) => {
     const projectId = req.query.projectId as string | undefined;
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
 
-    const where: any = { executed_at: { [Op.gt]: oneHourAgo } };
+    const where: any = {
+      executed_at: { [Op.gt]: oneHourAgo },
+      type: 'request',
+      source: 'execution',
+    };
     if (projectId && projectId !== 'system') {
       where.project_id = projectId;
     }

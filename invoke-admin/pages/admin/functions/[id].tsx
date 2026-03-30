@@ -66,6 +66,7 @@ interface ExecutionLog {
   executed_at: string
   payload: {
     execution_time_ms: number
+    trace_id?: string
     request: { ip: string; body: { size: number | null } }
     response: { status: number; body: { size: number | null } }
     error?: string
@@ -1186,7 +1187,6 @@ export default function FunctionDetails() {
                             <TableHead>Req Size</TableHead>
                             <TableHead>Res Size</TableHead>
                             <TableHead>Client IP</TableHead>
-                            <TableHead>Error</TableHead>
                             <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1204,18 +1204,8 @@ export default function FunctionDetails() {
                               <TableCell className="text-sm text-muted-foreground">{formatBytes(payload?.request?.body?.size)}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">{formatBytes(payload?.response?.body?.size)}</TableCell>
                               <TableCell className="text-sm font-mono text-muted-foreground">{payload?.request?.ip ?? '—'}</TableCell>
-                              <TableCell className="text-sm">
-                                {error ? (
-                                  <div className="flex items-center gap-1 text-destructive">
-                                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                    <span className="text-xs truncate max-w-[150px]" title={error}>
-                                      {(error.split('\n').find((s: string) => s.trim()) ?? error).substring(0, 40)}
-                                    </span>
-                                  </div>
-                                ) : <span className="text-muted-foreground">—</span>}
-                              </TableCell>
                               <TableCell>
-                                <Button variant="ghost" size="sm" onClick={() => router.push(`/admin/functions/${id}/execution-logs/${log.id}`)} className="text-primary h-7">
+                                <Button variant="ghost" size="sm" disabled={!log.payload?.trace_id} onClick={() => log.payload?.trace_id && router.push(`/admin/logs/trace/${log.payload.trace_id}`)} className="text-primary h-7">
                                   <Activity className="w-3.5 h-3.5 mr-1" />View
                                 </Button>
                               </TableCell>

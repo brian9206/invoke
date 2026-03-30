@@ -169,7 +169,6 @@ export function insertRequestLog(opts: InsertRequestLogOptions): void {
         ...(responseBodyLog ? { payload: responseBodyLog } : {}),
       },
     },
-    ...(error ? { error } : {}),
   };
 
   postLog({

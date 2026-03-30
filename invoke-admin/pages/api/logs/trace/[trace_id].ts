@@ -27,7 +27,6 @@ export interface TraceExecution {
     headers: Record<string, string>
     body: { size: number | null; payload?: string }
   }
-  error?: string
 }
 
 export interface TraceDetailResponse {
@@ -108,7 +107,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             payload: p.response?.body?.payload,
           },
         },
-        ...(p.error ? { error: p.error } : {}),
       }
     }
 

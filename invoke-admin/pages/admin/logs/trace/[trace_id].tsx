@@ -11,15 +11,14 @@ import {
   Globe,
   Terminal,
   Code,
-  AlertCircle,
   CheckCircle,
   XCircle,
+  AlertCircle,
   Eye,
   EyeOff,
   Loader,
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/cn'
@@ -151,17 +150,15 @@ export default function TraceDetail() {
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <PageHeader
-                title="Trace Details"
-                subtitle={
-                  execution?.function_name
-                    ? `${execution.function_name} · ${trace_id}`
-                    : trace_id
-                }
-                icon={<Activity className="w-8 h-8 text-primary" />}
-              />
-            </div>
+            <PageHeader
+              title="Trace Details"
+              subtitle={
+                execution?.function_name
+                  ? `${execution.function_name} · ${trace_id}`
+                  : trace_id
+              }
+              icon={<Activity className="w-8 h-8 text-primary" />}
+            />
             {status !== null && (
               <Badge
                 variant={isSuccess ? 'success' : isError ? 'destructive' : 'warning'}
@@ -250,11 +247,7 @@ export default function TraceDetail() {
                     onClick={() => setShowRequestHeaders((v) => !v)}
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showRequestHeaders ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showRequestHeaders ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     Request Headers ({Object.keys(execution.request.headers ?? {}).length})
                   </button>
                   {showRequestHeaders && (
@@ -313,27 +306,12 @@ export default function TraceDetail() {
                   <Code className="w-5 h-5" />
                   Response Details
                 </h2>
-                {execution.error && (
-                  <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-red-400 font-medium">Error Message</p>
-                      <pre className="text-red-300 mt-1 text-sm whitespace-pre-wrap">
-                        {execution.error}
-                      </pre>
-                    </div>
-                  </div>
-                )}
                 <div>
                   <button
                     onClick={() => setShowResponseHeaders((v) => !v)}
                     className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {showResponseHeaders ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showResponseHeaders ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     Response Headers ({Object.keys(execution.response.headers ?? {}).length})
                   </button>
                   {showResponseHeaders && (
@@ -346,11 +324,7 @@ export default function TraceDetail() {
                       onClick={() => setShowResponseBody((v) => !v)}
                       className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      {showResponseBody ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showResponseBody ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       Response Body
                     </button>
                     {showResponseBody && (

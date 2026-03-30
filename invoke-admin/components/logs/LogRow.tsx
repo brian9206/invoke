@@ -191,7 +191,7 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, sele
                       className="h-6 text-xs gap-1 text-muted-foreground hover:text-foreground"
                       onClick={e => e.stopPropagation()}
                     >
-                      <Link href={`/admin/logs/${log.payload.trace_id}`}>
+                      <Link href={`/admin/logs/trace/${log.payload.trace_id}`}>
                         <ExternalLink className="w-3 h-3" />
                         Full details
                       </Link>

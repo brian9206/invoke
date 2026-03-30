@@ -121,11 +121,12 @@ export class ExecutionEngine {
     let isolate: ivm.Isolate | null = null;
     let ivmContext: ivm.Context | null = null;
     let executionContext: ExecutionContext | null = null;
+    let projectId: string | undefined;
 
     try {
       const metadata = await this.metadataProvider!(functionId);
       const packageHash = metadata.package_hash;
-      const projectId = metadata.project_id;
+      projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 
       const traceId = context.traceId;
@@ -247,6 +248,17 @@ export class ExecutionEngine {
       };
     } catch (error: any) {
       console.error('[ExecutionEngine] Execution error:', error);
+
+      if (this.appLogHandler && projectId) {
+        this.appLogHandler({
+          level: 'error',
+          message: `[ExecutionEngine] Execution error: ${error.toString()}.`,
+          functionId,
+          projectId,
+          traceId: context.traceId,
+          timestamp: Date.now(),
+        });
+      }
 
       if (isolate) {
         const isCorrupted =
