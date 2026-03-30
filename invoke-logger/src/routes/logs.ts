@@ -3,7 +3,7 @@ import { Op, QueryTypes } from 'sequelize';
 import { logSequelize } from '../database';
 import { FunctionLog } from '../models/FunctionLog';
 import { PayloadField } from '../models/PayloadField';
-import { kqlToSequelizeQuery } from '../kql';
+import { kqlToSequelizeQuery, parseSyntaxError } from '../kql';
 
 const router = Router();
 
@@ -34,7 +34,7 @@ router.get('/logs/search', async (req: Request, res: Response) => {
           tsvectorColumn: 'payload_search',
         });
       } catch (err: any) {
-        return res.status(400).json({ success: false, message: `Invalid query: ${err.message}` });
+        return res.status(400).json({ success: false, message: `Invalid query: ${parseSyntaxError(err.message).message}` });
       }
 
       const { sql: kqlSql, bind: kqlBind, predicate } = kqlResult;
@@ -225,7 +225,7 @@ router.get('/logs/fields', async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, data: { fields: fieldResults } });
   } catch (err: any) {
     if (err.message?.includes('parse result') || err.message?.includes('Invalid')) {
-      return res.status(400).json({ success: false, message: `Invalid query: ${err.message}` });
+      return res.status(400).json({ success: false, message: `Invalid query: ${parseSyntaxError(err.message).message}` });
     }
     console.error('[Logger] /logs/fields error:', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });
@@ -321,7 +321,7 @@ router.get('/logs/histogram', async (req: Request, res: Response) => {
     return res.status(200).json({ success: true, data: rows });
   } catch (err: any) {
     if (err.message?.includes('parse result') || err.message?.includes('Invalid')) {
-      return res.status(400).json({ success: false, message: `Invalid query: ${err.message}` });
+      return res.status(400).json({ success: false, message: `Invalid query: ${parseSyntaxError(err.message).message}` });
     }
     console.error('[Logger] /logs/histogram error:', err);
     return res.status(500).json({ success: false, message: 'Internal server error' });

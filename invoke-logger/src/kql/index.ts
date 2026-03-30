@@ -39,6 +39,11 @@ type DslQueryResult = {
   predicate: (row: QueryRow) => boolean;
 };
 
+type SyntaxError = {
+  message: string;
+  details: string;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────
 
 /**
@@ -308,4 +313,15 @@ export function kqlToSequelizeQuery(input: string, config: Partial<DslConfig> = 
   const { sql, predicate } = astToJsonb(parser.results[0] as AstNode, config as DslConfig, binds);
 
   return { sql, bind: binds, type: QueryTypes.SELECT, predicate };
+}
+
+export function parseSyntaxError(message: string): SyntaxError {
+  if (!message.startsWith("Syntax error at line")) {
+    return { message, details: "" };
+  }
+
+  const lines = message.split("\n");
+  const msg = lines.slice(0, 2).join("\n").trim().replace(/\:$/, "");
+  const details = lines.slice(2).join("\n").trim();
+  return { message: msg, details };
 }

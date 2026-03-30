@@ -19,10 +19,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
+    const status = req.query.status as string | undefined
+    const kqlParts = ['source:execution']
+    if (status === 'success') {
+      kqlParts.push('response.status >= 200', 'response.status < 400')
+    } else if (status === 'error') {
+      kqlParts.push('response.status >= 400')
+    }
+
     const result = await proxyToLogger('/logs/search', {
       query: {
         functionId: id,
-        status: req.query.status as string,
+        logType: 'request',
+        q: kqlParts.join(' AND '),
         page: req.query.page as string,
         limit: req.query.limit as string,
       },
