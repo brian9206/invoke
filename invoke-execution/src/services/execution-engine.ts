@@ -129,10 +129,11 @@ export class ExecutionEngine {
       projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 
+      const resolvedProjectId: string = projectId!;
       const traceId = context.traceId;
       const boundConsoleLogger = this.appLogHandler
         ? (data: { level: string; message: string; timestamp: number }) => {
-            this.appLogHandler!({ ...data, functionId, projectId, traceId });
+            this.appLogHandler!({ ...data, functionId, projectId: resolvedProjectId, traceId });
           }
         : undefined;
 
@@ -146,8 +147,8 @@ export class ExecutionEngine {
         : settings.defaultMemoryMb;
 
       const envVars = await this.envVarsProvider!(functionId);
-      const networkPolicies = await this.networkPoliciesProvider!(projectId);
-      const kvStore = this.kvStoreFactory!(projectId);
+      const networkPolicies = await this.networkPoliciesProvider!(resolvedProjectId);
+      const kvStore = this.kvStoreFactory!(resolvedProjectId);
 
       const acquired = await this.isolatePool!.acquireWithMemory(effectiveMemoryMb);
       isolate = acquired.isolate;
@@ -161,7 +162,7 @@ export class ExecutionEngine {
         packageHash,
         envVars,
         acquired.compiledScript,
-        projectId,
+        resolvedProjectId,
         projectSlug,
         kvStore,
         networkPolicies,
