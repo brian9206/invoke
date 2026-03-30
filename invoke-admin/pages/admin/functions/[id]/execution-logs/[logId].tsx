@@ -18,21 +18,24 @@ interface ExecutionLogDetail {
   function_version: string
   project_id: string
   project_name: string
-  status_code: number
-  execution_time_ms: number
-  request_size: number
-  response_size: number
-  error_message?: string
-  client_ip: string
-  user_agent: string
   executed_at: string
-  console_logs: Array<{ level: string; message: string; timestamp: number }>
-  request_headers: Record<string, string>
-  response_headers: Record<string, string>
-  request_body: string
-  response_body: string
-  request_method: string
-  request_url: string
+  payload: {
+    execution_time_ms: number
+    request: {
+      url: string
+      method: string
+      ip: string
+      headers: Record<string, string>
+      body: { size: number | null; payload?: string }
+    }
+    response: {
+      status: number
+      headers: Record<string, string>
+      body: { size: number | null; payload?: string }
+    }
+    error?: string
+    console?: Array<{ level: string; message: string; timestamp: number }>
+  }
 }
 
 export default function ExecutionLogDetails() {
@@ -89,8 +92,8 @@ export default function ExecutionLogDetails() {
     <ProtectedRoute><Layout><div className="flex items-center justify-center h-64 text-destructive">{error || 'Execution log not found'}</div></Layout></ProtectedRoute>
   )
 
-  const isSuccess = logDetail.status_code >= 200 && logDetail.status_code < 300
-  const isError = logDetail.status_code >= 400
+  const isSuccess = logDetail.payload.response.status >= 200 && logDetail.payload.response.status < 300
+  const isError = logDetail.payload.response.status >= 400
 
   return (
     <ProtectedRoute>
@@ -109,16 +112,16 @@ export default function ExecutionLogDetails() {
             </div>
             <Badge variant={isSuccess ? 'success' : isError ? 'destructive' : 'warning'} className="flex items-center gap-1">
               {isSuccess ? <CheckCircle className="w-4 h-4" /> : isError ? <XCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              {logDetail.status_code}
+              {logDetail.payload.response.status}
             </Badge>
           </div>
 
           {/* Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {[
-              { label: 'Execution Time', value: `${logDetail.execution_time_ms}ms`, icon: Clock },
-              { label: 'Request Size', value: formatBytes(logDetail.request_size), icon: Globe },
-              { label: 'Response Size', value: formatBytes(logDetail.response_size), icon: Code },
+              { label: 'Execution Time', value: `${logDetail.payload.execution_time_ms}ms`, icon: Clock },
+              { label: 'Request Size', value: formatBytes(logDetail.payload.request.body.size), icon: Globe },
+              { label: 'Response Size', value: formatBytes(logDetail.payload.response.body.size), icon: Code },
               { label: 'Executed At', value: formatDate(logDetail.executed_at), icon: Calendar },
             ].map(({ label, value, icon: Icon }) => (
               <Card key={label}>
@@ -140,36 +143,36 @@ export default function ExecutionLogDetails() {
             <CardContent className="pt-6 space-y-4">
               <h2 className="text-base font-bold flex items-center gap-2 text-foreground"><Globe className="w-5 h-5" />Request Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div><p className="text-muted-foreground font-medium">Method</p><p className="text-foreground font-mono">{logDetail.request_method}</p></div>
-                <div><p className="text-muted-foreground font-medium">URL</p><p className="text-foreground font-mono break-all">{logDetail.request_url}</p></div>
-                <div><p className="text-muted-foreground font-medium">Client IP</p><p className="text-foreground font-mono">{logDetail.client_ip}</p></div>
-                <div><p className="text-muted-foreground font-medium">User Agent</p><p className="text-foreground break-all">{logDetail.user_agent}</p></div>
+                <div><p className="text-muted-foreground font-medium">Method</p><p className="text-foreground font-mono">{logDetail.payload.request.method}</p></div>
+                <div><p className="text-muted-foreground font-medium">URL</p><p className="text-foreground font-mono break-all">{logDetail.payload.request.url}</p></div>
+                <div><p className="text-muted-foreground font-medium">Client IP</p><p className="text-foreground font-mono">{logDetail.payload.request.ip}</p></div>
+                <div><p className="text-muted-foreground font-medium">User Agent</p><p className="text-foreground break-all">{logDetail.payload.request.headers?.['user-agent'] ?? '—'}</p></div>
               </div>
               <div>
                 <button onClick={() => setShowHeaders(p => ({ ...p, request: !p.request }))} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   {showHeaders.request ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  Request Headers ({Object.keys(logDetail.request_headers).length})
+                  Request Headers ({Object.keys(logDetail.payload.request.headers ?? {}).length})
                 </button>
-                {showHeaders.request && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(JSON.stringify(logDetail.request_headers))}</pre>}
+                {showHeaders.request && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(JSON.stringify(logDetail.payload.request.headers ?? {}))}</pre>}
               </div>
-              {logDetail.request_body && (
+              {logDetail.payload.request.body.payload && (
                 <div>
                   <button onClick={() => setShowRequestBody(!showRequestBody)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     {showRequestBody ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}Request Body
                   </button>
-                  {showRequestBody && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(logDetail.request_body)}</pre>}
+                  {showRequestBody && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(logDetail.payload.request.body.payload)}</pre>}
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Console Output */}
-          {logDetail.console_logs && logDetail.console_logs.length > 0 && (
+          {logDetail.payload.console && logDetail.payload.console.length > 0 && (
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <h2 className="text-base font-bold flex items-center gap-2 text-foreground"><Terminal className="w-5 h-5" />Console Output</h2>
                 <div className="bg-black rounded-lg p-4 font-mono text-sm space-y-1 max-h-96 overflow-y-auto">
-                  {logDetail.console_logs.map((log, index) => (
+                  {logDetail.payload.console.map((log, index) => (
                     <div key={index} className={cn('flex gap-3', formatLogLevel(log.level))}>
                       <span className="text-muted-foreground whitespace-nowrap">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                       <span className="flex-1 break-words whitespace-pre-wrap break-all">{log.message}</span>
@@ -184,28 +187,28 @@ export default function ExecutionLogDetails() {
           <Card>
             <CardContent className="pt-6 space-y-4">
               <h2 className="text-base font-bold flex items-center gap-2 text-foreground"><Code className="w-5 h-5" />Response Details</h2>
-              {logDetail.error_message && (
+              {logDetail.payload.error && (
                 <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-red-400 font-medium">Error Message</p>
-                    <pre className="text-red-300 mt-1 text-sm whitespace-pre-wrap">{logDetail.error_message}</pre>
+                    <pre className="text-red-300 mt-1 text-sm whitespace-pre-wrap">{logDetail.payload.error}</pre>
                   </div>
                 </div>
               )}
               <div>
                 <button onClick={() => setShowHeaders(p => ({ ...p, response: !p.response }))} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                   {showHeaders.response ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  Response Headers ({Object.keys(logDetail.response_headers).length})
+                  Response Headers ({Object.keys(logDetail.payload.response.headers ?? {}).length})
                 </button>
-                {showHeaders.response && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(JSON.stringify(logDetail.response_headers))}</pre>}
+                {showHeaders.response && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(JSON.stringify(logDetail.payload.response.headers ?? {}))}</pre>}
               </div>
-              {logDetail.response_body && (
+              {logDetail.payload.response.body.payload && (
                 <div>
                   <button onClick={() => setShowResponseBody(!showResponseBody)} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     {showResponseBody ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}Response Body
                   </button>
-                  {showResponseBody && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(logDetail.response_body)}</pre>}
+                  {showResponseBody && <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">{formatJSON(logDetail.payload.response.body.payload)}</pre>}
                 </div>
               )}
             </CardContent>

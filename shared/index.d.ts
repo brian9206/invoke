@@ -35,7 +35,6 @@ declare module 'invoke-shared' {
     Function: AnyModelStatic;
     FunctionVersion: AnyModelStatic;
     ApiKey: AnyModelStatic;
-    ExecutionLog: AnyModelStatic;
     FunctionEnvironmentVariable: AnyModelStatic;
     GlobalSetting: AnyModelStatic;
     ProjectNetworkPolicy: AnyModelStatic;
@@ -77,7 +76,7 @@ declare module 'invoke-shared' {
     port: number;
   }
 
-  interface ServiceDatabase {
+  export interface ServiceDatabase {
     sequelize: SequelizeLike;
     models: ServiceModels;
     getConnectionConfig(): ConnectionConfig;

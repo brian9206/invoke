@@ -14,12 +14,12 @@ export function register(program: Command): void {
         console.log(chalk.green('✅ Database connected successfully'));
 
         // Get statistics
-        const { User, Function: FunctionModel, ExecutionLog } = database.models
+        const { User, Function: FunctionModel, FunctionLog } = database.models
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
         const stats = await Promise.all([
           User.count(),
           FunctionModel.count({ where: { is_active: true } }),
-          ExecutionLog.count({ where: { executed_at: { [Op.gt]: oneDayAgo } } }),
+          FunctionLog.count({ where: { executed_at: { [Op.gt]: oneDayAgo } } }),
         ]);
 
         console.log('');

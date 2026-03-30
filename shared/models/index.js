@@ -17,7 +17,6 @@ function initModels(sequelize) {
   const FunctionModel              = require('./Function')(sequelize);
   const FunctionVersion            = require('./FunctionVersion')(sequelize);
   const ApiKey                     = require('./ApiKey')(sequelize);
-  const ExecutionLog               = require('./ExecutionLog')(sequelize);
   const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize);
   const GlobalSetting              = require('./GlobalSetting')(sequelize);
 
@@ -48,7 +47,6 @@ function initModels(sequelize) {
     Function: FunctionModel,
     FunctionVersion,
     ApiKey,
-    ExecutionLog,
     FunctionEnvironmentVariable,
     GlobalSetting,
     ProjectNetworkPolicy,

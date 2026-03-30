@@ -5,7 +5,9 @@
  * and exposes the same API surface that routes and server.ts previously imported.
  */
 
-import { ExecutionEngine, createExecutionContext } from './execution-engine';
+import database from './database';
+import { insertLog } from './logger-client';
+import { ExecutionEngine, createExecutionContext, AppLogEntry } from './execution-engine';
 import {
   fetchFunctionMetadata,
   fetchEnvironmentVariables,
@@ -21,6 +23,19 @@ const executionEngine = new ExecutionEngine({
   metadataProvider: fetchFunctionMetadata,
   envVarsProvider: fetchEnvironmentVariables,
   networkPoliciesProvider: fetchNetworkPolicies,
+  appLogHandler: (entry: AppLogEntry) => {
+    insertLog({
+      project: { id: entry.projectId },
+      function: { id: entry.functionId },
+      payload: {
+        level: entry.level,
+        message: entry.message,
+        ...(entry.traceId ? { trace_id: entry.traceId } : {}),
+        timestamp: new Date(entry.timestamp).toISOString(),
+      },
+      executedAt: new Date(entry.timestamp),
+    });
+  },
 });
 
 export const initialize = (): Promise<void> => executionEngine.initialize();

@@ -1,4 +1,6 @@
+import crypto from 'crypto';
 import express, { Request, Response } from 'express';
+import { insertRequestLog } from '../services/logger-client';
 import routeCache, { CorsSettings } from '../services/route-cache';
 import { authenticate } from '../services/auth';
 import { executionClient, buildGatewayHeaders, buildInvokeUrl } from '../services/execution-client';
@@ -91,17 +93,24 @@ interface ProxyOptions {
   pathSuffix: string;
   routeParams: Record<string, string>;
   query: Record<string, unknown>;
+  traceId: string;
+}
+
+interface ProxyResult {
+  statusCode: number;
+  responseSize: number | null;
 }
 
 /**
  * Proxy the request to the execution service and stream the response back.
+ * Returns the upstream status code and response size (from Content-Length if available).
  */
 async function proxyRequest(
   req: Request,
   res: Response,
   functionId: string,
-  { pathSuffix, routeParams, query }: ProxyOptions,
-): Promise<void> {
+  { pathSuffix, routeParams, query, traceId }: ProxyOptions,
+): Promise<ProxyResult> {
   const forwardHeaders: Record<string, string | string[]> = {};
   for (const [key, value] of Object.entries(req.headers)) {
     if (!STRIPPED_REQUEST_HEADERS.has(key.toLowerCase()) && value !== undefined) {
@@ -122,6 +131,7 @@ async function proxyRequest(
   const headers = {
     ...forwardHeaders,
     ...buildGatewayHeaders(ips[0] ?? ''),
+    'x-trace-id': traceId,
   };
 
   const merged: Record<string, string> = {};
@@ -152,25 +162,36 @@ async function proxyRequest(
   });
 
   res.status(response.status);
-  for (const [key, value] of Object.entries(
-    response.headers as Record<string, string>,
-  )) {
+  const responseHeaders = response.headers as Record<string, string>;
+  for (const [key, value] of Object.entries(responseHeaders)) {
     if (!STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
       res.setHeader(key, value);
     }
   }
+
+  const rawContentLength = responseHeaders['content-length'];
+  const responseSize = rawContentLength ? parseInt(rawContentLength, 10) || null : null;
 
   await new Promise<void>((resolve, reject) => {
     (response.data as NodeJS.ReadableStream).pipe(res, { end: true });
     (response.data as NodeJS.ReadableStream).on('end', resolve);
     (response.data as NodeJS.ReadableStream).on('error', reject);
   });
+
+  return { statusCode: response.status, responseSize };
 }
 
 /**
  * Main catch-all route handler.
  */
 router.all('/{*path}', async (req: Request, res: Response) => {
+  const startTime = Date.now();
+
+  // Propagate or generate a trace ID for the full request lifecycle.
+  const traceId: string =
+    (req.headers['x-trace-id'] as string) || crypto.randomUUID();
+  res.setHeader('x-trace-id', traceId);
+
   try {
     const hostname = (req.headers.host || '').toLowerCase();
     const pathname = req.path;
@@ -182,6 +203,7 @@ router.all('/{*path}', async (req: Request, res: Response) => {
     }
 
     const { route, params } = resolved;
+    const projectId = resolved.projectConfig.projectId;
 
     if (
       req.method !== 'OPTIONS' &&
@@ -212,10 +234,37 @@ router.all('/{*path}', async (req: Request, res: Response) => {
       });
     }
 
-    await proxyRequest(req, res, route.functionId, {
+    const socketIp = normalizeIp(req.socket.remoteAddress);
+    const clientIp = normalizeIp(req.ip) || socketIp || '';
+
+    const { statusCode, responseSize } = await proxyRequest(req, res, route.functionId, {
       pathSuffix: resolved.pathSuffix,
       routeParams: params,
       query: req.query as Record<string, unknown>,
+      traceId,
+    });
+
+    insertRequestLog({
+      project: { id: projectId },
+      function: { id: route.functionId },
+      source: 'gateway',
+      traceId,
+      executionTime: Date.now() - startTime,
+      statusCode,
+      requestInfo: {
+        request: {
+          url: req.path,
+          method: req.method,
+          ip: clientIp,
+          userAgent: req.headers['user-agent'],
+          headers: req.headers,
+          body: { size: null },
+        },
+        response: {
+          headers: {},
+          body: { size: responseSize },
+        },
+      },
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

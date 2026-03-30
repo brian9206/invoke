@@ -1,9 +1,10 @@
+import crypto from 'crypto';
 import express, { Request, Response } from 'express';
 import { Op } from 'sequelize';
 import { CronJob } from 'cron';
+import { insertRequestLog } from '../services/logger-client';
 import database from '../services/database';
 import { executeFunction, createExecutionContext, getFunctionPackage } from '../services/execution-service';
-import { logExecution } from '../services/utils';
 
 const router = express.Router();
 
@@ -22,19 +23,16 @@ function calculateNextExecution(cronExpression: string): Date | null {
 
 async function executeScheduledFunction(functionData: any): Promise<any> {
   const startTime = Date.now();
+  const traceId = crypto.randomUUID();
 
   try {
     console.log(`Executing scheduled function: ${functionData.name} (ID: ${functionData.id})`);
 
-    const { indexPath, tempDir } = await getFunctionPackage(functionData.id);
+    const { indexPath } = await getFunctionPackage(functionData.id);
 
-    const context = createExecutionContext(
-      'POST',
-      {},
-      {},
-      { 'x-scheduled-execution': 'true' },
-      {},
-      {
+    const context = createExecutionContext({
+      headers: { 'x-scheduled-execution': 'true' },
+      originalReq: {
         url: '/scheduled',
         method: 'POST',
         protocol: 'http',
@@ -42,8 +40,8 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
         ip: '127.0.0.1',
         ips: [],
       },
-      tempDir,
-    );
+      traceId,
+    });
 
     const result = await executeFunction(indexPath, context, functionData.id);
 
@@ -61,19 +59,38 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       responseSize = JSON.stringify(responseData).length;
     }
 
-    await logExecution(functionData.id, executionTime, statusCode, result.error, {
-      requestMethod: 'SCHEDULED',
-      requestUrl: '/scheduled',
-      requestBody: '',
-      requestSize: null,
-      responseBody: responseData,
-      responseSize,
-      requestHeaders: { 'x-scheduled-execution': 'true' },
-      responseHeaders: result.headers || {},
-      consoleOutput: result.logs || [],
-      clientIp: '127.0.0.1',
-      userAgent: 'Invoke-Scheduler/1.0',
+    insertRequestLog({
+      project: { id: functionData.project_id },
+      function: { id: functionData.id, name: functionData.name },
+      source: 'execution',
+      traceId,
+      executionTime,
+      statusCode,
+      error: result.error,
+      requestInfo: {
+        request: {
+          url: '/scheduled',
+          method: 'POST',
+          ip: '127.0.0.1',
+          userAgent: 'Invoke-Scheduler/1.0',
+          headers: { 'x-scheduled-execution': 'true' },
+          body: { size: null },
+        },
+        response: {
+          headers: result.headers || {},
+          body: {
+            size: responseSize,
+            payload: responseData,
+          },
+        },
+      },
     });
+
+    const { Function: FunctionModel } = database.models;
+    await FunctionModel.update(
+      { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
+      { where: { id: functionData.id } },
+    );
 
     console.log(`✓ Scheduled function ${functionData.name} executed successfully in ${executionTime}ms`);
 
@@ -88,18 +105,34 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
     console.error(`✗ Scheduled function ${functionData.name} failed:`, error.message);
 
     try {
-      const { ExecutionLog } = database.models;
-      await ExecutionLog.create({
-        function_id: functionData.id,
-        status_code: 500,
-        execution_time_ms: executionTime,
-        request_method: 'SCHEDULED',
-        request_url: '/scheduled',
-        request_size: null,
-        executed_at: new Date(),
-        response_body: JSON.stringify({ error: error.message }),
-        console_logs: [],
+      insertRequestLog({
+        project: { id: functionData.project_id },
+        function: { id: functionData.id, name: functionData.name },
+        source: 'execution',
+        traceId,
+        executionTime,
+        statusCode: 500,
+        error: error.message,
+        requestInfo: {
+          request: {
+            url: '/scheduled',
+            method: 'POST',
+            ip: '127.0.0.1',
+            userAgent: 'Invoke-Scheduler/1.0',
+            headers: { 'x-scheduled-execution': 'true' },
+            body: { size: null },
+          },
+          response: {
+            headers: {},
+            body: { size: null },
+          },
+        },
       });
+      const { Function: FunctionModel } = database.models;
+      await FunctionModel.update(
+        { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
+        { where: { id: functionData.id } },
+      );
     } catch (logError) {
       console.error('Failed to log execution error:', logError);
     }
@@ -122,7 +155,7 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
         next_execution: { [Op.lte]: now },
       },
       include: [{ model: Project, where: { is_active: true }, required: true }],
-      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active'],
+      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active', 'project_id'],
       order: [['next_execution', 'ASC']],
     });
 

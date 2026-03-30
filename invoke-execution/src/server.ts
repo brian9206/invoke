@@ -1,11 +1,9 @@
+import 'dotenv/config';
 import express, { Request, Response, NextFunction, Application } from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import 'dotenv/config';
 import http from 'http';
-
 import { createNotifyListener } from 'invoke-shared';
 import { validateEnvironment } from './services/utils';
 import database from './services/database';

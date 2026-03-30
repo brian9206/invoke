@@ -95,14 +95,6 @@ function createResponse(success: boolean, data?: any, error?: string): Record<st
   };
 }
 
-/**
- * Log function execution details
- */
-function logExecution(functionId: string, executionId: string, duration: number, success: boolean): void {
-  const status = success ? 'SUCCESS' : 'FAILURE';
-  console.log(`[${new Date().toISOString()}] EXECUTE ${functionId} (execution: ${executionId}) - ${status} in ${duration}ms`);
-}
-
 export {
   generateApiKey,
   hashApiKey,
@@ -112,6 +104,5 @@ export {
   validateEnvironment,
   formatFileSize,
   sanitizeFilename,
-  createResponse,
-  logExecution,
+  createResponse
 };

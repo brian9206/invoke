@@ -100,6 +100,37 @@
       ]
     },
     {
+      "name": "Debug Invoke Logger Service",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/invoke-logger",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "NODE_ENV": "development",
+        "PORT": "3004"
+      },
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ]
+    },
+    {
+      "name": "Attach to Invoke Logger",
+      "type": "node",
+      "request": "attach",
+      "port": 9231,
+      "address": "localhost",
+      "localRoot": "${workspaceFolder}/invoke-logger",
+      "remoteRoot": "${workspaceFolder}/invoke-logger",
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ]
+    },
+    {
       "name": "Debug Both Services",
       "type": "node",
       "request": "launch",
@@ -115,7 +146,8 @@
       "configurations": [
         "Debug Invoke Admin (Next.js)",
         "Debug Invoke Execution Service",
-        "Debug Invoke Gateway Service"
+        "Debug Invoke Gateway Service",
+        "Debug Invoke Logger Service"
       ]
     }
   ]

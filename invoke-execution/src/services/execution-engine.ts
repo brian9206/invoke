@@ -4,18 +4,27 @@ import ExecutionContext from './execution-context';
 import { getInstance as getIsolatePool } from './isolate-pool';
 import { getExecutionSettings } from './execution-settings';
 
+export interface AppLogEntry {
+  level: string;
+  message: string;
+  functionId: string;
+  projectId: string;
+  traceId?: string;
+  timestamp: number;
+}
+
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any;
   metadataProvider?: (functionId: string) => Promise<any>;
   envVarsProvider?: (functionId: string) => Promise<Record<string, string>>;
   networkPoliciesProvider?: (projectId: string) => Promise<any>;
+  appLogHandler?: (entry: AppLogEntry) => void;
 }
 
 interface ExecutionResult {
   data?: Buffer | unknown;
   statusCode: number;
   headers?: Record<string, string | string[]>;
-  logs?: unknown[];
   error?: string;
   message?: string;
 }
@@ -39,6 +48,7 @@ interface RequestLike {
 
 interface ContextLike {
   req: RequestLike;
+  traceId?: string;
   res?: { data?: unknown };
 }
 
@@ -55,6 +65,7 @@ export class ExecutionEngine {
   private metadataProvider: ((functionId: string) => Promise<any>) | null;
   private envVarsProvider: ((functionId: string) => Promise<any>) | null;
   private networkPoliciesProvider: ((projectId: string) => Promise<any>) | null;
+  private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
     this.isolatePool = null;
@@ -66,6 +77,7 @@ export class ExecutionEngine {
     this.metadataProvider = options.metadataProvider ?? null;
     this.envVarsProvider = options.envVarsProvider ?? null;
     this.networkPoliciesProvider = options.networkPoliciesProvider ?? null;
+    this.appLogHandler = options.appLogHandler ?? null;
   }
 
   async initialize(): Promise<void> {
@@ -116,6 +128,13 @@ export class ExecutionEngine {
       const projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 
+      const traceId = context.traceId;
+      const boundConsoleLogger = this.appLogHandler
+        ? (data: { level: string; message: string; timestamp: number }) => {
+            this.appLogHandler!({ ...data, functionId, projectId, traceId });
+          }
+        : undefined;
+
       // Determine effective timeout and memory for this execution
       const settings = await getExecutionSettings();
       const effectiveTimeoutMs = metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
@@ -145,6 +164,7 @@ export class ExecutionEngine {
         projectSlug,
         kvStore,
         networkPolicies,
+        boundConsoleLogger,
       );
 
       await executionContext.bootstrap();
@@ -214,7 +234,6 @@ export class ExecutionEngine {
       }
 
       const response = executionContext.getResponse();
-      const logs = executionContext.getLogs();
 
       this.isolatePool!.release(isolate, true);
       isolate = null;
@@ -225,7 +244,6 @@ export class ExecutionEngine {
         data: response.data,
         statusCode: response.statusCode,
         headers: response.headers,
-        logs,
       };
     } catch (error: any) {
       console.error('[ExecutionEngine] Execution error:', error);
@@ -308,16 +326,27 @@ function createRequestObject(
   };
 }
 
-export function createExecutionContext(
+interface CreateExecutionContextOptions {
+  method?: string;
+  body?: unknown;
+  query?: Record<string, string>;
+  headers?: Record<string, string>;
+  params?: Record<string, string>;
+  originalReq?: RequestLike;
+  traceId?: string;
+}
+
+export function createExecutionContext({
   method = 'POST',
-  body: unknown = {},
-  query: Record<string, string> = {},
-  headers: Record<string, string> = {},
-  params: Record<string, string> = {},
-  originalReq: RequestLike = {} as RequestLike,
-  _packageDir: string | null = null,
-): ContextLike {
+  body = {},
+  query = {},
+  headers = {},
+  params = {},
+  originalReq = {} as RequestLike,
+  traceId,
+}: CreateExecutionContextOptions = {}): ContextLike {
   return {
     req: createRequestObject(method, body, query, headers, params, originalReq),
+    traceId,
   };
 }
