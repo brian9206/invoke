@@ -204,7 +204,7 @@ class ExecutionServer {
           `🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`,
         );
         console.log(
-          `🏊 Isolate Pool: ${process.env.ISOLATE_POOL_SIZE || 5} base, ${process.env.ISOLATE_MAX_POOL_SIZE || 20} max`,
+          `🏊 Sandbox Pool: ${process.env.SANDBOX_POOL_SIZE || 5} base, ${process.env.SANDBOX_MAX_POOL_SIZE || 20} max`,
         );
 
       });

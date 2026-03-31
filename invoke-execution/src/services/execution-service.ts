@@ -5,7 +5,6 @@
  * and exposes the same API surface that routes and server.ts previously imported.
  */
 
-import database from './database';
 import { insertLog } from './logger-client';
 import { ExecutionEngine, createExecutionContext, AppLogEntry } from './execution-engine';
 import {
@@ -15,7 +14,6 @@ import {
   getFunctionPackage,
   createDefaultKVFactory,
 } from './function-providers';
-import { getInstance as getIsolatePool } from './isolate-pool';
 
 // Singleton engine wired with DB-backed providers
 const executionEngine = new ExecutionEngine({
@@ -52,8 +50,10 @@ export const executeFunction = (
 export const updateDefaultTimeout = (timeoutMs: number): void =>
   executionEngine.updateDefaultTimeout(timeoutMs);
 
-/** Update default memory tier in the isolate pool. Called by the settings listener. */
-export const updateDefaultMemory = (memoryMb: number): Promise<void> =>
-  getIsolatePool().updateDefaultMemory(memoryMb);
+/** Update default memory. Currently a no-op — warm pool uses config at init time. */
+export const updateDefaultMemory = async (_memoryMb: number): Promise<void> => {
+  // The warm pool doesn't support hot-swapping memory limits.
+  // New sandboxes will pick up updated settings on next acquire.
+};
 
 export { createExecutionContext, getFunctionPackage, fetchFunctionMetadata, fetchEnvironmentVariables, fetchNetworkPolicies };

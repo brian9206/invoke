@@ -1,8 +1,14 @@
 import path from 'path';
-import ivm from 'isolated-vm';
-import ExecutionContext from './execution-context';
-import { getInstance as getIsolatePool } from './isolate-pool';
+import { getWarmPool, type WarmPoolMetrics } from './warm-pool';
+import { executeSandbox } from './sandbox-execution-context';
+import { policyRowsToCIDRRules } from './tap-proxy';
 import { getExecutionSettings } from './execution-settings';
+import type { RequestData } from 'invoke-runtime/dist/protocol';
+import {
+  createReqObject,
+  createResObject,
+  stateToResponseData,
+} from 'invoke-runtime/dist/request-response';
 
 export interface AppLogEntry {
   level: string;
@@ -53,12 +59,13 @@ interface ContextLike {
 }
 
 /**
- * ExecutionEngine — Singleton class managing function execution with isolated-vm.
- * Orchestrates isolate pool, VFS, module loading, and execution.
+ * ExecutionEngine — Singleton class managing function execution with gVisor sandboxes.
+ * Orchestrates warm pool, overlay FS, and sandbox execution.
  */
 export class ExecutionEngine {
-  private isolatePool: ReturnType<typeof getIsolatePool> | null;
+  private warmPool = getWarmPool();
   private initialized: boolean;
+  private sandboxEnabled: boolean;
   private functionTimeout: number;
 
   private kvStoreFactory: ((projectId: string) => any) | null;
@@ -68,8 +75,8 @@ export class ExecutionEngine {
   private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
-    this.isolatePool = null;
     this.initialized = false;
+    this.sandboxEnabled = true;
 
     this.functionTimeout = 30_000; // overwritten on initialize() via DB
 
@@ -97,8 +104,20 @@ export class ExecutionEngine {
     const settings = await getExecutionSettings();
     this.functionTimeout = settings.defaultTimeoutMs;
 
-    this.isolatePool = getIsolatePool();
-    await this.isolatePool.initialize(settings.defaultMemoryMb);
+    try {
+      await this.warmPool.initialize(settings.defaultMemoryMb);
+      this.sandboxEnabled = true;
+    } catch (error: any) {
+      const disableFallback = process.env.SANDBOX_FALLBACK_DISABLE === 'true';
+      if (disableFallback) {
+        throw error;
+      }
+
+      this.sandboxEnabled = false;
+      console.warn(
+        `[ExecutionEngine] Sandbox initialization failed. Falling back to in-process execution mode: ${error?.message || error}`,
+      );
+    }
 
     this.initialized = true;
   }
@@ -118,14 +137,12 @@ export class ExecutionEngine {
     }
 
     const packageDir = path.dirname(indexPath);
-    let isolate: ivm.Isolate | null = null;
-    let ivmContext: ivm.Context | null = null;
-    let executionContext: ExecutionContext | null = null;
     let projectId: string | undefined;
+    let sandbox: Awaited<ReturnType<typeof this.warmPool.acquire>> | null = null;
+    let wasClean = true;
 
     try {
       const metadata = await this.metadataProvider!(functionId);
-      const packageHash = metadata.package_hash;
       projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 
@@ -150,28 +167,8 @@ export class ExecutionEngine {
       const networkPolicies = await this.networkPoliciesProvider!(resolvedProjectId);
       const kvStore = this.kvStoreFactory!(resolvedProjectId);
 
-      const acquired = await this.isolatePool!.acquireWithMemory(effectiveMemoryMb);
-      isolate = acquired.isolate;
-      ivmContext = acquired.context;
-
-      executionContext = new ExecutionContext(
-        isolate,
-        ivmContext,
-        packageDir,
-        functionId,
-        packageHash,
-        envVars,
-        acquired.compiledScript,
-        resolvedProjectId,
-        projectSlug,
-        kvStore,
-        networkPolicies,
-        boundConsoleLogger,
-      );
-
-      await executionContext.bootstrap();
-
-      const reqData = {
+      // Build the RequestData for the protocol
+      const request: RequestData = {
         method: context.req.method,
         url: context.req.url,
         originalUrl: context.req.originalUrl ?? context.req.url,
@@ -187,68 +184,45 @@ export class ExecutionEngine {
         headers: context.req.headers ?? {},
       };
 
-      await executionContext.setupRequest(reqData);
-      await executionContext.setupResponse();
-
-      const virtualIndexPath = '/app/index.js';
-      const vfs = executionContext.vfs;
-      const vfsFs = vfs.createNodeFSModule();
-      const userCode = vfsFs.readFileSync(virtualIndexPath, 'utf8');
-
-      const executeCode = `
-(async function() {
-    const module = { exports: {} };
-    const exports = module.exports;
-    const __filename = '/app/index.js';
-    const __dirname = '/app';
-
-    ${userCode}
-
-    if (typeof module.exports !== 'function') {
-        throw new Error('Module must export a function. Expected: module.exports = function(req, res) {...}');
-    }
-
-    const result = module.exports(req, res);
-    if (result && typeof result.then === 'function') {
-        await result;
-    }
-
-    return undefined;
-})();
-`;
-
-      const executeScript = await isolate.compileScript(executeCode, {
-        filename: '/app/index.js',
-      });
-
-      try {
-        await executeScript.run(ivmContext, {
-          timeout: effectiveTimeoutMs,
-          promise: true,
-        });
-      } catch (error: any) {
-        if (error.message && error.message.includes('Script execution timed out')) {
-          this.isolatePool!.release(isolate, false);
-          isolate = null;
-          throw new Error(`Function execution timeout (${effectiveTimeoutMs}ms)`);
-        }
-        throw error;
+      if (!this.sandboxEnabled) {
+        return await this.executeInProcess(
+          indexPath,
+          request,
+          envVars,
+          kvStore,
+          effectiveTimeoutMs,
+        );
       }
 
-      const response = executionContext.getResponse();
+      // Convert DB network policy rows to CIDR rules for the TAP proxy
+      const cidrRules = policyRowsToCIDRRules([
+        ...(networkPolicies.globalRules || []),
+        ...(networkPolicies.projectRules || []),
+      ]);
 
-      this.isolatePool!.release(isolate, true);
-      isolate = null;
+      // Acquire a sandbox from the warm pool
+      sandbox = await this.warmPool.acquire(packageDir, cidrRules, effectiveMemoryMb);
 
-      executionContext.cleanup();
+      // Execute inside the sandbox
+      const result = await executeSandbox(sandbox, {
+        codePath: '/app/index.js',
+        request,
+        env: envVars,
+        timeoutMs: effectiveTimeoutMs,
+        kvStore,
+        projectSlug,
+        consoleLogger: boundConsoleLogger,
+      });
 
       return {
-        data: response.data,
-        statusCode: response.statusCode,
-        headers: response.headers,
+        data: result.data,
+        statusCode: result.statusCode,
+        headers: result.headers,
+        error: result.error,
       };
     } catch (error: any) {
       console.error('[ExecutionEngine] Execution error:', error);
+      wasClean = false;
 
       if (this.appLogHandler && projectId) {
         this.appLogHandler({
@@ -261,20 +235,6 @@ export class ExecutionEngine {
         });
       }
 
-      if (isolate) {
-        const isCorrupted =
-          error.message &&
-          (error.message.includes('timeout') ||
-            error.message.includes('out of memory') ||
-            error.message.includes('memory limit'));
-
-        this.isolatePool!.release(isolate, !isCorrupted);
-      }
-
-      if (executionContext) {
-        executionContext.cleanup();
-      }
-
       const errorMessage = error.message || String(error);
       const errorStack = error.stack || '';
 
@@ -282,19 +242,106 @@ export class ExecutionEngine {
         error: errorMessage + (errorStack ? '\n' + errorStack : ''),
         statusCode: 500,
       };
+    } finally {
+      if (sandbox) {
+        await this.warmPool.release(sandbox, wasClean);
+      }
     }
   }
 
-  getMetrics(): { isolatePool: ReturnType<ReturnType<typeof getIsolatePool>['getMetrics']> | null } {
-    const isolatePoolMetrics = this.isolatePool ? this.isolatePool.getMetrics() : null;
-    return { isolatePool: isolatePoolMetrics };
+  getMetrics(): { sandboxPool: WarmPoolMetrics | null; sandboxEnabled: boolean } {
+    return {
+      sandboxPool: this.sandboxEnabled ? this.warmPool.getMetrics() : null,
+      sandboxEnabled: this.sandboxEnabled,
+    };
   }
 
   async shutdown(): Promise<void> {
-    if (this.isolatePool) {
-      await this.isolatePool.shutdown();
+    if (this.sandboxEnabled) {
+      await this.warmPool.shutdown();
     }
     this.initialized = false;
+  }
+
+  private async executeInProcess(
+    indexPath: string,
+    request: RequestData,
+    envVars: Record<string, string>,
+    kvStore: any,
+    timeoutMs: number,
+  ): Promise<ExecutionResult> {
+    const previousKv = (globalThis as any).kv;
+    const previousRealtime = (globalThis as any).realtime;
+    const previousEnv = new Map<string, string | undefined>();
+
+    for (const [key, value] of Object.entries(envVars)) {
+      previousEnv.set(key, process.env[key]);
+      process.env[key] = value;
+    }
+
+    (globalThis as any).kv = {
+      get: async (key: string) => kvStore.get(key),
+      set: async (key: string, value: unknown, ttl?: number) => kvStore.set(key, value, ttl),
+      delete: async (key: string) => kvStore.delete(key),
+      clear: async () => kvStore.clear(),
+      has: async (key: string) => kvStore.has(key),
+    };
+
+    (globalThis as any).realtime = {
+      send: async () => {},
+      emit: async () => {},
+      broadcast: async () => {},
+      join: async () => {},
+      leave: async () => {},
+      emitToRoom: async () => {},
+    };
+
+    try {
+      delete require.cache[require.resolve(indexPath)];
+      const loaded = require(indexPath);
+      const handler = typeof loaded === 'function'
+        ? loaded
+        : typeof loaded.default === 'function'
+          ? loaded.default
+          : null;
+
+      if (!handler) {
+        throw new Error('Module must export a function. Expected: module.exports = function(req, res) {...}');
+      }
+
+      const req = createReqObject(request);
+      const { res, state } = createResObject(req);
+
+      await Promise.race([
+        (async () => {
+          const result = handler(req, res);
+          if (result && typeof result.then === 'function') {
+            await result;
+          }
+        })(),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error(`Function execution timeout (${timeoutMs}ms)`)), timeoutMs);
+        }),
+      ]);
+
+      const response = stateToResponseData(state);
+      return {
+        data: response.body ? Buffer.from(response.body, 'base64') : undefined,
+        statusCode: response.statusCode,
+        headers: response.headers,
+      };
+    } finally {
+      (globalThis as any).kv = previousKv;
+      (globalThis as any).realtime = previousRealtime;
+
+      for (const [key, oldValue] of previousEnv.entries()) {
+        if (oldValue === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = oldValue;
+        }
+      }
+    }
   }
 }
 

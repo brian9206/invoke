@@ -86,16 +86,39 @@ services:
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - GATEWAY_SERVICE_URL=http://gateway:3000
       - LOGGER_SERVICE_URL=http://logger:3000
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_PTRACE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    security_opt:
+      - apparmor=unconfined
     volumes:
       - execution_cache:/app/cache
+      - execution_checkpoints:/app/checkpoints
+      - execution_overlays:/var/run/invoke-overlays
+      - execution_sandboxes:/var/run/invoke-sandboxes
     depends_on:
       postgres_app:
         condition: service_healthy
       minio:
         condition: service_healthy
+      runtime:
+        condition: service_started
     restart: unless-stopped
     deploy:
       replicas: ${EXECUTION_REPLICAS}
+
+  # Runtime Image (build-only — not a running service)
+  runtime:
+    build:
+      context: .
+      dockerfile: invoke-runtime/Dockerfile
+    image: ghcr.io/brian9206/invoke/runtime:latest
+    entrypoint: ["echo", "runtime image built"]
+    restart: "no"
 
   # Admin Service
   admin:
@@ -221,6 +244,9 @@ volumes:
   postgres_logs_data:
   minio_data:
   execution_cache:
+  execution_checkpoints:
+  execution_overlays:
+  execution_sandboxes:
 
 networks:
   default:
