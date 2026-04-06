@@ -1,0 +1,433 @@
+// ============================================================================
+// SandboxPool — Manages a pool of reusable Docker containers via
+// SandboxOrchestrator.  Containers persist across invocations.
+// ============================================================================
+
+import os from 'os';
+import path from 'path';
+import fs from 'fs';
+import { EventEmitter } from 'events';
+import {
+  SandboxOrchestrator,
+  Sandbox,
+  type OrchestratorOptions,
+  type SpawnOptions,
+  type NetworkRule,
+} from './sandbox-orchestrator';
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+
+const MIN_POOL_SIZE = parseInt(process.env.SANDBOX_MIN_POOL_SIZE || process.env.SANDBOX_POOL_SIZE || '5', 10);
+const MAX_POOL_SIZE = parseInt(process.env.SANDBOX_MAX_POOL_SIZE || '20', 10);
+const MEMORY_MB = parseInt(process.env.SANDBOX_MEMORY_MB || '256', 10);
+const RUNTIME = process.env.SANDBOX_RUNTIME || 'runc';
+const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
+const IPC_DIR = process.env.SANDBOX_IPC_DIR || '/tmp/invoke-ipc';
+const RUNTIME_IMAGE = process.env.RUNTIME_IMAGE || 'ghcr.io/brian9206/invoke/runtime:latest';
+const ACQUIRE_TIMEOUT_MS = 30_000;
+const MAINTENANCE_INTERVAL_MS = 60_000;
+
+// The host cache directory where extracted function packages live.
+// Must match the cacheDir used by cache.ts: path.join(os.tmpdir(), 'cache')
+const PACKAGES_DIR = path.join(os.tmpdir(), 'cache', 'packages');
+
+// ---------------------------------------------------------------------------
+// Pool metrics
+// ---------------------------------------------------------------------------
+
+export interface SandboxPoolMetrics {
+  idle: number;
+  busy: number;
+  total: number;
+  minPoolSize: number;
+  maxPoolSize: number;
+  coldStarts: number;
+  totalSpawned: number;
+  totalDestroyed: number;
+}
+
+// ---------------------------------------------------------------------------
+// SandboxPool
+// ---------------------------------------------------------------------------
+
+export class SandboxPool extends EventEmitter {
+  private orchestrator!: SandboxOrchestrator;
+  private idleSet = new Set<Sandbox>();
+  private busySet = new Set<Sandbox>();
+  private allSandboxes = new Map<string, Sandbox>();
+  private waiters: Array<{ resolve: (sb: Sandbox) => void; reject: (err: Error) => void }> = [];
+  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
+  private shuttingDown = false;
+  private initialized = false;
+
+  // Metrics
+  private coldStarts = 0;
+  private totalSpawned = 0;
+  private totalDestroyed = 0;
+
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    const opts: OrchestratorOptions = {
+      workdir: IPC_DIR,
+      socket: DOCKER_SOCKET,
+      image: RUNTIME_IMAGE,
+      runtime: RUNTIME,
+      filesystem: [
+        { host: PACKAGES_DIR, target: '/functions', flag: 'ro' },
+      ],
+      env: {
+        INVOKE_SOCKET_PATH: '/run/events.sock',
+      },
+      caps: ['SYS_ADMIN', 'SYS_CHROOT', 'SETUID', 'SETGID'],
+    };
+
+    this.orchestrator = new SandboxOrchestrator(opts);
+    await this.orchestrator.init();
+
+    // Ensure the packages directory exists before spawning containers
+    // (bind-mount will fail if the host path does not exist)
+    fs.mkdirSync(PACKAGES_DIR, { recursive: true });
+
+    // Pre-spawn MIN_POOL_SIZE containers
+    const spawnPromises: Promise<void>[] = [];
+    for (let i = 0; i < MIN_POOL_SIZE; i++) {
+      spawnPromises.push(this.spawnAndTrack().catch((err) => {
+        console.error(`[SandboxPool] Failed to pre-spawn container ${i + 1}:`, err.message);
+      }));
+    }
+    await Promise.allSettled(spawnPromises);
+
+    // Start maintenance timer
+    this.maintenanceTimer = setInterval(() => this.maintenance(), MAINTENANCE_INTERVAL_MS);
+
+    this.initialized = true;
+    console.log(`[SandboxPool] Initialized: ${this.idleSet.size}/${MIN_POOL_SIZE} containers ready`);
+  }
+
+  /**
+   * Acquire an idle container. If none available and under MAX, spawn fresh (cold start).
+   * If at MAX, wait up to ACQUIRE_TIMEOUT_MS.
+   */
+  async acquire(): Promise<Sandbox> {
+    if (this.shuttingDown) throw new Error('SandboxPool is shutting down');
+
+    // Fast path: grab from idle set
+    const idle = this.popIdle();
+    if (idle) {
+      this.busySet.add(idle);
+      return idle;
+    }
+
+    // Cold start: spawn a new container if under MAX
+    const total = this.allSandboxes.size;
+    if (total < MAX_POOL_SIZE) {
+      this.coldStarts++;
+      const sandbox = await this.spawnOne();
+      // Wait for the first 'ready' event from supervisor
+      await this.waitForReady(sandbox);
+      this.busySet.add(sandbox);
+      return sandbox;
+    }
+
+    // At capacity: wait for a container to become idle
+    return new Promise<Sandbox>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const idx = this.waiters.findIndex((w) => w.resolve === resolve);
+        if (idx !== -1) this.waiters.splice(idx, 1);
+        reject(new Error(`SandboxPool: acquire timeout (${ACQUIRE_TIMEOUT_MS}ms) — all ${MAX_POOL_SIZE} containers busy`));
+      }, ACQUIRE_TIMEOUT_MS);
+
+      this.waiters.push({
+        resolve: (sb: Sandbox) => {
+          clearTimeout(timer);
+          resolve(sb);
+        },
+        reject,
+      });
+    });
+  }
+
+  /**
+   * Get pool metrics.
+   */
+  getMetrics(): SandboxPoolMetrics {
+    return {
+      idle: this.idleSet.size,
+      busy: this.busySet.size,
+      total: this.allSandboxes.size,
+      minPoolSize: MIN_POOL_SIZE,
+      maxPoolSize: MAX_POOL_SIZE,
+      coldStarts: this.coldStarts,
+      totalSpawned: this.totalSpawned,
+      totalDestroyed: this.totalDestroyed,
+    };
+  }
+
+  /**
+   * Graceful shutdown: wait for busy containers, then destroy all.
+   */
+  async shutdown(): Promise<void> {
+    if (this.shuttingDown) return;
+    this.shuttingDown = true;
+
+    if (this.maintenanceTimer) {
+      clearInterval(this.maintenanceTimer);
+      this.maintenanceTimer = null;
+    }
+
+    // Reject all waiters
+    for (const w of this.waiters) {
+      w.reject(new Error('SandboxPool is shutting down'));
+    }
+    this.waiters = [];
+
+    // Wait for busy containers to finish (up to 30s)
+    if (this.busySet.size > 0) {
+      console.log(`[SandboxPool] Waiting for ${this.busySet.size} busy containers...`);
+      const deadline = Date.now() + 30_000;
+      while (this.busySet.size > 0 && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
+
+    // Destroy orchestrator (which destroys all containers and networks)
+    await this.orchestrator.destroy();
+    this.idleSet.clear();
+    this.busySet.clear();
+    this.allSandboxes.clear();
+    this.initialized = false;
+
+    console.log('[SandboxPool] Shutdown complete');
+  }
+
+  // -----------------------------------------------------------------------
+  // Internal helpers
+  // -----------------------------------------------------------------------
+
+  private popIdle(): Sandbox | undefined {
+    const iter = this.idleSet.values().next();
+    if (iter.done) return undefined;
+    const sb = iter.value;
+    this.idleSet.delete(sb);
+    return sb;
+  }
+
+  /**
+   * Ensure a named Docker network exists with the given iptables rules.
+   * Idempotent — re-creates the iptables chain on every call.
+   */
+  async ensureNetwork(name: string, rules: NetworkRule[]): Promise<string> {
+    return this.orchestrator.setNetwork({ name, rules });
+  }
+
+  /**
+   * Remove a managed Docker network and its iptables rules.
+   */
+  async removeNetwork(name: string): Promise<void> {
+    return this.orchestrator.removeNetwork(name);
+  }
+
+  /**
+   * Acquire a container on a specific Docker network.
+   * Always a cold-start spawn (pool containers run with network=none).
+   */
+  async acquireWithNetwork(networkName: string): Promise<Sandbox> {
+    if (this.shuttingDown) throw new Error('SandboxPool is shutting down');
+
+    if (this.allSandboxes.size >= MAX_POOL_SIZE) {
+      // Wait for capacity, then spawn with network
+      return new Promise<Sandbox>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          const idx = this.waiters.findIndex((w) => w.resolve === resolve);
+          if (idx !== -1) this.waiters.splice(idx, 1);
+          reject(new Error(`SandboxPool: acquire timeout — all ${MAX_POOL_SIZE} containers busy`));
+        }, ACQUIRE_TIMEOUT_MS);
+
+        this.waiters.push({
+          resolve: async (freedSandbox: Sandbox) => {
+            // We can't reuse the freed sandbox (wrong network).
+            // Destroy it and spawn a fresh one on the right network.
+            clearTimeout(timer);
+            freedSandbox.destroy().catch(() => {});
+            this.removeSandbox(freedSandbox);
+            try {
+              const sb = await this.spawnOne(networkName);
+              await this.waitForReady(sb);
+              this.busySet.add(sb);
+              resolve(sb);
+            } catch (err) {
+              reject(err);
+            }
+          },
+          reject,
+        });
+      });
+    }
+
+    this.coldStarts++;
+    const sandbox = await this.spawnOne(networkName);
+    await this.waitForReady(sandbox);
+    this.busySet.add(sandbox);
+    return sandbox;
+  }
+
+  private async spawnOne(network?: string): Promise<Sandbox> {
+    const spawnOpts: SpawnOptions = {
+      network,
+      resources: {
+        memory: { limit: MEMORY_MB * 1024 * 1024 },
+      },
+    };
+
+    const sandbox = await this.orchestrator.spawn(spawnOpts);
+    this.allSandboxes.set(sandbox.id, sandbox);
+    this.totalSpawned++;
+
+    // Listen for 'ready' events: supervisor reports idle after each invocation
+    sandbox.on('ready', () => {
+      if (this.shuttingDown) return;
+
+      // If it was busy, move to idle
+      if (this.busySet.has(sandbox)) {
+        this.busySet.delete(sandbox);
+      }
+
+      // Check if any waiters need a container
+      if (this.waiters.length > 0) {
+        const waiter = this.waiters.shift()!;
+        this.busySet.add(sandbox);
+        waiter.resolve(sandbox);
+      } else {
+        this.idleSet.add(sandbox);
+      }
+    });
+
+    // Collect container output — surfaces supervisor errors and crash messages
+    const stderrChunks: Buffer[] = [];
+    const stdoutChunks: Buffer[] = [];
+    sandbox.on('stderr', (chunk: Buffer) => stderrChunks.push(chunk));
+    sandbox.on('stdout', (chunk: Buffer) => stdoutChunks.push(chunk));
+
+    const dumpLogs = () => {
+      const out = Buffer.concat(stdoutChunks).toString('utf8').trim();
+      const err = Buffer.concat(stderrChunks).toString('utf8').trim();
+      if (out) console.log(`[SandboxPool] Container ${sandbox.id} stdout:\n${out}`);
+      if (err) console.error(`[SandboxPool] Container ${sandbox.id} stderr:\n${err}`);
+    };
+
+    // Handle unexpected container exit
+    sandbox.once('exit', (code: number) => {
+      console.warn(`[SandboxPool] Container ${sandbox.id} exited unexpectedly (code ${code})`);
+      dumpLogs();
+      this.removeSandbox(sandbox);
+
+      // Spawn replacement if below MIN
+      if (!this.shuttingDown && this.allSandboxes.size < MIN_POOL_SIZE) {
+        this.spawnAndTrack().catch((spawnErr) => {
+          console.error('[SandboxPool] Replacement spawn failed:', String(spawnErr));
+        });
+      }
+    });
+
+    sandbox.once('error', (err: unknown) => {
+      const msg = err instanceof Error
+        ? err.message
+        : typeof err === 'object' && err !== null
+          ? JSON.stringify(err)
+          : String(err);
+      console.error(`[SandboxPool] Container ${sandbox.id} error: ${msg}`);
+      dumpLogs();
+      this.removeSandbox(sandbox);
+    });
+
+    return sandbox;
+  }
+
+  /**
+   * Spawn a container and wait until it reports ready, then add to idle set.
+   */
+  private async spawnAndTrack(): Promise<void> {
+    const sandbox = await this.spawnOne();
+    await this.waitForReady(sandbox);
+    // Only add to idle if not already claimed by a waiter in the 'ready' handler
+    if (!this.busySet.has(sandbox) && !this.idleSet.has(sandbox)) {
+      this.idleSet.add(sandbox);
+    }
+  }
+
+  private waitForReady(sandbox: Sandbox): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Container ${sandbox.id} did not report ready within 30s`));
+      }, 30_000);
+
+      const onReady = () => {
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      const onExit = (code: number) => {
+        clearTimeout(timeout);
+        reject(new Error(`Container ${sandbox.id} exited (code ${code}) before ready`));
+      };
+
+      const onError = (err: Error) => {
+        clearTimeout(timeout);
+        reject(err);
+      };
+
+      sandbox.once('ready', onReady);
+      sandbox.once('exit', onExit);
+      sandbox.once('error', onError);
+    });
+  }
+
+  private removeSandbox(sandbox: Sandbox): void {
+    this.idleSet.delete(sandbox);
+    this.busySet.delete(sandbox);
+    this.allSandboxes.delete(sandbox.id);
+    this.totalDestroyed++;
+  }
+
+  /**
+   * Periodic maintenance: replenish pool if below MIN, trim excess above MIN.
+   */
+  private async maintenance(): Promise<void> {
+    if (this.shuttingDown) return;
+
+    // Replenish if below MIN
+    const deficit = MIN_POOL_SIZE - this.allSandboxes.size;
+    if (deficit > 0) {
+      for (let i = 0; i < deficit; i++) {
+        this.spawnAndTrack().catch((err) => {
+          console.error('[SandboxPool] Maintenance spawn failed:', err.message);
+        });
+      }
+    }
+
+    // Trim excess idle containers beyond MIN if total > MIN
+    while (this.idleSet.size > 0 && this.allSandboxes.size > MIN_POOL_SIZE) {
+      const sb = this.popIdle();
+      if (!sb) break;
+      this.allSandboxes.delete(sb.id);
+      this.totalDestroyed++;
+      sb.destroy().catch(() => {});
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module-level singleton
+// ---------------------------------------------------------------------------
+
+let instance: SandboxPool | null = null;
+
+export function getSandboxPool(): SandboxPool {
+  if (!instance) {
+    instance = new SandboxPool();
+  }
+  return instance;
+}

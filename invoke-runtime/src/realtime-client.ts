@@ -3,13 +3,9 @@
 // ============================================================================
 
 import type net from 'net';
-import {
-  encode,
-  type RealtimeCommandMessage,
-  type RealtimeResultMessage,
-} from './protocol';
+import { encode } from './protocol';
 
-type PendingResolve = (result: RealtimeResultMessage) => void;
+type PendingResolve = (result: { error?: string }) => void;
 
 /**
  * Realtime socket client exposed as `globalThis.realtime` inside the sandbox.
@@ -24,12 +20,12 @@ export class RealtimeClient {
     this.socket = socket;
   }
 
-  /** Called by the message router when a `realtime_result` arrives from the host */
-  handleResult(msg: RealtimeResultMessage): void {
-    const resolve = this.pending.get(msg.id);
+  /** Called by the event router when a `realtime_result` event arrives from the host */
+  handleResult(payload: { id: string; error?: string }): void {
+    const resolve = this.pending.get(payload.id);
     if (resolve) {
-      this.pending.delete(msg.id);
-      resolve(msg);
+      this.pending.delete(payload.id);
+      resolve(payload);
     }
   }
 
@@ -42,15 +38,11 @@ export class RealtimeClient {
    * The host forwards this via HTTP POST to the gateway's internal endpoint.
    */
   async send(cmd: Record<string, unknown>): Promise<void> {
-    const msg: RealtimeCommandMessage = {
-      type: 'realtime_cmd',
-      id: this.nextId(),
-      cmd,
-    };
+    const id = this.nextId();
 
-    const result = await new Promise<RealtimeResultMessage>((resolve) => {
-      this.pending.set(msg.id, resolve);
-      this.socket.write(encode(msg));
+    const result = await new Promise<{ error?: string }>((resolve) => {
+      this.pending.set(id, resolve);
+      this.socket.write(encode('realtime_cmd', { id, cmd }));
     });
 
     if (result.error) {

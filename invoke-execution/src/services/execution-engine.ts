@@ -1,14 +1,10 @@
+import dns from 'dns/promises';
 import path from 'path';
-import { getWarmPool, type WarmPoolMetrics } from './warm-pool';
+import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool';
 import { executeSandbox } from './sandbox-execution-context';
-import { policyRowsToCIDRRules } from './tap-proxy';
 import { getExecutionSettings } from './execution-settings';
+import type { NetworkRule } from './sandbox-orchestrator';
 import type { RequestData } from 'invoke-runtime/dist/protocol';
-import {
-  createReqObject,
-  createResObject,
-  stateToResponseData,
-} from 'invoke-runtime/dist/request-response';
 
 export interface AppLogEntry {
   level: string;
@@ -59,14 +55,13 @@ interface ContextLike {
 }
 
 /**
- * ExecutionEngine — Singleton class managing function execution with gVisor sandboxes.
- * Orchestrates warm pool, overlay FS, and sandbox execution.
+ * ExecutionEngine — Manages function execution with Docker containers
+ * via SandboxOrchestrator and SandboxPool.
  */
 export class ExecutionEngine {
-  private warmPool = getWarmPool();
-  private initialized: boolean;
-  private sandboxEnabled: boolean;
-  private functionTimeout: number;
+  private pool = getSandboxPool();
+  private initialized = false;
+  private functionTimeout = 30_000;
 
   private kvStoreFactory: ((projectId: string) => any) | null;
   private metadataProvider: ((functionId: string) => Promise<any>) | null;
@@ -75,11 +70,6 @@ export class ExecutionEngine {
   private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
-    this.initialized = false;
-    this.sandboxEnabled = true;
-
-    this.functionTimeout = 30_000; // overwritten on initialize() via DB
-
     this.kvStoreFactory = options.kvStoreFactory ?? null;
     this.metadataProvider = options.metadataProvider ?? null;
     this.envVarsProvider = options.envVarsProvider ?? null;
@@ -100,24 +90,12 @@ export class ExecutionEngine {
       );
     }
 
-    // Load execution settings from DB before initialising the pool
+    // Load execution settings from DB
     const settings = await getExecutionSettings();
     this.functionTimeout = settings.defaultTimeoutMs;
 
-    try {
-      await this.warmPool.initialize(settings.defaultMemoryMb);
-      this.sandboxEnabled = true;
-    } catch (error: any) {
-      const disableFallback = process.env.SANDBOX_FALLBACK_DISABLE === 'true';
-      if (disableFallback) {
-        throw error;
-      }
-
-      this.sandboxEnabled = false;
-      console.warn(
-        `[ExecutionEngine] Sandbox initialization failed. Falling back to in-process execution mode: ${error?.message || error}`,
-      );
-    }
+    // Initialize the sandbox pool (pre-spawns containers)
+    await this.pool.initialize();
 
     this.initialized = true;
   }
@@ -136,10 +114,8 @@ export class ExecutionEngine {
       await this.initialize();
     }
 
-    const packageDir = path.dirname(indexPath);
     let projectId: string | undefined;
-    let sandbox: Awaited<ReturnType<typeof this.warmPool.acquire>> | null = null;
-    let wasClean = true;
+    let sandbox: Awaited<ReturnType<typeof this.pool.acquire>> | null = null;
 
     try {
       const metadata = await this.metadataProvider!(functionId);
@@ -159,9 +135,6 @@ export class ExecutionEngine {
       const effectiveTimeoutMs = metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
         ? metadata.custom_timeout_seconds * 1000
         : settings.defaultTimeoutMs;
-      const effectiveMemoryMb = metadata.custom_memory_enabled && metadata.custom_memory_mb
-        ? metadata.custom_memory_mb
-        : settings.defaultMemoryMb;
 
       const envVars = await this.envVarsProvider!(functionId);
       const networkPolicies = await this.networkPoliciesProvider!(resolvedProjectId);
@@ -184,28 +157,34 @@ export class ExecutionEngine {
         headers: context.req.headers ?? {},
       };
 
-      if (!this.sandboxEnabled) {
-        return await this.executeInProcess(
-          indexPath,
-          request,
-          envVars,
-          kvStore,
-          effectiveTimeoutMs,
-        );
-      }
+      // Determine the function ID used to resolve the path inside the container.
+      // The cache stores extracted packages at /tmp/cache/packages/{functionId}[-v{version}]/
+      // which is bind-mounted to /functions/ inside the container.
+      // indexPath looks like: /tmp/cache/packages/{dirName}/index.js
+      const packageDirName = path.basename(path.dirname(indexPath));
 
-      // Convert DB network policy rows to CIDR rules for the TAP proxy
-      const cidrRules = policyRowsToCIDRRules([
+      // Resolve network policies → Docker network rules
+      const allPolicyRows = [
         ...(networkPolicies.globalRules || []),
         ...(networkPolicies.projectRules || []),
-      ]);
+      ];
 
-      // Acquire a sandbox from the warm pool
-      sandbox = await this.warmPool.acquire(packageDir, cidrRules, effectiveMemoryMb);
+      const hasNetworkRules = false//allPolicyRows.length > 0;
 
-      // Execute inside the sandbox
+      if (hasNetworkRules) {
+        // Convert policy rows to NetworkRules for iptables
+        const networkRules = await policyRowsToNetworkRules(allPolicyRows);
+        const networkName = `invoke-${resolvedProjectId}`;
+        await this.pool.ensureNetwork(networkName, networkRules);
+        sandbox = await this.pool.acquireWithNetwork(networkName);
+      } else {
+        // No policies — use pooled container with network=none
+        sandbox = await this.pool.acquire();
+      }
+
+      // Execute inside the container
       const result = await executeSandbox(sandbox, {
-        codePath: '/app/index.js',
+        functionId: packageDirName,
         request,
         env: envVars,
         timeoutMs: effectiveTimeoutMs,
@@ -222,7 +201,6 @@ export class ExecutionEngine {
       };
     } catch (error: any) {
       console.error('[ExecutionEngine] Execution error:', error);
-      wasClean = false;
 
       if (this.appLogHandler && projectId) {
         this.appLogHandler({
@@ -242,105 +220,33 @@ export class ExecutionEngine {
         error: errorMessage + (errorStack ? '\n' + errorStack : ''),
         statusCode: 500,
       };
-    } finally {
-      if (sandbox) {
-        await this.warmPool.release(sandbox, wasClean);
-      }
     }
+    // Note: no release() call needed — the container self-reports 'ready'
+    // after the supervisor cleans up the overlay, and the pool handles it.
   }
 
-  getMetrics(): { sandboxPool: WarmPoolMetrics | null; sandboxEnabled: boolean } {
+  getMetrics(): { sandboxPool: SandboxPoolMetrics | null } {
     return {
-      sandboxPool: this.sandboxEnabled ? this.warmPool.getMetrics() : null,
-      sandboxEnabled: this.sandboxEnabled,
+      sandboxPool: this.initialized ? this.pool.getMetrics() : null,
     };
   }
 
   async shutdown(): Promise<void> {
-    if (this.sandboxEnabled) {
-      await this.warmPool.shutdown();
-    }
+    await this.pool.shutdown();
     this.initialized = false;
   }
 
-  private async executeInProcess(
-    indexPath: string,
-    request: RequestData,
-    envVars: Record<string, string>,
-    kvStore: any,
-    timeoutMs: number,
-  ): Promise<ExecutionResult> {
-    const previousKv = (globalThis as any).kv;
-    const previousRealtime = (globalThis as any).realtime;
-    const previousEnv = new Map<string, string | undefined>();
-
-    for (const [key, value] of Object.entries(envVars)) {
-      previousEnv.set(key, process.env[key]);
-      process.env[key] = value;
-    }
-
-    (globalThis as any).kv = {
-      get: async (key: string) => kvStore.get(key),
-      set: async (key: string, value: unknown, ttl?: number) => kvStore.set(key, value, ttl),
-      delete: async (key: string) => kvStore.delete(key),
-      clear: async () => kvStore.clear(),
-      has: async (key: string) => kvStore.has(key),
-    };
-
-    (globalThis as any).realtime = {
-      send: async () => {},
-      emit: async () => {},
-      broadcast: async () => {},
-      join: async () => {},
-      leave: async () => {},
-      emitToRoom: async () => {},
-    };
-
+  /**
+   * Remove a project's Docker network so it gets re-created with fresh rules
+   * on the next invocation. Called when network policies change via PG-NOTIFY.
+   */
+  async invalidateProjectNetwork(projectId: string): Promise<void> {
+    const networkName = `invoke-${projectId}`;
     try {
-      delete require.cache[require.resolve(indexPath)];
-      const loaded = require(indexPath);
-      const handler = typeof loaded === 'function'
-        ? loaded
-        : typeof loaded.default === 'function'
-          ? loaded.default
-          : null;
-
-      if (!handler) {
-        throw new Error('Module must export a function. Expected: module.exports = function(req, res) {...}');
-      }
-
-      const req = createReqObject(request);
-      const { res, state } = createResObject(req);
-
-      await Promise.race([
-        (async () => {
-          const result = handler(req, res);
-          if (result && typeof result.then === 'function') {
-            await result;
-          }
-        })(),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error(`Function execution timeout (${timeoutMs}ms)`)), timeoutMs);
-        }),
-      ]);
-
-      const response = stateToResponseData(state);
-      return {
-        data: response.body ? Buffer.from(response.body, 'base64') : undefined,
-        statusCode: response.statusCode,
-        headers: response.headers,
-      };
-    } finally {
-      (globalThis as any).kv = previousKv;
-      (globalThis as any).realtime = previousRealtime;
-
-      for (const [key, oldValue] of previousEnv.entries()) {
-        if (oldValue === undefined) {
-          delete process.env[key];
-        } else {
-          process.env[key] = oldValue;
-        }
-      }
+      await this.pool.removeNetwork(networkName);
+      console.log(`[NetworkPolicy] Removed network ${networkName} — will be re-created on next invoke`);
+    } catch {
+      // Network may not exist yet, that's fine
     }
   }
 }
@@ -409,4 +315,71 @@ export function createExecutionContext({
     req: createRequestObject(method, body, query, headers, params, originalReq),
     traceId,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Network policy helpers
+// ---------------------------------------------------------------------------
+
+interface PolicyRow {
+  action: 'allow' | 'deny';
+  target_type: 'ip' | 'cidr' | 'domain';
+  target_value: string;
+  priority: number;
+}
+
+const IPV4_CIDR_RE = /^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/;
+const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+/**
+ * Convert DB network-policy rows into iptables-compatible NetworkRule[].
+ * - `allow` → RETURN, `deny` → DROP
+ * - ip targets get /32 suffix
+ * - domain targets are resolved via DNS (all A records)
+ * - Rules are sorted by priority (ascending — lowest number = highest priority)
+ */
+async function policyRowsToNetworkRules(rows: PolicyRow[]): Promise<NetworkRule[]> {
+  const sorted = [...rows].sort((a, b) => a.priority - b.priority);
+  const rules: NetworkRule[] = [];
+
+  for (const row of sorted) {
+    const action = row.action === 'allow' ? 'RETURN' : 'DROP';
+
+    switch (row.target_type) {
+      case 'cidr':
+        if (IPV4_CIDR_RE.test(row.target_value)) {
+          rules.push({ cidr: row.target_value, action });
+        } else {
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 CIDR target "${row.target_value}"`);
+        }
+        break;
+
+      case 'ip':
+        if (IPV4_RE.test(row.target_value)) {
+          rules.push({ cidr: `${row.target_value}/32`, action });
+        } else {
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 IP target "${row.target_value}"`);
+        }
+        break;
+
+      case 'domain':
+        try {
+          const addresses = await dns.resolve4(row.target_value);
+          for (const addr of addresses) {
+            rules.push({ cidr: `${addr}/32`, action });
+          }
+        } catch {
+          console.warn(`[NetworkPolicy] DNS resolution failed for domain "${row.target_value}", skipping`);
+        }
+        break;
+    }
+  }
+
+  if (rows.length > 0 && rules.length === 0) {
+    throw new Error(
+      'Network policies only contained unsupported targets. Only IPv4 ip/cidr/domain rules are currently supported.',
+    );
+  }
+
+  return rules;
 }

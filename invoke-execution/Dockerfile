@@ -1,6 +1,5 @@
 # Execution Service Dockerfile
 # Build context must be the monorepo root
-# Uses gVisor (runsc) for sandbox execution
 
 # ============ BUILDER STAGE ============
 FROM node:24-bookworm-slim AS builder
@@ -36,41 +35,22 @@ RUN npm prune --production -w invoke-execution -w invoke-runtime
 # ============ FINAL STAGE ============
 FROM node:24-bookworm-slim
 
-# Install runtime dependencies + gVisor
+# Install iptables (used by SandboxOrchestrator.setNetwork for Docker bridge filtering)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl \
-      ca-certificates \
-  gnupg \
-      iproute2 \
       iptables \
-      fuse-overlayfs \
     && rm -rf /var/lib/apt/lists/*
-
-# Install gVisor (runsc)
-RUN curl -fsSL https://gvisor.dev/archive.key | gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" \
-       > /etc/apt/sources.list.d/gvisor.list \
-    && apt-get update && apt-get install -y --no-install-recommends runsc \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create non-root user for the main process
-RUN groupadd -g 1001 appgroup && useradd -u 1001 -g appgroup -m appuser
-
-# Create sandbox runtime directories
-RUN mkdir -p /var/run/invoke-sandboxes /var/run/invoke-overlays /app/checkpoints \
-    && chown -R appuser:appgroup /var/run/invoke-sandboxes /var/run/invoke-overlays /app/checkpoints
 
 WORKDIR /app
 
 # Copy built artifacts and prod dependencies from builder
-COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json /app/tsconfig.base.json ./
-COPY --from=builder --chown=appuser:appgroup /app/shared/ ./shared/
-COPY --from=builder --chown=appuser:appgroup /app/invoke-execution/ ./invoke-execution/
-COPY --from=builder --chown=appuser:appgroup /app/invoke-runtime/ ./invoke-runtime/
-COPY --from=builder --chown=appuser:appgroup /app/node_modules/ ./node_modules/
+COPY --from=builder /app/package.json /app/package-lock.json /app/tsconfig.base.json ./
+COPY --from=builder /app/shared/ ./shared/
+COPY --from=builder /app/invoke-execution/ ./invoke-execution/
+COPY --from=builder /app/invoke-runtime/ ./invoke-runtime/
+COPY --from=builder /app/node_modules/ ./node_modules/
 
-# Note: runs as root for now because gVisor requires SYS_ADMIN/NET_ADMIN.
-# The sandboxes themselves are unprivileged (UID 1000, no capabilities).
+# Runs as root — needs access to Docker socket (/var/run/docker.sock)
+# and permission to call iptables for network policy management.
 
 WORKDIR /app/invoke-execution
 
@@ -84,4 +64,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Start the service
 ENV NODE_ENV=production
 CMD ["npm", "start"]
-

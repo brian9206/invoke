@@ -12,7 +12,7 @@ import {
   initialize as initializeExecutionEngine,
   shutdown as shutdownExecutionEngine,
   updateDefaultTimeout,
-  updateDefaultMemory,
+  invalidateProjectNetwork,
 } from './services/execution-service';
 import {
   invalidateEnvVarCache,
@@ -177,8 +177,13 @@ class ExecutionServer {
           invalidateEnvVarCache(payload.function_id);
         } else if (payload.table === 'project_network_policies') {
           invalidateNetworkPolicyCache(payload.project_id);
+          invalidateProjectNetwork(payload.project_id).catch((err) =>
+            console.error('[NetworkPolicy] Failed to invalidate network:', err),
+          );
         } else if (payload.table === 'global_network_policies') {
           invalidateNetworkPolicyCache(null);
+          // Global policy change — can't easily remove all project networks.
+          // They'll pick up new rules on next ensureNetwork() call.
         }
       });
 
@@ -187,8 +192,7 @@ class ExecutionServer {
         invalidateExecutionSettings();
         const newSettings = await reloadExecutionSettings();
         updateDefaultTimeout(newSettings.defaultTimeoutMs);
-        await updateDefaultMemory(newSettings.defaultMemoryMb);
-        console.log(`[ExecutionSettings] Updated: timeout=${newSettings.defaultTimeoutMs}ms, memory=${newSettings.defaultMemoryMb}MB`);
+        console.log(`[ExecutionSettings] Updated: timeout=${newSettings.defaultTimeoutMs}ms`);
       });
 
       await cache.initialize();
@@ -204,7 +208,7 @@ class ExecutionServer {
           `🚦 Rate Limit: ${process.env.RATE_LIMIT || 100} requests per 15 minutes`,
         );
         console.log(
-          `🏊 Sandbox Pool: ${process.env.SANDBOX_POOL_SIZE || 5} base, ${process.env.SANDBOX_MAX_POOL_SIZE || 20} max`,
+          `🏊 Sandbox Pool: min=${process.env.SANDBOX_MIN_POOL_SIZE || 5}, max=${process.env.SANDBOX_MAX_POOL_SIZE || 20}`,
         );
 
       });

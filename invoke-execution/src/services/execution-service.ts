@@ -50,10 +50,13 @@ export const executeFunction = (
 export const updateDefaultTimeout = (timeoutMs: number): void =>
   executionEngine.updateDefaultTimeout(timeoutMs);
 
-/** Update default memory. Currently a no-op — warm pool uses config at init time. */
+/** Remove a project's Docker network so it's re-created with fresh rules on next invoke. */
+export const invalidateProjectNetwork = (projectId: string): Promise<void> =>
+  executionEngine.invalidateProjectNetwork(projectId);
+
+/** Update default memory. Currently a no-op — pool uses config at init time. */
 export const updateDefaultMemory = async (_memoryMb: number): Promise<void> => {
-  // The warm pool doesn't support hot-swapping memory limits.
-  // New sandboxes will pick up updated settings on next acquire.
+  // The sandbox pool doesn't support hot-swapping memory limits.
 };
 
 export { createExecutionContext, getFunctionPackage, fetchFunctionMetadata, fetchEnvironmentVariables, fetchNetworkPolicies };
