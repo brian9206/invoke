@@ -5,6 +5,7 @@ import { executeSandbox } from './sandbox-execution-context';
 import { getExecutionSettings } from './execution-settings';
 import type { NetworkRule } from './sandbox-orchestrator';
 import type { RequestData } from 'invoke-runtime/dist/protocol';
+import type { FunctionMetadata } from './function-providers';
 
 export interface AppLogEntry {
   level: string;
@@ -17,7 +18,6 @@ export interface AppLogEntry {
 
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any;
-  metadataProvider?: (functionId: string) => Promise<any>;
   envVarsProvider?: (functionId: string) => Promise<Record<string, string>>;
   networkPoliciesProvider?: (projectId: string) => Promise<any>;
   appLogHandler?: (entry: AppLogEntry) => void;
@@ -64,14 +64,12 @@ export class ExecutionEngine {
   private functionTimeout = 30_000;
 
   private kvStoreFactory: ((projectId: string) => any) | null;
-  private metadataProvider: ((functionId: string) => Promise<any>) | null;
   private envVarsProvider: ((functionId: string) => Promise<any>) | null;
   private networkPoliciesProvider: ((projectId: string) => Promise<any>) | null;
   private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
     this.kvStoreFactory = options.kvStoreFactory ?? null;
-    this.metadataProvider = options.metadataProvider ?? null;
     this.envVarsProvider = options.envVarsProvider ?? null;
     this.networkPoliciesProvider = options.networkPoliciesProvider ?? null;
     this.appLogHandler = options.appLogHandler ?? null;
@@ -81,7 +79,7 @@ export class ExecutionEngine {
     if (this.initialized) return;
 
     const missing = (
-      ['kvStoreFactory', 'metadataProvider', 'envVarsProvider', 'networkPoliciesProvider'] as const
+      ['kvStoreFactory', 'envVarsProvider', 'networkPoliciesProvider'] as const
     ).filter((k) => !this[k]);
 
     if (missing.length) {
@@ -109,6 +107,7 @@ export class ExecutionEngine {
     indexPath: string,
     context: ContextLike,
     functionId: string,
+    metadata: FunctionMetadata,
   ): Promise<ExecutionResult> {
     if (!this.initialized) {
       await this.initialize();
@@ -118,7 +117,6 @@ export class ExecutionEngine {
     let sandbox: Awaited<ReturnType<typeof this.pool.acquire>> | null = null;
 
     try {
-      const metadata = await this.metadataProvider!(functionId);
       projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 

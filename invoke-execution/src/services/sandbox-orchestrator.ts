@@ -106,6 +106,7 @@ async function runIptablesRestore(input: string): Promise<void> {
 const INTERNAL_EVENTS = new Set([
   'exit', 'stdout', 'stderr', 'error',
   'newListener', 'removeListener', 'close',
+  'ipc_disconnect',
 ]);
 
 // ============================================================================
@@ -126,6 +127,7 @@ export interface OrchestratorOptions {
   filesystem: FilesystemMount[];
   env: Record<string, string>;
   caps: string[];
+  cgroupnsMode?: 'host' | 'private';
 }
 
 export interface NetworkRule {
@@ -171,6 +173,7 @@ export class Sandbox extends EventEmitter {
   private _container: Dockerode.Container;
   private _ipcServer: net.Server;
   private _ipcClients: net.Socket[] = [];
+  private _pendingBootstrapPayload: { request: unknown; env: Record<string, string> } | null = null;
   private _destroyed = false;
 
   constructor(
@@ -186,16 +189,26 @@ export class Sandbox extends EventEmitter {
     this._ipcServer = ipcServer;
   }
 
+  setPendingBootstrapPayload(request: unknown, env: Record<string, string>): void {
+    this._pendingBootstrapPayload = { request, env };
+  }
+
   /** @internal — called by orchestrator to register an IPC client */
   _addIpcClient(socket: net.Socket): void {
     this._ipcClients.push(socket);
     this._setupIpcReader(socket);
 
     socket.on('close', () => {
+      console.log('[ipc] client closed')
       const idx = this._ipcClients.indexOf(socket);
       if (idx !== -1) this._ipcClients.splice(idx, 1);
+
+      if (this._ipcClients.length === 0 && !this._destroyed) {
+        this.emit('ipc_disconnect');
+      }
     });
-    socket.on('error', () => {
+    socket.on('error', (err) => {
+      console.log('[ipc] client error', err)
       socket.destroy();
     });
   }
@@ -330,6 +343,23 @@ export class Sandbox extends EventEmitter {
               binaryCollected = Buffer.alloc(0);
               // Continue loop — remaining data may contain binary bytes
             } else {
+              if (parsed.event === 'payload') {
+                if (!this._pendingBootstrapPayload) {
+                  socket.destroy(new Error('Worker requested payload before execute payload was prepared'));
+                  continue;
+                }
+
+                const bootstrapPayload = this._pendingBootstrapPayload;
+                this._pendingBootstrapPayload = null;
+                console.log(`[IPC_TX] payload sent at ${Date.now()}`);
+                socket.write(Buffer.from(JSON.stringify({ event: 'payload', payload: bootstrapPayload }) + '\n', 'utf8'));
+                continue;
+              }
+
+              if (parsed.event === 'execute_result') {
+                console.log(`[IPC_RX] execute_result received at ${Date.now()}`);
+              }
+
               // Text-only event — emit locally
               super.emit(parsed.event, parsed.payload);
             }
@@ -406,9 +436,14 @@ export class SandboxOrchestrator {
       // 1. Create IPC unix socket server
       ipcServer = net.createServer();
       await new Promise<void>((resolve, reject) => {
-        ipcServer!.listen(ipcPath, () => resolve());
+        ipcServer!.listen({
+          path: ipcPath,
+          readableAll: true,
+          writableAll: true,
+        }, () => resolve());
         ipcServer!.on('error', reject);
       });
+      await fs.chmod(ipcPath, 0o777);
 
       // 2. Build bind mounts
       const binds: string[] = [];
@@ -436,12 +471,15 @@ export class SandboxOrchestrator {
         OpenStdin: true,
         Tty: false,
         HostConfig: {
+          AutoRemove: true,
           Runtime: this._opts.runtime,
           Memory: options.resources.memory.limit,
           NetworkMode: options.network ?? 'none',
           Binds: binds,
           CapAdd: this._opts.caps,
-        },
+          CgroupnsMode: this._opts.cgroupnsMode ?? 'host',
+          SecurityOpt: ['apparmor=unconfined']
+        } as any,
       });
 
       // 6. Set up wait() before start to avoid missing fast exits
@@ -490,13 +528,14 @@ export class SandboxOrchestrator {
 
       // Wire IPC client connections
       ipcServer.on('connection', (client: net.Socket) => {
+        console.log('[ipc] client connected');
         sandbox._addIpcClient(client);
       });
 
       // Track sandbox for orchestrator-level teardown
       this._sandboxes.set(id, sandbox);
-      sandbox.once('exit', () => { this._sandboxes.delete(id); });
-      sandbox.once('error', () => { this._sandboxes.delete(id); });
+      sandbox.on('exit', () => { this._sandboxes.delete(id); });
+      sandbox.on('error', () => { this._sandboxes.delete(id); });
 
       return sandbox;
     } catch (err) {

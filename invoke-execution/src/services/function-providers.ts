@@ -12,7 +12,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-interface FunctionMetadata {
+export interface FunctionMetadata {
   id: string;
   name: string;
   project_id: string;
@@ -54,45 +54,6 @@ export function invalidateEnvVarCache(functionId: string): void {
 export function invalidateNetworkPolicyCache(projectId: string | null): void {
   networkPolicyCache.delete('__global__');
   if (projectId) networkPolicyCache.delete(projectId);
-}
-
-export async function fetchFunctionMetadata(functionId: string): Promise<FunctionMetadata> {
-  const { Function: FunctionModel, FunctionVersion } = db.models;
-
-  const { Project } = db.models;
-
-  const func = await FunctionModel.findOne({
-    where: { id: functionId, is_active: true },
-    include: [
-      { model: FunctionVersion, as: 'activeVersion' },
-      { model: Project, where: { is_active: true }, required: true },
-    ],
-  });
-
-  if (!func) {
-    throw new Error('Function not found');
-  }
-
-  const f = func as any;
-  const fv = f.activeVersion;
-
-  return {
-    id: f.id,
-    name: f.name,
-    project_id: f.project_id,
-    project_slug: (f.Project as any).slug as string,
-    is_active: f.is_active,
-    created_at: f.created_at,
-    updated_at: f.updated_at,
-    version: fv ? fv.version : null,
-    package_path: fv ? fv.package_path : null,
-    package_hash: fv ? fv.package_hash : null,
-    file_size: fv ? fv.file_size : null,
-    custom_timeout_enabled: f.custom_timeout_enabled ?? false,
-    custom_timeout_seconds: f.custom_timeout_seconds ?? null,
-    custom_memory_enabled: f.custom_memory_enabled ?? false,
-    custom_memory_mb: f.custom_memory_mb ?? null,
-  };
 }
 
 export async function fetchEnvironmentVariables(functionId: string): Promise<EnvVars> {
@@ -166,20 +127,27 @@ export async function fetchNetworkPolicies(projectId: string): Promise<NetworkPo
   }
 }
 
-export async function getFunctionPackage(functionId: string): Promise<PackageInfo> {
+export async function getFunctionPackage(functionId: string, metadata: FunctionMetadata): Promise<PackageInfo> {
   const releaseLock = await cache.acquireLock(functionId);
 
   try {
-    const functionData = await fetchFunctionMetadata(functionId);
+    const t1 = Date.now();
+    const functionData = metadata;
+    const metadataFetchTime = Date.now() - t1;
 
+    const t2 = Date.now();
     const cacheResult = await cache.checkCache(
       functionId,
       functionData.package_hash ?? '',
       functionData.version ?? '',
     );
+    const cacheCheckTime = Date.now() - t2;
 
     if (cacheResult.cached && cacheResult.valid) {
       await cache.updateAccessStats(functionId);
+      console.log(
+        `[PACKAGE] ${functionId}: CACHED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms)`,
+      );
       return {
         tempDir: cacheResult.extractedPath!,
         indexPath: path.join(cacheResult.extractedPath!, 'index.js'),
@@ -194,12 +162,18 @@ export async function getFunctionPackage(functionId: string): Promise<PackageInf
 
     console.log(`Downloading package for function ${functionId}`);
 
+    const t3 = Date.now();
     const extractedPath = await cache.cachePackageFromPathNoLock(
       functionId,
       functionData.version ?? '',
       functionData.package_hash ?? '',
       functionData.file_size || 0,
       functionData.package_path ?? '',
+    );
+    const downloadTime = Date.now() - t3;
+
+    console.log(
+      `[PACKAGE] ${functionId}: DOWNLOADED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms | download=${downloadTime}ms)`,
     );
 
     return {

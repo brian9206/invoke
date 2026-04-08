@@ -57,6 +57,8 @@ export async function executeSandbox(
   const gatewayInternalUrl = process.env.GATEWAY_SERVICE_URL || 'http://localhost:3000';
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET || '';
   const invocationId = crypto.randomBytes(8).toString('hex');
+  
+  const executionStart = Date.now();
 
   return new Promise<SandboxExecutionResult>((resolve, reject) => {
     let settled = false;
@@ -78,6 +80,9 @@ export async function executeSandbox(
       settled = true;
       cleanup();
       clearTimeout(timer);
+      
+      const ipcRoundtripTime = Date.now() - executionStart;
+      console.log(`[ROUNDTRIP] ${functionId}: IPC roundtrip=${ipcRoundtripTime}ms`);
 
       const response = payload.response;
       const bodyBuf = response.body
@@ -229,12 +234,12 @@ export async function executeSandbox(
     const codePath = `/functions/${functionId}/index.js`;
 
     try {
+      sandbox.setPendingBootstrapPayload(request, env);
+      console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);
       sandbox.emit('execute', {
         functionId,
         invocationId,
         codePath,
-        request,
-        env,
       });
     } catch (err: any) {
       clearTimeout(timer);

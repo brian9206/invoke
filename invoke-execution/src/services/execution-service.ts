@@ -8,7 +8,6 @@
 import { insertLog } from './logger-client';
 import { ExecutionEngine, createExecutionContext, AppLogEntry } from './execution-engine';
 import {
-  fetchFunctionMetadata,
   fetchEnvironmentVariables,
   fetchNetworkPolicies,
   getFunctionPackage,
@@ -18,7 +17,6 @@ import {
 // Singleton engine wired with DB-backed providers
 const executionEngine = new ExecutionEngine({
   kvStoreFactory: createDefaultKVFactory,
-  metadataProvider: fetchFunctionMetadata,
   envVarsProvider: fetchEnvironmentVariables,
   networkPoliciesProvider: fetchNetworkPolicies,
   appLogHandler: (entry: AppLogEntry) => {
@@ -59,4 +57,4 @@ export const updateDefaultMemory = async (_memoryMb: number): Promise<void> => {
   // The sandbox pool doesn't support hot-swapping memory limits.
 };
 
-export { createExecutionContext, getFunctionPackage, fetchFunctionMetadata, fetchEnvironmentVariables, fetchNetworkPolicies };
+export { createExecutionContext, getFunctionPackage, fetchEnvironmentVariables, fetchNetworkPolicies };

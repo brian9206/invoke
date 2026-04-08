@@ -23,7 +23,7 @@ import {
   invalidateExecutionSettings,
 } from './services/execution-settings';
 
-import executionRoutes from './routes/execution';
+import executionRoutes, { invalidateFunctionInfoCache } from './routes/execution';
 import healthRoutes from './routes/health';
 import schedulerRoutes from './routes/scheduler';
 import metricsRoutes from './routes/metrics';
@@ -173,7 +173,9 @@ class ExecutionServer {
       }
 
       await executionPgNotify.connect((payload: any) => {
-        if (payload.table === 'function_environment_variables') {
+        if (payload.table === 'functions' || payload.table === 'function_versions') {
+          if (payload.function_id) invalidateFunctionInfoCache(payload.function_id);
+        } else if (payload.table === 'function_environment_variables') {
           invalidateEnvVarCache(payload.function_id);
         } else if (payload.table === 'project_network_policies') {
           invalidateNetworkPolicyCache(payload.project_id);

@@ -26,8 +26,9 @@ const RUNTIME = process.env.SANDBOX_RUNTIME || 'runc';
 const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
 const IPC_DIR = process.env.SANDBOX_IPC_DIR || '/tmp/invoke-ipc';
 const RUNTIME_IMAGE = process.env.RUNTIME_IMAGE || 'ghcr.io/brian9206/invoke/runtime:latest';
+const CGROUPNS_MODE = (process.env.SANDBOX_CGROUPNS_MODE as 'host' | 'private' | undefined) || 'host';
 const ACQUIRE_TIMEOUT_MS = 30_000;
-const MAINTENANCE_INTERVAL_MS = 60_000;
+const MAINTENANCE_INTERVAL_MS = parseInt(process.env.SANDBOX_MAINTENANCE_INTERVAL_MS || '1800000', 10);
 
 // The host cache directory where extracted function packages live.
 // Must match the cacheDir used by cache.ts: path.join(os.tmpdir(), 'cache')
@@ -77,11 +78,14 @@ export class SandboxPool extends EventEmitter {
       runtime: RUNTIME,
       filesystem: [
         { host: PACKAGES_DIR, target: '/functions', flag: 'ro' },
+        { host: '/sys/fs/cgroup', target: '/sys/fs/cgroup', flag: 'rw' },
       ],
       env: {
         INVOKE_SOCKET_PATH: '/run/events.sock',
+        NODE_COMPILE_CACHE: '/tmp/nodecache',
       },
-      caps: ['SYS_ADMIN', 'SYS_CHROOT', 'SETUID', 'SETGID'],
+      caps: ['CAP_SYS_ADMIN', 'SYS_CHROOT', 'SETUID', 'SETGID', 'SYS_RESOURCE', 'DAC_OVERRIDE'],
+      cgroupnsMode: CGROUPNS_MODE,
     };
 
     this.orchestrator = new SandboxOrchestrator(opts);
@@ -114,10 +118,14 @@ export class SandboxPool extends EventEmitter {
   async acquire(): Promise<Sandbox> {
     if (this.shuttingDown) throw new Error('SandboxPool is shutting down');
 
+    const acquireStart = Date.now();
+
     // Fast path: grab from idle set
     const idle = this.popIdle();
     if (idle) {
       this.busySet.add(idle);
+      const idleTime = Date.now() - acquireStart;
+      console.log(`[POOL] acquire (IDLE): ${idleTime}ms`);
       return idle;
     }
 
@@ -125,10 +133,19 @@ export class SandboxPool extends EventEmitter {
     const total = this.allSandboxes.size;
     if (total < MAX_POOL_SIZE) {
       this.coldStarts++;
+      console.log(`[POOL] acquire (COLD START): spawning container ${this.coldStarts}`);
+      const spawnStart = Date.now();
       const sandbox = await this.spawnOne();
+      const spawnTime = Date.now() - spawnStart;
+      
       // Wait for the first 'ready' event from supervisor
+      const readyStart = Date.now();
       await this.waitForReady(sandbox);
+      const readyTime = Date.now() - readyStart;
+      
       this.busySet.add(sandbox);
+      const totalColdTime = Date.now() - acquireStart;
+      console.log(`[POOL] acquire (COLD START) total=${totalColdTime}ms (spawn=${spawnTime}ms, ready=${readyTime}ms)`);
       return sandbox;
     }
 
@@ -143,6 +160,8 @@ export class SandboxPool extends EventEmitter {
       this.waiters.push({
         resolve: (sb: Sandbox) => {
           clearTimeout(timer);
+          const waitTime = Date.now() - acquireStart;
+          console.log(`[POOL] acquire (WAIT): ${waitTime}ms`);
           resolve(sb);
         },
         reject,
@@ -288,6 +307,7 @@ export class SandboxPool extends EventEmitter {
 
     // Listen for 'ready' events: supervisor reports idle after each invocation
     sandbox.on('ready', () => {
+      
       if (this.shuttingDown) return;
 
       // If it was busy, move to idle
@@ -303,6 +323,8 @@ export class SandboxPool extends EventEmitter {
       } else {
         this.idleSet.add(sandbox);
       }
+
+      console.log('idle', this.idleSet.size, 'busy', this.busySet.size, 'waiters', this.waiters.length);
     });
 
     // Collect container output — surfaces supervisor errors and crash messages
@@ -318,30 +340,26 @@ export class SandboxPool extends EventEmitter {
       if (err) console.error(`[SandboxPool] Container ${sandbox.id} stderr:\n${err}`);
     };
 
-    // Handle unexpected container exit
-    sandbox.once('exit', (code: number) => {
-      console.warn(`[SandboxPool] Container ${sandbox.id} exited unexpectedly (code ${code})`);
+    const handleCrash = (reason: string) => {
+      if (this.shuttingDown) return;
+      console.warn(`[SandboxPool] Container ${sandbox.id} crashed or lost connection (${reason})`);
       dumpLogs();
       this.removeSandbox(sandbox);
+      sandbox.destroy().catch(() => {});
 
       // Spawn replacement if below MIN
-      if (!this.shuttingDown && this.allSandboxes.size < MIN_POOL_SIZE) {
+      const deficit = MIN_POOL_SIZE - this.allSandboxes.size;
+      for (let i = 0; i < deficit; i++) {
         this.spawnAndTrack().catch((spawnErr) => {
           console.error('[SandboxPool] Replacement spawn failed:', String(spawnErr));
         });
       }
-    });
+    };
 
-    sandbox.once('error', (err: unknown) => {
-      const msg = err instanceof Error
-        ? err.message
-        : typeof err === 'object' && err !== null
-          ? JSON.stringify(err)
-          : String(err);
-      console.error(`[SandboxPool] Container ${sandbox.id} error: ${msg}`);
-      dumpLogs();
-      this.removeSandbox(sandbox);
-    });
+    // Handle unexpected container exit, error, or IPC disconnect
+    sandbox.once('exit', (code: number) => handleCrash(`exit code ${code}`));
+    sandbox.once('error', (err: unknown) => handleCrash(`error: ${err}`));
+    sandbox.once('ipc_disconnect', () => handleCrash('ipc disconnected'));
 
     return sandbox;
   }

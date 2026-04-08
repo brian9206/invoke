@@ -1,23 +1,15 @@
 {
   "name": "invoke-runtime",
-  "version": "2.0.0",
-  "description": "Invoke Runtime - Supervisor + Worker running inside Docker containers",
-  "main": "dist/index.js",
+  "version": "3.0.0",
+  "description": "Invoke Runtime - C++ supervisor + Bun worker shim",
   "scripts": {
-    "start": "node dist/index.js",
-    "build": "tsc",
-    "dev": "nodemon --exec node -r @swc-node/register src/index.ts"
+    "build": "bun build src/worker-main.ts --target bun --outdir dist --bytecode",
+    "build:supervisor": "cd .. && meson setup invoke-runtime/build invoke-runtime --backend=ninja && ninja -C invoke-runtime/build"
   },
   "dependencies": {
-    "chroot": "^1.0.11",
     "mime-types": "^3.0.2"
   },
   "devDependencies": {
-    "@swc-node/register": "^1.11.1",
-    "@swc/core": "^1.15.18",
-    "@types/mime-types": "^2.1.4",
-    "@types/node": "^20.10.2",
-    "nodemon": "^3.0.2",
-    "typescript": "^5.7.3"
+    "@types/mime-types": "^2.1.4"
   }
 }

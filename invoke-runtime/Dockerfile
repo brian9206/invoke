@@ -1,64 +1,93 @@
 # Runtime Image Dockerfile
-# This image runs INSIDE Docker containers spawned by SandboxOrchestrator.
-# The supervisor process runs as root (needs mount, chroot, setuid syscalls).
-# Per-invocation worker processes drop to UID/GID 65534 (nobody/nogroup).
 # Build context must be the monorepo root
 
-# ============ BUILDER STAGE ============
-FROM node:24-bookworm-slim AS builder
+# ============ STAGE 0: Alpine image with Bun (musl build) ============
+# Alpine is a musl-based distro, so it natively provides the musl-compiled
+# libstdc++ and libgcc_s that the Bun musl binary requires.
+FROM alpine:3 AS bun-base
 
-# Install build tools needed for native addons (chroot package uses node-gyp)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 \
-      make \
-      g++ \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache curl unzip ca-certificates libstdc++
 
-WORKDIR /app
+RUN ARCH=$(uname -m) && \
+    case "$ARCH" in \
+      x86_64)  BUN_ARCH="x64" ;; \
+      aarch64) BUN_ARCH="aarch64" ;; \
+      *) echo "Unsupported architecture: $ARCH" && exit 1 ;; \
+    esac && \
+    curl -fsSL "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-${BUN_ARCH}-musl.zip" -o /tmp/bun.zip \
+    && unzip /tmp/bun.zip -d /tmp/bun \
+    && mv "/tmp/bun/bun-linux-${BUN_ARCH}-musl/bun" /usr/local/bin/bun \
+    && chmod 755 /usr/local/bin/bun \
+    && rm -rf /tmp/bun.zip /tmp/bun
 
-# Copy workspace manifests
-COPY package.json package-lock.json tsconfig.base.json ./
-COPY invoke-runtime/package.json ./invoke-runtime/
-
-# Install dependencies (compiles native chroot addon)
-RUN npm ci -w invoke-runtime
-
-# Copy source
-COPY invoke-runtime/ ./invoke-runtime/
-
-# Build TypeScript source
-WORKDIR /app/invoke-runtime
-RUN npm run build
-
-# Prune devDependencies
-WORKDIR /app
-RUN npm prune --omit=dev
-
-# ============ FINAL STAGE ============
-FROM node:24-bookworm-slim
-
-# Install util-linux for mount/umount
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      util-linux \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create nobody/nogroup at UID/GID 65534 for worker processes
-RUN (getent group 65534 || groupadd -g 65534 nogroup) \
- && (id -u 65534 >/dev/null 2>&1 || useradd -u 65534 -g 65534 -M -s /sbin/nologin nobody-worker)
-
-# Create secure invocation jail base dir (must not live under /tmp for chroot)
-RUN mkdir -p /opt/inv \
- && chown root:root /opt/inv \
- && chmod 0755 /opt/inv
+# ============ STAGE 1: Install shim production dependencies ============
+FROM bun-base AS shim-deps
 
 WORKDIR /opt/shim
+COPY invoke-runtime/package.json ./
+# Install devDependencies too for the build step if needed, or just install all
+RUN bun install
+COPY invoke-runtime/src/ ./src/
+RUN bun run build
+# Then remove devDependencies for smaller size if desired, but we just copy dist/ and node_modules/ anyway.
+RUN bun install --production
 
-# Copy built artifacts and prod dependencies from builder.
-COPY --from=builder /app/node_modules/ ./node_modules/
-COPY --from=builder /app/invoke-runtime/dist/ ./dist/
-COPY --from=builder /app/invoke-runtime/package.json ./
-COPY --from=builder /app/invoke-runtime/node_modules/ ./node_modules/
+# ============ STAGE 2: C++ supervisor builder ============
+FROM alpine:3 AS supervisor-builder
 
-# Supervisor runs as root — must mount overlayfs and call chroot
-# Worker drops privileges internally via process.setuid/setgid
-ENTRYPOINT ["node", "/opt/shim/dist/index.js"]
+RUN apk add --no-cache meson ninja build-base g++ pkgconf
+
+WORKDIR /build
+COPY invoke-runtime/meson.build ./
+COPY invoke-runtime/supervisor/ ./supervisor/
+# Copy vendored subprojects so meson builds fully offline
+COPY invoke-runtime/subprojects/ ./subprojects/
+RUN meson setup builddir --backend=ninja --wrap-mode=nofallback \
+    && ninja -C builddir
+
+# ============ STAGE 3: Bun filesystem — source for /opt/rootfs ============
+FROM bun-base AS bun-rootfs
+# This stage exists solely so we can COPY its filesystem into /opt/rootfs below.
+
+# ============ STAGE 4: Final runtime image ============
+FROM alpine:3
+
+# libstdc++ and libgcc are needed by the supervisor binary (C++20).
+RUN apk add --no-cache libstdc++ libgcc
+
+# --- Supervisor binary ---
+COPY --from=supervisor-builder /build/builddir/invoke-supervisor /usr/local/bin/invoke-supervisor
+RUN chmod 755 /usr/local/bin/invoke-supervisor
+
+# --- Build /opt/rootfs (the chroot environment for user functions) ---
+# Clone the full Bun image filesystem into /opt/rootfs. This gives the
+# chroot a working Bun installation (binary + glibc + ssl certs + locale).
+COPY --from=bun-rootfs / /opt/rootfs/
+
+# Install the shim TypeScript sources and production deps into the rootfs.
+# Bun executes .ts files natively — no compilation step needed.
+#COPY invoke-runtime/src/ /opt/rootfs/opt/shim/src/
+COPY --from=shim-deps /opt/shim/dist/ /opt/rootfs/opt/shim/dist/
+COPY --from=shim-deps /opt/shim/node_modules/ /opt/rootfs/opt/shim/node_modules/
+COPY invoke-runtime/package.json /opt/rootfs/opt/shim/package.json
+
+# Create directories that must exist inside the rootfs but aren't part of the
+# Bun image (virtual mounts, invocation scratch space).
+RUN mkdir -p \
+      /opt/rootfs/tmp \
+      /opt/rootfs/proc \
+      /opt/rootfs/sys \
+      /opt/rootfs/dev \
+      /opt/rootfs/run \
+      /opt/rootfs/functions \
+      /opt/inv
+
+# Expose bun and the shim at container-level paths so the supervisor can
+# reference /opt/shim/src/worker-main.ts as the worker script.
+# Create a node -> bun symlink inside the rootfs so Bun's node-compatibility
+# shim finder doesn't need to synthesise one (which requires /proc/self/exe).
+RUN ln -sf /usr/local/bin/bun /opt/rootfs/usr/local/bin/node \
+    && ln -sf /opt/rootfs/usr/local/bin/bun /usr/local/bin/bun \
+    && ln -sf /opt/rootfs/opt/shim /opt/shim
+
+ENTRYPOINT ["/usr/local/bin/invoke-supervisor"]
