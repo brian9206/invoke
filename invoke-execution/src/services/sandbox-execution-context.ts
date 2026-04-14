@@ -67,6 +67,7 @@ export async function executeSandbox(
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
+      sandbox.emit('kill', { reason: 'timeout' });
       cleanup();
       reject(new Error(`Function execution timeout (${timeoutMs}ms)`));
     }, timeoutMs);
@@ -107,7 +108,7 @@ export async function executeSandbox(
       clearTimeout(timer);
 
       resolve({
-        error: payload?.error || 'Unknown sandbox error',
+        error: payload?.error || 'Execution failed',
         statusCode: 500,
       });
     };
@@ -240,12 +241,13 @@ export async function executeSandbox(
     const codePath = `/functions/${functionId}/index.js`;
 
     try {
-      sandbox.setPendingBootstrapPayload(request, env);
+      sandbox.setPendingBootstrapPayload(request);
       console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);
       sandbox.emit('execute', {
         functionId,
         invocationId,
         codePath,
+        env,
       });
     } catch (err: any) {
       clearTimeout(timer);

@@ -96,6 +96,8 @@ struct ChildArgs {
     const char* bun_path;
     const char* worker_script;
     const char* entry;
+    // execve envp (null-terminated, built by parent)
+    const char* const* envp;
 };
 
 static int child_fn(void* arg) {
@@ -175,22 +177,15 @@ static int child_fn(void* arg) {
     const char* const* argv =
         g_instrument ? argv_with_instr : argv_no_instr;
 
-    // 6. Build minimal envp — user env is injected via IPC payload, not process env.
-    // Provide the minimum vars Bun needs to initialize correctly.
-    const char* envp[] = {
-        "HOME=/tmp",
-        "TMPDIR=/tmp",
-        "PATH=/usr/local/bin:/usr/bin:/bin",
-        "TZ=UTC",
-        nullptr,
-    };
+    // 6. Build minimal envp — provided by the caller (supervisor builds it from
+    // the execute event payload and the required base vars).
 
     auto child_setup_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - child_start).count();
     ILOG("[child_fn] setup complete in %ldms, about to execve bun\n", child_setup_ms);
 
     // 7. execve
-    ::execve(a->bun_path, const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+    ::execve(a->bun_path, const_cast<char* const*>(argv), const_cast<char* const*>(a->envp));
 
     // Only reached on error
     std::perror("[worker-child] execve");
@@ -353,14 +348,13 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     return true;
 }
 
-int sandbox_spawn_worker(const SandboxPaths& paths,
-                         const std::string& invocation_id,
-                         const std::string& entry,
-                         const std::string& bun_path,
-                         uint64_t memory_bytes,
-                         int uid, int gid) {
-    auto spawn_start = std::chrono::high_resolution_clock::now();
-
+pid_t sandbox_start_worker(const SandboxPaths& paths,
+                           const std::string& invocation_id,
+                           const std::string& entry,
+                           const std::string& bun_path,
+                           uint64_t memory_bytes,
+                           int uid, int gid,
+                           const std::vector<std::string>& extra_env) {
     // 1. Create cgroup for this invocation
     auto cgroup_start = std::chrono::high_resolution_clock::now();
     if (!cgroup_create(invocation_id, memory_bytes)) {
@@ -372,17 +366,37 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     ILOG("[spawn_worker] cgroup_create took %ldms\n", cgroup_ms);
 
     // 2. Prepare child args
-
     ChildArgs args{};
     args.merged_dir    = paths.merged_dir.c_str();
     args.invocation_id = invocation_id.c_str();
     args.uid           = uid;
     args.gid           = gid;
     args.bun_path      = bun_path.c_str();
-    args.worker_script = "/opt/shim/dist/worker-main.js";
+    args.worker_script = "/opt/shim/dist/index.js";
     args.entry         = entry.c_str();
 
-    // 3. Allocate stack for clone
+    // 3. Build envp: base vars required by Bun + caller-supplied user vars.
+    // The strings and pointer array must outlive the child execve call.
+    // CLONE_VFORK guarantees the parent is suspended until the child execs,
+    // so locals allocated here remain valid for the child.
+    static const char* const base_vars[] = {
+        "HOME=/tmp",
+        "TMPDIR=/tmp",
+        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "TZ=UTC",
+    };
+    static constexpr std::size_t BASE_COUNT = sizeof(base_vars) / sizeof(base_vars[0]);
+
+    std::vector<const char*> envp_vec;
+    envp_vec.reserve(BASE_COUNT + extra_env.size() + 1);
+    for (std::size_t i = 0; i < BASE_COUNT; ++i)
+        envp_vec.push_back(base_vars[i]);
+    for (const auto& s : extra_env)
+        envp_vec.push_back(s.c_str());
+    envp_vec.push_back(nullptr);
+    args.envp = envp_vec.data();
+
+    // 4. Allocate stack for clone
     auto* stack = static_cast<char*>(std::malloc(CHILD_STACK_SIZE));
     if (!stack) {
         std::perror("[sandbox] malloc stack");
@@ -392,12 +406,11 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     // Stack grows downward
     char* stack_top = stack + CHILD_STACK_SIZE;
 
-    // 4. Clone with new PID, mount, and UTS namespaces
-    ILOG("[spawn_worker] calling clone...\n");
-    auto clone_start = std::chrono::high_resolution_clock::now();
-    // Clone with new PID, mount, and UTS namespaces.
+    // 4. Clone with new PID, mount, and UTS namespaces.
     // CLONE_NEWNS gives the child its own mount namespace so that the /proc and
     // /dev mounts inside child_fn don't leak back into the supervisor's view.
+    ILOG("[spawn_worker] calling clone...\n");
+    auto clone_start = std::chrono::high_resolution_clock::now();
     int clone_flags = CLONE_VM | CLONE_VFORK | CLONE_NEWPID | CLONE_NEWNS | SIGCHLD;
     pid_t child_pid = clone(child_fn, stack_top, clone_flags, &args);
     auto clone_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -420,6 +433,27 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
         std::chrono::high_resolution_clock::now() - cgroup_add_start).count();
     ILOG("[spawn_worker] cgroup_add_pid took %ldms\n", cgroup_add_ms);
 
+    // Stack is safe to free: CLONE_VFORK guarantees the child has called execve (or _exit),
+    // so the parent's VM is fully restored.
+    std::free(stack);
+
+    ILOG("[spawn_worker] worker started (pid=%d, cgroup=%ldms, clone=%ldms, cgroup_add=%ldms)\n",
+         child_pid, cgroup_ms, clone_ms, cgroup_add_ms);
+    return child_pid;
+}
+
+int sandbox_spawn_worker(const SandboxPaths& paths,
+                         const std::string& invocation_id,
+                         const std::string& entry,
+                         const std::string& bun_path,
+                         uint64_t memory_bytes,
+                         int uid, int gid,
+                         const std::vector<std::string>& extra_env) {
+    auto spawn_start = std::chrono::high_resolution_clock::now();
+
+    pid_t child_pid = sandbox_start_worker(paths, invocation_id, entry, bun_path, memory_bytes, uid, gid, extra_env);
+    if (child_pid < 0) return -1;
+
     ILOG("[spawn_worker] waiting for child (pid %d) to exit...\n", child_pid);
     auto wait_start = std::chrono::high_resolution_clock::now();
     int status = 0;
@@ -433,12 +467,9 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
         std::chrono::high_resolution_clock::now() - wait_start).count();
     ILOG("[spawn_worker] waitpid took %ldms (status=%d)\n", wait_ms, status);
 
-    std::free(stack);
-
     auto total_spawn_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - spawn_start).count();
-    ILOG("[spawn_worker] TOTAL: %ldms (cgroup=%ldms, clone+child=%ldms, cgroup_add=%ldms, wait=%ldms)\n",
-         total_spawn_ms, cgroup_ms, clone_ms, cgroup_add_ms, wait_ms);
+    ILOG("[spawn_worker] TOTAL: %ldms (wait=%ldms)\n", total_spawn_ms, wait_ms);
 
     if (WIFEXITED(status)) {
         return WEXITSTATUS(status);

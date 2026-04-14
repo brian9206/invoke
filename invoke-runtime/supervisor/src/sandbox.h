@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 namespace invoke {
@@ -35,16 +36,31 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
 /// Return the last sandbox setup error message from sandbox_setup_fs.
 const std::string& sandbox_last_setup_error();
 
-/// Spawn the worker inside the sandbox.
+/// Spawn the worker inside the sandbox and return immediately after the child
+/// has exec'd. The caller is responsible for waiting on the returned PID.
 ///   - Child: joins cgroup, chroots, drops privileges, execve's bun.
-///   - Parent: waits for child to exit.
+///   - Parent: returns child PID without waiting.
+///   extra_env: additional "KEY=VALUE" strings appended to the base envp.
+///   Returns child PID (> 0) on success, or -1 on error.
+pid_t sandbox_start_worker(const SandboxPaths& paths,
+                           const std::string& invocation_id,
+                           const std::string& entry,
+                           const std::string& bun_path,
+                           uint64_t memory_bytes,
+                           int uid, int gid,
+                           const std::vector<std::string>& extra_env = {});
+
+/// Spawn the worker and block until it exits.
+///   Equivalent to sandbox_start_worker() + waitpid().
+///   extra_env: additional "KEY=VALUE" strings appended to the base envp.
 ///   Returns child exit code (0 = success), or -1 on error.
 int sandbox_spawn_worker(const SandboxPaths& paths,
                          const std::string& invocation_id,
                          const std::string& entry,
                          const std::string& bun_path,
                          uint64_t memory_bytes,
-                         int uid, int gid);
+                         int uid, int gid,
+                         const std::vector<std::string>& extra_env = {});
 
 /// Clean up mounts and directories for one invocation.
 void sandbox_cleanup(const SandboxPaths& paths, const std::string& invocation_id);

@@ -3,7 +3,7 @@
 // ============================================================================
 
 import type net from 'net';
-import { encode } from './protocol';
+import { encode } from '../protocol';
 
 type PendingResolve = (result: { value?: unknown; error?: string }) => void;
 

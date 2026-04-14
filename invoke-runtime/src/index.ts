@@ -8,9 +8,10 @@
 import net from 'net';
 import { EventDecoder, ResponseData, encode, type ParsedEvent, type RequestData } from './protocol';
 import { createReqObject, createResObject, stateToResponseData } from './exchange';
-import { KvClient } from './kv-client';
-import { RealtimeClient } from './realtime-client';
+import { KvClient } from './kv';
+import { RealtimeClient } from './realtime';
 import { installConsoleBridge } from './console-bridge';
+import { setupEnvironment } from './environment';
 
 // ---------------------------------------------------------------------------
 // Read and sanitize argv
@@ -64,7 +65,7 @@ async function main(): Promise<void> {
   // 2. Read the payload from the socket (first newline-delimited JSON event)
   const payloadStart = Date.now();
   const decoder = new EventDecoder();
-  const { request, env } = await new Promise<{ request: RequestData; env: Record<string, string> }>((resolve, reject) => {
+  const { request } = await new Promise<{ request: RequestData }>((resolve, reject) => {
     const onData = (chunk: Buffer) => {
       log('[worker] Received payload chunk: ' + chunk.length + ' bytes');
       const events = decoder.feed(chunk);
@@ -74,7 +75,6 @@ async function main(): Promise<void> {
           ipcSocket.removeListener('data', onData);
           resolve({
             request: ev.payload.request,
-            env: ev.payload.env ?? {},
           });
           return;
         }
@@ -88,40 +88,17 @@ async function main(): Promise<void> {
     ipcSocket.once('close', () => reject(new Error('Socket closed before payload received')));
   });
   const payloadTime = Date.now() - payloadStart;
-  log(`[worker] Received payload (${payloadTime}ms) with env keys: ${Object.keys(env).join(', ')}`);
+  log(`[worker] Received payload (${payloadTime}ms)`);
 
-  // 3. Inject user environment variables
-  const injectedKeys: string[] = [];
-  for (const [key, value] of Object.entries(env)) {
-    process.env[key] = value;
-    injectedKeys.push(key);
-  }
-
-  // 4. Set up IPC clients
+  // 3. Set up IPC clients
   const kvClient = new KvClient(ipcSocket);
   const realtimeClient = new RealtimeClient(ipcSocket);
   const restoreConsole = installConsoleBridge(ipcSocket);
 
-  // 5. Expose KV and realtime on globalThis for user code
-  (globalThis as any).kv = {
-    get: (key: string) => kvClient.get(key),
-    set: (key: string, value: unknown, ttl?: number) => kvClient.set(key, value, ttl),
-    delete: (key: string) => kvClient.delete(key),
-    clear: () => kvClient.clear(),
-    has: (key: string) => kvClient.has(key),
-  };
+  // 4. Setup environment
+  setupEnvironment(kvClient, realtimeClient);
 
-  (globalThis as any).realtime = {
-    send: (cmd: Record<string, unknown>) => realtimeClient.send(cmd),
-    emit: (ns: string, ev: string, ...args: unknown[]) => realtimeClient.emit(ns, ev, ...args),
-    broadcast: (ns: string, ev: string, ...args: unknown[]) => realtimeClient.broadcast(ns, ev, ...args),
-    join: (ns: string, room: string, sid: string) => realtimeClient.join(ns, room, sid),
-    leave: (ns: string, room: string, sid: string) => realtimeClient.leave(ns, room, sid),
-    emitToRoom: (ns: string, room: string, ev: string, ...args: unknown[]) =>
-      realtimeClient.emitToRoom(ns, room, ev, ...args),
-  };
-
-  // 6. Route host → worker events (kv_result, realtime_result)
+  // 5. Route host → worker events (kv_result, realtime_result)
   ipcSocket.on('data', (chunk: Buffer) => {
     const events = decoder.feed(chunk);
     for (const ev of events) {
@@ -129,7 +106,7 @@ async function main(): Promise<void> {
     }
   });
 
-  // 7. Load and execute user function
+  // 6. Load and execute user function
   let resultSent = false;
   let response: ResponseData | undefined;
   let state: any; // Will be assigned in try block
@@ -143,6 +120,18 @@ async function main(): Promise<void> {
       const payload = encode('execute_result', { response });
       ipcSocket.write(payload);
     }
+  };
+
+  const exitWithError = (message: string) => {
+    ipcSocket.end(encode('error', { error: message }), () => {
+      log('[worker] Flush complete');
+      process.exit(0);
+    });
+
+    setTimeout(() => {
+      log('[worker] Force exiting after timeout');
+      process.exit(0);
+    }, 1000).unref();
   };
 
   try {
@@ -197,12 +186,9 @@ async function main(): Promise<void> {
         await result;
       }
     } catch (err: any) {
-      if (!state.finished) {
-        res.status(500).json({
-          error: 'Function execution error',
-          message: err.message,
-        });
-      }
+      console.error('[worker] Unhandled error in user function:', err);
+      exitWithError(err.message);
+      return;
     }
     finally {
       restoreConsole();
@@ -221,16 +207,9 @@ async function main(): Promise<void> {
       sendExecuteResult();
     }
   } catch (err: any) {
-    // Module load or setup error — send error response
-    response = {
-      statusCode: 500,
-      headers: { 'content-type': 'application/json; charset=utf-8' },
-      body: Buffer.from(JSON.stringify({
-        error: 'Failed to load function module',
-        message: err.message,
-      })).toString('base64'),
-    };
-    sendExecuteResult();
+    console.error('[worker] Failed to load user function module:', err);
+    exitWithError(err.message);
+    return;
   }
 
   const totalWorkerTime = Date.now() - startupTime;

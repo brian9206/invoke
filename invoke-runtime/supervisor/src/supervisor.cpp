@@ -12,9 +12,11 @@
 #include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <unistd.h>
 
 namespace invoke {
@@ -103,23 +105,85 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
         std::chrono::high_resolution_clock::now() - fs_start).count();
     ILOG("[supervisor] Filesystem setup took %ldms\n", fs_ms);
 
+    // Build env vector from execute payload
+    std::vector<std::string> user_env;
+    if (p.contains("env") && p["env"].is_object()) {
+        for (auto& [k, v] : p["env"].items()) {
+            if (v.is_string() && k.find('=') == std::string::npos) {
+                user_env.push_back(k + "=" + v.get<std::string>());
+            }
+        }
+    }
+
     // 2. Spawn worker
     ILOG("[supervisor] Spawning worker for %s\n", invocation_id.c_str());
     auto spawn_start = std::chrono::high_resolution_clock::now();
-    int exit_code = sandbox_spawn_worker(
+    pid_t worker_pid = sandbox_start_worker(
         paths,
         invocation_id,
         entry,
         config.bun_path,
-        config.default_memory_mb * 1024 * 1024,
+        static_cast<uint64_t>(config.default_memory_mb) * 1024 * 1024,
         config.worker_uid,
-        config.worker_gid
+        config.worker_gid,
+        user_env
     );
+
+    if (worker_pid < 0) {
+        std::fprintf(stderr, "[supervisor] Worker spawn failed for %s\n", invocation_id.c_str());
+        write_event(host_fd, "error", {{"error", "Worker spawn failed"}});
+        sandbox_cleanup(paths, invocation_id);
+        write_event(host_fd, "ready");
+        return;
+    }
+
+    // Wait for worker to finish while listening for kill events on host_fd
+    EventDecoder kill_decoder;
+    bool kill_sent = false;
+    int worker_status = 0;
+
+    while (true) {
+        pid_t ret = ::waitpid(worker_pid, &worker_status, WNOHANG);
+        if (ret == worker_pid) break;
+        if (ret < 0 && errno != EINTR) {
+            std::perror("[supervisor] waitpid");
+            break;
+        }
+
+        struct pollfd pfd{ host_fd, POLLIN, 0 };
+        if (::poll(&pfd, 1, 50) > 0 && (pfd.revents & POLLIN)) {
+            char ibuf[4096];
+            ssize_t n = ::read(host_fd, ibuf, sizeof(ibuf));
+            if (n > 0) {
+                auto kill_events = kill_decoder.feed(ibuf, static_cast<size_t>(n));
+                for (const auto& kev : kill_events) {
+                    if (kev.event == "kill" && !kill_sent) {
+                        kill_sent = true;
+                        const std::string reason = kev.payload.value("reason", "unknown");
+                        ILOG("[supervisor] kill event received (reason=%s) — sending SIGKILL to pid %d\n",
+                             reason.c_str(), worker_pid);
+                        ::kill(worker_pid, SIGKILL);
+                    }
+                }
+            } else if (n == 0) {
+                // Host closed connection — kill worker
+                if (!kill_sent) {
+                    kill_sent = true;
+                    ::kill(worker_pid, SIGKILL);
+                }
+            }
+        }
+    }
+
     auto spawn_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - spawn_start).count();
-    ILOG("[supervisor] Worker spawn took %ldms\n", spawn_ms);
+    ILOG("[supervisor] Worker finished in %ldms\n", spawn_ms);
 
-    if (exit_code != 0) {
+    int exit_code = -1;
+    if (WIFEXITED(worker_status))        exit_code = WEXITSTATUS(worker_status);
+    else if (WIFSIGNALED(worker_status)) exit_code = 128 + WTERMSIG(worker_status);
+
+    if (exit_code != 0 && !kill_sent) {
         std::fprintf(stderr, "[supervisor] Worker exited with code %d for %s\n",
                      exit_code, invocation_id.c_str());
         write_event(host_fd, "error", {{"error", "Worker exited with code " + std::to_string(exit_code)}});

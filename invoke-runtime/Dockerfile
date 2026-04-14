@@ -93,7 +93,7 @@ RUN mkdir -p \
       /opt/inv
 
 # Expose bun and the shim at container-level paths so the supervisor can
-# reference /opt/shim/src/worker-main.ts as the worker script.
+# reference /opt/shim/src/index.ts as the worker script.
 # Create a node -> bun symlink inside the rootfs so Bun's node-compatibility
 # shim finder doesn't need to synthesise one (which requires /proc/self/exe).
 RUN ln -sf /usr/local/bin/bun /opt/rootfs/usr/local/bin/node \
