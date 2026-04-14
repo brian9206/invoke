@@ -186,6 +186,14 @@ export class SandboxPool extends EventEmitter {
   }
 
   /**
+   * Apply (or replace) the global iptables chain covering all containers
+   * on the default Docker bridge. Omitting `name` targets invoke-sandbox-global.
+   */
+  async setGlobalNetwork(rules: NetworkRule[]): Promise<void> {
+    await this.orchestrator.setNetwork({ rules });
+  }
+
+  /**
    * Graceful shutdown: wait for busy containers, then destroy all.
    */
   async shutdown(): Promise<void> {
@@ -212,7 +220,7 @@ export class SandboxPool extends EventEmitter {
       }
     }
 
-    // Destroy orchestrator (which destroys all containers and networks)
+    // Destroy orchestrator (which destroys all containers)
     await this.orchestrator.destroy();
     this.idleSet.clear();
     this.busySet.clear();
@@ -234,68 +242,9 @@ export class SandboxPool extends EventEmitter {
     return sb;
   }
 
-  /**
-   * Ensure a named Docker network exists with the given iptables rules.
-   * Idempotent — re-creates the iptables chain on every call.
-   */
-  async ensureNetwork(name: string, rules: NetworkRule[]): Promise<string> {
-    return this.orchestrator.setNetwork({ name, rules });
-  }
-
-  /**
-   * Remove a managed Docker network and its iptables rules.
-   */
-  async removeNetwork(name: string): Promise<void> {
-    return this.orchestrator.removeNetwork(name);
-  }
-
-  /**
-   * Acquire a container on a specific Docker network.
-   * Always a cold-start spawn (pool containers run with network=none).
-   */
-  async acquireWithNetwork(networkName: string): Promise<Sandbox> {
-    if (this.shuttingDown) throw new Error('SandboxPool is shutting down');
-
-    if (this.allSandboxes.size >= MAX_POOL_SIZE) {
-      // Wait for capacity, then spawn with network
-      return new Promise<Sandbox>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          const idx = this.waiters.findIndex((w) => w.resolve === resolve);
-          if (idx !== -1) this.waiters.splice(idx, 1);
-          reject(new Error(`SandboxPool: acquire timeout — all ${MAX_POOL_SIZE} containers busy`));
-        }, ACQUIRE_TIMEOUT_MS);
-
-        this.waiters.push({
-          resolve: async (freedSandbox: Sandbox) => {
-            // We can't reuse the freed sandbox (wrong network).
-            // Destroy it and spawn a fresh one on the right network.
-            clearTimeout(timer);
-            freedSandbox.destroy().catch(() => {});
-            this.removeSandbox(freedSandbox);
-            try {
-              const sb = await this.spawnOne(networkName);
-              await this.waitForReady(sb);
-              this.busySet.add(sb);
-              resolve(sb);
-            } catch (err) {
-              reject(err);
-            }
-          },
-          reject,
-        });
-      });
-    }
-
-    this.coldStarts++;
-    const sandbox = await this.spawnOne(networkName);
-    await this.waitForReady(sandbox);
-    this.busySet.add(sandbox);
-    return sandbox;
-  }
-
-  private async spawnOne(network?: string): Promise<Sandbox> {
+  private async spawnOne(): Promise<Sandbox> {
     const spawnOpts: SpawnOptions = {
-      network,
+      network: 'bridge',
       resources: {
         memory: { limit: MEMORY_MB * 1024 * 1024 },
       },

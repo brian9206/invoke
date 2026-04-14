@@ -6,9 +6,8 @@
 // ============================================================================
 
 import net from 'net';
-import { createRequire } from 'module';
-import { EventDecoder, encode, type ParsedEvent, type RequestData } from './protocol';
-import { createReqObject, createResObject, stateToResponseData } from './request-response';
+import { EventDecoder, ResponseData, encode, type ParsedEvent, type RequestData } from './protocol';
+import { createReqObject, createResObject, stateToResponseData } from './exchange';
 import { KvClient } from './kv-client';
 import { RealtimeClient } from './realtime-client';
 import { installConsoleBridge } from './console-bridge';
@@ -18,10 +17,18 @@ import { installConsoleBridge } from './console-bridge';
 // ---------------------------------------------------------------------------
 
 const IPC_SOCKET_PATH = '/run/events.sock';
-const entry = process.argv[2];
+
+// Parse our own args before wiping them
+const _workerArgs = process.argv.slice(2);
+const entry = _workerArgs.find(a => !a.startsWith('--'));
+const instrument = _workerArgs.includes('--instrument');
 
 // Immediately clear internal args so user code cannot see them
 process.argv.splice(2);
+
+function log(...args: unknown[]): void {
+  if (instrument) console.error(...args);
+}
 
 // ---------------------------------------------------------------------------
 // Main
@@ -29,7 +36,7 @@ process.argv.splice(2);
 
 async function main(): Promise<void> {
   const startupTime = Date.now();
-  console.error('[worker] Starting with entry=' + entry);
+  log('[worker] Starting with entry=' + entry);
 
   // 1. Connect to the host runtime over the bind-mounted socket.
   const connectionStart = Date.now();
@@ -48,22 +55,22 @@ async function main(): Promise<void> {
     socket.once('connect', onConnect);
   });
   const connectionTime = Date.now() - connectionStart;
-  console.error(`[worker] Connected (${connectionTime}ms) at ${IPC_SOCKET_PATH}`);
+  log(`[worker] Connected (${connectionTime}ms) at ${IPC_SOCKET_PATH}`);
   
   ipcSocket.write(encode('payload'));
-  console.error('[worker] Requested payload from host');
-  console.error('[worker] Waiting for payload...');
+  log('[worker] Requested payload from host');
+  log('[worker] Waiting for payload...');
 
   // 2. Read the payload from the socket (first newline-delimited JSON event)
   const payloadStart = Date.now();
   const decoder = new EventDecoder();
   const { request, env } = await new Promise<{ request: RequestData; env: Record<string, string> }>((resolve, reject) => {
     const onData = (chunk: Buffer) => {
-      console.error('[worker] Received payload chunk: ' + chunk.length + ' bytes');
+      log('[worker] Received payload chunk: ' + chunk.length + ' bytes');
       const events = decoder.feed(chunk);
       for (const ev of events) {
         if (ev.event === 'payload') {
-          console.error('[worker] Got payload event');
+          log('[worker] Got payload event');
           ipcSocket.removeListener('data', onData);
           resolve({
             request: ev.payload.request,
@@ -75,13 +82,13 @@ async function main(): Promise<void> {
     };
     ipcSocket.on('data', onData);
     ipcSocket.once('error', (err) => {
-      console.error('[worker] Socket error:', err);
+      log('[worker] Socket error:', err);
       reject(err);
     });
     ipcSocket.once('close', () => reject(new Error('Socket closed before payload received')));
   });
   const payloadTime = Date.now() - payloadStart;
-  console.error(`[worker] Received payload (${payloadTime}ms) with env keys: ${Object.keys(env).join(', ')}`);
+  log(`[worker] Received payload (${payloadTime}ms) with env keys: ${Object.keys(env).join(', ')}`);
 
   // 3. Inject user environment variables
   const injectedKeys: string[] = [];
@@ -123,7 +130,20 @@ async function main(): Promise<void> {
   });
 
   // 7. Load and execute user function
-  let response;
+  let resultSent = false;
+  let response: ResponseData | undefined;
+  let state: any; // Will be assigned in try block
+
+  const sendExecuteResult = () => {
+    if (!resultSent) {
+      resultSent = true;
+      if (!response) {
+        response = stateToResponseData(state);
+      }
+      const payload = encode('execute_result', { response });
+      ipcSocket.write(payload);
+    }
+  };
 
   try {
     const entryPath = `/${entry}`;
@@ -136,9 +156,11 @@ async function main(): Promise<void> {
       // Bun.resolveSync is the high-speed version of 'require.resolve'
       try {
         const resolved = Bun.resolveSync(id, import.meta.dir);
+        // @ts-ignore
         return Bun.require(resolved);
       } catch (e) {
         // 2. Fallback to standard internal search
+        // @ts-ignore
         return Bun.require(id);
       }
     };
@@ -148,7 +170,7 @@ async function main(): Promise<void> {
     const requireStart = Date.now();
     const userModule = await import(entryPath);
     const requireTime = Date.now() - requireStart;
-    console.error(`[worker] Loaded module (${requireTime}ms)`);
+    log(`[worker] Loaded module (${requireTime}ms)`);
     
     // ESM default export, or CJS module.exports (Bun wraps it as .default)
     const handler = userModule.default ?? userModule;
@@ -161,7 +183,12 @@ async function main(): Promise<void> {
     }
 
     const req = createReqObject(request);
-    const { res, state } = createResObject(req);
+    const resObj = createResObject(req, () => {
+      // This callback is called when the user code calls res.end/send/json
+      sendExecuteResult();
+    });
+    const res = resObj.res;
+    state = resObj.state;
 
     const handlerStart = Date.now();
     try {
@@ -177,17 +204,24 @@ async function main(): Promise<void> {
         });
       }
     }
+    finally {
+      restoreConsole();
+    }
+
     const handlerTime = Date.now() - handlerStart;
-      console.error(`[worker] Total code execution time: ${handlerTime}ms`);
+    log(`[worker] Total code execution time: ${handlerTime}ms`);
 
     // If handler returned without calling res.end/send/json, send 204
     if (!state.finished) {
       res.status(204).end();
     }
 
-    // Send result back to host
-    response = stateToResponseData(state);
+    // If the result hasn't been sent yet (callback not called), send it now
+    if (!resultSent) {
+      sendExecuteResult();
+    }
   } catch (err: any) {
+    // Module load or setup error — send error response
     response = {
       statusCode: 500,
       headers: { 'content-type': 'application/json; charset=utf-8' },
@@ -196,28 +230,22 @@ async function main(): Promise<void> {
         message: err.message,
       })).toString('base64'),
     };
+    sendExecuteResult();
   }
 
-  restoreConsole();
+  const totalWorkerTime = Date.now() - startupTime;
+  log(`[worker] Total worker time: ${totalWorkerTime}ms (conn=${connectionTime}ms, payload=${payloadTime}ms`);
 
-  // 9. End IPC, then exit immediately.
-  const payload = encode('execute_result', { response });
-
-  ipcSocket.end(payload, () => {
-    // The OS now has the data and the FIN signal
-    console.error('[worker] Flush complete');
-    
-    // Violently exit the process via SIGKILL.
-    process.kill(process.pid, 'SIGKILL');
+  // Signal handler completion, then close socket and exit
+  ipcSocket.end(encode('execute_end', {}), () => {
+    log('[worker] Flush complete');
+    process.exit(0);
   });
 
   setTimeout(() => {
-    console.error('[worker] Force exiting after timeout');
+    log('[worker] Force exiting after timeout');
     process.exit(0);
   }, 1000).unref();
-
-  const totalWorkerTime = Date.now() - startupTime;
-  console.error(`[worker] Total worker time: ${totalWorkerTime}ms (conn=${connectionTime}ms, payload=${payloadTime}ms`);
 }
 
 // ---------------------------------------------------------------------------

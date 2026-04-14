@@ -13,6 +13,8 @@ static const char* env_or(const char* name, const char* fallback) {
     return (val && val[0]) ? val : fallback;
 }
 
+bool g_instrument = false;
+
 int main() {
     invoke::SupervisorConfig config;
 
@@ -24,12 +26,16 @@ int main() {
     config.worker_gid      = std::atoi(env_or("INVOKE_WORKER_GID", "65534"));
     config.default_memory_mb = std::atoi(env_or("SANDBOX_MEMORY_MB", "256"));
 
-    std::fprintf(stderr, "[supervisor] Starting invoke-supervisor\n");
-    std::fprintf(stderr, "[supervisor]   socket:   %s\n", config.socket_path.c_str());
-    std::fprintf(stderr, "[supervisor]   rootfs:   %s\n", config.rootfs_path.c_str());
-    std::fprintf(stderr, "[supervisor]   bun:      %s\n", config.bun_path.c_str());
-    std::fprintf(stderr, "[supervisor]   tmpfs:    %d MB\n", config.tmpfs_mb);
-    std::fprintf(stderr, "[supervisor]   uid/gid:  %d/%d\n", config.worker_uid, config.worker_gid);
+    const char* inv_instrument = std::getenv("INVOKE_INSTRUMENT");
+    config.instrument = (inv_instrument && std::strcmp(inv_instrument, "true") == 0);
+    g_instrument = config.instrument;
+
+    std::fprintf(stdout, "[supervisor] Starting invoke-supervisor\n");
+    std::fprintf(stdout, "[supervisor]   socket:   %s\n", config.socket_path.c_str());
+    std::fprintf(stdout, "[supervisor]   rootfs:   %s\n", config.rootfs_path.c_str());
+    std::fprintf(stdout, "[supervisor]   bun:      %s\n", config.bun_path.c_str());
+    std::fprintf(stdout, "[supervisor]   tmpfs:    %d MB\n", config.tmpfs_mb);
+    std::fprintf(stdout, "[supervisor]   uid/gid:  %d/%d\n", config.worker_uid, config.worker_gid);
 
     invoke::supervisor_run(config);
 

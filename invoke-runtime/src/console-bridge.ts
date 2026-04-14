@@ -27,11 +27,6 @@ export function installConsoleBridge(socket: net.Socket): () => void {
       } catch {
         // Socket may be closed; fall through to original
       }
-
-      // Also write to local stdout/stderr so container logs capture it
-      if (original) {
-        original.apply(console, args);
-      }
     };
   }
 

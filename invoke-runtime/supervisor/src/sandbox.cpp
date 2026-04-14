@@ -5,6 +5,7 @@
 #include "sandbox.h"
 #include "cgroup.h"
 #include "protocol.h"
+#include "supervisor.h"
 
 #include <cerrno>
 #include <chrono>
@@ -101,7 +102,7 @@ static int child_fn(void* arg) {
     auto child_start = std::chrono::high_resolution_clock::now();
     auto* a = static_cast<ChildArgs*>(arg);
 
-    std::fprintf(stderr, "[child_fn] starting (merged_dir=%s)\n", a->merged_dir);
+    ILOG("[child_fn] starting (merged_dir=%s)\n", a->merged_dir);
 
     // NOTE: cgroup_join is NOT called here because we're in a CLONE_NEWPID namespace.
     // ::getpid() returns 1 in this namespace, but would register the wrong PID in the
@@ -115,7 +116,7 @@ static int child_fn(void* arg) {
     }
     auto chroot_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - chroot_start).count();
-    std::fprintf(stderr, "[child_fn] chroot took %ldms\n", chroot_ms);
+    ILOG("[child_fn] chroot took %ldms\n", chroot_ms);
 
     // 3. chdir to new root
     auto chdir_start = std::chrono::high_resolution_clock::now();
@@ -125,7 +126,7 @@ static int child_fn(void* arg) {
     }
     auto chdir_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - chdir_start).count();
-    std::fprintf(stderr, "[child_fn] chdir took %ldms\n", chdir_ms);
+    ILOG("[child_fn] chdir took %ldms\n", chdir_ms);
 
     // 3b. Mount /proc for the new PID namespace (safe: CLONE_NEWPID means only
     // the worker itself is visible at PID 1). Bun reads /proc/self/exe to find
@@ -160,18 +161,19 @@ static int child_fn(void* arg) {
     }
     auto privdrop_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - privdrop_start).count();
-    std::fprintf(stderr, "[child_fn] setgid+setuid took %ldms\n", privdrop_ms);
+    ILOG("[child_fn] setgid+setuid took %ldms\n", privdrop_ms);
 
     // 5. Build argv for execve
-    const char* argv[] = {
-        "bun",
-        "--smol",
-        "--no-install",
-        "--no-pkg-config",
-        a->worker_script,   // "/opt/shim/dist/worker-main.js"
-        a->entry,           // "<entry_basename>"
-        nullptr,
+    const char* argv_no_instr[] = {
+        "bun", "--smol", "--no-install", "--no-pkg-config",
+        a->worker_script, a->entry, nullptr,
     };
+    const char* argv_with_instr[] = {
+        "bun", "--smol", "--no-install", "--no-pkg-config",
+        a->worker_script, a->entry, "--instrument", nullptr,
+    };
+    const char* const* argv =
+        g_instrument ? argv_with_instr : argv_no_instr;
 
     // 6. Build minimal envp — user env is injected via IPC payload, not process env.
     // Provide the minimum vars Bun needs to initialize correctly.
@@ -185,7 +187,7 @@ static int child_fn(void* arg) {
 
     auto child_setup_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - child_start).count();
-    std::fprintf(stderr, "[child_fn] setup complete in %ldms, about to execve bun\n", child_setup_ms);
+    ILOG("[child_fn] setup complete in %ldms, about to execve bun\n", child_setup_ms);
 
     // 7. execve
     ::execve(a->bun_path, const_cast<char* const*>(argv), const_cast<char* const*>(envp));
@@ -240,7 +242,7 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     // tmpfs data only accepts tmpfs-specific options (size, mode, uid, gid, ...).
     // nosuid/noexec must be provided as mount flags, not in the data string.
     auto tmpfs_opts = "size=" + std::to_string(tmpfs_mb) + "m";
-    std::fprintf(stderr, "[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", paths.rw_dir.c_str(), tmpfs_opts.c_str());
+    ILOG("[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", paths.rw_dir.c_str(), tmpfs_opts.c_str());
     auto tmpfs_start = std::chrono::high_resolution_clock::now();
     if (::mount("tmpfs", paths.rw_dir.c_str(), "tmpfs",
                 MS_NOSUID | MS_NOEXEC, tmpfs_opts.c_str()) < 0) {
@@ -250,22 +252,22 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     }
     auto tmpfs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - tmpfs_start).count();
-    std::fprintf(stderr, "[sandbox_setup_fs] tmpfs mount took %ldms\n", tmpfs_ms);
+    ILOG("[sandbox_setup_fs] tmpfs mount took %ldms\n", tmpfs_ms);
 
     // Create upper/work on the tmpfs
-    std::fprintf(stderr, "[sandbox_setup_fs] creating upper/work dirs\n");
+    ILOG("[sandbox_setup_fs] creating upper/work dirs\n");
     if (!mkdirp(paths.upper_dir) || !mkdirp(paths.work_dir)) {
         g_last_setup_error = "failed to create upper/work dirs on tmpfs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
     }
-    std::fprintf(stderr, "[sandbox_setup_fs] upper/work dirs created\n");
+    ILOG("[sandbox_setup_fs] upper/work dirs created\n");
 
     // Mount overlayfs: lowerdir = function_code : rootfs
     auto overlay_opts = "lowerdir=" + lower_dir + ":" + rootfs +
                         ",upperdir=" + paths.upper_dir +
                         ",workdir=" + paths.work_dir;
-    std::fprintf(stderr, "[sandbox_setup_fs] mounting overlay at %s with options %s\n", paths.merged_dir.c_str(), overlay_opts.c_str());
+    ILOG("[sandbox_setup_fs] mounting overlay at %s with options %s\n", paths.merged_dir.c_str(), overlay_opts.c_str());
     auto overlay_start = std::chrono::high_resolution_clock::now();
     if (::mount("overlay", paths.merged_dir.c_str(), "overlay",
                 MS_NOSUID, overlay_opts.c_str()) < 0) {
@@ -275,18 +277,18 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     }
     auto overlay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - overlay_start).count();
-    std::fprintf(stderr, "[sandbox_setup_fs] overlay mount took %ldms\n", overlay_ms);
+    ILOG("[sandbox_setup_fs] overlay mount took %ldms\n", overlay_ms);
 
     // Bind mount /run/events.sock into the sandbox for event communication back to the supervisor
     auto events_socket_host = "/run/events.sock";
     auto events_socket_jail = paths.merged_dir + "/run/events.sock";
-    std::fprintf(stderr, "[sandbox_setup_fs] creating /run directory in merged dir\n");
+    ILOG("[sandbox_setup_fs] creating /run directory in merged dir\n");
     if (!mkdirp(paths.merged_dir + "/run")) {
         g_last_setup_error = "failed to create /run in merged dir for socket bind mount";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
     }
-    std::fprintf(stderr, "[sandbox_setup_fs] creating socket bind mount target file\n");
+    ILOG("[sandbox_setup_fs] creating socket bind mount target file\n");
     // Bind mount requires the target to be a pre-existing file (not just the directory).
     // Touch an empty file at the target path to serve as the mount point.
     {
@@ -298,7 +300,7 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
         }
         ::close(tfd);
     }
-    std::fprintf(stderr, "[sandbox_setup_fs] binding mount %s to %s\n", events_socket_host, events_socket_jail.c_str());
+    ILOG("[sandbox_setup_fs] binding mount %s to %s\n", events_socket_host, events_socket_jail.c_str());
     auto bind_start = std::chrono::high_resolution_clock::now();
     if (::mount(events_socket_host, events_socket_jail.c_str(), nullptr, MS_BIND | MS_SHARED, nullptr) < 0) {
         g_last_setup_error = "bind mount of events.sock failed at " + events_socket_jail + " (" + std::string(std::strerror(errno)) + ")";
@@ -307,12 +309,31 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     }
     auto bind_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - bind_start).count();
-    std::fprintf(stderr, "[sandbox_setup_fs] socket bind mount took %ldms\n", bind_ms);
+    ILOG("[sandbox_setup_fs] socket bind mount took %ldms\n", bind_ms);
+
+    // Bind mount /etc/resolv.conf so DNS works inside the chroot.
+    // The container's /etc/resolv.conf is Docker-injected at runtime and is not
+    // present in the rootfs image copied to /opt/rootfs, so we need to expose it.
+    {
+        auto resolv_jail = paths.merged_dir + "/etc/resolv.conf";
+        // Ensure /etc exists inside the merged dir (it should, but be safe)
+        mkdirp(paths.merged_dir + "/etc");
+        // Create the target file if it doesn't already exist in the overlay
+        int rfd = ::open(resolv_jail.c_str(), O_CREAT | O_WRONLY, 0644);
+        if (rfd >= 0) ::close(rfd);
+        if (::mount("/etc/resolv.conf", resolv_jail.c_str(), nullptr, MS_BIND | MS_RDONLY, nullptr) < 0) {
+            std::fprintf(stderr, "[sandbox_setup_fs] warning: resolv.conf bind mount failed (%s) — DNS may not work\n",
+                         std::strerror(errno));
+            // Non-fatal: the sandbox can still run, just without external DNS.
+        } else {
+            ILOG("[sandbox_setup_fs] resolv.conf bind mounted\n");
+        }
+    }
 
     auto total_fs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - fs_start).count();
-    std::fprintf(stderr, "[sandbox_setup_fs] TOTAL: %ldms (tmpfs=%ldms, overlay=%ldms, bind=%ldms)\n",
-                 total_fs_ms, tmpfs_ms, overlay_ms, bind_ms);
+    ILOG("[sandbox_setup_fs] TOTAL: %ldms (tmpfs=%ldms, overlay=%ldms, bind=%ldms)\n",
+         total_fs_ms, tmpfs_ms, overlay_ms, bind_ms);
 
     return true;
 }
@@ -333,7 +354,7 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     }
     auto cgroup_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - cgroup_start).count();
-    std::fprintf(stderr, "[spawn_worker] cgroup_create took %ldms\n", cgroup_ms);
+    ILOG("[spawn_worker] cgroup_create took %ldms\n", cgroup_ms);
 
     // 2. Prepare child args
 
@@ -357,7 +378,7 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     char* stack_top = stack + CHILD_STACK_SIZE;
 
     // 4. Clone with new PID, mount, and UTS namespaces
-    std::fprintf(stderr, "[spawn_worker] calling clone...\n");
+    ILOG("[spawn_worker] calling clone...\n");
     auto clone_start = std::chrono::high_resolution_clock::now();
     // Clone with new PID, mount, and UTS namespaces.
     // CLONE_NEWNS gives the child its own mount namespace so that the /proc and
@@ -366,7 +387,7 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     pid_t child_pid = clone(child_fn, stack_top, clone_flags, &args);
     auto clone_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - clone_start).count();
-    std::fprintf(stderr, "[spawn_worker] clone + child_fn returned in %ldms (pid=%d)\n", clone_ms, child_pid);
+    ILOG("[spawn_worker] clone + child_fn returned in %ldms (pid=%d)\n", clone_ms, child_pid);
 
     if (child_pid < 0) {
         std::fprintf(stderr, "[sandbox] clone: %s\n", std::strerror(errno));
@@ -382,9 +403,9 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     cgroup_add_pid(invocation_id, child_pid);
     auto cgroup_add_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - cgroup_add_start).count();
-    std::fprintf(stderr, "[spawn_worker] cgroup_add_pid took %ldms\n", cgroup_add_ms);
+    ILOG("[spawn_worker] cgroup_add_pid took %ldms\n", cgroup_add_ms);
 
-    std::fprintf(stderr, "[spawn_worker] waiting for child (pid %d) to exit...\n", child_pid);
+    ILOG("[spawn_worker] waiting for child (pid %d) to exit...\n", child_pid);
     auto wait_start = std::chrono::high_resolution_clock::now();
     int status = 0;
     while (::waitpid(child_pid, &status, 0) < 0) {
@@ -395,14 +416,14 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
     }
     auto wait_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - wait_start).count();
-    std::fprintf(stderr, "[spawn_worker] waitpid took %ldms (status=%d)\n", wait_ms, status);
+    ILOG("[spawn_worker] waitpid took %ldms (status=%d)\n", wait_ms, status);
 
     std::free(stack);
 
     auto total_spawn_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - spawn_start).count();
-    std::fprintf(stderr, "[spawn_worker] TOTAL: %ldms (cgroup=%ldms, clone+child=%ldms, cgroup_add=%ldms, wait=%ldms)\n",
-                 total_spawn_ms, cgroup_ms, clone_ms, cgroup_add_ms, wait_ms);
+    ILOG("[spawn_worker] TOTAL: %ldms (cgroup=%ldms, clone+child=%ldms, cgroup_add=%ldms, wait=%ldms)\n",
+         total_spawn_ms, cgroup_ms, clone_ms, cgroup_add_ms, wait_ms);
 
     if (WIFEXITED(status)) {
         return WEXITSTATUS(status);
@@ -414,42 +435,42 @@ int sandbox_spawn_worker(const SandboxPaths& paths,
 }
 
 void sandbox_cleanup(const SandboxPaths& paths, const std::string& invocation_id) {
-    std::fprintf(stderr, "[sandbox_cleanup] starting cleanup for %s\n", invocation_id.c_str());
+    ILOG("[sandbox_cleanup] starting cleanup for %s\n", invocation_id.c_str());
 
     // Lazy-unmount the socket bind mount first (it sits inside merged_dir)
     auto events_socket_jail = paths.merged_dir + "/run/events.sock";
-    std::fprintf(stderr, "[sandbox_cleanup] unmounting socket at %s\n", events_socket_jail.c_str());
+    ILOG("[sandbox_cleanup] unmounting socket at %s\n", events_socket_jail.c_str());
     if (::umount2(events_socket_jail.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
         std::fprintf(stderr, "[sandbox_cleanup] umount2 events.sock(%s): %s\n",
                      events_socket_jail.c_str(), std::strerror(errno));
     }
-    std::fprintf(stderr, "[sandbox_cleanup] socket unmounted\n");
+    ILOG("[sandbox_cleanup] socket unmounted\n");
 
     // Lazy-unmount overlay
-    std::fprintf(stderr, "[sandbox_cleanup] unmounting overlay at %s\n", paths.merged_dir.c_str());
+    ILOG("[sandbox_cleanup] unmounting overlay at %s\n", paths.merged_dir.c_str());
     if (::umount2(paths.merged_dir.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
         std::fprintf(stderr, "[sandbox_cleanup] umount2 overlay(%s): %s\n",
                      paths.merged_dir.c_str(), std::strerror(errno));
     }
-    std::fprintf(stderr, "[sandbox_cleanup] overlay unmounted\n");
+    ILOG("[sandbox_cleanup] overlay unmounted\n");
 
     // Lazy-unmount tmpfs
-    std::fprintf(stderr, "[sandbox_cleanup] unmounting tmpfs at %s\n", paths.rw_dir.c_str());
+    ILOG("[sandbox_cleanup] unmounting tmpfs at %s\n", paths.rw_dir.c_str());
     if (::umount2(paths.rw_dir.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
         std::fprintf(stderr, "[sandbox_cleanup] umount2 tmpfs(%s): %s\n",
                      paths.rw_dir.c_str(), std::strerror(errno));
     }
-    std::fprintf(stderr, "[sandbox_cleanup] tmpfs unmounted\n");
+    ILOG("[sandbox_cleanup] tmpfs unmounted\n");
 
     // Remove directory tree
-    std::fprintf(stderr, "[sandbox_cleanup] removing directory tree %s\n", paths.inv_dir.c_str());
+    ILOG("[sandbox_cleanup] removing directory tree %s\n", paths.inv_dir.c_str());
     rmtree(paths.inv_dir);
-    std::fprintf(stderr, "[sandbox_cleanup] directory tree removed\n");
+    ILOG("[sandbox_cleanup] directory tree removed\n");
 
     // Destroy cgroup
-    std::fprintf(stderr, "[sandbox_cleanup] destroying cgroup for %s\n", invocation_id.c_str());
+    ILOG("[sandbox_cleanup] destroying cgroup for %s\n", invocation_id.c_str());
     cgroup_destroy(invocation_id);
-    std::fprintf(stderr, "[sandbox_cleanup] cgroup destroyed\n");
+    ILOG("[sandbox_cleanup] cgroup destroyed\n");
 }
 
 } // namespace invoke

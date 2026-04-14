@@ -95,10 +95,17 @@ function SortableRuleRow({
       if (!value.trim()) {
         error = 'Target value is required';
       } else if (type === 'ip') {
-        if (!ipaddr.isValid(value)) error = 'Invalid IP address';
+        if (!ipaddr.isValid(value)) {
+          error = 'Invalid IP address';
+        } else if (ipaddr.parse(value).kind() !== 'ipv4') {
+          error = 'Only IPv4 addresses are supported';
+        }
       } else if (type === 'cidr') {
         try {
-          ipaddr.parseCIDR(value);
+          const [addr] = ipaddr.parseCIDR(value);
+          if (addr.kind() !== 'ipv4') {
+            error = 'Only IPv4 CIDR ranges are supported';
+          }
         } catch {
           error = 'Invalid CIDR notation (e.g., 192.168.0.0/16)';
         }

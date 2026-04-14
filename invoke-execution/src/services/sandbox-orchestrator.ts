@@ -136,7 +136,7 @@ export interface NetworkRule {
 }
 
 export interface SetNetworkOptions {
-  name: string;
+  name?: string;
   rules: NetworkRule[];
 }
 
@@ -460,6 +460,11 @@ export class SandboxOrchestrator {
         envArr.push(`${k}=${v}`);
       }
       envArr.push(`SANDBOX_ID=${id}`);
+      
+      // Pass through instrumentation flag from host process
+      if (process.env.INVOKE_INSTRUMENT) {
+        envArr.push(`INVOKE_INSTRUMENT=${process.env.INVOKE_INSTRUMENT}`);
+      }
 
       // 5. Create container
       container = await this._docker.createContainer({
@@ -556,6 +561,10 @@ export class SandboxOrchestrator {
    * Create (or update rules for) a managed Docker bridge network with iptables filtering.
    * Idempotent: uses `iptables -C` to determine whether the DOCKER-USER jump rule already
    * exists before including a `-D` in the restore table.
+   *
+   * If `name` is omitted, a global chain `invoke-sandbox-global` is created/updated with
+   * no interface filter, inserted at position 1 (top of DOCKER-USER / INPUT).
+   * The global chain is not tracked in `_networks`.
    */
   async setNetwork(options: SetNetworkOptions): Promise<string> {
     if (!this._initialized) {
@@ -563,10 +572,8 @@ export class SandboxOrchestrator {
     }
 
     const { name, rules } = options;
+    const isGlobal = !name;
 
-    if (!name || !VALID_NETWORK_NAME.test(name)) {
-      throw new Error(`Invalid network name: "${name}". Must match /^[a-zA-Z0-9-]+$/`);
-    }
     for (const rule of rules) {
       if (!VALID_CIDR.test(rule.cidr)) {
         throw new Error(`Invalid CIDR: "${rule.cidr}"`);
@@ -576,18 +583,34 @@ export class SandboxOrchestrator {
       }
     }
 
-    // Inspect or create Docker network
-    let networkInfo: any;
-    try {
-      networkInfo = await this._docker.getNetwork(name).inspect();
-    } catch {
-      await this._docker.createNetwork({ Name: name, Driver: 'bridge' });
-      networkInfo = await this._docker.getNetwork(name).inspect();
-    }
+    let networkId = '';
+    let bridgeIface = '';
+    let chainName: string;
 
-    const networkId: string = networkInfo.Id;
-    const bridgeIface = `br-${networkId.substring(0, 12)}`;
-    const chainName = getChainName(name);
+    if (isGlobal) {
+      chainName = 'invoke-sandbox-global';
+      // Dynamically get the bridge interface name
+      const bridgeNetwork = this._docker.getNetwork('bridge');
+      const bridgeData = await bridgeNetwork.inspect();
+      bridgeIface = (bridgeData.Options && bridgeData.Options['com.docker.network.bridge.name']) || 'docker0';
+    } else {
+      if (!VALID_NETWORK_NAME.test(name!)) {
+        throw new Error(`Invalid network name: "${name}". Must match /^[a-zA-Z0-9-]+$/`);
+      }
+
+      // Inspect or create Docker network
+      let networkInfo: any;
+      try {
+        networkInfo = await this._docker.getNetwork(name!).inspect();
+      } catch {
+        await this._docker.createNetwork({ Name: name!, Driver: 'bridge' });
+        networkInfo = await this._docker.getNetwork(name!).inspect();
+      }
+
+      networkId = networkInfo.Id;
+      bridgeIface = `br-${networkId.substring(0, 12)}`;
+      chainName = getChainName(name!);
+    }
 
     // Pre-check: does the DOCKER-USER jump rule already exist?
     let jumpRuleExists = false;
@@ -599,6 +622,8 @@ export class SandboxOrchestrator {
     }
 
     // Build iptables-restore table
+    const insertPos = isGlobal ? '1' : '2';
+    const jumpSuffix = ` -i ${bridgeIface}`;
     const lines: string[] = [
       '*filter',
       `:${chainName} - [0:0]`,
@@ -607,16 +632,18 @@ export class SandboxOrchestrator {
       `-A ${chainName} -j DROP`,
     ];
     if (jumpRuleExists) {
-      lines.push(`-D DOCKER-USER -i ${bridgeIface} -j ${chainName}`);
-      lines.push(`-D INPUT -i ${bridgeIface} -j ${chainName}`);
+      lines.push(`-D DOCKER-USER${jumpSuffix} -j ${chainName}`);
+      lines.push(`-D INPUT${jumpSuffix} -j ${chainName}`);
     }
-    lines.push(`-I DOCKER-USER 1 -i ${bridgeIface} -j ${chainName}`);
-    lines.push(`-I INPUT 1 -i ${bridgeIface} -j ${chainName}`);
+    lines.push(`-I DOCKER-USER ${insertPos}${jumpSuffix} -j ${chainName}`);
+    lines.push(`-I INPUT ${insertPos}${jumpSuffix} -j ${chainName}`);
     lines.push('COMMIT');
 
     await runIptablesRestore(lines.join('\n') + '\n');
 
-    this._networks.set(name, { name, networkId, bridgeIface, chainName });
+    if (!isGlobal) {
+      this._networks.set(name!, { name: name!, networkId, bridgeIface, chainName });
+    }
     return networkId;
   }
 

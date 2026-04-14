@@ -37,8 +37,7 @@ declare module 'invoke-shared' {
     ApiKey: AnyModelStatic;
     FunctionEnvironmentVariable: AnyModelStatic;
     GlobalSetting: AnyModelStatic;
-    ProjectNetworkPolicy: AnyModelStatic;
-    GlobalNetworkPolicy: AnyModelStatic;
+    NetworkPolicy: AnyModelStatic;
     ApiGatewayConfig: AnyModelStatic;
     ApiGatewayRoute: AnyModelStatic;
     ApiGatewayRouteSettings: AnyModelStatic;

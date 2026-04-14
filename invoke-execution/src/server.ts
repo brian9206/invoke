@@ -12,11 +12,10 @@ import {
   initialize as initializeExecutionEngine,
   shutdown as shutdownExecutionEngine,
   updateDefaultTimeout,
-  invalidateProjectNetwork,
+  applyGlobalNetworkPolicy,
 } from './services/execution-service';
 import {
   invalidateEnvVarCache,
-  invalidateNetworkPolicyCache,
 } from './services/function-providers';
 import {
   reloadExecutionSettings,
@@ -33,9 +32,7 @@ const executionPgNotify = createNotifyListener('execution_cache_invalidated', {
   getDebounceKey: (payload: any) =>
     payload.table === 'function_environment_variables'
       ? `function_environment_variables:${payload.function_id}`
-      : payload.table === 'project_network_policies'
-        ? `project_network_policies:${payload.project_id}`
-        : 'global_network_policies',
+      : 'global_network_policies',
 });
 
 const executionSettingsPgNotify = createNotifyListener('execution_settings_invalidated', {
@@ -177,15 +174,10 @@ class ExecutionServer {
           if (payload.function_id) invalidateFunctionInfoCache(payload.function_id);
         } else if (payload.table === 'function_environment_variables') {
           invalidateEnvVarCache(payload.function_id);
-        } else if (payload.table === 'project_network_policies') {
-          invalidateNetworkPolicyCache(payload.project_id);
-          invalidateProjectNetwork(payload.project_id).catch((err) =>
-            console.error('[NetworkPolicy] Failed to invalidate network:', err),
-          );
         } else if (payload.table === 'global_network_policies') {
-          invalidateNetworkPolicyCache(null);
-          // Global policy change — can't easily remove all project networks.
-          // They'll pick up new rules on next ensureNetwork() call.
+          applyGlobalNetworkPolicy().catch((err) =>
+            console.error('[NetworkPolicy] Failed to re-apply after change:', err),
+          );
         }
       });
 
@@ -202,6 +194,10 @@ class ExecutionServer {
       console.log('🚀 Initializing execution engine...');
       await initializeExecutionEngine();
       console.log('✅ Execution engine initialized');
+
+      console.log('🔒 Applying global network policy...');
+      await applyGlobalNetworkPolicy();
+      console.log('✅ Global network policy applied');
 
       this.server = this.app.listen(this.port, () => {
         console.log(`⚡ Invoke Execution Service running on port ${this.port}`);

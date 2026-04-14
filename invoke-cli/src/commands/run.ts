@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Command } from 'commander';
 import { createLocalKVFactory } from '../services/local-kv';
-import { createReqObject, createResObject, stateToResponseData } from 'invoke-runtime/dist/request-response';
+import { createReqObject, createResObject, stateToResponseData } from 'invoke-runtime/dist/exchange';
 import type { RequestData } from 'invoke-runtime/dist/protocol';
 
 export function register(program: Command): void {

@@ -70,7 +70,7 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
-    const { Project, ProjectMembership, ProjectNetworkPolicy, GlobalSetting } = database.models;
+    const { Project, ProjectMembership, GlobalSetting } = database.models;
 
     // Check if project name already exists
     const existingProject = await Project.findOne({ where: { name }, attributes: ['id'] });
@@ -101,12 +101,6 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       role: 'owner',
       created_by: userId
     });
-
-    // Add default allow all security policies (IPv4 and IPv6)
-    await ProjectNetworkPolicy.bulkCreate([
-      { project_id: project.id, action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0', description: 'Allow all public IPv4', priority: 1 },
-      { project_id: project.id, action: 'allow', target_type: 'cidr', target_value: '::/0', description: 'Allow all public IPv6', priority: 2 }
-    ]);
 
     res.status(201).json({ project });
   } catch (error) {

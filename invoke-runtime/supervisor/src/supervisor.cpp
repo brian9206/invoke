@@ -88,7 +88,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     auto inv_start = std::chrono::high_resolution_clock::now();
 
     // 1. Set up filesystem
-    std::fprintf(stderr, "[supervisor] Setting up filesystem for %s\n", invocation_id.c_str());
+    ILOG("[supervisor] Setting up filesystem for %s\n", invocation_id.c_str());
     auto fs_start = std::chrono::high_resolution_clock::now();
     if (!sandbox_setup_fs(paths, lower_dir, config.rootfs_path, config.tmpfs_mb)) {
         const auto& detail = sandbox_last_setup_error();
@@ -101,10 +101,10 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     }
     auto fs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - fs_start).count();
-    std::fprintf(stderr, "[supervisor] Filesystem setup took %ldms\n", fs_ms);
+    ILOG("[supervisor] Filesystem setup took %ldms\n", fs_ms);
 
     // 2. Spawn worker
-    std::fprintf(stderr, "[supervisor] Spawning worker for %s\n", invocation_id.c_str());
+    ILOG("[supervisor] Spawning worker for %s\n", invocation_id.c_str());
     auto spawn_start = std::chrono::high_resolution_clock::now();
     int exit_code = sandbox_spawn_worker(
         paths,
@@ -117,7 +117,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     );
     auto spawn_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - spawn_start).count();
-    std::fprintf(stderr, "[supervisor] Worker spawn took %ldms\n", spawn_ms);
+    ILOG("[supervisor] Worker spawn took %ldms\n", spawn_ms);
 
     if (exit_code != 0) {
         std::fprintf(stderr, "[supervisor] Worker exited with code %d for %s\n",
@@ -126,25 +126,25 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     }
 
     // 3. Cleanup
-    std::fprintf(stderr, "[supervisor] Cleaning up sandbox for %s\n", invocation_id.c_str());
+    ILOG("[supervisor] Cleaning up sandbox for %s\n", invocation_id.c_str());
     auto cleanup_start = std::chrono::high_resolution_clock::now();
     sandbox_cleanup(paths, invocation_id);
     auto cleanup_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - cleanup_start).count();
-    std::fprintf(stderr, "[supervisor] Cleanup took %ldms\n", cleanup_ms);
-    std::fprintf(stderr, "[supervisor] Sandbox cleanup complete for %s\n", invocation_id.c_str());
+    ILOG("[supervisor] Cleanup took %ldms\n", cleanup_ms);
+    ILOG("[supervisor] Sandbox cleanup complete for %s\n", invocation_id.c_str());
 
     auto total_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - inv_start).count();
-    std::fprintf(stderr, "[supervisor] TOTAL invocation: %ldms (fs=%ldms, spawn=%ldms, cleanup=%ldms)\n",
-                 total_ms, fs_ms, spawn_ms, cleanup_ms);
+    ILOG("[supervisor] TOTAL invocation: %ldms (fs=%ldms, spawn=%ldms, cleanup=%ldms)\n",
+         total_ms, fs_ms, spawn_ms, cleanup_ms);
 
     // 4. Signal ready for next invocation
-    std::fprintf(stderr, "[supervisor] Sending ready event\n");
+    ILOG("[supervisor] Sending ready event\n");
     if (!write_event(host_fd, "ready")) {
         std::fprintf(stderr, "[supervisor] Failed to send ready event\n");
     } else {
-        std::fprintf(stderr, "[supervisor] Ready event sent, waiting for next invocation\n");
+        ILOG("[supervisor] Ready event sent, waiting for next invocation\n");
     }
 }
 
@@ -173,21 +173,21 @@ void supervisor_run(const SupervisorConfig& config) {
         return;
     }
 
-    std::fprintf(stderr, "[supervisor] Connected to host IPC\n");
+    ILOG("[supervisor] Connected to host IPC\n");
 
     // Send initial ready
     if (!write_event(host_fd, "ready")) {
         std::fprintf(stderr, "[supervisor] Failed to send initial ready event\n");
         return;
     }
-    std::fprintf(stderr, "[supervisor] Initial ready sent, entering event loop\n");
+    ILOG("[supervisor] Initial ready sent, entering event loop\n");
 
     // Event loop
     EventDecoder decoder;
     char buf[8192];
 
     while (!g_shutdown) {
-        std::fprintf(stderr, "[supervisor] Waiting for event from host...\n");
+        ILOG("[supervisor] Waiting for event from host...\n");
         ssize_t n = ::read(host_fd, buf, sizeof(buf));
         if (n < 0) {
             if (errno == EINTR) continue;
@@ -199,19 +199,19 @@ void supervisor_run(const SupervisorConfig& config) {
             std::fprintf(stderr, "[supervisor] Host socket closed (EOF), exiting\n");
             break;
         }
-        std::fprintf(stderr, "[supervisor] Received %zd bytes from host\n", n);
+        ILOG("[supervisor] Received %zd bytes from host\n", n);
 
         auto events = decoder.feed(buf, static_cast<size_t>(n));
         for (const auto& ev : events) {
             if (ev.event == "execute") {
-                std::fprintf(stderr, "[supervisor] execute request received\n");
+                ILOG("[supervisor] execute request received\n");
                 handle_execute(host_fd, config, ev);
             }
         }
     }
 
     ::close(host_fd);
-    std::fprintf(stderr, "[supervisor] Shutdown complete\n");
+    ILOG("[supervisor] Shutdown complete\n");
 }
 
 } // namespace invoke

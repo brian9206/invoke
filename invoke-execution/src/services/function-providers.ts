@@ -31,8 +31,7 @@ export interface FunctionMetadata {
 }
 
 interface NetworkPolicies {
-  globalRules: any[];
-  projectRules: any[];
+  rules: any[];
 }
 
 interface PackageInfo {
@@ -45,15 +44,9 @@ interface PackageInfo {
 type EnvVars = Record<string, string>;
 
 const envVarCache = new Map<string, CacheEntry<EnvVars>>();
-const networkPolicyCache = new Map<string, CacheEntry<any[]>>();
 
 export function invalidateEnvVarCache(functionId: string): void {
   envVarCache.delete(functionId);
-}
-
-export function invalidateNetworkPolicyCache(projectId: string | null): void {
-  networkPolicyCache.delete('__global__');
-  if (projectId) networkPolicyCache.delete(projectId);
 }
 
 export async function fetchEnvironmentVariables(functionId: string): Promise<EnvVars> {
@@ -81,49 +74,23 @@ export async function fetchEnvironmentVariables(functionId: string): Promise<Env
   }
 }
 
-export async function fetchNetworkPolicies(projectId: string): Promise<NetworkPolicies> {
+export async function fetchNetworkPolicies(): Promise<NetworkPolicies> {
   try {
     const now = Date.now();
 
-    const { GlobalNetworkPolicy, ProjectNetworkPolicy } = db.models;
+    const { NetworkPolicy } = db.models;
 
-    let globalRules: any[];
-    const cachedGlobal = networkPolicyCache.get('__global__');
-    if (cachedGlobal && cachedGlobal.expiresAt > now) {
-      globalRules = cachedGlobal.data;
-    } else {
-      const globalRows = await GlobalNetworkPolicy.findAll({
-        attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
-        order: [['priority', 'ASC']],
-      });
-      globalRules = (globalRows as any[]).map((r: any) => r.get({ plain: true }));
-      networkPolicyCache.set('__global__', {
-        data: globalRules,
-        expiresAt: now + NETWORK_POLICY_TTL_MS,
-      });
-    }
+    const rows = await NetworkPolicy.findAll({
+      attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
+      order: [['priority', 'ASC']],
+    });
+    
+    const rules = (rows as any[]).map((r: any) => r.get({ plain: true }));
 
-    let projectRules: any[];
-    const cachedProject = networkPolicyCache.get(projectId);
-    if (cachedProject && cachedProject.expiresAt > now) {
-      projectRules = cachedProject.data;
-    } else {
-      const projectRows = await ProjectNetworkPolicy.findAll({
-        where: { project_id: projectId },
-        attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
-        order: [['priority', 'ASC']],
-      });
-      projectRules = (projectRows as any[]).map((r: any) => r.get({ plain: true }));
-      networkPolicyCache.set(projectId, {
-        data: projectRules,
-        expiresAt: now + NETWORK_POLICY_TTL_MS,
-      });
-    }
-
-    return { globalRules, projectRules };
+    return { rules };
   } catch (err) {
     console.error('Error fetching network policies:', err);
-    return { globalRules: [], projectRules: [] };
+    return { rules: [] };
   }
 }
 

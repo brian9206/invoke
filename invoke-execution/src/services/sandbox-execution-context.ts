@@ -78,7 +78,6 @@ export async function executeSandbox(
     const onExecuteResult = (payload: { response: ResponseData }) => {
       if (settled) return;
       settled = true;
-      cleanup();
       clearTimeout(timer);
       
       const ipcRoundtripTime = Date.now() - executionStart;
@@ -94,6 +93,11 @@ export async function executeSandbox(
         statusCode: response.statusCode,
         headers: response.headers,
       });
+      // Do NOT cleanup yet — wait for execute_end before removing listeners
+    };
+
+    const onExecuteEnd = () => {
+      cleanup();
     };
 
     const onError = (payload: { error?: string }) => {
@@ -203,6 +207,7 @@ export async function executeSandbox(
     // ------------------------------------------------------------------
 
     sandbox.on('execute_result', onExecuteResult);
+    sandbox.on('execute_end', onExecuteEnd);
     sandbox.on('error', onError);
     sandbox.on('console', onConsole);
     sandbox.on('kv_get', onKvGet);
@@ -215,6 +220,7 @@ export async function executeSandbox(
 
     function cleanup(): void {
       sandbox.removeListener('execute_result', onExecuteResult);
+      sandbox.removeListener('execute_end', onExecuteEnd);
       sandbox.removeListener('error', onError);
       sandbox.removeListener('console', onConsole);
       sandbox.removeListener('kv_get', onKvGet);

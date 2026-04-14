@@ -4,6 +4,13 @@
 #pragma once
 
 #include <string>
+#include <cstdio>
+
+/// Global instrument flag — set once in main() from INVOKE_INSTRUMENT env var.
+extern bool g_instrument;
+
+/// Emit a log line to stderr only when INVOKE_INSTRUMENT=true.
+#define ILOG(...) do { if (g_instrument) { std::fprintf(stderr, __VA_ARGS__); } } while (0)
 
 namespace invoke {
 
@@ -16,6 +23,7 @@ struct SupervisorConfig {
     int         worker_uid    = 65534;
     int         worker_gid    = 65534;
     int         default_memory_mb = 256;
+    bool        instrument    = false;
 };
 
 /// Run the supervisor event loop. Blocks until shutdown.

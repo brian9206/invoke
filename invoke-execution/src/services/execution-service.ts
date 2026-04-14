@@ -9,7 +9,6 @@ import { insertLog } from './logger-client';
 import { ExecutionEngine, createExecutionContext, AppLogEntry } from './execution-engine';
 import {
   fetchEnvironmentVariables,
-  fetchNetworkPolicies,
   getFunctionPackage,
   createDefaultKVFactory,
 } from './function-providers';
@@ -18,7 +17,6 @@ import {
 const executionEngine = new ExecutionEngine({
   kvStoreFactory: createDefaultKVFactory,
   envVarsProvider: fetchEnvironmentVariables,
-  networkPoliciesProvider: fetchNetworkPolicies,
   appLogHandler: (entry: AppLogEntry) => {
     insertLog({
       project: { id: entry.projectId },
@@ -48,13 +46,12 @@ export const executeFunction = (
 export const updateDefaultTimeout = (timeoutMs: number): void =>
   executionEngine.updateDefaultTimeout(timeoutMs);
 
-/** Remove a project's Docker network so it's re-created with fresh rules on next invoke. */
-export const invalidateProjectNetwork = (projectId: string): Promise<void> =>
-  executionEngine.invalidateProjectNetwork(projectId);
-
 /** Update default memory. Currently a no-op — pool uses config at init time. */
 export const updateDefaultMemory = async (_memoryMb: number): Promise<void> => {
   // The sandbox pool doesn't support hot-swapping memory limits.
 };
 
-export { createExecutionContext, getFunctionPackage, fetchEnvironmentVariables, fetchNetworkPolicies };
+export const applyGlobalNetworkPolicy = (): Promise<void> =>
+  executionEngine.applyGlobalNetworkPolicy();
+
+export { createExecutionContext, getFunctionPackage, fetchEnvironmentVariables };

@@ -1,9 +1,10 @@
 import dns from 'dns/promises';
 import path from 'path';
 import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool';
+import { type NetworkRule } from './sandbox-orchestrator';
+import { fetchNetworkPolicies } from './function-providers';
 import { executeSandbox } from './sandbox-execution-context';
 import { getExecutionSettings } from './execution-settings';
-import type { NetworkRule } from './sandbox-orchestrator';
 import type { RequestData } from 'invoke-runtime/dist/protocol';
 import type { FunctionMetadata } from './function-providers';
 
@@ -19,7 +20,6 @@ export interface AppLogEntry {
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any;
   envVarsProvider?: (functionId: string) => Promise<Record<string, string>>;
-  networkPoliciesProvider?: (projectId: string) => Promise<any>;
   appLogHandler?: (entry: AppLogEntry) => void;
 }
 
@@ -65,13 +65,11 @@ export class ExecutionEngine {
 
   private kvStoreFactory: ((projectId: string) => any) | null;
   private envVarsProvider: ((functionId: string) => Promise<any>) | null;
-  private networkPoliciesProvider: ((projectId: string) => Promise<any>) | null;
   private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
     this.kvStoreFactory = options.kvStoreFactory ?? null;
     this.envVarsProvider = options.envVarsProvider ?? null;
-    this.networkPoliciesProvider = options.networkPoliciesProvider ?? null;
     this.appLogHandler = options.appLogHandler ?? null;
   }
 
@@ -79,7 +77,7 @@ export class ExecutionEngine {
     if (this.initialized) return;
 
     const missing = (
-      ['kvStoreFactory', 'envVarsProvider', 'networkPoliciesProvider'] as const
+      ['kvStoreFactory', 'envVarsProvider'] as const
     ).filter((k) => !this[k]);
 
     if (missing.length) {
@@ -135,7 +133,6 @@ export class ExecutionEngine {
         : settings.defaultTimeoutMs;
 
       const envVars = await this.envVarsProvider!(functionId);
-      const networkPolicies = await this.networkPoliciesProvider!(resolvedProjectId);
       const kvStore = this.kvStoreFactory!(resolvedProjectId);
 
       // Build the RequestData for the protocol
@@ -161,26 +158,8 @@ export class ExecutionEngine {
       // indexPath looks like: /tmp/cache/packages/{dirName}/index.js
       const packageDirName = path.basename(path.dirname(indexPath));
 
-      // Resolve network policies → Docker network rules
-      const allPolicyRows = [
-        ...(networkPolicies.globalRules || []),
-        ...(networkPolicies.projectRules || []),
-      ];
-
-      const hasNetworkRules = false//allPolicyRows.length > 0;
-
-      if (hasNetworkRules) {
-        // Convert policy rows to NetworkRules for iptables
-        const networkRules = await policyRowsToNetworkRules(allPolicyRows);
-        const networkName = `invoke-${resolvedProjectId}`;
-        await this.pool.ensureNetwork(networkName, networkRules);
-        sandbox = await this.pool.acquireWithNetwork(networkName);
-      } else {
-        // No policies — use pooled container with network=none
-        sandbox = await this.pool.acquire();
-      }
-
       // Execute inside the container
+      sandbox = await this.pool.acquire();
       const result = await executeSandbox(sandbox, {
         functionId: packageDirName,
         request,
@@ -235,16 +214,17 @@ export class ExecutionEngine {
   }
 
   /**
-   * Remove a project's Docker network so it gets re-created with fresh rules
-   * on the next invocation. Called when network policies change via PG-NOTIFY.
+   * Fetch global network policy rules from DB and apply them as iptables rules
+   * on the default Docker bridge (invoke-sandbox-global chain).
+   * Safe to call on startup and on every global_network_policies NOTIFY.
    */
-  async invalidateProjectNetwork(projectId: string): Promise<void> {
-    const networkName = `invoke-${projectId}`;
+  async applyGlobalNetworkPolicy(): Promise<void> {
     try {
-      await this.pool.removeNetwork(networkName);
-      console.log(`[NetworkPolicy] Removed network ${networkName} — will be re-created on next invoke`);
-    } catch {
-      // Network may not exist yet, that's fine
+      const { rules } = await fetchNetworkPolicies();
+      const networkRules = await policyRowsToNetworkRules(rules);
+      await this.pool.setGlobalNetwork(networkRules);
+    } catch (err) {
+      console.error('[NetworkPolicy] Failed to apply global network policy:', err);
     }
   }
 }
@@ -300,24 +280,12 @@ interface CreateExecutionContextOptions {
   traceId?: string;
 }
 
-export function createExecutionContext({
-  method = 'POST',
-  body = {},
-  query = {},
-  headers = {},
-  params = {},
-  originalReq = {} as RequestLike,
-  traceId,
-}: CreateExecutionContextOptions = {}): ContextLike {
-  return {
-    req: createRequestObject(method, body, query, headers, params, originalReq),
-    traceId,
-  };
-}
-
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------
 // Network policy helpers
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------
+
+const IPV4_CIDR_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/;
+const IPV4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
 interface PolicyRow {
   action: 'allow' | 'deny';
@@ -326,16 +294,6 @@ interface PolicyRow {
   priority: number;
 }
 
-const IPV4_CIDR_RE = /^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/;
-const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
-
-/**
- * Convert DB network-policy rows into iptables-compatible NetworkRule[].
- * - `allow` → RETURN, `deny` → DROP
- * - ip targets get /32 suffix
- * - domain targets are resolved via DNS (all A records)
- * - Rules are sorted by priority (ascending — lowest number = highest priority)
- */
 async function policyRowsToNetworkRules(rows: PolicyRow[]): Promise<NetworkRule[]> {
   const sorted = [...rows].sort((a, b) => a.priority - b.priority);
   const rules: NetworkRule[] = [];
@@ -373,11 +331,20 @@ async function policyRowsToNetworkRules(rows: PolicyRow[]): Promise<NetworkRule[
     }
   }
 
-  if (rows.length > 0 && rules.length === 0) {
-    throw new Error(
-      'Network policies only contained unsupported targets. Only IPv4 ip/cidr/domain rules are currently supported.',
-    );
-  }
-
   return rules;
+}
+
+export function createExecutionContext({
+  method = 'POST',
+  body = {},
+  query = {},
+  headers = {},
+  params = {},
+  originalReq = {} as RequestLike,
+  traceId,
+}: CreateExecutionContextOptions = {}): ContextLike {
+  return {
+    req: createRequestObject(method, body, query, headers, params, originalReq),
+    traceId,
+  };
 }

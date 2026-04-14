@@ -10,26 +10,22 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { host, rules } = req.body;
+  const { host } = req.body;
 
   if (!host || typeof host !== 'string') {
     return res.status(400).json({ error: 'Host is required' });
   }
 
-  if (!Array.isArray(rules)) {
-    return res.status(400).json({ error: 'Rules must be an array' });
-  }
-
   try {
     // Fetch global policies from database
-    const { GlobalNetworkPolicy } = database.models;
-    const globalRules = (await GlobalNetworkPolicy.findAll({
+    const { NetworkPolicy } = database.models;
+    const rules = (await NetworkPolicy.findAll({
       attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
       order: [['priority', 'ASC']]
     })).map((r: any) => r.get({ plain: true }));
 
-    // Prepend global rules to the provided rules
-    const combinedRules = [...globalRules, ...rules];
+    // Evaluate against rules from database
+    const combinedRules = [...rules];
 
     const result = await evaluatePolicy(host, combinedRules);
     res.json(result);
@@ -53,8 +49,7 @@ async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: bo
     // Resolve domain to IPs
     try {
       const ipv4Addresses = await dns.resolve4(host).catch(() => []);
-      const ipv6Addresses = await dns.resolve6(host).catch(() => []);
-      ipsToCheck = [...ipv4Addresses, ...ipv6Addresses];
+      ipsToCheck = [...ipv4Addresses];
 
       if (ipsToCheck.length === 0) {
         return { allowed: true, reason: 'DNS resolution pending' };
@@ -62,19 +57,6 @@ async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: bo
     } catch (err) {
       return { allowed: true, reason: 'DNS resolution error' };
     }
-  }
-
-  // Check if IPv6 addresses are in the list
-  const hasIPv6 = ipsToCheck.some(ip => ip.includes(':'));
-  const hasIPv6Rules = rules.some(rule => 
-    (rule.target_type === 'cidr' || rule.target_type === 'ip') && rule.target_value.includes(':')
-  );
-
-  if (hasIPv6 && !hasIPv6Rules) {
-    return {
-      allowed: false,
-      reason: 'IPv6 connection blocked - no IPv6 rules configured'
-    };
   }
 
   // Evaluate rules in priority order
