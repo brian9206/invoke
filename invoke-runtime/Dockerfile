@@ -60,9 +60,20 @@ COPY --from=supervisor-builder /build/builddir/invoke-supervisor /usr/local/bin/
 RUN chmod 755 /usr/local/bin/invoke-supervisor
 
 # --- Build /opt/rootfs (the chroot environment for user functions) ---
-# Clone the full Bun image filesystem into /opt/rootfs. This gives the
-# chroot a working Bun installation (binary + glibc + ssl certs + locale).
-COPY --from=bun-rootfs / /opt/rootfs/
+# Copy only the minimal files Bun needs to run inside the chroot.
+
+# Bun binary
+COPY --from=bun-rootfs /usr/local/bin/bun /opt/rootfs/usr/local/bin/bun
+
+# musl dynamic linker / libc (arch-specific, e.g. ld-musl-x86_64.so.1)
+COPY --from=bun-rootfs /lib/ld-musl-*.so.1 /opt/rootfs/lib/
+
+# C++ runtime libraries required by Bun
+COPY --from=bun-rootfs /usr/lib/libstdc++.so.6* /opt/rootfs/usr/lib/
+COPY --from=bun-rootfs /usr/lib/libgcc_s.so.1   /opt/rootfs/usr/lib/
+
+# TLS certificate bundle (needed for HTTPS inside functions)
+COPY --from=bun-rootfs /etc/ssl/certs/ca-certificates.crt /opt/rootfs/etc/ssl/certs/ca-certificates.crt
 
 # Install the shim TypeScript sources and production deps into the rootfs.
 # Bun executes .ts files natively — no compilation step needed.
@@ -79,7 +90,6 @@ RUN mkdir -p \
       /opt/rootfs/sys \
       /opt/rootfs/dev \
       /opt/rootfs/run \
-      /opt/rootfs/functions \
       /opt/inv
 
 # Expose bun and the shim at container-level paths so the supervisor can

@@ -146,7 +146,7 @@ async function main(): Promise<void> {
   };
 
   try {
-    const entryPath = `/${entry}`;
+    const entryPath = `/app/${entry}`;
 
     // Polyfill require() for user functions that use CommonJS.
     // Bun's native import() handles ESM/CJS loading, but globalThis.require

@@ -118,9 +118,9 @@ static int child_fn(void* arg) {
         std::chrono::high_resolution_clock::now() - chroot_start).count();
     ILOG("[child_fn] chroot took %ldms\n", chroot_ms);
 
-    // 3. chdir to new root
+    // 3. chdir to /app — the function code working directory
     auto chdir_start = std::chrono::high_resolution_clock::now();
-    if (::chdir("/") < 0) {
+    if (::chdir("/app") < 0) {
         std::perror("[worker-child] chdir");
         _exit(126);
     }
@@ -263,8 +263,9 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     }
     ILOG("[sandbox_setup_fs] upper/work dirs created\n");
 
-    // Mount overlayfs: lowerdir = function_code : rootfs
-    auto overlay_opts = "lowerdir=" + lower_dir + ":" + rootfs +
+    // Mount overlayfs: lowerdir = rootfs only. Function code is bind-mounted
+    // separately at /app so it appears at a predictable, isolated path.
+    auto overlay_opts = "lowerdir=" + rootfs +
                         ",upperdir=" + paths.upper_dir +
                         ",workdir=" + paths.work_dir;
     ILOG("[sandbox_setup_fs] mounting overlay at %s with options %s\n", paths.merged_dir.c_str(), overlay_opts.c_str());
@@ -278,6 +279,20 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     auto overlay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - overlay_start).count();
     ILOG("[sandbox_setup_fs] overlay mount took %ldms\n", overlay_ms);
+
+    // Bind-mount function code read-only at /app inside the overlay
+    auto app_jail = paths.merged_dir + "/app";
+    if (!mkdirp(app_jail)) {
+        g_last_setup_error = "failed to create /app in merged dir";
+        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+        return false;
+    }
+    ILOG("[sandbox_setup_fs] bind-mounting function code %s -> /app\n", lower_dir.c_str());
+    if (::mount(lower_dir.c_str(), app_jail.c_str(), nullptr, MS_BIND | MS_RDONLY, nullptr) < 0) {
+        g_last_setup_error = "bind mount of function code to /app failed (" + std::string(std::strerror(errno)) + ")";
+        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+        return false;
+    }
 
     // Bind mount /run/events.sock into the sandbox for event communication back to the supervisor
     auto events_socket_host = "/run/events.sock";
@@ -445,6 +460,15 @@ void sandbox_cleanup(const SandboxPaths& paths, const std::string& invocation_id
                      events_socket_jail.c_str(), std::strerror(errno));
     }
     ILOG("[sandbox_cleanup] socket unmounted\n");
+
+    // Lazy-unmount /app bind mount (function code) before the overlay
+    auto app_jail = paths.merged_dir + "/app";
+    ILOG("[sandbox_cleanup] unmounting /app at %s\n", app_jail.c_str());
+    if (::umount2(app_jail.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
+        std::fprintf(stderr, "[sandbox_cleanup] umount2 /app(%s): %s\n",
+                     app_jail.c_str(), std::strerror(errno));
+    }
+    ILOG("[sandbox_cleanup] /app unmounted\n");
 
     // Lazy-unmount overlay
     ILOG("[sandbox_cleanup] unmounting overlay at %s\n", paths.merged_dir.c_str());
