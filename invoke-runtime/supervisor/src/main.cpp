@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
+#include <iomanip>
 
 static const char* env_or(const char* name, const char* fallback) {
     const char* val = std::getenv(name);
@@ -19,7 +21,6 @@ int main() {
     invoke::SupervisorConfig config;
 
     config.socket_path     = env_or("INVOKE_SOCKET_PATH", "/run/events.sock");
-    config.bun_path        = env_or("INVOKE_BUN_PATH", "/usr/local/bin/bun");
     config.rootfs_path     = env_or("INVOKE_ROOTFS_PATH", "/opt/rootfs");
     config.tmpfs_mb        = std::atoi(env_or("SANDBOX_TMPFS_MB", "64"));
     config.worker_uid      = std::atoi(env_or("INVOKE_WORKER_UID", "65534"));
@@ -30,12 +31,14 @@ int main() {
     config.instrument = (inv_instrument && std::strcmp(inv_instrument, "true") == 0);
     g_instrument = config.instrument;
 
-    std::fprintf(stdout, "[supervisor] Starting invoke-supervisor\n");
-    std::fprintf(stdout, "[supervisor]   socket:   %s\n", config.socket_path.c_str());
-    std::fprintf(stdout, "[supervisor]   rootfs:   %s\n", config.rootfs_path.c_str());
-    std::fprintf(stdout, "[supervisor]   bun:      %s\n", config.bun_path.c_str());
-    std::fprintf(stdout, "[supervisor]   tmpfs:    %d MB\n", config.tmpfs_mb);
-    std::fprintf(stdout, "[supervisor]   uid/gid:  %d/%d\n", config.worker_uid, config.worker_gid);
+    std::ios_base::sync_with_stdio(false); 
+    std::cin.tie(NULL);
+
+    std::cout << "[supervisor] Starting supervisor" << std::endl;
+    std::cout << "[supervisor]   socket:   " << config.socket_path << std::endl;
+    std::cout << "[supervisor]   rootfs:   " << config.rootfs_path << std::endl;
+    std::cout << "[supervisor]   tmpfs:    " << config.tmpfs_mb << " MB" << std::endl;
+    std::cout << "[supervisor]   uid/gid:  " << config.worker_uid << "/" << config.worker_gid << std::endl;
 
     invoke::supervisor_run(config);
 

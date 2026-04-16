@@ -101,7 +101,7 @@ export async function executeSandbox(
       cleanup();
     };
 
-    const onError = (payload: { error?: string }) => {
+    const onWorkerError = (payload: { error?: string }) => {
       if (settled) return;
       settled = true;
       cleanup();
@@ -203,13 +203,32 @@ export async function executeSandbox(
       });
     };
 
+    // If the supervisor sends 'ready' while we are still waiting for a result,
+    // it means the worker process died without completing the execution
+    // (e.g. process.exit(0) without calling res.send()). The sandbox is
+    // already being returned to the pool by the pool's own 'ready' listener,
+    // so we must settle immediately to prevent our listeners from firing on
+    // the next request's response.
+    const onReady = (payload?: { exitCode?: number }) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      clearTimeout(timer);
+
+      const exitCode = payload?.exitCode ?? 'unknown';
+      resolve({
+        error: `Worker process crashed (exit code ${exitCode})`,
+        statusCode: 503,
+      });
+    };
+
     // ------------------------------------------------------------------
     // Register listeners
     // ------------------------------------------------------------------
 
     sandbox.on('execute_result', onExecuteResult);
     sandbox.on('execute_end', onExecuteEnd);
-    sandbox.on('error', onError);
+    sandbox.on('worker_error', onWorkerError);
     sandbox.on('console', onConsole);
     sandbox.on('kv_get', onKvGet);
     sandbox.on('kv_set', onKvSet);
@@ -218,11 +237,12 @@ export async function executeSandbox(
     sandbox.on('kv_has', onKvHas);
     sandbox.on('realtime_cmd', onRealtimeCmd);
     sandbox.on('exit', onContainerExit);
+    sandbox.on('ready', onReady);
 
     function cleanup(): void {
       sandbox.removeListener('execute_result', onExecuteResult);
       sandbox.removeListener('execute_end', onExecuteEnd);
-      sandbox.removeListener('error', onError);
+      sandbox.removeListener('worker_error', onWorkerError);
       sandbox.removeListener('console', onConsole);
       sandbox.removeListener('kv_get', onKvGet);
       sandbox.removeListener('kv_set', onKvSet);
@@ -231,6 +251,7 @@ export async function executeSandbox(
       sandbox.removeListener('kv_has', onKvHas);
       sandbox.removeListener('realtime_cmd', onRealtimeCmd);
       sandbox.removeListener('exit', onContainerExit);
+      sandbox.removeListener('ready', onReady);
     }
 
     // ------------------------------------------------------------------

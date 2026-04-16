@@ -17,7 +17,6 @@ namespace invoke {
 /// Configuration for the supervisor.
 struct SupervisorConfig {
     std::string socket_path   = "/run/events.sock";
-    std::string bun_path      = "/usr/local/bin/bun";
     std::string rootfs_path   = "/opt/rootfs";
     int         tmpfs_mb      = 64;
     int         worker_uid    = 65534;

@@ -18,17 +18,17 @@ endif
 
 # ── Sources ──────────────────────────────────────────────────────────────
 src = files(
-  'supervisor/src/main.cpp',
-  'supervisor/src/supervisor.cpp',
-  'supervisor/src/protocol.cpp',
-  'supervisor/src/sandbox.cpp',
-  'supervisor/src/cgroup.cpp',
+  'src/main.cpp',
+  'src/supervisor.cpp',
+  'src/protocol.cpp',
+  'src/sandbox.cpp',
+  'src/cgroup.cpp',
 )
 
 executable(
   'invoke-supervisor',
   src,
   dependencies : [json_dep],
-  include_directories : include_directories('supervisor/src'),
+  include_directories : include_directories('src'),
   install : true,
 )

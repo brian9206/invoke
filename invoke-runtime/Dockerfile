@@ -20,17 +20,15 @@ RUN ARCH=$(uname -m) && \
     && chmod 755 /usr/local/bin/bun \
     && rm -rf /tmp/bun.zip /tmp/bun
 
-# ============ STAGE 1: Install shim production dependencies ============
-FROM bun-base AS shim-deps
+# ============ STAGE 1: Worker builder ============
+FROM bun-base AS worker-builder
 
 WORKDIR /opt/shim
-COPY invoke-runtime/package.json ./
+COPY invoke-runtime/worker/package.json ./
 # Install devDependencies too for the build step if needed, or just install all
 RUN bun install
-COPY invoke-runtime/src/ ./src/
+COPY invoke-runtime/worker/src/ ./src/
 RUN bun run build
-# Then remove devDependencies for smaller size if desired, but we just copy dist/ and node_modules/ anyway.
-RUN bun install --production
 
 # ============ STAGE 2: C++ supervisor builder ============
 FROM alpine:3 AS supervisor-builder
@@ -38,18 +36,11 @@ FROM alpine:3 AS supervisor-builder
 RUN apk add --no-cache meson ninja build-base g++ pkgconf
 
 WORKDIR /build
-COPY invoke-runtime/meson.build ./
-COPY invoke-runtime/supervisor/ ./supervisor/
-# Copy vendored subprojects so meson builds fully offline
-COPY invoke-runtime/subprojects/ ./subprojects/
+COPY invoke-runtime/supervisor/ ./
 RUN meson setup builddir --backend=ninja --wrap-mode=nofallback \
     && ninja -C builddir
 
-# ============ STAGE 3: Bun filesystem — source for /opt/rootfs ============
-FROM bun-base AS bun-rootfs
-# This stage exists solely so we can COPY its filesystem into /opt/rootfs below.
-
-# ============ STAGE 4: Final runtime image ============
+# ============ STAGE 3: Final runtime image ============
 FROM alpine:3
 
 # libstdc++ and libgcc are needed by the supervisor binary (C++20).
@@ -63,24 +54,21 @@ RUN chmod 755 /usr/local/bin/invoke-supervisor
 # Copy only the minimal files Bun needs to run inside the chroot.
 
 # Bun binary
-COPY --from=bun-rootfs /usr/local/bin/bun /opt/rootfs/usr/local/bin/bun
+COPY --from=bun-base /usr/local/bin/bun /opt/rootfs/usr/local/bin/bun
 
 # musl dynamic linker / libc (arch-specific, e.g. ld-musl-x86_64.so.1)
-COPY --from=bun-rootfs /lib/ld-musl-*.so.1 /opt/rootfs/lib/
+COPY --from=bun-base /lib/ld-musl-*.so.1 /opt/rootfs/lib/
 
 # C++ runtime libraries required by Bun
-COPY --from=bun-rootfs /usr/lib/libstdc++.so.6* /opt/rootfs/usr/lib/
-COPY --from=bun-rootfs /usr/lib/libgcc_s.so.1   /opt/rootfs/usr/lib/
+COPY --from=bun-base /usr/lib/libstdc++.so.6* /opt/rootfs/usr/lib/
+COPY --from=bun-base /usr/lib/libgcc_s.so.1   /opt/rootfs/usr/lib/
 
 # TLS certificate bundle (needed for HTTPS inside functions)
-COPY --from=bun-rootfs /etc/ssl/certs/ca-certificates.crt /opt/rootfs/etc/ssl/certs/ca-certificates.crt
+COPY --from=bun-base /etc/ssl/certs/ca-certificates.crt /opt/rootfs/etc/ssl/certs/ca-certificates.crt
 
-# Install the shim TypeScript sources and production deps into the rootfs.
-# Bun executes .ts files natively — no compilation step needed.
-#COPY invoke-runtime/src/ /opt/rootfs/opt/shim/src/
-COPY --from=shim-deps /opt/shim/dist/ /opt/rootfs/opt/shim/dist/
-COPY --from=shim-deps /opt/shim/node_modules/ /opt/rootfs/opt/shim/node_modules/
-COPY invoke-runtime/package.json /opt/rootfs/opt/shim/package.json
+# Copy the worker shim files built in the worker-builder stage.
+COPY --from=worker-builder /opt/shim/dist/ /opt/rootfs/opt/shim/
+RUN chmod 755 /opt/rootfs/opt/shim/worker
 
 # Create directories that must exist inside the rootfs but aren't part of the
 # Bun image (virtual mounts, invocation scratch space).

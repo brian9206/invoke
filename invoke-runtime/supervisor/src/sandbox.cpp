@@ -93,8 +93,7 @@ struct ChildArgs {
     int         uid;
     int         gid;
     // execve argv (null-terminated)
-    const char* bun_path;
-    const char* worker_script;
+    const char* worker_path;
     const char* entry;
     // execve envp (null-terminated, built by parent)
     const char* const* envp;
@@ -167,12 +166,10 @@ static int child_fn(void* arg) {
 
     // 5. Build argv for execve
     const char* argv_no_instr[] = {
-        "bun", "--smol", "--no-install", "--no-pkg-config",
-        a->worker_script, a->entry, nullptr,
+        a->worker_path, a->entry, nullptr,
     };
     const char* argv_with_instr[] = {
-        "bun", "--smol", "--no-install", "--no-pkg-config",
-        a->worker_script, a->entry, "--instrument", nullptr,
+        a->worker_path, a->entry, "--instrument", nullptr,
     };
     const char* const* argv =
         g_instrument ? argv_with_instr : argv_no_instr;
@@ -185,7 +182,7 @@ static int child_fn(void* arg) {
     ILOG("[child_fn] setup complete in %ldms, about to execve bun\n", child_setup_ms);
 
     // 7. execve
-    ::execve(a->bun_path, const_cast<char* const*>(argv), const_cast<char* const*>(a->envp));
+    ::execve(a->worker_path, const_cast<char* const*>(argv), const_cast<char* const*>(a->envp));
 
     // Only reached on error
     std::perror("[worker-child] execve");
@@ -351,7 +348,6 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
 pid_t sandbox_start_worker(const SandboxPaths& paths,
                            const std::string& invocation_id,
                            const std::string& entry,
-                           const std::string& bun_path,
                            uint64_t memory_bytes,
                            int uid, int gid,
                            const std::vector<std::string>& extra_env) {
@@ -371,8 +367,7 @@ pid_t sandbox_start_worker(const SandboxPaths& paths,
     args.invocation_id = invocation_id.c_str();
     args.uid           = uid;
     args.gid           = gid;
-    args.bun_path      = bun_path.c_str();
-    args.worker_script = "/opt/shim/dist/index.js";
+    args.worker_path   = "/opt/shim/worker";
     args.entry         = entry.c_str();
 
     // 3. Build envp: base vars required by Bun + caller-supplied user vars.
@@ -384,6 +379,7 @@ pid_t sandbox_start_worker(const SandboxPaths& paths,
         "TMPDIR=/tmp",
         "PATH=/usr/local/bin:/usr/bin:/bin",
         "TZ=UTC",
+        "BUN_JSC_maxPerThreadStackUsage=524288",    // --smol
     };
     static constexpr std::size_t BASE_COUNT = sizeof(base_vars) / sizeof(base_vars[0]);
 
@@ -445,13 +441,12 @@ pid_t sandbox_start_worker(const SandboxPaths& paths,
 int sandbox_spawn_worker(const SandboxPaths& paths,
                          const std::string& invocation_id,
                          const std::string& entry,
-                         const std::string& bun_path,
                          uint64_t memory_bytes,
                          int uid, int gid,
                          const std::vector<std::string>& extra_env) {
     auto spawn_start = std::chrono::high_resolution_clock::now();
 
-    pid_t child_pid = sandbox_start_worker(paths, invocation_id, entry, bun_path, memory_bytes, uid, gid, extra_env);
+    pid_t child_pid = sandbox_start_worker(paths, invocation_id, entry, memory_bytes, uid, gid, extra_env);
     if (child_pid < 0) return -1;
 
     ILOG("[spawn_worker] waiting for child (pid %d) to exit...\n", child_pid);

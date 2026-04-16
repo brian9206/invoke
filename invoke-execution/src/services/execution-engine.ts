@@ -191,10 +191,9 @@ export class ExecutionEngine {
       }
 
       const errorMessage = error.message || String(error);
-      const errorStack = error.stack || '';
 
       return {
-        error: errorMessage + (errorStack ? '\n' + errorStack : ''),
+        error: errorMessage,
         statusCode: 500,
       };
     }

@@ -123,7 +123,7 @@ async function main(): Promise<void> {
   };
 
   const exitWithError = (message: string) => {
-    ipcSocket.end(encode('error', { error: message }), () => {
+    ipcSocket.end(encode('worker_error', { error: message }), () => {
       log('[worker] Flush complete');
       process.exit(0);
     });
@@ -208,7 +208,7 @@ async function main(): Promise<void> {
     }
   } catch (err: any) {
     console.error('[worker] Failed to load user function module:', err);
-    exitWithError(err.message);
+    exitWithError('Failed to load user function module: ' + err.message);
     return;
   }
 

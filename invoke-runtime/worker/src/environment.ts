@@ -1,13 +1,14 @@
 import { KvClient, setupKvGlobal } from "./kv";
 import { RealtimeClient, setupRealtimeGlobal } from "./realtime";
 import { setupRouterGlobal } from "./router";
-
-const global = globalThis as any;
+import { setupSleepGlobal } from "./sleep";
 
 export function setupEnvironment(
   kvClient: KvClient,
   realtimeClient: RealtimeClient,
 ) {
+  setupSleepGlobal();
+
   // Expose KV on globalThis for user code
   setupKvGlobal(kvClient);
 

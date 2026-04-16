@@ -45,7 +45,6 @@ const std::string& sandbox_last_setup_error();
 pid_t sandbox_start_worker(const SandboxPaths& paths,
                            const std::string& invocation_id,
                            const std::string& entry,
-                           const std::string& bun_path,
                            uint64_t memory_bytes,
                            int uid, int gid,
                            const std::vector<std::string>& extra_env = {});
@@ -57,7 +56,7 @@ pid_t sandbox_start_worker(const SandboxPaths& paths,
 int sandbox_spawn_worker(const SandboxPaths& paths,
                          const std::string& invocation_id,
                          const std::string& entry,
-                         const std::string& bun_path,
+
                          uint64_t memory_bytes,
                          int uid, int gid,
                          const std::vector<std::string>& extra_env = {});

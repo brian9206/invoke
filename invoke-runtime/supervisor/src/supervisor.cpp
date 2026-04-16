@@ -12,6 +12,8 @@
 #include <csignal>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
+#include <iomanip>
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -72,7 +74,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
 
     if (invocation_id.empty() || code_path.empty()) {
         std::fprintf(stderr, "[supervisor] Invalid execute event: missing fields\n");
-        write_event(host_fd, "error", {{"error", "Missing invocationId or codePath"}});
+        write_event(host_fd, "worker_error", {{"error", "Missing invocationId or codePath"}});
         write_event(host_fd, "ready");
         return;
     }
@@ -96,7 +98,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
         const auto& detail = sandbox_last_setup_error();
         std::fprintf(stderr, "[supervisor] Filesystem setup failed for %s: %s\n",
                      invocation_id.c_str(), detail.c_str());
-        write_event(host_fd, "error", {{"error", "Filesystem setup failed"}, {"detail", detail}});
+        write_event(host_fd, "worker_error", {{"error", "Filesystem setup failed"}, {"detail", detail}});
         sandbox_cleanup(paths, invocation_id);
         write_event(host_fd, "ready");
         return;
@@ -122,7 +124,6 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
         paths,
         invocation_id,
         entry,
-        config.bun_path,
         static_cast<uint64_t>(config.default_memory_mb) * 1024 * 1024,
         config.worker_uid,
         config.worker_gid,
@@ -131,7 +132,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
 
     if (worker_pid < 0) {
         std::fprintf(stderr, "[supervisor] Worker spawn failed for %s\n", invocation_id.c_str());
-        write_event(host_fd, "error", {{"error", "Worker spawn failed"}});
+        write_event(host_fd, "worker_error", {{"error", "Worker spawn failed"}});
         sandbox_cleanup(paths, invocation_id);
         write_event(host_fd, "ready");
         return;
@@ -186,7 +187,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     if (exit_code != 0 && !kill_sent) {
         std::fprintf(stderr, "[supervisor] Worker exited with code %d for %s\n",
                      exit_code, invocation_id.c_str());
-        write_event(host_fd, "error", {{"error", "Worker exited with code " + std::to_string(exit_code)}});
+        write_event(host_fd, "worker_error", {{"error", "Worker exited with code " + std::to_string(exit_code)}});
     }
 
     // 3. Cleanup
@@ -204,8 +205,8 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
          total_ms, fs_ms, spawn_ms, cleanup_ms);
 
     // 4. Signal ready for next invocation
-    ILOG("[supervisor] Sending ready event\n");
-    if (!write_event(host_fd, "ready")) {
+    std::cout << "[supervisor] ready for next invocation" << std::endl;
+    if (!write_event(host_fd, "ready", {{"exitCode", exit_code}})) {
         std::fprintf(stderr, "[supervisor] Failed to send ready event\n");
     } else {
         ILOG("[supervisor] Ready event sent, waiting for next invocation\n");
@@ -268,7 +269,7 @@ void supervisor_run(const SupervisorConfig& config) {
         auto events = decoder.feed(buf, static_cast<size_t>(n));
         for (const auto& ev : events) {
             if (ev.event == "execute") {
-                ILOG("[supervisor] execute request received\n");
+                std::cout << "[supervisor] execute request received" << std::endl;
                 handle_execute(host_fd, config, ev);
             }
         }

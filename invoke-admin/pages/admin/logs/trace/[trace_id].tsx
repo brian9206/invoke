@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   Loader,
+  AlertTriangle,
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -213,6 +214,21 @@ export default function TraceDetail() {
               </Card>
             ))}
           </div>
+
+          {/* Error Banner */}
+          {execution?.error && (
+            <Card className="border-destructive/50">
+              <CardContent className="pt-6">
+                <h2 className="text-base font-bold flex items-center gap-2 text-destructive mb-3">
+                  <AlertTriangle className="w-5 h-5" />
+                  Execution Error
+                </h2>
+                <pre className="bg-destructive/10 text-destructive rounded p-3 text-sm font-mono whitespace-pre-wrap break-all">
+                  {execution.error}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Request Details */}
           {execution && (

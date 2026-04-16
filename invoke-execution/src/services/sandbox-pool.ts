@@ -259,6 +259,9 @@ export class SandboxPool extends EventEmitter {
       
       if (this.shuttingDown) return;
 
+      // If this sandbox was removed from the pool (crashed), ignore the ready event
+      if (!this.allSandboxes.has(sandbox.id)) return;
+
       // If it was busy, move to idle
       if (this.busySet.has(sandbox)) {
         this.busySet.delete(sandbox);
