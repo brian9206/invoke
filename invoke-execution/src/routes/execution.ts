@@ -281,10 +281,10 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
     FunctionModel.update(
       { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
       { where: { id: functionId } },
-    ).catch((err: any) => console.error('[TIMING] FunctionModel.update failed:', err.message));
+    ).catch((err: any) => console.error('[ERROR] FunctionModel.update failed:', err.message));
 
     console.log(
-      `[TIMING] ${functionId}: total=${executionTime}ms | package=${packageTime}ms | execute=${executeTime}ms`,
+      `[EXECUTE] ${functionId}: total=${executionTime}ms | package=${packageTime}ms | execute=${executeTime}ms`,
     );
   } catch (error: any) {
     const executionTime = Date.now() - startTime;

@@ -125,7 +125,11 @@ export class SandboxPool extends EventEmitter {
     if (idle) {
       this.busySet.add(idle);
       const idleTime = Date.now() - acquireStart;
-      console.log(`[POOL] acquire (IDLE): ${idleTime}ms`);
+
+      if (process.env.INVOKE_INSTRUMENT) {
+        console.log(`[POOL] acquire (IDLE): ${idleTime}ms`);
+      }
+      
       return idle;
     }
 
@@ -275,8 +279,6 @@ export class SandboxPool extends EventEmitter {
       } else {
         this.idleSet.add(sandbox);
       }
-
-      console.log('idle', this.idleSet.size, 'busy', this.busySet.size, 'waiters', this.waiters.length);
     });
 
     // Collect container output — surfaces supervisor errors and crash messages

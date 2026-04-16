@@ -112,9 +112,11 @@ export async function getFunctionPackage(functionId: string, metadata: FunctionM
 
     if (cacheResult.cached && cacheResult.valid) {
       await cache.updateAccessStats(functionId);
-      console.log(
-        `[PACKAGE] ${functionId}: CACHED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms)`,
-      );
+
+      if (process.env.INVOKE_INSTRUMENT) {
+        console.log(`[PACKAGE] ${functionId}: CACHED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms)`);
+      }
+
       return {
         tempDir: cacheResult.extractedPath!,
         indexPath: path.join(cacheResult.extractedPath!, 'index.js'),
@@ -139,9 +141,9 @@ export async function getFunctionPackage(functionId: string, metadata: FunctionM
     );
     const downloadTime = Date.now() - t3;
 
-    console.log(
-      `[PACKAGE] ${functionId}: DOWNLOADED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms | download=${downloadTime}ms)`,
-    );
+    if (process.env.INVOKE_INSTRUMENT) {
+      console.log(`[PACKAGE] ${functionId}: DOWNLOADED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms | download=${downloadTime}ms)`);
+    }
 
     return {
       tempDir: extractedPath,

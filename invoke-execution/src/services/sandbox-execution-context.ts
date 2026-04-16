@@ -263,7 +263,11 @@ export async function executeSandbox(
 
     try {
       sandbox.setPendingBootstrapPayload(request);
-      console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);
+
+      if (process.env.INVOKE_INSTRUMENT) {
+        console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);
+      }
+      
       sandbox.emit('execute', {
         functionId,
         invocationId,

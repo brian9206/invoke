@@ -83,7 +83,6 @@ async function execIptables(args: string[]): Promise<void> {
 }
 
 async function runIptablesRestore(input: string): Promise<void> {
-  console.log('[iptables-restore] Applying rules:\n---\n' + input + '\n---');
   const iptablesRestoreBin = await getIptablesRestoreBin();
   return new Promise((resolve, reject) => {
     const proc = spawn(iptablesRestoreBin, ['--noflush']);
@@ -199,7 +198,6 @@ export class Sandbox extends EventEmitter {
     this._setupIpcReader(socket);
 
     socket.on('close', () => {
-      console.log('[ipc] client closed')
       const idx = this._ipcClients.indexOf(socket);
       if (idx !== -1) this._ipcClients.splice(idx, 1);
 
@@ -208,7 +206,6 @@ export class Sandbox extends EventEmitter {
       }
     });
     socket.on('error', (err) => {
-      console.log('[ipc] client error', err)
       socket.destroy();
     });
   }
@@ -351,7 +348,11 @@ export class Sandbox extends EventEmitter {
 
                 const bootstrapPayload = this._pendingBootstrapPayload;
                 this._pendingBootstrapPayload = null;
-                console.log(`[IPC_TX] payload sent at ${Date.now()}`);
+
+                if (process.env.INVOKE_INSTRUMENT) {
+                  console.log(`[IPC_TX] payload sent at ${Date.now()}`);
+                }
+
                 socket.write(Buffer.from(JSON.stringify({ event: 'payload', payload: bootstrapPayload }) + '\n', 'utf8'));
                 continue;
               }
@@ -533,7 +534,6 @@ export class SandboxOrchestrator {
 
       // Wire IPC client connections
       ipcServer.on('connection', (client: net.Socket) => {
-        console.log('[ipc] client connected');
         sandbox._addIpcClient(client);
       });
 
