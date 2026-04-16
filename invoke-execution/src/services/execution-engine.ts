@@ -5,7 +5,7 @@ import { type NetworkRule } from './sandbox-orchestrator';
 import { fetchNetworkPolicies } from './function-providers';
 import { executeSandbox } from './sandbox-execution-context';
 import { getExecutionSettings } from './execution-settings';
-import type { RequestData } from 'invoke-runtime/dist/protocol';
+import type { RequestData } from 'invoke-worker/src/protocol';
 import type { FunctionMetadata } from './function-providers';
 
 export interface AppLogEntry {

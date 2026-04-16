@@ -90,13 +90,16 @@ services:
       - SANDBOX_MIN_POOL_SIZE=${SANDBOX_MIN_POOL_SIZE:-5}
       - SANDBOX_MAX_POOL_SIZE=${SANDBOX_MAX_POOL_SIZE:-20}
       - SANDBOX_MEMORY_MB=${SANDBOX_MEMORY_MB:-256}
-      - SANDBOX_RUNTIME=${SANDBOX_RUNTIME:-runc}
+      - SANDBOX_RUNTIME=${SANDBOX_RUNTIME:-runsc}
       - DOCKER_SOCKET=/var/run/docker.sock
+      # Set GVISOR_PLATFORM=ptrace to fall back if /dev/kvm is unavailable
+      - GVISOR_PLATFORM=${GVISOR_PLATFORM:-kvm}
     privileged: true
-    cap_add:
-      - NET_ADMIN
+    devices:
+      - /dev/kvm:/dev/kvm
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      # DIND: isolated Docker storage volume (no host socket mount)
+      - execution_docker:/var/lib/docker
       - execution_cache:/tmp/cache
     depends_on:
       postgres_app:
@@ -241,6 +244,7 @@ volumes:
   postgres_data:
   postgres_logs_data:
   minio_data:
+  execution_docker:
   execution_cache:
 
 networks:

@@ -6,7 +6,7 @@
 import crypto from 'crypto';
 import axios from 'axios';
 import type { Sandbox } from './sandbox-orchestrator';
-import type { RequestData, ResponseData } from 'invoke-runtime/dist/protocol';
+import type { RequestData, ResponseData } from 'invoke-worker/src/protocol';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -267,7 +267,7 @@ export async function executeSandbox(
       if (process.env.INVOKE_INSTRUMENT) {
         console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);
       }
-      
+
       sandbox.emit('execute', {
         functionId,
         invocationId,

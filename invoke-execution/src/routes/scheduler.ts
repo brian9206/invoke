@@ -28,7 +28,25 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
   try {
     console.log(`Executing scheduled function: ${functionData.name} (ID: ${functionData.id})`);
 
-    const { indexPath } = await getFunctionPackage(functionData.id);
+    const metadata = {
+      id: functionData.id,
+      name: functionData.name,
+      project_id: functionData.project_id,
+      project_slug: functionData.project_slug,
+      is_active: functionData.is_active,
+      created_at: functionData.created_at,
+      updated_at: functionData.updated_at,
+      version: functionData.version ?? null,
+      package_path: functionData.package_path ?? null,
+      package_hash: functionData.package_hash ?? null,
+      file_size: functionData.file_size ?? null,
+      custom_timeout_enabled: functionData.custom_timeout_enabled ?? false,
+      custom_timeout_seconds: functionData.custom_timeout_seconds ?? null,
+      custom_memory_enabled: functionData.custom_memory_enabled ?? false,
+      custom_memory_mb: functionData.custom_memory_mb ?? null,
+    };
+
+    const { indexPath } = await getFunctionPackage(functionData.id, metadata);
 
     const context = createExecutionContext({
       headers: { 'x-scheduled-execution': 'true' },
@@ -43,7 +61,7 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       traceId,
     });
 
-    const result = await executeFunction(indexPath, context, functionData.id);
+    const result = await executeFunction(indexPath, context, functionData.id, metadata);
 
     const executionTime = Date.now() - startTime;
     const statusCode = result.statusCode || 200;
