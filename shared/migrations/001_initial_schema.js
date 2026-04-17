@@ -461,7 +461,7 @@ module.exports = {
       { setting_key: 'log_retention_type',    setting_value: 'time',                          description: 'Default log retention type: time, count, or none' },
       { setting_key: 'log_retention_value',   setting_value: '7',                             description: 'Default log retention value (7 days or 1000 count)' },
       { setting_key: 'log_retention_enabled', setting_value: 'true',                          description: 'Whether log retention cleanup is enabled globally' },
-      { setting_key: 'function_base_url',     setting_value: 'https://localhost:3001/invoke', description: 'Base URL for function invocation endpoints' },
+      { setting_key: 'function_base_url',     setting_value: 'http://localhost:3001/invoke', description: 'Base URL for function invocation endpoints' },
       { setting_key: 'kv_storage_limit_bytes',setting_value: '1073741824',                   description: 'Maximum storage size for project KV store in bytes (default 1GB)' },
       { setting_key: 'api_gateway_domain',    setting_value: '',                              description: 'Default API Gateway domain (e.g., api.example.com). Used for the default URL pattern: <domain>/<project-slug>/<route>' },
     ]);

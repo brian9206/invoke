@@ -17,7 +17,7 @@ GVISOR_PLATFORM="${GVISOR_PLATFORM:-ptrace}"
 # we don't have to bake it into the image at build time.
 DAEMON_JSON=/etc/docker/daemon.json
 PATCHED=$(cat "$DAEMON_JSON" | \
-  sed "s|\"path\": \"/usr/local/bin/runsc\"|\"path\": \"/usr/local/bin/runsc\", \"runtimeArgs\": [\"--platform=${GVISOR_PLATFORM}\", \"--host-uds=open\", \"--network=sandbox\"]|")
+  sed "s|\"path\": \"/usr/local/bin/runsc\"|\"path\": \"/usr/local/bin/runsc\", \"runtimeArgs\": [\"--platform=${GVISOR_PLATFORM}\", \"--host-uds=open\", \"--network=sandbox\", \"--vfs2\"]|")
 echo "$PATCHED" > "$DAEMON_JSON"
 
 echo "[entrypoint] Starting Docker daemon (gVisor platform: ${GVISOR_PLATFORM})..."
