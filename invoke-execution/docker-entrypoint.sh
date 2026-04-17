@@ -52,7 +52,15 @@ done
 
 echo "[entrypoint] Docker daemon is ready."
 
-export DOCKER_BUILDKIT=1
-docker build -t $RUNTIME_IMAGE -f /app/invoke-runtime/Dockerfile /app
+# Attempt to pull the image
+echo "Attempting to pull $RUNTIME_IMAGE..."
+if docker pull "$RUNTIME_IMAGE"; then
+    echo "Successfully pulled $RUNTIME_IMAGE. Skipping build."
+else
+    echo "Pull failed or image not found. Starting build..."
+    export DOCKER_BUILDKIT=1
+    docker build -t $RUNTIME_IMAGE -f /app/invoke-runtime/Dockerfile /app
+fi
+
 
 exec "$@"

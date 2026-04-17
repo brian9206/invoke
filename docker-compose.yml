@@ -86,7 +86,7 @@ services:
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - GATEWAY_SERVICE_URL=http://gateway:3000
       - LOGGER_SERVICE_URL=http://logger:3000
-      - RUNTIME_IMAGE=invoke-runtime:latest
+      - RUNTIME_IMAGE=${RUNTIME_IMAGE:-invoke-runtime:latest}
       - SANDBOX_MIN_POOL_SIZE=${SANDBOX_MIN_POOL_SIZE:-5}
       - SANDBOX_MAX_POOL_SIZE=${SANDBOX_MAX_POOL_SIZE:-20}
       - SANDBOX_MEMORY_MB=${SANDBOX_MEMORY_MB:-256}
@@ -113,15 +113,6 @@ services:
     restart: unless-stopped
     deploy:
       replicas: ${EXECUTION_REPLICAS}
-
-  # Runtime Image (build-only — not a running service)
-  runtime:
-    build:
-      context: .
-      dockerfile: invoke-runtime/Dockerfile
-    image: ghcr.io/brian9206/invoke/runtime:latest
-    entrypoint: ["echo", "runtime image built"]
-    restart: "no"
 
   # Admin Service
   admin:
