@@ -28,12 +28,14 @@ RUN npm run build
 WORKDIR /app
 RUN npm prune --production -w invoke-execution
 
+
+
 # ============ FINAL STAGE ============
 FROM node:24-bookworm-slim
 
 # ---- Install Docker CE (for DIND) ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg iptables iproute2 \
+      ca-certificates curl gnupg iptables iproute2 wget \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg \
        | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
@@ -42,23 +44,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
              https://download.docker.com/linux/debian bookworm stable" \
        > /etc/apt/sources.list.d/docker.list \
     && apt-get update && apt-get install -y --no-install-recommends \
-       docker-ce docker-ce-cli containerd.io \
+       docker-ce docker-ce-cli containerd.io docker-buildx-plugin \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- Install gVisor (runsc OCI runtime) ----
-RUN curl -fsSL https://gvisor.dev/archive.key \
-       | gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] \
-             https://storage.googleapis.com/gvisor/releases release main" \
-       > /etc/apt/sources.list.d/gvisor.list \
-    && apt-get update && apt-get install -y --no-install-recommends runsc \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -e; \
+    ARCH=$(uname -m); \
+    URL="https://storage.googleapis.com/gvisor/releases/release/latest/${ARCH}"; \
+    wget -q "${URL}/runsc" "${URL}/runsc.sha512" \
+         "${URL}/containerd-shim-runsc-v1" "${URL}/containerd-shim-runsc-v1.sha512"; \
+    sha512sum -c runsc.sha512; \
+    sha512sum -c containerd-shim-runsc-v1.sha512; \
+    rm -f *.sha512; \
+    chmod a+rx runsc containerd-shim-runsc-v1; \
+    mv runsc containerd-shim-runsc-v1 /usr/local/bin/
 
 # ---- Configure inner Docker daemon to register the runsc runtime ----
 # GVISOR_PLATFORM (ptrace or kvm) can be overridden at container runtime via
 # the entrypoint; ptrace works in all environments, kvm requires /dev/kvm.
 RUN mkdir -p /etc/docker && \
-    printf '{\n  "runtimes": {\n    "runsc": { "path": "/usr/bin/runsc" }\n  }\n}\n' \
+    printf '{\n  "runtimes": {\n    "runsc": { "path": "/usr/local/bin/runsc" }\n  }\n}\n' \
     > /etc/docker/daemon.json
 
 WORKDIR /app

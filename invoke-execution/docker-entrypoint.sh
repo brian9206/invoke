@@ -17,15 +17,20 @@ GVISOR_PLATFORM="${GVISOR_PLATFORM:-ptrace}"
 # we don't have to bake it into the image at build time.
 DAEMON_JSON=/etc/docker/daemon.json
 PATCHED=$(cat "$DAEMON_JSON" | \
-  sed "s|\"path\": \"/usr/bin/runsc\"|\"path\": \"/usr/bin/runsc\", \"runtimeArgs\": [\"--platform=${GVISOR_PLATFORM}\", \"--host-uds=open\", \"--network=sandbox\"]|")
+  sed "s|\"path\": \"/usr/local/bin/runsc\"|\"path\": \"/usr/local/bin/runsc\", \"runtimeArgs\": [\"--platform=${GVISOR_PLATFORM}\", \"--host-uds=open\", \"--network=sandbox\"]|")
 echo "$PATCHED" > "$DAEMON_JSON"
 
 echo "[entrypoint] Starting Docker daemon (gVisor platform: ${GVISOR_PLATFORM})..."
 
 # Start dockerd in the background; use overlay2 storage driver.
 dockerd \
+  --init \
   --host=unix:///var/run/docker.sock \
   --storage-driver=overlay2 \
+  --log-driver=none \
+  --seccomp-profile=unconfined \
+  --default-ulimit nofile=1024:4096 \
+  --userland-proxy=false \
   2>&1 &
 
 DOCKERD_PID=$!
@@ -46,4 +51,8 @@ while ! docker info >/dev/null 2>&1; do
 done
 
 echo "[entrypoint] Docker daemon is ready."
+
+export DOCKER_BUILDKIT=1
+docker build -t $RUNTIME_IMAGE -f /app/invoke-runtime/Dockerfile /app
+
 exec "$@"
