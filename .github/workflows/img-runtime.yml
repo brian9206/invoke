@@ -2,14 +2,14 @@ name: Build and Push Runtime
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - 'invoke-runtime/**'
-      - 'package-lock.json'
-      - '.github/workflows/img-runtime.yml'
+#  push:
+#    branches:
+#      - main
+#      - master
+#    paths:
+#      - 'invoke-runtime/**'
+#      - 'package-lock.json'
+#      - '.github/workflows/img-runtime.yml'
 
 permissions:
   contents: read
