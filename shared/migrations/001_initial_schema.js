@@ -461,8 +461,8 @@ module.exports = {
       { setting_key: 'log_retention_type',    setting_value: 'time',                          description: 'Default log retention type: time, count, or none' },
       { setting_key: 'log_retention_value',   setting_value: '7',                             description: 'Default log retention value (7 days or 1000 count)' },
       { setting_key: 'log_retention_enabled', setting_value: 'true',                          description: 'Whether log retention cleanup is enabled globally' },
-      { setting_key: 'function_base_url',     setting_value: 'http://localhost:3001/invoke', description: 'Base URL for function invocation endpoints' },
-      { setting_key: 'kv_storage_limit_bytes',setting_value: '1073741824',                   description: 'Maximum storage size for project KV store in bytes (default 1GB)' },
+      { setting_key: 'function_base_url',     setting_value: 'http://localhost:3001/invoke',  description: 'Base URL for function invocation endpoints' },
+      { setting_key: 'kv_storage_limit_bytes',setting_value: '1073741824',                    description: 'Maximum storage size for project KV store in bytes (default 1GB)' },
       { setting_key: 'api_gateway_domain',    setting_value: '',                              description: 'Default API Gateway domain (e.g., api.example.com). Used for the default URL pattern: <domain>/<project-slug>/<route>' },
     ]);
 
@@ -474,10 +474,8 @@ module.exports = {
       { action: 'deny', target_type: 'cidr', target_value: '10.0.0.0/8',     description: 'Block private network (RFC1918)', priority: 1, created_at: new Date() },
       { action: 'deny', target_type: 'cidr', target_value: '172.16.0.0/12',  description: 'Block private network (RFC1918)', priority: 2, created_at: new Date() },
       { action: 'deny', target_type: 'cidr', target_value: '192.168.0.0/16', description: 'Block private network (RFC1918)', priority: 3, created_at: new Date() },
-      { action: 'deny', target_type: 'cidr', target_value: '127.0.0.0/8',    description: 'Block loopback',                 priority: 4, created_at: new Date() },
-      { action: 'deny', target_type: 'cidr', target_value: 'fc00::/7',       description: 'Block IPv6 ULA (RFC4193)',        priority: 5, created_at: new Date() },
-      { action: 'deny', target_type: 'cidr', target_value: 'fe80::/10',      description: 'Block IPv6 link-local',           priority: 6, created_at: new Date() },
-      { action: 'deny', target_type: 'cidr', target_value: '::1/128',        description: 'Block IPv6 loopback',             priority: 7, created_at: new Date() },
+      { action: 'deny', target_type: 'cidr', target_value: '127.0.0.0/8',    description: 'Block loopback',                  priority: 4, created_at: new Date() },
+      { action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0',     description: 'Allow Internet access',           priority: 5, created_at: new Date() },
     ]);
 
     await queryInterface.bulkInsert('project_network_policies', [
