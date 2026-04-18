@@ -4,10 +4,9 @@
 
 module.exports = {
   async up({ context: { queryInterface } }) {
+    const { Op } = queryInterface.sequelize.constructor;
     await queryInterface.bulkDelete('global_network_policies', {
-      target_value: {
-        [queryInterface.sequelize.Op.like]: '%:%',
-      },
+      target_value: { [Op.like]: '%:%' },
     });
 
     await queryInterface.sequelize.query(`
