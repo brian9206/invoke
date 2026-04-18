@@ -124,7 +124,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
         paths,
         invocation_id,
         entry,
-        static_cast<uint64_t>(config.default_memory_mb) * 1024 * 1024,
+        memory_bytes,
         config.worker_uid,
         config.worker_gid,
         user_env
