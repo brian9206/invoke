@@ -20,7 +20,7 @@ export async function getLatestBinaryUrl() {
   }
 
   const assetName = `invoke-${platform}-${arch}`;
-  const asset = release.assets.find((a: any) => a.name === assetName);
+  const asset = release.assets.find((a: any) => a.name.startsWith(assetName));
 
   if (!asset) {
     throw new Error(`No binary available for platform ${platform} and architecture ${arch}`);
