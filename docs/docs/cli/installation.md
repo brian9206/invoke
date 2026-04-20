@@ -8,8 +8,6 @@ The Invoke CLI is a powerful command-line interface for managing serverless func
 
 ## Prerequisites
 
-- Node.js 24 or higher
-- npm or yarn
 - An Invoke account with API key
 
 ## Installation
@@ -26,14 +24,9 @@ npm install -g invoke-cli
 yarn global add invoke-cli
 ```
 
-### From Source
+### From Binary
 
-```bash
-git clone https://github.com/brian9206/invoke.git
-cd invoke/invoke-cli
-npm install
-npm link
-```
+The CLI is now ship as Bun compiled binary starting from v2.0.0. You may manually download CLI binary from [GitHub Release](https://github.com/brian9206/invoke/releases) page.
 
 ## Verify Installation
 
