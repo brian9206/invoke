@@ -18,7 +18,7 @@ async function main() {
 
     const filePath = path.resolve(path.join(__dirname, '../dist/invoke' + (process.platform === 'win32' ? '.exe' : '')));
     await fs.promises.writeFile(filePath, buffer);
-    console.log(`Downloaded latest version to ${filePath}`);
+    console.log(`Installed latest version to ${filePath}`);
 
     if (process.platform === 'win32') {
       // update package.json to point to the .exe file
