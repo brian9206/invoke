@@ -1,11 +1,14 @@
 {
   "extends": "../tsconfig.base.json",
-  "entry": "src/index.ts",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",
-    "noEmit": true
+    "declaration": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["bun"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "scripts"]
+  "include": ["src/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

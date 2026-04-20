@@ -1,7 +1,4 @@
-#!/usr/bin/env node
-
 import { program } from 'commander';
-import 'dotenv/config';
 
 // ========================================
 // Program setup
@@ -10,7 +7,7 @@ import 'dotenv/config';
 program
   .name('invoke')
   .description('Invoke Platform Command Line Interface')
-  .version('1.0.0');
+  .version(process.env.INVOKE_CLI_VERSION || '0.0.0');
 
 // ========================================
 // Register commands
@@ -66,6 +63,7 @@ import { register as userSetPassword } from './commands/user-setpassword';
 import { register as dbStatus } from './commands/db-status';
 
 import { register as run } from './commands/run';
+import { checkForUpdates } from './services/update';
 
 configSet(program);
 configShow(program);
@@ -122,8 +120,10 @@ run(program);
 // Parse
 // ========================================
 
-program.parse();
+program.parseAsync(process.argv).then(checkForUpdates);
 
 if (!process.argv.slice(2).length) {
   program.outputHelp();
 }
+
+

@@ -2,12 +2,14 @@
 // Exchange — Request/Response module exports
 // ============================================================================
 
-import { RequestData } from '../protocol';
+import type { RequestData } from '../protocol';
 import { InvokeRequest } from './request';
-import { InvokeResponse, ResponseState } from './response';
+import { InvokeResponse } from './response';
+import type { ResponseState } from './response';
 
 export { InvokeRequest } from './request';
-export { InvokeResponse, ResponseState, stateToResponseData } from './response';
+export { InvokeResponse, stateToResponseData } from './response';
+export type { ResponseState } from './response';
 export { type AcceptEntry } from './helpers';
 
 export function createReqObject(reqData: RequestData): InvokeRequest {

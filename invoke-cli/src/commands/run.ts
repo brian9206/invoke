@@ -1,10 +1,13 @@
 import chalk from 'chalk';
+import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import type { Command } from 'commander';
-import { createLocalKVFactory } from '../services/local-kv';
-import { createReqObject, createResObject, stateToResponseData } from 'invoke-runtime/dist/exchange';
-import type { RequestData } from 'invoke-runtime/dist/protocol';
+import { createLocalKVClient } from '../services/local-kv';
+import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/exchange';
+import { setupEnvironment } from 'invoke-worker/src/environment';
+import type { RequestData } from 'invoke-worker/src/protocol';
+import { RealtimeClient } from 'invoke-worker/src/realtime';
 
 export function register(program: Command): void {
   program
@@ -18,9 +21,6 @@ export function register(program: Command): void {
     .option('--kv-file <file>', 'JSON file for KV store persistence (default: in-memory)')
     .action(async (fnPath: string | undefined, options: any) => {
       fnPath = fnPath || '.';
-
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const dotenv = require('dotenv') as typeof import('dotenv');
 
       const absoluteFnDir = path.resolve(fnPath);
       const indexPath = path.join(absoluteFnDir, 'index.js');
@@ -60,26 +60,11 @@ export function register(program: Command): void {
 
       const reqUrl = (options.path || '/').startsWith('/') ? options.path : '/' + options.path;
 
-      // Set up KV on globalThis for the user function
-      const kvFactory = createLocalKVFactory(options.kvFile);
-      const kvStore = kvFactory('local');
-      (globalThis as any).kv = {
-        get: async (key: string) => kvStore.get(key),
-        set: async (key: string, value: unknown, ttl?: number) => kvStore.set(key, value, ttl),
-        delete: async (key: string) => kvStore.delete(key),
-        clear: async () => kvStore.clear(),
-        has: async (key: string) => kvStore.has(key),
-      };
+      // Environment setup
+      const kvClient = createLocalKVClient(options.kvFile)();
+      const realtimeClient = new RealtimeClient({} as any); // No-op realtime client for local runs
 
-      // Set up a no-op realtime on globalThis
-      (globalThis as any).realtime = {
-        send: async () => {},
-        emit: async () => {},
-        broadcast: async () => {},
-        join: async () => {},
-        leave: async () => {},
-        emitToRoom: async () => {},
-      };
+      setupEnvironment(kvClient, realtimeClient);
 
       // Inject env vars
       for (const [key, value] of Object.entries(envVars)) {

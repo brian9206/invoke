@@ -1,14 +1,14 @@
 {
-  "extends": "../tsconfig.base.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "worker/src",
+    "rootDir": "src",
     "declaration": true,
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "types": ["bun"]
   },
-  "include": ["worker/src/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
