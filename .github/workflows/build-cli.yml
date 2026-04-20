@@ -8,7 +8,9 @@ on:
       - master
       - feat/containerize
     paths:
-      - 'invoke-cli/package.json'
+      - 'invoke-cli/**'
+      - 'invoke-runtime/**'
+      - 'shared/**'
 
 jobs:
   build:
