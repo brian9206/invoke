@@ -3,6 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import chalk from 'chalk';
 
+// Patch __dirname
+var __dirname = path.dirname(require['resolve']('./postinstall.js'));
+console.log(__dirname)
+
 async function main() {
   try {
     const url = await getLatestBinaryUrl();
