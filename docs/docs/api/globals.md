@@ -2,6 +2,21 @@
 
 Invoke provides several global objects and functions that are available in all functions without requiring any modules.
 
+## Logger
+
+Structured logging is natively supported via the built-in Pino instance, accessible as `logger`.
+
+```javascript
+logger.info({ foo: 'bar' });
+logger.error('%s has won %d dollars!', 'Brian', 100000);
+logger.warn(req, 'Request object');
+
+const child = logger.child({ module: 'auth-service' });
+child.info('hello world');
+```
+
+For more details, please refer to [Pino API Logger Instance Reference](https://getpino.io/#/docs/api?id=logger).
+
 ## Router
 
 Express.js-compatible router for handling multiple routes and middleware in a single function:

@@ -15,7 +15,7 @@ const LEVEL_NAMES: Record<number, string> = {
 };
 
 // Fields that Pino always injects — strip them before passing as `details`.
-const PINO_INTERNAL = new Set(['level', 'time', 'pid', 'hostname', 'v', 'msg']);
+const PINO_INTERNAL = new Set(['level', 'v', 'msg']);
 
 export function setupLoggerGlobal(socket?: net.Socket): void {
   const dest = new Writable({
@@ -71,7 +71,7 @@ export function setupLoggerGlobal(socket?: net.Socket): void {
     },
   });
 
-  const logger = pino({ level: 'trace' }, dest);
+  const logger = pino({ level: 'trace', base: undefined, timestamp: false }, dest);
 
   (globalThis as any).logger = logger;
 }
