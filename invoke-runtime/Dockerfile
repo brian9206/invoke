@@ -80,6 +80,9 @@ RUN mkdir -p \
       /opt/rootfs/run \
       /opt/inv
 
+RUN chmod 777 /opt/rootfs/tmp && \
+    chmod 755 /opt/rootfs/dev
+
 # Expose bun and the shim at container-level paths so the supervisor can
 # reference /opt/shim/src/index.ts as the worker script.
 # Create a node -> bun symlink inside the rootfs so Bun's node-compatibility

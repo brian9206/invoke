@@ -137,18 +137,13 @@ static int child_fn(void* arg) {
         _exit(126);
     }
 
-    // 3c. Mount a fresh tmpfs at /dev and populate the minimal device nodes
+    // 3c. Populate the minimal device nodes
     // Bun/JSC needs at startup (primarily /dev/urandom for PRNG seeding).
-    if (::mount("tmpfs", "/dev", "tmpfs", MS_NOSUID | MS_NOEXEC, "size=1m,mode=755") == 0) {
-        ::mknod("/dev/null",    S_IFCHR | 0666, makedev(1, 3));
-        ::mknod("/dev/zero",    S_IFCHR | 0666, makedev(1, 5));
-        ::mknod("/dev/random",  S_IFCHR | 0444, makedev(1, 8));
-        ::mknod("/dev/urandom", S_IFCHR | 0444, makedev(1, 9));
-        ::mknod("/dev/tty",     S_IFCHR | 0666, makedev(5, 0));
-    } else {
-        std::perror("[worker-child] mount /dev tmpfs");
-        /* non-fatal — Bun may crash without /dev/urandom, but let it try */
-    }
+    ::mknod("/dev/null",    S_IFCHR | 0666, makedev(1, 3));
+    ::mknod("/dev/zero",    S_IFCHR | 0666, makedev(1, 5));
+    ::mknod("/dev/random",  S_IFCHR | 0444, makedev(1, 8));
+    ::mknod("/dev/urandom", S_IFCHR | 0444, makedev(1, 9));
+    ::mknod("/dev/tty",     S_IFCHR | 0666, makedev(5, 0));
 
     // 4. Drop privileges: gid first, then uid
     auto privdrop_start = std::chrono::high_resolution_clock::now();
@@ -197,8 +192,6 @@ SandboxPaths sandbox_paths(const std::string& invocation_id) {
     SandboxPaths p;
     p.inv_dir    = std::string(INV_BASE) + "/" + invocation_id;
     p.rw_dir     = p.inv_dir + "/rw";
-    p.upper_dir  = p.rw_dir + "/upper";
-    p.work_dir   = p.rw_dir + "/work";
     p.merged_dir = p.inv_dir + "/merged";
     return p;
 }
@@ -233,7 +226,7 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     // Mount tmpfs for writable layer
     // tmpfs data only accepts tmpfs-specific options (size, mode, uid, gid, ...).
     // nosuid/noexec must be provided as mount flags, not in the data string.
-    auto tmpfs_opts = "size=" + std::to_string(tmpfs_mb) + "m";
+    auto tmpfs_opts = "size=" + std::to_string(tmpfs_mb) + "m,mode=777";
     ILOG("[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", paths.rw_dir.c_str(), tmpfs_opts.c_str());
     auto tmpfs_start = std::chrono::high_resolution_clock::now();
     if (::mount("tmpfs", paths.rw_dir.c_str(), "tmpfs",
@@ -248,7 +241,7 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
 
     // Create upper/work on the tmpfs
     ILOG("[sandbox_setup_fs] creating upper/work dirs\n");
-    if (!mkdirp(paths.upper_dir) || !mkdirp(paths.work_dir)) {
+    if (!mkdirp(paths.rw_dir + "/root_upper") || !mkdirp(paths.rw_dir + "/root_work")) {
         g_last_setup_error = "failed to create upper/work dirs on tmpfs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
@@ -258,8 +251,8 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
     // Mount overlayfs: lowerdir = rootfs only. Function code is bind-mounted
     // separately at /app so it appears at a predictable, isolated path.
     auto overlay_opts = "lowerdir=" + rootfs +
-                        ",upperdir=" + paths.upper_dir +
-                        ",workdir=" + paths.work_dir;
+                        ",upperdir=" + paths.rw_dir + "/root_upper" +
+                        ",workdir=" + paths.rw_dir + "/root_work";
     ILOG("[sandbox_setup_fs] mounting overlay at %s with options %s\n", paths.merged_dir.c_str(), overlay_opts.c_str());
     auto overlay_start = std::chrono::high_resolution_clock::now();
     if (::mount("overlay", paths.merged_dir.c_str(), "overlay",
@@ -272,19 +265,34 @@ bool sandbox_setup_fs(const SandboxPaths& paths,
         std::chrono::high_resolution_clock::now() - overlay_start).count();
     ILOG("[sandbox_setup_fs] overlay mount took %ldms\n", overlay_ms);
 
-    // Bind-mount function code read-only at /app inside the overlay
-    auto app_jail = paths.merged_dir + "/app";
-    if (!mkdirp(app_jail)) {
-        g_last_setup_error = "failed to create /app in merged dir";
+    // Mount a nested overlay at /app for the function code
+    // This allows /app to be writable (writes go to tmpfs upper layer)
+    // while the function code (lower_dir) remains unmodified on the host    
+    if (!mkdirp(paths.merged_dir + "/app") || !mkdirp(paths.rw_dir + "/app_upper") || !mkdirp(paths.rw_dir + "/app_work")) {
+        g_last_setup_error = "failed to create /app dirs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
     }
-    ILOG("[sandbox_setup_fs] bind-mounting function code %s -> /app\n", lower_dir.c_str());
-    if (::mount(lower_dir.c_str(), app_jail.c_str(), nullptr, MS_BIND | MS_RDONLY, nullptr) < 0) {
-        g_last_setup_error = "bind mount of function code to /app failed (" + std::string(std::strerror(errno)) + ")";
+    
+    ILOG("[sandbox_setup_fs] mounting nested overlay at /app (lowerdir=%s)\n", lower_dir.c_str());
+    auto app_overlay_opts = "lowerdir=" + lower_dir +
+                            ",upperdir=" + paths.rw_dir + "/app_upper" +
+                            ",workdir=" + paths.rw_dir + "/app_work";
+    if (::mount("overlay", (paths.merged_dir + "/app").c_str(), "overlay",
+                MS_NOSUID, app_overlay_opts.c_str()) < 0) {
+        g_last_setup_error = "mount nested overlay at /app failed (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
     }
+    ILOG("[sandbox_setup_fs] nested overlay at /app mounted\n");
+
+    // chmod /app to 777 so the worker can write files
+    if (::chmod((paths.merged_dir + "/app").c_str(), 0777) < 0) {
+        g_last_setup_error = "chmod /app failed (" + std::string(std::strerror(errno)) + ")";
+        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+        return false;
+    }
+    ILOG("[sandbox_setup_fs] /app permissions set to 777\n");
 
     // Bind mount /run/events.sock into the sandbox for event communication back to the supervisor
     auto events_socket_host = "/run/events.sock";
@@ -487,22 +495,22 @@ void sandbox_cleanup(const SandboxPaths& paths, const std::string& invocation_id
     }
     ILOG("[sandbox_cleanup] socket unmounted\n");
 
-    // Lazy-unmount /app bind mount (function code) before the overlay
+    // Lazy-unmount nested /app overlay before the main overlay
     auto app_jail = paths.merged_dir + "/app";
-    ILOG("[sandbox_cleanup] unmounting /app at %s\n", app_jail.c_str());
+    ILOG("[sandbox_cleanup] unmounting nested /app overlay at %s\n", app_jail.c_str());
     if (::umount2(app_jail.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
-        std::fprintf(stderr, "[sandbox_cleanup] umount2 /app(%s): %s\n",
+        std::fprintf(stderr, "[sandbox_cleanup] umount2 /app overlay(%s): %s\n",
                      app_jail.c_str(), std::strerror(errno));
     }
-    ILOG("[sandbox_cleanup] /app unmounted\n");
+    ILOG("[sandbox_cleanup] /app overlay unmounted\n");
 
-    // Lazy-unmount overlay
-    ILOG("[sandbox_cleanup] unmounting overlay at %s\n", paths.merged_dir.c_str());
+    // Lazy-unmount main overlay
+    ILOG("[sandbox_cleanup] unmounting main overlay at %s\n", paths.merged_dir.c_str());
     if (::umount2(paths.merged_dir.c_str(), MNT_DETACH) < 0 && errno != EINVAL && errno != ENOENT) {
         std::fprintf(stderr, "[sandbox_cleanup] umount2 overlay(%s): %s\n",
                      paths.merged_dir.c_str(), std::strerror(errno));
     }
-    ILOG("[sandbox_cleanup] overlay unmounted\n");
+    ILOG("[sandbox_cleanup] main overlay unmounted\n");
 
     // Lazy-unmount tmpfs
     ILOG("[sandbox_cleanup] unmounting tmpfs at %s\n", paths.rw_dir.c_str());
