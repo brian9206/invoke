@@ -1,16 +1,7 @@
 import path from 'path';
 import { Listr } from 'listr2'
 
-const targets = [
-  'linux-x64',
-  'linux-arm64',
-  'darwin-x64',
-  'darwin-arm64',
-  'win32-x64',
-  'win32-arm64',
-]
-
-const { version } = require(path.resolve(__dirname, '../package.json'));
+const { version, targets } = require(path.resolve(__dirname, '../build.json')) as { version: string, targets: string[] };
 console.log(`Build version: v${version}`);
 
 const runner = new Listr<string>(targets.map(target => ({
