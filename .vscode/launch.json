@@ -149,6 +149,14 @@
         "Debug Invoke Gateway Service",
         "Debug Invoke Logger Service"
       ]
+    },
+    {
+      "name": "Debug All Services (Except Execution)",
+      "configurations": [
+        "Debug Invoke Admin (Next.js)",
+        "Debug Invoke Gateway Service",
+        "Debug Invoke Logger Service"
+      ]
     }
   ]
 }

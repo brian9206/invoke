@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import NetworkPolicyEditor from '@/components/NetworkPolicyEditor';
 import PageHeader from '@/components/PageHeader';
-import { Shield, AlertCircle, CheckCircle2, XCircle, Loader } from 'lucide-react';
+import { Shield, CheckCircle2, XCircle, Loader } from 'lucide-react';
 import { authenticatedFetch } from '@/lib/frontend-utils';
-import { useProject } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProject } from '@/contexts/ProjectContext';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +23,10 @@ interface NetworkPolicyRule {
 }
 
 export default function NetworkSecurityPage() {
-  const { activeProject } = useProject();
   const { user } = useAuth();
+  const router = useRouter();
+  const { lockProject, unlockProject, userProjects } = useProject();
+  const hasLockedProject = useRef(false);
   const [rules, setRules] = useState<NetworkPolicyRule[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -32,25 +35,37 @@ export default function NetworkSecurityPage() {
   const [testing, setTesting] = useState(false);
 
   const isAdmin = user?.isAdmin || false;
-  const isProjectOwner = activeProject?.role === 'owner';
 
   useEffect(() => {
-    if (activeProject?.id) {
-      loadSecurityPolicies();
+    const systemProject = userProjects.find((p) => p.id === 'system');
+    if (systemProject && !hasLockedProject.current) {
+      hasLockedProject.current = true;
+      lockProject(systemProject);
     }
-  }, [activeProject?.id]);
+    return () => {
+      if (hasLockedProject.current) {
+        hasLockedProject.current = false;
+        unlockProject();
+      }
+    };
+  }, [userProjects]);
+
+  useEffect(() => {
+    if (user && !user.isAdmin) {
+      router.replace('/admin');
+    }
+  }, [user, router]);
+
+  useEffect(() => {
+    loadSecurityPolicies();
+  }, []);
 
   const loadSecurityPolicies = async () => {
-    if (!activeProject?.id || loading) return;
+    if (loading) return;
 
     setLoading(true);
     try {
-      const endpoint =
-        activeProject.id === 'system'
-          ? '/api/admin/global/security'
-          : `/api/admin/projects/${activeProject.id}/security`;
-
-      const response = await authenticatedFetch(endpoint);
+      const response = await authenticatedFetch('/api/admin/global/security');
 
       if (response.ok) {
         const data = await response.json();
@@ -67,11 +82,6 @@ export default function NetworkSecurityPage() {
   };
 
   const handleSave = async () => {
-    if (!activeProject?.id) {
-      toast.error('No project selected');
-      return;
-    }
-
     if (rules.length === 0) {
       toast.error('At least one policy rule is required');
       return;
@@ -79,12 +89,7 @@ export default function NetworkSecurityPage() {
 
     setSaving(true);
     try {
-      const endpoint =
-        activeProject.id === 'system'
-          ? '/api/admin/global/security'
-          : `/api/admin/projects/${activeProject.id}/security`;
-
-      const response = await authenticatedFetch(endpoint, {
+      const response = await authenticatedFetch('/api/admin/global/security', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rules }),
@@ -106,21 +111,16 @@ export default function NetworkSecurityPage() {
   };
 
   const handleTestConnection = async () => {
-    if (!activeProject?.id || !testHost.trim()) return;
+    if (!testHost.trim()) return;
 
     setTesting(true);
     setTestResult(null);
 
     try {
-      const endpoint =
-        activeProject.id === 'system'
-          ? '/api/admin/global/security/test'
-          : `/api/admin/projects/${activeProject.id}/security/test`;
-
-      const response = await authenticatedFetch(endpoint, {
+      const response = await authenticatedFetch('/api/admin/global/security/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: testHost, rules }),
+        body: JSON.stringify({ host: testHost }),
       });
 
       if (response.ok) {
@@ -139,22 +139,6 @@ export default function NetworkSecurityPage() {
       setTesting(false);
     }
   };
-
-  if (!activeProject) {
-    return (
-      <ProtectedRoute>
-        <Layout title="Network Security">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <Shield className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-foreground mb-2">Please Select a Project</h2>
-              <p className="text-muted-foreground">Select a project to manage network policies.</p>
-            </div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    );
-  }
 
   if (loading) {
     return (
@@ -177,21 +161,9 @@ export default function NetworkSecurityPage() {
         <div className="space-y-6">
           <PageHeader
             title="Network Security"
-            subtitle={`Manage network policies for ${activeProject.name}`}
+            subtitle="Manage system-wide network policies applied to all function executions"
             icon={<Shield className="w-8 h-8 text-primary" />}
           />
-
-          {activeProject.id === 'system' && (
-            <Card className="border-purple-800 bg-purple-900/10">
-              <CardContent className="pt-4">
-                <h3 className="text-purple-400 font-medium mb-2">Global Security Policies</h3>
-                <p className="text-muted-foreground text-sm">
-                  You are editing global security policies that are evaluated before all project-specific policies.
-                  These rules apply to all projects and are checked first during network policy evaluation.
-                </p>
-              </CardContent>
-            </Card>
-          )}
 
           <Card className="border-blue-800 bg-blue-900/10">
             <CardContent className="pt-4">
@@ -252,29 +224,16 @@ export default function NetworkSecurityPage() {
             </CardContent>
           </Card>
 
-          {!isAdmin && !isProjectOwner && (
-            <Card className="border-yellow-800 bg-yellow-900/10">
-              <CardContent className="pt-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="text-yellow-400 font-medium">Read-Only Mode</p>
-                  <p className="text-yellow-300 mt-1">
-                    You are viewing network policies in read-only mode. Only administrators and project owners can modify network security policies.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           <NetworkPolicyEditor
             rules={rules}
             onChange={setRules}
             onSave={handleSave}
             saving={saving}
-            readOnly={!isAdmin && !isProjectOwner}
+            readOnly={!isAdmin}
           />
         </div>
       </Layout>
     </ProtectedRoute>
   );
 }
+

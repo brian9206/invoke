@@ -7,9 +7,9 @@ Learn how to use cryptographic functions in your Invoke functions.
 ### SHA-256 Hash
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = req.body.data || 'Hello World';
     
     const hash = crypto.createHash('sha256')
@@ -17,28 +17,28 @@ module.exports = function(req, res) {
         .digest('hex');
     
     res.json({ hash });
-};
+}
 ```
 
 ### Available Hash Algorithms
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const algorithms = crypto.getHashes();
     // ['sha1', 'sha256', 'sha512', 'md5', ...]
     
     res.json({ algorithms });
-};
+}
 ```
 
 ### Multiple Hashing Algorithms
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = 'secret data';
     
     const hashes = {
@@ -49,15 +49,15 @@ module.exports = function(req, res) {
     };
     
     res.json(hashes);
-};
+}
 ```
 
 ## HMAC (Message Authentication)
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const secret = process.env.HMAC_SECRET || 'my-secret-key';
     const message = req.body.message || 'Hello World';
     
@@ -66,13 +66,13 @@ module.exports = function(req, res) {
         .digest('hex');
     
     res.json({ message, hmac });
-};
+}
 ```
 
 ### Verify HMAC
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function verifyHMAC(message, receivedHMAC, secret) {
     const expectedHMAC = crypto.createHmac('sha256', secret)
@@ -85,14 +85,14 @@ function verifyHMAC(message, receivedHMAC, secret) {
     );
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { message, hmac } = req.body;
     const secret = process.env.HMAC_SECRET;
     
     const isValid = verifyHMAC(message, hmac, secret);
     
     res.json({ valid: isValid });
-};
+}
 ```
 
 ## Symmetric Encryption (AES)
@@ -100,7 +100,7 @@ module.exports = function(req, res) {
 ### Encrypt Data
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function encrypt(text, password) {
     // Derive key from password
@@ -117,17 +117,17 @@ function encrypt(text, password) {
     };
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { text, password } = req.body;
     const result = encrypt(text, password);
     res.json(result);
-};
+}
 ```
 
 ### Decrypt Data
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function decrypt(encrypted, password, ivHex) {
     const key = crypto.pbkdf2Sync(password, 'salt', 100000, 32, 'sha256');
@@ -140,11 +140,11 @@ function decrypt(encrypted, password, ivHex) {
     return decrypted;
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { encrypted, password, iv } = req.body;
     const decrypted = decrypt(encrypted, password, iv);
     res.json({ decrypted });
-};
+}
 ```
 
 ## Asymmetric Encryption (RSA)
@@ -152,9 +152,9 @@ module.exports = function(req, res) {
 ### Generate Key Pair
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: 2048,
         publicKeyEncoding: {
@@ -168,15 +168,15 @@ module.exports = function(req, res) {
     });
     
     res.json({ publicKey, privateKey });
-};
+}
 ```
 
 ### Encrypt with Public Key
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { data, publicKey } = req.body;
     
     const encrypted = crypto.publicEncrypt(
@@ -185,15 +185,15 @@ module.exports = function(req, res) {
     );
     
     res.json({ encrypted: encrypted.toString('base64') });
-};
+}
 ```
 
 ### Decrypt with Private Key
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { encrypted, privateKey } = req.body;
     
     const decrypted = crypto.privateDecrypt(
@@ -202,7 +202,7 @@ module.exports = function(req, res) {
     );
     
     res.json({ decrypted: decrypted.toString() });
-};
+}
 ```
 
 ## Digital Signatures
@@ -210,9 +210,9 @@ module.exports = function(req, res) {
 ### Sign Data
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { data, privateKey } = req.body;
     
     const signature = crypto.sign(
@@ -222,15 +222,15 @@ module.exports = function(req, res) {
     );
     
     res.json({ signature: signature.toString('base64') });
-};
+}
 ```
 
 ### Verify Signature
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { data, signature, publicKey } = req.body;
     
     const isValid = crypto.verify(
@@ -241,15 +241,15 @@ module.exports = function(req, res) {
     );
     
     res.json({ valid: isValid });
-};
+}
 ```
 
 ## Random Data Generation
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Random bytes
     const bytes = crypto.randomBytes(32).toString('hex');
     
@@ -260,13 +260,13 @@ module.exports = function(req, res) {
     const randomInt = crypto.randomInt(1, 100);
     
     res.json({ bytes, uuid, randomInt });
-};
+}
 ```
 
 ## Password Hashing
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
@@ -283,7 +283,7 @@ function verifyPassword(password, salt, storedHash) {
     return hash.toString('hex') === storedHash;
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method === 'POST' && req.path === '/register') {
         const { password } = req.body;
         const { salt, hash } = hashPassword(password);
@@ -302,7 +302,7 @@ module.exports = async function(req, res) {
         
         res.json({ authenticated: isValid });
     }
-};
+}
 ```
 
 ## Best Practices
@@ -337,6 +337,5 @@ const apiKey = process.env.API_KEY;
 
 ## Next Steps
 
-- [Crypto Module](/docs/api/modules/crypto) - Complete API reference
 - [Environment Variables](/docs/guides/environment-vars) - Secure secret storage
 - [Examples](/docs/examples/crypto-hashing) - Crypto examples

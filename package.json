@@ -11,7 +11,8 @@
     "invoke-execution",
     "invoke-gateway",
     "invoke-logger",
-    "invoke-scheduler"
+    "invoke-scheduler",
+    "invoke-runtime/worker"
   ],
   "scripts": {
     "setup:env": "node scripts/setup-env.js"

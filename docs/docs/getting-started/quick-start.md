@@ -49,9 +49,9 @@ hello-function/
 The generated `index.js`:
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { name = 'World' } = req.query;
 
     res.setHeader('x-powered-by', 'Invoke');

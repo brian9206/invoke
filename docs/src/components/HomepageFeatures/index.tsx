@@ -17,18 +17,18 @@ const FeatureList: FeatureItem[] = [
     gradient: 'from-blue-500 to-cyan-500',
     description: (
       <>
-        Write functions in Node.js and execute them in a secure, isolated VM environment.
+        Write functions in Node.js and execute them in a secure sandbox environment.
         No servers to manage, automatic scaling, just focus on your code.
       </>
     ),
   },
   {
-    title: 'Rich Built-in Modules',
+    title: 'Realtime + KV Storage',
     icon: '📦',
     gradient: 'from-cyan-500 to-teal-500',
     description: (
       <>
-        Access 24+ Node.js modules including crypto, http, websockets, timers, and more.
+        Build realtime apps with Socket.IO namespaces, rooms, and events.
         Plus a powerful KV store for persistent data with TTL support.
       </>
     ),
@@ -50,7 +50,7 @@ const FeatureList: FeatureItem[] = [
     gradient: 'from-purple-500 to-blue-500',
     description: (
       <>
-        Sandboxed VM execution with configurable network policies. Control exactly
+        Sandboxed execution with configurable network policies. Control exactly
         which domains your functions can access with whitelist/blacklist rules.
       </>
     ),
@@ -73,7 +73,7 @@ const FeatureList: FeatureItem[] = [
     description: (
       <>
         Deploy unlimited functions with retention policies. Monitor execution metrics,
-        manage versions, and scale effortlessly with container-based architecture.
+        manage versions, and scale effortlessly with sandboxed execution architecture.
       </>
     ),
   },

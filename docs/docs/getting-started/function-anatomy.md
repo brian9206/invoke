@@ -7,10 +7,10 @@ Learn about the structure and components of an Invoke function.
 Every Invoke function follows this pattern:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Your code here
     res.send('Response');
-};
+}
 ```
 
 ## Export Formats
@@ -18,15 +18,15 @@ module.exports = function(req, res) {
 ### Standard Function
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({ message: 'Hello' });
-};
+}
 ```
 
 ### Arrow Function
 
 ```javascript
-module.exports = (req, res) => {
+export default (req, res) => {
     res.json({ message: 'Hello' });
 };
 ```
@@ -34,17 +34,17 @@ module.exports = (req, res) => {
 ### Async Function
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const data = await fetch('https://api.example.com/data');
     const json = await data.json();
     res.json(json);
-};
+}
 ```
 
 ### Async Arrow Function
 
 ```javascript
-module.exports = async (req, res) => {
+export default async (req, res) => {
     const result = await someAsyncOperation();
     res.json(result);
 };
@@ -75,7 +75,7 @@ router.use((req, res) => {
     res.status(404).json({ error: 'Not found' });
 });
 
-module.exports = router;
+export default router;
 ```
 
 See the [Router API](/docs/api/router) for complete documentation.
@@ -87,14 +87,14 @@ See the [Router API](/docs/api/router) for complete documentation.
 The request object contains information about the incoming HTTP request:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log(req.method);       // 'GET', 'POST', etc.
     console.log(req.path);         // '/some/path'
     console.log(req.query);        // { key: 'value' }
     console.log(req.body);         // Parsed JSON/form data
     console.log(req.headers);      // Request headers
     console.log(req.cookies);      // Parsed cookies
-};
+}
 ```
 
 See the [Request API](/docs/api/request) for complete documentation.
@@ -104,7 +104,7 @@ See the [Request API](/docs/api/request) for complete documentation.
 The response object is used to send data back to the client:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Send JSON
     res.json({ success: true });
     
@@ -116,21 +116,21 @@ module.exports = function(req, res) {
     
     // Send file
     res.sendFile('/path/to/file.pdf');
-};
+}
 ```
 
 See the [Response API](/docs/api/response) for complete documentation.
 
 ## Using Modules
 
-Invoke provides 24 built-in Node.js-compatible modules:
+Standard Node.js-compatible modules are available in the sandbox environment:
 
 ```javascript
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Use crypto module
     const hash = crypto.createHash('sha256')
         .update('data')
@@ -143,12 +143,10 @@ module.exports = function(req, res) {
     );
     
     res.json({ hash, content });
-};
+}
 ```
 
-Available modules: `assert`, `buffer`, `console`, `crypto`, `dns`, `events`, `fs`, `http`, `https`, `mime-types`, `net`, `node-fetch`, `path`, `process`, `punycode`, `stream`, `string_decoder`, `timers`, `tls`, `url`, `util`, `ws`, `zlib`, and `_eventtarget`.
-
-See [API Reference](/docs/api/modules/assert) for details on each module.
+Standard Node.js-compatible modules are available in the sandbox environment, including `crypto`, `fs`, `path`, `http`, `https`, `dns`, `zlib`, `stream`, `url`, `util`, `events`, `buffer`, `assert`, `timers`, `tls`, `net`, and more.
 
 ## Global Variables
 
@@ -157,19 +155,19 @@ Several globals are available without requiring:
 ### Console Logging
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log('Info message');
     console.error('Error message');
     console.warn('Warning message');
     
     res.send('Check logs');
-};
+}
 ```
 
 ### Timers
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Promise-based sleep (Invoke-specific)
     await sleep(1000); // Sleep for 1 second
     
@@ -179,31 +177,31 @@ module.exports = async function(req, res) {
     }, 500);
     
     res.json({ delayed: true });
-};
+}
 ```
 
 ### Fetch API
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Global fetch (no require needed)
     const response = await fetch('https://api.example.com/data');
     const data = await response.json();
     
     res.json(data);
-};
+}
 ```
 
 ### KV Store
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Global kv store (no require needed)
     await kv.set('counter', 42);
     const value = await kv.get('counter');
     
     res.json({ counter: value });
-};
+}
 ```
 
 See [Globals API](/docs/api/globals) for complete documentation.
@@ -242,33 +240,33 @@ function.zip
 
 ```javascript
 // lib/utils.js
-module.exports = {
+export default {
     formatDate(date) {
         return date.toISOString();
     }
 };
 
 // index.js
-const utils = require('./lib/utils');
+import utils from './lib/utils.js';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const formatted = utils.formatDate(new Date());
     res.json({ date: formatted });
-};
+}
 ```
 
 ### Using npm Packages
 
 ```javascript
 // Include lodash in node_modules
-const _ = require('lodash');
+import _ from 'lodash';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = [1, 2, 3, 4, 5];
     const doubled = _.map(data, n => n * 2);
     
     res.json({ result: doubled });
-};
+}
 ```
 
 ## Error Handling
@@ -276,7 +274,7 @@ module.exports = function(req, res) {
 Always handle errors gracefully:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const response = await fetch('https://api.example.com/data');
         
@@ -295,7 +293,7 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ## Synchronous vs Asynchronous
@@ -305,10 +303,10 @@ module.exports = async function(req, res) {
 Immediately sends response:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const result = computeSync();
     res.json(result);
-};
+}
 ```
 
 ### Asynchronous Function
@@ -316,11 +314,11 @@ module.exports = function(req, res) {
 Awaits promises before responding:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const data = await fetchData();
     const processed = await processData(data);
     res.json(processed);
-};
+}
 ```
 
 **Important**: Always send exactly one response. Don't call `res.send()`, `res.json()`, etc. multiple times in the same function.

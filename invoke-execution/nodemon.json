@@ -1,6 +1,7 @@
 {
   "watch": [
     "../shared",
+    "../invoke-runtime",
     "../package-lock.json",
     "src",
     ".env"

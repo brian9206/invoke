@@ -8,7 +8,7 @@ Troubleshooting and resolving issues in Invoke functions.
 Use `console.log()` to output debug information.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     console.log('Function invoked');
     console.log('Method:', req.method);
     console.log('Path:', req.path);
@@ -18,7 +18,7 @@ module.exports = async function(req, res) {
     console.log('Result:', result);
     
     res.json(result);
-};
+}
 ```
 
 ### Structured Logging
@@ -34,7 +34,7 @@ function log(level, message, data = {}) {
     }));
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     log('info', 'Request received', {
         method: req.method,
         path: req.path
@@ -51,7 +51,7 @@ module.exports = async function(req, res) {
         });
         res.status(500).json({ error: error.message });
     }
-};
+}
 ```
 
 ### Log Levels
@@ -71,12 +71,12 @@ function log(level, message, data) {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     log('debug', 'Debug info', { query: req.query });
     log('info', 'Processing request', { path: req.path });
     
     res.json({ success: true });
-};
+}
 ```
 
 ## Error Handling
@@ -85,7 +85,7 @@ module.exports = async function(req, res) {
 Always wrap async operations.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const data = await fetch('https://api.example.com/data');
         const json = await data.json();
@@ -99,7 +99,7 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ### Error Context
@@ -123,7 +123,7 @@ async function fetchUser(userId) {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const userId = req.params.userId;
     
     try {
@@ -136,7 +136,7 @@ module.exports = async function(req, res) {
             details: error.message
         });
     }
-};
+}
 ```
 
 ### Error Types
@@ -158,7 +158,7 @@ class NotFoundError extends Error {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const { email } = req.body;
         
@@ -196,7 +196,7 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ## Request Inspection
@@ -205,7 +205,7 @@ module.exports = async function(req, res) {
 Log all request information.
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const debug = {
         method: req.method,
         path: req.path,
@@ -224,14 +224,14 @@ module.exports = function(req, res) {
     console.log('Request debug info:', JSON.stringify(debug, null, 2));
     
     res.json({ debug });
-};
+}
 ```
 
 ### Test Endpoint
 Create a debug endpoint for testing.
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (req.path === '/debug') {
         return res.json({
             request: {
@@ -254,7 +254,7 @@ module.exports = function(req, res) {
     
     // Normal function logic
     res.json({ message: 'Hello World' });
-};
+}
 ```
 
 ## Common Issues
@@ -274,23 +274,23 @@ module.exports = function(req, res) {
 
 ```javascript
 // ❌ Will timeout
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     await sleep(60000); // 60 seconds - exceeds timeout
     res.json({ done: true });
-};
+}
 
 // ✅ Complete within timeout
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Queue work and respond immediately
     await kv.set(`job:${crypto.randomUUID()}`, req.body);
     res.status(202).json({ 
         status: 'queued',
         message: 'Processing will complete in background'
     });
-};
+}
 
 // ✅ Add timeout to external requests
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
     
@@ -309,7 +309,7 @@ module.exports = async function(req, res) {
     } finally {
         clearTimeout(timeout);
     }
-};
+}
 ```
 
 ### Issue: Memory Errors
@@ -327,13 +327,13 @@ module.exports = async function(req, res) {
 
 ```javascript
 // ❌ Memory intensive
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const bigArray = new Array(10000000).fill({ data: 'value' });
     res.json(bigArray);
-};
+}
 
 // ✅ Stream response
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     res.type('application/json');
     res.write('[');
     
@@ -344,17 +344,17 @@ module.exports = async function(req, res) {
     
     res.write(']');
     res.end();
-};
+}
 
 // ✅ Paginate data
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = 100;
     const offset = (page - 1) * limit;
     
     const items = await getItems(offset, limit);
     res.json({ items, page, hasMore: items.length === limit });
-};
+}
 ```
 
 ### Issue: Network Request Fails
@@ -372,7 +372,7 @@ module.exports = async function(req, res) {
 **Solutions:**
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const response = await fetch('https://api.example.com/data', {
             method: 'GET',
@@ -410,7 +410,7 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ### Issue: KV Store Not Working
@@ -428,21 +428,21 @@ module.exports = async function(req, res) {
 
 ```javascript
 // ❌ Not awaiting
-module.exports = function(req, res) {
+export default function handler(req, res) {
     kv.set('key', 'value'); // Missing await
     const value = kv.get('key'); // Missing await
     res.json({ value }); // Will be undefined/promise
-};
+}
 
 // ✅ Proper async/await
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     await kv.set('key', 'value');
     const value = await kv.get('key');
     res.json({ value }); // Correct value
-};
+}
 
 // ✅ Check TTL
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Set with 1 hour TTL
     await kv.set('session', { user: 'alice' }, 3600);
     
@@ -452,10 +452,10 @@ module.exports = async function(req, res) {
     
     const session = await kv.get('session');
     res.json({ session, exists });
-};
+}
 
 // ✅ Debug key names
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const key = `user:${req.params.id}`;
     console.log('Using key:', key);
     
@@ -464,7 +464,7 @@ module.exports = async function(req, res) {
     
     console.log('Retrieved user:', user);
     res.json({ user });
-};
+}
 ```
 
 ## Testing Tips
@@ -492,7 +492,7 @@ curl "http://<your invoke-execution URL>/invoke/{functionId}?param1=value1&param
 ### Test Different Scenarios
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Debug mode via query param
     if (req.query.debug === 'true') {
         console.log('DEBUG MODE');
@@ -511,19 +511,19 @@ module.exports = async function(req, res) {
     
     // Normal operation
     res.json({ success: true });
-};
+}
 ```
 
 ### Check Response Headers
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Log response headers being set
     res.set('Custom-Header', 'value');
     console.log('Response headers:', res.getHeaders());
     
     res.json({ message: 'Check headers' });
-};
+}
 ```
 
 ## Next Steps

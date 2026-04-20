@@ -107,7 +107,7 @@ ns.socket.on('$disconnect', async function (reason) {
     }
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ## Namespace Configuration

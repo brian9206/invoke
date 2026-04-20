@@ -5,7 +5,7 @@ The KV Store is an Invoke-specific persistent key-value storage system available
 ## Overview
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Store a value
     await kv.set('user:name', 'Alice');
     
@@ -19,7 +19,7 @@ module.exports = async function(req, res) {
     await kv.delete('user:name');
     
     res.json({ name, exists });
-};
+}
 ```
 
 ## API Methods
@@ -29,7 +29,7 @@ module.exports = async function(req, res) {
 Retrieve a value by key. Returns `null` if key doesn't exist or has expired.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const value = await kv.get('myKey');
     
     if (value === null) {
@@ -37,7 +37,7 @@ module.exports = async function(req, res) {
     }
     
     res.json({ value });
-};
+}
 ```
 
 **Returns:** `any` - The stored value, or `null` if not found
@@ -55,7 +55,7 @@ module.exports = async function(req, res) {
 Store a value with optional TTL (time-to-live) in milliseconds.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Permanent storage
     await kv.set('user:123', { name: 'Alice', email: 'alice@example.com' });
     
@@ -66,7 +66,7 @@ module.exports = async function(req, res) {
     await kv.set('temp:data', 'temporary', 300000);
     
     res.json({ stored: true });
-};
+}
 ```
 
 **Parameters:**
@@ -81,12 +81,12 @@ module.exports = async function(req, res) {
 Check if a key exists (and hasn't expired).
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const hasUser = await kv.has('user:123');
     const hasSession = await kv.has('session:abc');
     
     res.json({ hasUser, hasSession });
-};
+}
 ```
 
 **Returns:** `Promise<boolean>` - `true` if key exists, `false` otherwise
@@ -96,14 +96,14 @@ module.exports = async function(req, res) {
 Delete a key from the store.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const deleted = await kv.delete('user:123');
     
     res.json({ 
         deleted, // true if key existed, false if not
         message: deleted ? 'Key deleted' : 'Key not found'
     });
-};
+}
 ```
 
 **Returns:** `Promise<boolean>` - `true` if key was deleted, `false` if key didn't exist
@@ -113,10 +113,10 @@ module.exports = async function(req, res) {
 Delete all keys in the project's namespace.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     await kv.clear();
     res.json({ message: 'All keys cleared' });
-};
+}
 ```
 
 **Returns:** `Promise<void>`
@@ -128,7 +128,7 @@ module.exports = async function(req, res) {
 ### Simple Counter
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Get current count
     let count = await kv.get('counter') || 0;
     
@@ -139,15 +139,15 @@ module.exports = async function(req, res) {
     await kv.set('counter', count);
     
     res.json({ count });
-};
+}
 ```
 
 ### Session Management
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method === 'POST') {
         // Create session
         const sessionId = crypto.randomUUID();
@@ -171,13 +171,13 @@ module.exports = async function(req, res) {
         
         res.json({ userId: session.userId });
     }
-};
+}
 ```
 
 ###Caching API Responses
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const cacheKey = `api:users:${req.query.id}`;
     
     // Check cache first
@@ -197,13 +197,13 @@ module.exports = async function(req, res) {
     await kv.set(cacheKey, user, 600000);
     
     res.json({ user, cached: false });
-};
+}
 ```
 
 ### Rate Limiting
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const clientId = req.headers['x-client-id'] || req.ip;
     const rateLimitKey = `ratelimit:${clientId}`;
     
@@ -230,13 +230,13 @@ module.exports = async function(req, res) {
     });
     
     res.json({ message: 'Success', requestCount });
-};
+}
 ```
 
 ### Feature Flags
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const featureKey = 'feature:newUI';
     
     // Check if feature is enabled
@@ -247,20 +247,20 @@ module.exports = async function(req, res) {
     } else {
         res.json({ ui: 'old', message: 'Old UI' });
     }
-};
+}
 
 // Admin endpoint to toggle feature
-module.exports.admin = async function(req, res) {
+export async function admin(req, res) {
     const { feature, enabled } = req.body;
     await kv.set(`feature:${feature}`, enabled);
     res.json({ success: true });
-};
+}
 ```
 
 ### User Preferences
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const userId = req.query.userId;
     const prefsKey = `prefs:${userId}`;
     
@@ -282,13 +282,13 @@ module.exports = async function(req, res) {
         
         res.json({ preferences: newPrefs });
     }
-};
+}
 ```
 
 ### Temporary Data Storage
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method === 'POST') {
         // Generate share link
         const shareId = crypto.randomUUID();
@@ -313,13 +313,13 @@ module.exports = async function(req, res) {
         
         res.json({ data });
     }
-};
+}
 ```
 
 ### Leaderboard
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const leaderboardKey = 'game:leaderboard';
     
     if (req.method === 'POST') {
@@ -341,13 +341,13 @@ module.exports = async function(req, res) {
         const leaderboard = await kv.get(leaderboardKey) || [];
         res.json({ leaderboard });
     }
-};
+}
 ```
 
 ### Complex Data Structures
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const userId = req.query.userId;
     const cartKey = `cart:${userId}`;
     
@@ -374,7 +374,7 @@ module.exports = async function(req, res) {
         // Get cart
         res.json({ cart });
     }
-};
+}
 ```
 
 ## Best Practices
@@ -401,7 +401,7 @@ await kv.set('feature:darkMode', true);
 ### Error Handling
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const value = await kv.get('myKey');
         res.json({ value });
@@ -409,13 +409,13 @@ module.exports = async function(req, res) {
         console.error('KV error:', error);
         res.status(500).json({ error: 'Storage error' });
     }
-};
+}
 ```
 
 ### Default Values
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Provide defaults for missing keys
     const settings = await kv.get('settings') || {
         theme: 'light',
@@ -425,7 +425,7 @@ module.exports = async function(req, res) {
     const counter = await kv.get('counter') || 0;
     
     res.json({ settings, counter });
-};
+}
 ```
 
 ### TTL Management
@@ -458,7 +458,7 @@ await kv.set('permanent:data', value);
 - Consider compression for large data:
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
 // Compress before storing
 const data = { large: 'data' };

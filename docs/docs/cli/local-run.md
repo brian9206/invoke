@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # Local Function Runner
 
-Run functions locally on your machine without a running execution service, admin panel, or any network connection. The `invoke run` command spins up the exact same isolated-vm sandbox used in production so behavior is identical.
+Run functions locally on your machine without a running execution service, admin panel, or any network connection. The `invoke run` command spins up the exact same sandbox environment used in production so behavior is identical.
 
 ## Basic Usage
 
@@ -150,7 +150,7 @@ If the function throws or returns an error status, the exit code is `1`.
 
 `invoke run` uses the exact same execution environment as the production service:
 
-- **Isolated V8 sandbox** via `isolated-vm` — the function cannot access Node.js globals directly
+- **Isolated sandbox environment** — the function runs in the same isolated sandbox as production
 - **Virtual filesystem** — the function directory is mounted at `/app` inside the sandbox
 - **Built-in modules** — the same set of sandboxed `require`-able modules (`crypto`, `http`, `path`, `fs`, etc.)
 - **KV store** — the same `kv` global API (`kv.get`, `kv.set`, `kv.delete`, `kv.has`, `kv.clear`)

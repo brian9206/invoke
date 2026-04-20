@@ -17,8 +17,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 // Get global security policies
 async function getGlobalSecurityPolicies(res: NextApiResponse) {
   try {
-    const { GlobalNetworkPolicy } = database.models;
-    const rules = await GlobalNetworkPolicy.findAll({
+    const { NetworkPolicy } = database.models;
+    const rules = await NetworkPolicy.findAll({
       attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
       order: [['priority', 'ASC']]
     });
@@ -63,9 +63,15 @@ async function updateGlobalSecurityPolicies(
       if (!ipaddr.isValid(rule.target_value)) {
         return res.status(400).json({ error: `Invalid IP address: ${rule.target_value}` });
       }
+      if (ipaddr.parse(rule.target_value).kind() !== 'ipv4') {
+        return res.status(400).json({ error: `Only IPv4 addresses are supported: ${rule.target_value}` });
+      }
     } else if (rule.target_type === 'cidr') {
       try {
-        ipaddr.parseCIDR(rule.target_value);
+        const [addr] = ipaddr.parseCIDR(rule.target_value);
+        if (addr.kind() !== 'ipv4') {
+          return res.status(400).json({ error: `Only IPv4 CIDR ranges are supported: ${rule.target_value}` });
+        }
       } catch (e) {
         return res.status(400).json({ error: `Invalid CIDR notation: ${rule.target_value}` });
       }
@@ -79,13 +85,13 @@ async function updateGlobalSecurityPolicies(
 
   try {
     await database.sequelize.transaction(async (t: any) => {
-      const { GlobalNetworkPolicy } = database.models;
+      const { NetworkPolicy } = database.models;
       // Delete all existing global rules
-      await GlobalNetworkPolicy.destroy({ where: {}, transaction: t });
+      await NetworkPolicy.destroy({ where: {}, transaction: t });
       // Insert new rules with sequential priorities
       for (let i = 0; i < rules.length; i++) {
         const rule = rules[i];
-        await GlobalNetworkPolicy.create({
+        await NetworkPolicy.create({
           action: rule.action,
           target_type: rule.target_type,
           target_value: rule.target_value,

@@ -1,8 +1,12 @@
+import dns from 'dns/promises';
 import path from 'path';
-import ivm from 'isolated-vm';
-import ExecutionContext from './execution-context';
-import { getInstance as getIsolatePool } from './isolate-pool';
+import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool';
+import { type NetworkRule } from './sandbox-orchestrator';
+import { fetchNetworkPolicies } from './function-providers';
+import { executeSandbox } from './sandbox-execution-context';
 import { getExecutionSettings } from './execution-settings';
+import type { RequestData } from 'invoke-worker/src/protocol';
+import type { FunctionMetadata } from './function-providers';
 
 export interface AppLogEntry {
   level: string;
@@ -15,9 +19,7 @@ export interface AppLogEntry {
 
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any;
-  metadataProvider?: (functionId: string) => Promise<any>;
   envVarsProvider?: (functionId: string) => Promise<Record<string, string>>;
-  networkPoliciesProvider?: (projectId: string) => Promise<any>;
   appLogHandler?: (entry: AppLogEntry) => void;
 }
 
@@ -53,30 +55,21 @@ interface ContextLike {
 }
 
 /**
- * ExecutionEngine — Singleton class managing function execution with isolated-vm.
- * Orchestrates isolate pool, VFS, module loading, and execution.
+ * ExecutionEngine — Manages function execution with Docker containers
+ * via SandboxOrchestrator and SandboxPool.
  */
 export class ExecutionEngine {
-  private isolatePool: ReturnType<typeof getIsolatePool> | null;
-  private initialized: boolean;
-  private functionTimeout: number;
+  private pool = getSandboxPool();
+  private initialized = false;
+  private functionTimeout = 30_000;
 
   private kvStoreFactory: ((projectId: string) => any) | null;
-  private metadataProvider: ((functionId: string) => Promise<any>) | null;
   private envVarsProvider: ((functionId: string) => Promise<any>) | null;
-  private networkPoliciesProvider: ((projectId: string) => Promise<any>) | null;
   private appLogHandler: ((entry: AppLogEntry) => void) | null;
 
   constructor(options: ExecutionEngineOptions = {}) {
-    this.isolatePool = null;
-    this.initialized = false;
-
-    this.functionTimeout = 30_000; // overwritten on initialize() via DB
-
     this.kvStoreFactory = options.kvStoreFactory ?? null;
-    this.metadataProvider = options.metadataProvider ?? null;
     this.envVarsProvider = options.envVarsProvider ?? null;
-    this.networkPoliciesProvider = options.networkPoliciesProvider ?? null;
     this.appLogHandler = options.appLogHandler ?? null;
   }
 
@@ -84,7 +77,7 @@ export class ExecutionEngine {
     if (this.initialized) return;
 
     const missing = (
-      ['kvStoreFactory', 'metadataProvider', 'envVarsProvider', 'networkPoliciesProvider'] as const
+      ['kvStoreFactory', 'envVarsProvider'] as const
     ).filter((k) => !this[k]);
 
     if (missing.length) {
@@ -93,12 +86,12 @@ export class ExecutionEngine {
       );
     }
 
-    // Load execution settings from DB before initialising the pool
+    // Load execution settings from DB
     const settings = await getExecutionSettings();
     this.functionTimeout = settings.defaultTimeoutMs;
 
-    this.isolatePool = getIsolatePool();
-    await this.isolatePool.initialize(settings.defaultMemoryMb);
+    // Initialize the sandbox pool (pre-spawns containers)
+    await this.pool.initialize();
 
     this.initialized = true;
   }
@@ -112,20 +105,16 @@ export class ExecutionEngine {
     indexPath: string,
     context: ContextLike,
     functionId: string,
+    metadata: FunctionMetadata,
   ): Promise<ExecutionResult> {
     if (!this.initialized) {
       await this.initialize();
     }
 
-    const packageDir = path.dirname(indexPath);
-    let isolate: ivm.Isolate | null = null;
-    let ivmContext: ivm.Context | null = null;
-    let executionContext: ExecutionContext | null = null;
     let projectId: string | undefined;
+    let sandbox: Awaited<ReturnType<typeof this.pool.acquire>> | null = null;
 
     try {
-      const metadata = await this.metadataProvider!(functionId);
-      const packageHash = metadata.package_hash;
       projectId = metadata.project_id;
       const projectSlug = metadata.project_slug;
 
@@ -142,36 +131,12 @@ export class ExecutionEngine {
       const effectiveTimeoutMs = metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
         ? metadata.custom_timeout_seconds * 1000
         : settings.defaultTimeoutMs;
-      const effectiveMemoryMb = metadata.custom_memory_enabled && metadata.custom_memory_mb
-        ? metadata.custom_memory_mb
-        : settings.defaultMemoryMb;
 
       const envVars = await this.envVarsProvider!(functionId);
-      const networkPolicies = await this.networkPoliciesProvider!(resolvedProjectId);
       const kvStore = this.kvStoreFactory!(resolvedProjectId);
 
-      const acquired = await this.isolatePool!.acquireWithMemory(effectiveMemoryMb);
-      isolate = acquired.isolate;
-      ivmContext = acquired.context;
-
-      executionContext = new ExecutionContext(
-        isolate,
-        ivmContext,
-        packageDir,
-        functionId,
-        packageHash,
-        envVars,
-        acquired.compiledScript,
-        resolvedProjectId,
-        projectSlug,
-        kvStore,
-        networkPolicies,
-        boundConsoleLogger,
-      );
-
-      await executionContext.bootstrap();
-
-      const reqData = {
+      // Build the RequestData for the protocol
+      const request: RequestData = {
         method: context.req.method,
         url: context.req.url,
         originalUrl: context.req.originalUrl ?? context.req.url,
@@ -187,65 +152,29 @@ export class ExecutionEngine {
         headers: context.req.headers ?? {},
       };
 
-      await executionContext.setupRequest(reqData);
-      await executionContext.setupResponse();
+      // Determine the function ID used to resolve the path inside the container.
+      // The cache stores extracted packages at /tmp/cache/packages/{functionId}[-v{version}]/
+      // which is bind-mounted to /functions/ inside the container.
+      // indexPath looks like: /tmp/cache/packages/{dirName}/index.js
+      const packageDirName = path.basename(path.dirname(indexPath));
 
-      const virtualIndexPath = '/app/index.js';
-      const vfs = executionContext.vfs;
-      const vfsFs = vfs.createNodeFSModule();
-      const userCode = vfsFs.readFileSync(virtualIndexPath, 'utf8');
-
-      const executeCode = `
-(async function() {
-    const module = { exports: {} };
-    const exports = module.exports;
-    const __filename = '/app/index.js';
-    const __dirname = '/app';
-
-    ${userCode}
-
-    if (typeof module.exports !== 'function') {
-        throw new Error('Module must export a function. Expected: module.exports = function(req, res) {...}');
-    }
-
-    const result = module.exports(req, res);
-    if (result && typeof result.then === 'function') {
-        await result;
-    }
-
-    return undefined;
-})();
-`;
-
-      const executeScript = await isolate.compileScript(executeCode, {
-        filename: '/app/index.js',
+      // Execute inside the container
+      sandbox = await this.pool.acquire();
+      const result = await executeSandbox(sandbox, {
+        functionId: packageDirName,
+        request,
+        env: envVars,
+        timeoutMs: effectiveTimeoutMs,
+        kvStore,
+        projectSlug,
+        consoleLogger: boundConsoleLogger,
       });
 
-      try {
-        await executeScript.run(ivmContext, {
-          timeout: effectiveTimeoutMs,
-          promise: true,
-        });
-      } catch (error: any) {
-        if (error.message && error.message.includes('Script execution timed out')) {
-          this.isolatePool!.release(isolate, false);
-          isolate = null;
-          throw new Error(`Function execution timeout (${effectiveTimeoutMs}ms)`);
-        }
-        throw error;
-      }
-
-      const response = executionContext.getResponse();
-
-      this.isolatePool!.release(isolate, true);
-      isolate = null;
-
-      executionContext.cleanup();
-
       return {
-        data: response.data,
-        statusCode: response.statusCode,
-        headers: response.headers,
+        data: result.data,
+        statusCode: result.statusCode,
+        headers: result.headers,
+        error: result.error,
       };
     } catch (error: any) {
       console.error('[ExecutionEngine] Execution error:', error);
@@ -261,40 +190,41 @@ export class ExecutionEngine {
         });
       }
 
-      if (isolate) {
-        const isCorrupted =
-          error.message &&
-          (error.message.includes('timeout') ||
-            error.message.includes('out of memory') ||
-            error.message.includes('memory limit'));
-
-        this.isolatePool!.release(isolate, !isCorrupted);
-      }
-
-      if (executionContext) {
-        executionContext.cleanup();
-      }
-
       const errorMessage = error.message || String(error);
-      const errorStack = error.stack || '';
 
       return {
-        error: errorMessage + (errorStack ? '\n' + errorStack : ''),
+        error: errorMessage,
         statusCode: 500,
       };
     }
+    // Note: no release() call needed — the container self-reports 'ready'
+    // after the supervisor cleans up the overlay, and the pool handles it.
   }
 
-  getMetrics(): { isolatePool: ReturnType<ReturnType<typeof getIsolatePool>['getMetrics']> | null } {
-    const isolatePoolMetrics = this.isolatePool ? this.isolatePool.getMetrics() : null;
-    return { isolatePool: isolatePoolMetrics };
+  getMetrics(): { sandboxPool: SandboxPoolMetrics | null } {
+    return {
+      sandboxPool: this.initialized ? this.pool.getMetrics() : null,
+    };
   }
 
   async shutdown(): Promise<void> {
-    if (this.isolatePool) {
-      await this.isolatePool.shutdown();
-    }
+    await this.pool.shutdown();
     this.initialized = false;
+  }
+
+  /**
+   * Fetch global network policy rules from DB and apply them as iptables rules
+   * on the default Docker bridge (invoke-sandbox-global chain).
+   * Safe to call on startup and on every global_network_policies NOTIFY.
+   */
+  async applyGlobalNetworkPolicy(): Promise<void> {
+    try {
+      const { rules } = await fetchNetworkPolicies();
+      const networkRules = await policyRowsToNetworkRules(rules);
+      await this.pool.setGlobalNetwork(networkRules);
+    } catch (err) {
+      console.error('[NetworkPolicy] Failed to apply global network policy:', err);
+    }
   }
 }
 
@@ -347,6 +277,60 @@ interface CreateExecutionContextOptions {
   params?: Record<string, string>;
   originalReq?: RequestLike;
   traceId?: string;
+}
+
+// -----------------------------------------------------------------------
+// Network policy helpers
+// -----------------------------------------------------------------------
+
+const IPV4_CIDR_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/;
+const IPV4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+interface PolicyRow {
+  action: 'allow' | 'deny';
+  target_type: 'ip' | 'cidr' | 'domain';
+  target_value: string;
+  priority: number;
+}
+
+async function policyRowsToNetworkRules(rows: PolicyRow[]): Promise<NetworkRule[]> {
+  const sorted = [...rows].sort((a, b) => a.priority - b.priority);
+  const rules: NetworkRule[] = [];
+
+  for (const row of sorted) {
+    const action = row.action === 'allow' ? 'RETURN' : 'DROP';
+
+    switch (row.target_type) {
+      case 'cidr':
+        if (IPV4_CIDR_RE.test(row.target_value)) {
+          rules.push({ cidr: row.target_value, action });
+        } else {
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 CIDR target "${row.target_value}"`);
+        }
+        break;
+
+      case 'ip':
+        if (IPV4_RE.test(row.target_value)) {
+          rules.push({ cidr: `${row.target_value}/32`, action });
+        } else {
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 IP target "${row.target_value}"`);
+        }
+        break;
+
+      case 'domain':
+        try {
+          const addresses = await dns.resolve4(row.target_value);
+          for (const addr of addresses) {
+            rules.push({ cidr: `${addr}/32`, action });
+          }
+        } catch {
+          console.warn(`[NetworkPolicy] DNS resolution failed for domain "${row.target_value}", skipping`);
+        }
+        break;
+    }
+  }
+
+  return rules;
 }
 
 export function createExecutionContext({

@@ -60,7 +60,6 @@ module.exports = (sequelize) => {
     Project.hasMany(models.Function, { foreignKey: 'project_id' });
     Project.hasMany(models.ProjectMembership, { foreignKey: 'project_id' });
     Project.hasOne(models.ApiGatewayConfig, { foreignKey: 'project_id' });
-    Project.hasMany(models.ProjectNetworkPolicy, { foreignKey: 'project_id' });
   };
 
   return Project;

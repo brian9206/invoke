@@ -53,7 +53,7 @@ ns.socket.on('$disconnect', function (reason) {
     console.log('Disconnected:', ns.socket.id, reason);
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 **Note:** `RealtimeNamespace` is a global — no `require()` needed.
@@ -252,7 +252,7 @@ ns.socket.on('$disconnect', function () {
     ns.emit('userLeft', { username: ns.socket.data.username });
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ### Live Notifications
@@ -277,7 +277,7 @@ ns.socket.on('notify', function (data) {
     }
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ### Presence (Online/Offline)
@@ -299,7 +299,7 @@ ns.socket.on('$disconnect', function () {
     });
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ## Best Practices

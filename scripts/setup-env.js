@@ -14,6 +14,7 @@ const SERVICES = [
   { name: 'invoke-gateway',     dir: 'invoke-gateway' },
   { name: 'invoke-scheduler',   dir: 'invoke-scheduler' },
   { name: 'invoke-cli',         dir: 'invoke-cli' },
+  { name: 'invoke-logger',      dir: 'invoke-logger' },
 ];
 
 // Variables that appear in multiple services but should be asked per-service

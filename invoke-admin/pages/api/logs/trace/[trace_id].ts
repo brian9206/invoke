@@ -15,6 +15,7 @@ export interface TraceExecution {
   function_name: string
   function_id: string | null
   project_id: string
+  error: string | null
   request: {
     method: string
     url: string
@@ -89,6 +90,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         function_name: executionLog.function_name ?? p?.function?.name ?? '',
         function_id: executionLog.function_id ?? p?.function?.id ?? null,
         project_id: executionLog.project_id,
+        error: p.error ?? null,
         request: {
           method: p.request?.method ?? '',
           url: p.request?.url ?? '',

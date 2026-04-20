@@ -1,13 +1,18 @@
 import chalk from 'chalk';
+import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import type { Command } from 'commander';
-import { createLocalKVFactory } from '../services/local-kv';
+import { createLocalKVClient } from '../services/local-kv';
+import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/exchange';
+import { setupEnvironment } from 'invoke-worker/src/environment';
+import type { RequestData } from 'invoke-worker/src/protocol';
+import { RealtimeClient } from 'invoke-worker/src/realtime';
 
 export function register(program: Command): void {
   program
     .command('run [path]')
-    .description('Run a function locally using the same isolated-vm environment as the execution service')
+    .description('Run a function locally')
     .option('-m, --method <method>', 'HTTP method', 'GET')
     .option('-p, --path <urlpath>', 'Request path', '/')
     .option('-d, --data <json>', 'Request body as a JSON string')
@@ -16,19 +21,6 @@ export function register(program: Command): void {
     .option('--kv-file <file>', 'JSON file for KV store persistence (default: in-memory)')
     .action(async (fnPath: string | undefined, options: any) => {
       fnPath = fnPath || '.';
-
-      // Force pool size to 1 BEFORE requiring invoke-execution so IsolatePool
-      // constructor reads the updated env vars.
-      process.env.ISOLATE_POOL_SIZE = '1';
-      process.env.ISOLATE_MAX_POOL_SIZE = '1';
-      process.env.ISOLATE_SUPPRESS_LOGGING = 'true';
-      process.env.REDIRECT_OUTPUT = 'no-func-id';
-      process.env.VM_BUNDLES_ROOT = path.resolve(__dirname, 'vm-bundles');
-
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { ExecutionEngine } = require('invoke-execution/src/services/execution-engine') as any;
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const dotenv = require('dotenv') as typeof import('dotenv');
 
       const absoluteFnDir = path.resolve(fnPath);
       const indexPath = path.join(absoluteFnDir, 'index.js');
@@ -68,35 +60,32 @@ export function register(program: Command): void {
 
       const reqUrl = (options.path || '/').startsWith('/') ? options.path : '/' + options.path;
 
-      const reqData = {
+      // Environment setup
+      const kvClient = createLocalKVClient(options.kvFile)();
+      const realtimeClient = new RealtimeClient({} as any); // No-op realtime client for local runs
+
+      setupEnvironment(kvClient, realtimeClient);
+
+      // Inject env vars
+      for (const [key, value] of Object.entries(envVars)) {
+        process.env[key] = value;
+      }
+
+      const requestData: RequestData = {
         method: options.method.toUpperCase(),
         url: reqUrl,
         originalUrl: reqUrl,
         path: reqUrl.split('?')[0],
         protocol: 'http',
         hostname: 'localhost',
-        host: 'localhost',
         secure: false,
         ip: '127.0.0.1',
-        ips: [] as string[],
+        ips: [],
         body,
-        query: {} as Record<string, string>,
-        params: {} as Record<string, string>,
+        query: {},
+        params: {},
         headers: { 'content-type': 'application/json', ...headers },
       };
-
-      const engine = new ExecutionEngine({
-        kvStoreFactory: createLocalKVFactory(options.kvFile),
-        metadataProvider: async () => ({ package_hash: 'local', project_id: 'local' }),
-        envVarsProvider: async () => envVars,
-        networkPoliciesProvider: async () => ({
-          globalRules: [
-            { action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0', priority: 1 },
-            { action: 'allow', target_type: 'cidr', target_value: '::/0', priority: 2 },
-          ],
-          projectRules: [],
-        }),
-      });
 
       try {
         console.log(chalk.cyan(`▶ Running: ${absoluteFnDir}`));
@@ -107,41 +96,57 @@ export function register(program: Command): void {
         }
         console.log('');
 
-        await engine.initialize();
+        // Load user module
+        const userModule = require(indexPath);
+        const handler = typeof userModule === 'function' ? userModule
+          : typeof userModule.default === 'function' ? userModule.default
+          : null;
 
-        const result = await engine.executeFunction(indexPath, { req: reqData }, 'local');
-
-        if (result.error) {
-          console.log('\n' + chalk.red('=== Error ==='));
-          console.error(result.error);
+        if (!handler) {
+          console.error(chalk.red('✗ Module must export a function. Expected: module.exports = function(req, res) {...}'));
           process.exitCode = 1;
+          return;
+        }
+
+        const req = createReqObject(requestData);
+        const { res, state } = createResObject(req);
+
+        const result = handler(req, res);
+        if (result && typeof result.then === 'function') {
+          await result;
+        }
+
+        const responseData = stateToResponseData(state);
+
+        if (responseData.statusCode >= 400) {
+          console.log('\n' + chalk.red('=== Response ==='));
         } else {
-          const statusColor = result.statusCode >= 400 ? chalk.red : chalk.green;
           console.log('\n' + chalk.cyan('=== Response ==='));
-          console.log(`Status: ${statusColor(result.statusCode)}`);
+        }
 
-          if (result.headers) {
-            console.log('\n' + chalk.gray('Response Headers:'));
-            for (const [key, value] of Object.entries(result.headers as Record<string, string>)) {
-              console.log(`${key}: ${value}`);
-            }
+        const statusColor = responseData.statusCode >= 400 ? chalk.red : chalk.green;
+        console.log(`Status: ${statusColor(responseData.statusCode)}`);
+
+        if (Object.keys(responseData.headers).length > 0) {
+          console.log('\n' + chalk.gray('Response Headers:'));
+          for (const [key, value] of Object.entries(responseData.headers)) {
+            console.log(`${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
           }
+        }
 
-          console.log('\n' + chalk.gray('Response Body:'));
-          if (result.data !== undefined) {
-            const bodyStr = Buffer.isBuffer(result.data) ? result.data.toString('utf8') : String(result.data);
-            try {
-              console.log(JSON.stringify(JSON.parse(bodyStr), null, 2));
-            } catch {
-              console.log(bodyStr);
-            }
+        console.log('\n' + chalk.gray('Response Body:'));
+        if (responseData.body) {
+          const bodyStr = Buffer.from(responseData.body, 'base64').toString('utf8');
+          try {
+            console.log(JSON.stringify(JSON.parse(bodyStr), null, 2));
+          } catch {
+            console.log(bodyStr);
           }
         }
       } catch (err: any) {
         console.error(chalk.red('✗ Execution failed:'), err.message);
+        if (err.stack) console.error(chalk.gray(err.stack));
         process.exitCode = 1;
-      } finally {
-        await engine.shutdown();
       }
     });
 }

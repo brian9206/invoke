@@ -7,7 +7,7 @@ Learn how to make HTTP and HTTPS requests from your Invoke functions.
 The modern `fetch` API is the recommended way to make HTTP requests:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const response = await fetch('https://api.example.com/data');
         
@@ -20,13 +20,13 @@ module.exports = async function(req, res) {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-};
+}
 ```
 
 ### GET Requests
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Simple GET
     const response = await fetch(' https://api.github.com/users/octocat');
     const user = await response.json();
@@ -41,13 +41,13 @@ module.exports = async function(req, res) {
     const searchResults = await searchResponse.json();
     
     res.json({ user, searchResults });
-};
+}
 ```
 
 ### POST Requests
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const response = await fetch('https://api.example.com/users', {
         method: 'POST',
         headers: {
@@ -61,13 +61,13 @@ module.exports = async function(req, res) {
     
     const data = await response.json();
     res.status(201).json(data);
-};
+}
 ```
 
 ### Headers and Authentication
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Bearer token auth
     const response = await fetch('https://api.example.com/protected', {
         headers: {
@@ -94,13 +94,13 @@ module.exports = async function(req, res) {
     });
     
     res.json({ success: true });
-};
+}
 ```
 
 ### Request Methods
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const apiUrl = 'https://api.example.com/resource/123';
     
     // PUT - Update
@@ -127,13 +127,13 @@ module.exports = async function(req, res) {
         patch: patchResponse.status,
         delete: deleteResponse.status
     });
-};
+}
 ```
 
 ### Response Handling
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const response = await fetch('https://api.example.com/data');
     
     // Check status
@@ -155,13 +155,13 @@ module.exports = async function(req, res) {
         const buffer = await response.buffer();
         res.send(buffer);
     }
-};
+}
 ```
 
 ### Error Handling
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const response = await fetch('https://api.example.com/data');
         
@@ -186,13 +186,13 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ### Timeout Handling
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
@@ -212,7 +212,7 @@ module.exports = async function(req, res) {
             res.status(500).json({ error: error.message });
         }
     }
-};
+}
 ```
 
 ## Using HTTP/HTTPS Modules
@@ -222,9 +222,9 @@ For more control, use the built-in `http` and `https` modules:
 ### Simple GET Request
 
 ```javascript
-const https = require('https');
+import https from 'https';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     https.get('https://api.github.com/users/octocat', {
         headers: {
             'User-Agent': 'Invoke-Function'
@@ -242,15 +242,15 @@ module.exports = function(req, res) {
     }).on('error', (error) => {
         res.status(500).json({ error: error.message });
     });
-};
+}
 ```
 
 ### POST Request
 
 ```javascript
-const https = require('https');
+import https from 'https';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const postData = JSON.stringify({
         name: 'Alice',
         email: 'alice@example.com'
@@ -285,7 +285,7 @@ module.exports = function(req, res) {
     
     request.write(postData);
     request.end();
-};
+}
 ```
 
 ## Common Patterns
@@ -329,7 +329,7 @@ class APIClient {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const client = new APIClient(
         'https://api.example.com',
         process.env.API_KEY
@@ -339,7 +339,7 @@ module.exports = async function(req, res) {
     const newUser = await client.post('/users', req.body);
     
     res.json({ users, newUser });
-};
+}
 ```
 
 ### Retry Logic
@@ -364,17 +364,17 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const response = await fetchWithRetry('https://api.example.com/data');
     const data = await response.json();
     res.json(data);
-};
+}
 ```
 
 ### Parallel Requests
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const [users, posts, comments] = await Promise.all([
         fetch('https://api.example.com/users').then(r => r.json()),
         fetch('https://api.example.com/posts').then(r => r.json()),
@@ -382,13 +382,13 @@ module.exports = async function(req, res) {
     ]);
     
     res.json({ users, posts, comments });
-};
+}
 ```
 
 ### Caching Responses
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const cacheKey = `api:data:${req.query.id}`;
     
     // Check cache
@@ -404,7 +404,7 @@ module.exports = async function(req, res) {
     }
     
     res.json(data);
-};
+}
 ```
 
 ## Best Practices
@@ -466,5 +466,4 @@ const response = await fetch('https://api.example.com', {
 ## Next Steps
 
 - [Response Object](/docs/api/response) - Handling responses
-- [Crypto Module](/docs/api/modules/crypto) - Secure requests
 - [Examples](/docs/examples/webhook-handler) - HTTP examples

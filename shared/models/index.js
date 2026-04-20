@@ -20,9 +20,8 @@ function initModels(sequelize) {
   const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize);
   const GlobalSetting              = require('./GlobalSetting')(sequelize);
 
-  // ── Network policies (NetworkPolicyBase is a factory helper, not a model) ─
-  const ProjectNetworkPolicy = require('./ProjectNetworkPolicy')(sequelize);
-  const GlobalNetworkPolicy  = require('./GlobalNetworkPolicy')(sequelize);
+  // ── Network policies ─────────────────────────────────────────────────────
+  const NetworkPolicy = require('./NetworkPolicy')(sequelize);
 
   // ── API Gateway ───────────────────────────────────────────────────────────
   const ApiGatewayConfig          = require('./ApiGatewayConfig')(sequelize);
@@ -49,8 +48,7 @@ function initModels(sequelize) {
     ApiKey,
     FunctionEnvironmentVariable,
     GlobalSetting,
-    ProjectNetworkPolicy,
-    GlobalNetworkPolicy,
+    NetworkPolicy,
     ApiGatewayConfig,
     ApiGatewayRoute,
     ApiGatewayRouteSettings,

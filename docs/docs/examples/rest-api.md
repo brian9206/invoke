@@ -63,7 +63,7 @@ router.use((req, res) => {
     res.status(404).json({ error: 'Endpoint not found' });
 });
 
-module.exports = router;
+export default router;
 ```
 
 ## Testing the API
@@ -154,7 +154,7 @@ router.delete('/:id', async (req, res) => {
 
 router.use((req, res) => res.status(404).json({ error: 'Endpoint not found' }));
 
-module.exports = router;
+export default router;
 ```
 
 ## With Pagination
@@ -202,7 +202,7 @@ router.get('/', async (req, res) => {
     });
 });
 
-module.exports = router;
+export default router;
 ```
 
 ## Next Steps

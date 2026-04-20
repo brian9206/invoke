@@ -24,9 +24,8 @@ const dnsPromises = dns.promises;
 class NetworkPolicy {
   private rules: PolicyRule[];
 
-  constructor(globalRules: PolicyRule[], projectRules: PolicyRule[]) {
-    const allRules = [...(globalRules || []), ...(projectRules || [])];
-    this.rules = allRules;
+  constructor(rules: PolicyRule[]) {
+    this.rules = rules || [];
 
     if (this.rules.length === 0) {
       this.rules = [
@@ -41,15 +40,6 @@ class NetworkPolicy {
     }
   }
 
-  hasIPv6Rules(): boolean {
-    return this.rules.some((rule) => {
-      if (rule.target_type === 'cidr' || rule.target_type === 'ip') {
-        return rule.target_value.includes(':');
-      }
-      return false;
-    });
-  }
-
   async resolveDomainToIPs(domain: string): Promise<string[]> {
     const ips: string[] = [];
 
@@ -58,13 +48,6 @@ class NetworkPolicy {
       ips.push(...ipv4Addresses);
     } catch {
       // IPv4 resolution failed — that's okay
-    }
-
-    try {
-      const ipv6Addresses = await dnsPromises.resolve6(domain);
-      ips.push(...ipv6Addresses);
-    } catch {
-      // IPv6 resolution failed — that's okay
     }
 
     return ips;
@@ -105,15 +88,6 @@ class NetworkPolicy {
       } catch {
         return { allowed: true, reason: 'DNS resolution error' };
       }
-    }
-
-    const hasIPv6 = ipsToCheck.some((ip) => ip.includes(':'));
-
-    if (hasIPv6 && !this.hasIPv6Rules()) {
-      const blockedIP = ipsToCheck.find((ip) => ip.includes(':'));
-      const message = `Network policy blocked connection to ${host} (resolved to ${blockedIP})`;
-      if (consoleLog) consoleLog(message);
-      return { allowed: false, reason: 'IPv6 connection blocked - no IPv6 rules configured' };
     }
 
     for (const rule of this.rules) {

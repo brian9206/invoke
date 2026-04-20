@@ -7,9 +7,9 @@ Learn how to compress and decompress data using the zlib module.
 ### Synchronous
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = 'Hello World! '.repeat(100);
     
     // Compress
@@ -24,17 +24,17 @@ module.exports = function(req, res) {
         ratio: (compressed.length / data.length * 100).toFixed(2) + '%',
         decompressed: decompressed.toString()
     });
-};
+}
 ```
 
 ### Streaming
 
 ```javascript
-const zlib = require('zlib');
-const fs = require('fs');
-const path = require('path');
+import zlib from 'zlib';
+import fs from 'fs';
+import path from 'path';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const inputPath = path.join(__dirname, 'large-file.txt');
     const outputPath = path.join(__dirname, 'large-file.txt.gz');
     
@@ -47,15 +47,15 @@ module.exports = function(req, res) {
     output.on('finish', () => {
         res.send('File compressed');
     });
-};
+}
 ```
 
 ## Deflate Compression
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = Buffer.from(req.body.data);
     
     // Compress
@@ -69,15 +69,15 @@ module.exports = function(req, res) {
         compressed: compressed.length,
         decompressed: decompressed.toString()
     });
-};
+}
 ```
 
 ## Brotli Compression
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = 'Large data...'.repeat(1000);
     
     // Compress with Brotli
@@ -91,15 +91,15 @@ module.exports = function(req, res) {
         compressed: compressed.length,
         ratio: (compressed.length / data.length * 100).toFixed(2) + '%'
     });
-};
+}
 ```
 
 ## Compressing JSON
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const data = {
         users: Array(1000).fill(null).map((_, i) => ({
             id: i,
@@ -120,15 +120,15 @@ module.exports = async function(req, res) {
         compressedSize: compressed.length,
         savings: ((1 - compressed.length / json.length) * 100).toFixed(2) + '%'
     });
-};
+}
 ```
 
 ## Decompressing JSON
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Retrieve compressed data
     const compressedBase64 = await kv.get('users:compressed');
     const compressed = Buffer.from(compressedBase64, 'base64');
@@ -138,15 +138,15 @@ module.exports = async function(req, res) {
     const data = JSON.parse(decompressed.toString());
     
     res.json(data);
-};
+}
 ```
 
 ## HTTP Response Compression
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = { message: 'Large response data...' };
     const json = JSON.stringify(data);
     
@@ -161,15 +161,15 @@ module.exports = function(req, res) {
     } else {
         res.json(data);
     }
-};
+}
 ```
 
 ## Compression Levels
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = 'Data to compress'.repeat(100);
     const results = {};
     
@@ -183,15 +183,15 @@ module.exports = function(req, res) {
     }
     
     res.json(results);
-};
+}
 ```
 
 ## Best Compression Algorithm Comparison
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = req.body.data || 'Test data'.repeat(1000);
     
     const gzipped = zlib.gzipSync(data);
@@ -213,15 +213,15 @@ module.exports = function(req, res) {
             ratio: (brotli.length / data.length * 100).toFixed(2) + '%'
         }
     });
-};
+}
 ```
 
 ## Error Handling
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     try {
         const compressed = Buffer.from(req.body.data, 'base64');
         const decompressed = zlib.gunzipSync(compressed);
@@ -233,7 +233,7 @@ module.exports = function(req, res) {
             res.status(500).json({ error: 'Decompression failed' });
         }
     }
-};
+}
 ```
 
 ## Use Cases
@@ -241,9 +241,9 @@ module.exports = function(req, res) {
 ### 1. Compressing Large KV Store Values
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const largeData = { /* large object */ };
     
     // Compress before storing
@@ -251,15 +251,15 @@ module.exports = async function(req, res) {
     await kv.set('large:data', compressed.toString('base64'));
     
     res.json({ stored: true });
-};
+}
 ```
 
 ### 2. API Response Caching
 
 ```javascript
-const zlib = require('zlib');
+import zlib from 'zlib';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const cacheKey = 'api:response';
     
     // Check cache
@@ -280,7 +280,7 @@ module.exports = async function(req, res) {
     await kv.set(cacheKey, compressed.toString('base64'), 3600000);
     
     res.json(data);
-};
+}
 ```
 
 ## Best Practices
@@ -304,7 +304,3 @@ if (data.length > 1024) {
 ```
 
 ## Next Steps
-
-- [Zlib Module](/docs/api/modules/zlib) - Complete API reference
-- [Stream Module](/docs/api/modules/stream) - Stream compression
-- [Buffer Module](/docs/api/modules/buffer) - Binary data handling

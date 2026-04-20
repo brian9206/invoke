@@ -5,7 +5,7 @@ Secure password hashing, data integrity, and verification.
 ## Password Hashing
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 // Hash a password
 function hashPassword(password) {
@@ -38,7 +38,7 @@ function verifyPassword(password, salt, hash) {
     return testHash === hash;
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { action, password, salt, hash } = req.body;
     
     if (action === 'hash') {
@@ -69,7 +69,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(400).json({ error: 'Invalid action' });
-};
+}
 ```
 
 ### Testing
@@ -105,9 +105,9 @@ curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
 ## File Integrity Checking
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { action, data, hash: providedHash, algorithm } = req.body;
     
     if (action === 'hash') {
@@ -144,7 +144,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(400).json({ error: 'Invalid action' });
-};
+}
 ```
 
 ### Testing
@@ -171,7 +171,7 @@ curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
 ## HMAC Authentication
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 // Store API keys securely (use KV store in production)
 const API_KEYS = {
@@ -193,7 +193,7 @@ function verifyHMAC(message, signature, secret) {
     );
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const userId = req.headers['x-user-id'];
     const signature = req.headers['x-signature'];
     const timestamp = req.headers['x-timestamp'];
@@ -237,14 +237,14 @@ module.exports = function(req, res) {
     } catch (error) {
         res.status(401).json({ error: 'Verification failed' });
     }
-};
+}
 ```
 
 ### Client Example
 
 ```javascript
 // Client-side code
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function makeAuthenticatedRequest(userId, secret, path, method, body) {
     const timestamp = Date.now().toString();
@@ -270,9 +270,9 @@ function makeAuthenticatedRequest(userId, secret, path, method, body) {
 ## Unique ID Generation
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { type, count } = req.query;
     const num = parseInt(count) || 1;
     
@@ -315,7 +315,7 @@ module.exports = function(req, res) {
         count: num,
         ids
     });
-};
+}
 ```
 
 ## Best Practices
@@ -341,4 +341,3 @@ module.exports = function(req, res) {
 
 - [Cryptography Guide](/docs/guides/cryptography) - More crypto patterns
 - [Environment Variables](/docs/guides/environment-vars) - Store secrets
-- [crypto Module](/docs/api/modules/crypto) - Full crypto API

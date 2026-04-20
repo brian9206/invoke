@@ -5,7 +5,7 @@ The response object (`res`) is used to send data back to the client. It's compat
 ## Overview
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Send JSON
     res.json({ message: 'Hello' });
     
@@ -14,7 +14,7 @@ module.exports = function(req, res) {
     
     // Send with status
     // res.status(201).json({ created: true });
-};
+}
 ```
 
 ## Sending Responses
@@ -24,7 +24,7 @@ module.exports = function(req, res) {
 Smart send that auto-detects content type:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // String - sends as text/html
     res.send('Hello World');
     
@@ -37,7 +37,7 @@ module.exports = function(req, res) {
     
     // Array - sends as JSON
     // res.send([1, 2, 3]);
-};
+}
 ```
 
 ### res.json(object)
@@ -45,7 +45,7 @@ module.exports = function(req, res) {
 Send JSON response:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({
         success: true,
         message: 'Operation completed',
@@ -55,7 +55,7 @@ module.exports = function(req, res) {
         },
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 Automatically sets `Content-Type: application/json`.
@@ -65,13 +65,13 @@ Automatically sets `Content-Type: application/json`.
 End the response (optionally with data):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.setHeader('Content-Type', 'text/plain');
     res.end('Response complete');
     
     // Or just end without data
     // res.end();
-};
+}
 ```
 
 ### res.sendStatus(statusCode)
@@ -79,11 +79,11 @@ module.exports = function(req, res) {
 Send status code with default message:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.sendStatus(200); // Sends 'OK'
     // res.sendStatus(404); // Sends 'Not Found'
     // res.sendStatus(500); // Sends 'Internal Server Error'
-};
+}
 ```
 
 ## Status Codes
@@ -93,7 +93,7 @@ module.exports = function(req, res) {
 Set HTTP status code (chainable):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Success responses
     res.status(200).json({ message: 'OK' });
     res.status(201).json({ message: 'Created' });
@@ -108,7 +108,7 @@ module.exports = function(req, res) {
     // Server errors
     res.status(500).json({ error: 'Internal Server Error' });
     res.status(503).json({ error: 'Service Unavailable' });
-};
+}
 ```
 
 ## File Operations
@@ -118,12 +118,12 @@ module.exports = function(req, res) {
 Send a file with automatic MIME type detection:
 
 ```javascript
-const path = require('path');
+import path from 'path';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'files', 'document.pdf');
     res.sendFile(filePath);
-};
+}
 ```
 
 **Options:**
@@ -131,14 +131,16 @@ module.exports = function(req, res) {
 - `headers` - Additional headers to send
 
 ```javascript
-module.exports = function(req, res) {
+import path from 'path';
+
+export default function handler(req, res) {
     res.sendFile('document.pdf', {
         root: path.join(__dirname, 'files'),
         headers: {
             'X-Custom-Header': 'value'
         }
     });
-};
+}
 ```
 
 ### res.download(path, filename)
@@ -146,12 +148,12 @@ module.exports = function(req, res) {
 Force file download (sets Content-Disposition header):
 
 ```javascript
-const path = require('path');
+import path from 'path';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'reports', 'report.pdf');
     res.download(filePath, 'monthly-report.pdf');
-};
+}
 ```
 
 ## Headers
@@ -161,12 +163,12 @@ module.exports = function(req, res) {
 Set a response header:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('X-Custom-Header', 'custom-value');
     res.setHeader('Cache-Control', 'no-cache');
     res.end('Done');
-};
+}
 ```
 
 ### res.set(name, value) or res.set(object)
@@ -174,7 +176,7 @@ module.exports = function(req, res) {
 Alias for setHeader (can set multiple):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Single header
     res.set('Content-Type', 'text/html');
     
@@ -186,7 +188,7 @@ module.exports = function(req, res) {
     });
     
     res.send('OK');
-};
+}
 ```
 
 ### res.get(name)
@@ -194,12 +196,12 @@ module.exports = function(req, res) {
 Get a response header value:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.set('X-Custom', 'value');
     const custom = res.get('X-Custom');
     
     res.json({ custom });
-};
+}
 ```
 
 ### res.append(field, value)
@@ -207,11 +209,11 @@ module.exports = function(req, res) {
 Append value to a header:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.append('Set-Cookie', 'cookie1=value1');
     res.append('Set-Cookie', 'cookie2=value2');
     res.send('Cookies set');
-};
+}
 ```
 
 ### res.removeHeader(name)
@@ -219,11 +221,11 @@ module.exports = function(req, res) {
 Remove a response header:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.setHeader('X-Powered-By', 'Invoke');
     res.removeHeader('X-Powered-By');
     res.send('OK');
-};
+}
 ```
 
 ### res.type(mimeType)
@@ -231,7 +233,7 @@ module.exports = function(req, res) {
 Set Content-Type header:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Using MIME type
     res.type('application/json');
     
@@ -242,7 +244,7 @@ module.exports = function(req, res) {
     res.type('pdf');
     
     res.end('{"message": "Hello"}');
-};
+}
 ```
 
 Alias: `res.contentType(type)`
@@ -254,7 +256,7 @@ Alias: `res.contentType(type)`
 Set a cookie:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Simple cookie
     res.cookie('username', 'alice');
     
@@ -269,7 +271,7 @@ module.exports = function(req, res) {
     });
     
     res.send('Cookies set');
-};
+}
 ```
 
 **Options:**
@@ -286,7 +288,7 @@ module.exports = function(req, res) {
 Clear a cookie:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.clearCookie('session');
     
     // With same options used when setting
@@ -296,7 +298,7 @@ module.exports = function(req, res) {
     });
     
     res.send('Cookie cleared');
-};
+}
 ```
 
 ## Redirects
@@ -306,7 +308,7 @@ module.exports = function(req, res) {
 Redirect to another URL:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Default 302 redirect
     res.redirect('/new-path');
     
@@ -316,7 +318,7 @@ module.exports = function(req, res) {
     // Relative redirects
     res.redirect('../other-page');
     res.redirect('back'); // Referer or '/'
-};
+}
 ```
 
 **Common status codes:**
@@ -333,7 +335,7 @@ module.exports = function(req, res) {
 Pipe a fetch response directly to the client:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const response = await fetch('https://api.example.com/large-file.pdf');
     
     if (!response.ok) {
@@ -347,7 +349,7 @@ module.exports = async function(req, res) {
     
     // Stream the response body
     await res.pipeFrom(response);
-};
+}
 ```
 
 **Use cases:**
@@ -360,7 +362,7 @@ module.exports = async function(req, res) {
 ### RESTful API Responses
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     switch(req.method) {
         case 'GET':
             res.json({ items: [] });
@@ -389,13 +391,13 @@ module.exports = function(req, res) {
                 error: 'Method not allowed' 
             });
     }
-};
+}
 ```
 
 ### Error Responses
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         // Your code...
         res.json({ success: true });
@@ -406,13 +408,13 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ### Validation Errors
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { email, password } = req.body;
     const errors = [];
     
@@ -437,13 +439,13 @@ module.exports = function(req, res) {
     }
     
     res.json({ success: true });
-};
+}
 ```
 
 ### Paginated Responses
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const total = 100; // Total items
@@ -461,13 +463,13 @@ module.exports = function(req, res) {
             hasPrev: page > 1
         }
     });
-};
+}
 ```
 
 ### CORS Headers
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.set({
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -480,13 +482,13 @@ module.exports = function(req, res) {
     }
     
     res.json({ message: 'CORS enabled' });
-};
+}
 ```
 
 ### Content Negotiation
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = { message: 'Hello', timestamp: Date.now() };
     
     const format = req.accepts(['json', 'html']);
@@ -505,13 +507,13 @@ module.exports = function(req, res) {
     } else {
         res.status(406).json({ error: 'Not Acceptable' });
     }
-};
+}
 ```
 
 ### Caching Headers
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Cache for 1 hour
     res.set({
         'Cache-Control': 'public, max-age=3600',
@@ -526,7 +528,7 @@ module.exports = function(req, res) {
     // });
     
     res.json({ data: 'cached data' });
-};
+}
 ```
 
 ## Important Notes
@@ -535,31 +537,31 @@ module.exports = function(req, res) {
 
 ```javascript
 // ❌ WRONG - Multiple responses
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({ message: 'First' });
     res.json({ message: 'Second' }); // Error!
-};
+}
 
 // ✅ CORRECT - Single response
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (someCondition) {
         return res.json({ message: 'First' });
     }
     res.json({ message: 'Second' });
-};
+}
 ```
 
 ### Use return with Early Responses
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (!req.body.name) {
         return res.status(400).json({ error: 'Name required' });
     }
     
     // Continue processing...
     res.json({ success: true });
-};
+}
 ```
 
 ## Next Steps

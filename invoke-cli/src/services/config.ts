@@ -8,10 +8,12 @@ const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
 /**
  * Ensure config directory exists
  */
-function ensureConfigDir(): void {
+function ensureConfigDir(): string {
   if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
   }
+
+  return CONFIG_DIR;
 }
 
 /**
@@ -85,7 +87,7 @@ function getExecutionUrl(): string {
   }
 
   const config = loadConfig();
-  return config.executionUrl || 'http://localhost:3001';
+  return config.executionUrl || getBaseUrl();
 }
 
 /**
@@ -101,4 +103,4 @@ function clearConfig(): void {
   }
 }
 
-export { loadConfig, saveConfig, getApiKey, getBaseUrl, getExecutionUrl, clearConfig, CONFIG_FILE };
+export { ensureConfigDir,loadConfig, saveConfig, getApiKey, getBaseUrl, getExecutionUrl, clearConfig, CONFIG_FILE };

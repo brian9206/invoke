@@ -1,0 +1,41 @@
+name: Build CLI binaries
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'invoke-cli/**'
+      - 'invoke-runtime/**'
+      - 'shared/**'
+      - '.github/workflows/build-cli.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build CLI binaries
+        run: npm run build
+        working-directory: invoke-cli
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoke-cli
+          path: invoke-cli/dist/

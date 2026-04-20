@@ -5,7 +5,7 @@ Process incoming webhooks from external services.
 ## Basic Webhook Handler
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -28,13 +28,13 @@ module.exports = async function(req, res) {
         message: 'Webhook received',
         eventId: crypto.randomUUID()
     });
-};
+}
 ```
 
 ## GitHub Webhook
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function verifyGitHubSignature(payload, signature, secret) {
     const hmac = crypto.createHmac('sha256', secret);
@@ -46,7 +46,7 @@ function verifyGitHubSignature(payload, signature, secret) {
     );
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -87,7 +87,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(200).json({ success: true });
-};
+}
 
 async function handlePush(data) {
     const { ref, commits, repository } = data;
@@ -116,7 +116,7 @@ async function handleIssue(data) {
 ## Stripe Webhook
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function verifyStripeSignature(payload, signature, secret) {
     const parts = signature.split(',');
@@ -134,7 +134,7 @@ function verifyStripeSignature(payload, signature, secret) {
     );
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -179,7 +179,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(200).json({ received: true });
-};
+}
 
 async function handlePaymentSuccess(paymentIntent) {
     console.log('Payment succeeded:', paymentIntent.id);
@@ -217,7 +217,7 @@ async function handleSubscriptionCancelled(subscription) {
 ## Slack Webhook (Incoming)
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -248,7 +248,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(200).json({ ok: true });
-};
+}
 
 async function handleMessage(event) {
     const { text, user, channel } = event;
@@ -276,7 +276,7 @@ async function handleMention(event) {
 ```javascript
 const ALLOWED_SOURCES = ['github', 'stripe', 'slack', 'custom'];
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -326,13 +326,13 @@ module.exports = async function(req, res) {
         webhookId,
         message: 'Webhook received and queued'
     });
-};
+}
 ```
 
 ## Webhook Testing Endpoint
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const path = req.path;
     
     // List all webhooks
@@ -373,7 +373,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(404).json({ error: 'Not found' });
-};
+}
 ```
 
 ## Best Practices

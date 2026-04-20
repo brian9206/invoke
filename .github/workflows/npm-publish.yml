@@ -8,6 +8,7 @@ on:
       - master
     paths:
       - 'invoke-cli/package.json'
+      - '.github/workflows/npm-publish.yml'
 
 permissions:
   id-token: write  # Required for OIDC

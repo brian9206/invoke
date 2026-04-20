@@ -5,8 +5,18 @@ import { insertRequestLog } from '../services/logger-client';
 import cache from '../services/cache';
 import { executeFunction, createExecutionContext, getFunctionPackage } from '../services/execution-service';
 import { gatewayAuth } from '../middleware/gateway-auth';
+import type { FunctionMetadata } from '../services/function-providers';
 
 const router = express.Router();
+
+// In-memory TTL cache for function metadata (avoids a DB round-trip on every invocation).
+// Invalidated by pg-notify via the gateway's function-change channel.
+const functionInfoCache = new Map<string, { data: any; expiresAt: number }>();
+const FUNCTION_INFO_TTL_MS = 30_000; // 30 seconds
+
+export function invalidateFunctionInfoCache(functionId: string): void {
+  functionInfoCache.delete(functionId);
+}
 
 async function fetchFunctionInfo(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -19,6 +29,13 @@ async function fetchFunctionInfo(req: Request, res: Response, next: NextFunction
     ) {
       res.status(404).json({ success: false, message: 'Function not found' });
       return;
+    }
+
+    // Check in-memory cache first
+    const cached = functionInfoCache.get(functionId);
+    if (cached && cached.expiresAt > Date.now()) {
+      req.functionInfo = cached.data;
+      return next();
     }
 
     const { Function: FunctionModel, FunctionVersion } = database.models;
@@ -36,7 +53,9 @@ async function fetchFunctionInfo(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    req.functionInfo = func.get({ plain: true });
+    const plain = func.get({ plain: true });
+    functionInfoCache.set(functionId, { data: plain, expiresAt: Date.now() + FUNCTION_INFO_TTL_MS });
+    req.functionInfo = plain;
     next();
   } catch (error) {
     console.error('fetchFunctionInfo error:', error);
@@ -144,7 +163,30 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
     const functionId = (req.params as any)[0];
     const { query: queryParams, headers } = req;
 
-    const packageInfo = await getFunctionPackage(functionId);
+    // Build FunctionMetadata from the already-fetched req.functionInfo (no extra DB query)
+    const fi = req.functionInfo as any;
+    const fv = fi.activeVersion;
+    const metadata: FunctionMetadata = {
+      id: fi.id,
+      name: fi.name,
+      project_id: fi.project_id,
+      project_slug: fi.Project?.slug ?? '',
+      is_active: fi.is_active,
+      created_at: fi.created_at,
+      updated_at: fi.updated_at,
+      version: fv?.version ?? null,
+      package_path: fv?.package_path ?? null,
+      package_hash: fv?.package_hash ?? null,
+      file_size: fv?.file_size ?? null,
+      custom_timeout_enabled: fi.custom_timeout_enabled ?? false,
+      custom_timeout_seconds: fi.custom_timeout_seconds ?? null,
+      custom_memory_enabled: fi.custom_memory_enabled ?? false,
+      custom_memory_mb: fi.custom_memory_mb ?? null,
+    };
+
+    let t1 = Date.now();
+    const packageInfo = await getFunctionPackage(functionId, metadata);
+    const packageTime = Date.now() - t1;
 
     const executionContext = createExecutionContext({
       method: req.method,
@@ -156,7 +198,9 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       traceId,
     });
 
-    const result = await executeFunction(packageInfo.indexPath, executionContext, functionId);
+    let t2 = Date.now();
+    const result = await executeFunction(packageInfo.indexPath, executionContext, functionId, metadata);
+    const executeTime = Date.now() - t2;
 
     const executionTime = Date.now() - startTime;
     const statusCode = result.statusCode || 200;
@@ -212,12 +256,7 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       requestInfo,
     });
 
-    const { Function: FunctionModel } = database.models;
-    await FunctionModel.update(
-      { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
-      { where: { id: functionId } },
-    );
-
+    // Send HTTP response first, then do non-critical DB bookkeeping
     if (result.error) {
       res.status(statusCode).json({
         success: false,
@@ -236,6 +275,17 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       }
       res.status(statusCode).send(result.data);
     }
+
+    // Fire-and-forget: update execution count after response is sent
+    const { Function: FunctionModel } = database.models;
+    FunctionModel.update(
+      { execution_count: database.sequelize.literal('execution_count + 1'), last_executed: new Date() },
+      { where: { id: functionId } },
+    ).catch((err: any) => console.error('[ERROR] FunctionModel.update failed:', err.message));
+
+    console.log(
+      `[EXECUTE] ${functionId}: total=${executionTime}ms | package=${packageTime}ms | execute=${executeTime}ms`,
+    );
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
     console.error('Execution error:', error);

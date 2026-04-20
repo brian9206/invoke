@@ -9,17 +9,17 @@ Each function should have a single, well-defined purpose.
 
 ```javascript
 // ✅ Good - focused function
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const userId = req.params.userId;
     const user = await getUser(userId);
     res.json({ user });
-};
+}
 
 // ❌ Avoid - doing too much
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Handles users, orders, payments, notifications...
     // 500+ lines of code
-};
+}
 ```
 
 ### Stateless Design
@@ -29,16 +29,16 @@ Don't rely on global variables or state between invocations.
 // ❌ Don't do this
 let cache = {};
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     cache[req.query.key] = req.body.value; // Won't persist
     res.json(cache);
-};
+}
 
 // ✅ Use KV store
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     await kv.set(req.query.key, req.body.value);
     res.json({ success: true });
-};
+}
 ```
 
 ### Fast Responses
@@ -46,7 +46,7 @@ Respond quickly and offload heavy processing.
 
 ```javascript
 // ✅ Quick response
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Queue for processing
     await kv.set(`job:${crypto.randomUUID()}`, req.body);
     
@@ -54,7 +54,7 @@ module.exports = async function(req, res) {
         message: 'Job queued',
         status: 'processing'
     });
-};
+}
 ```
 
 ## Error Handling
@@ -63,7 +63,7 @@ module.exports = async function(req, res) {
 Use try-catch blocks and return appropriate error responses.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const result = await performOperation(req.body);
         res.json({ success: true, result });
@@ -74,14 +74,14 @@ module.exports = async function(req, res) {
             message: error.message
         });
     }
-};
+}
 ```
 
 ### Validate Input
 Always validate and sanitize user input.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Validate required fields
     const { email, name } = req.body;
     
@@ -100,14 +100,14 @@ module.exports = async function(req, res) {
     // Process valid input
     const user = await createUser({ email, name });
     res.json({ user });
-};
+}
 ```
 
 ### Graceful Degradation
 Handle service failures gracefully.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const data = await fetch('https://api.example.com/data');
         res.json(await data.json());
@@ -123,7 +123,7 @@ module.exports = async function(req, res) {
             error: 'Service temporarily unavailable'
         });
     }
-};
+}
 ```
 
 ## Security
@@ -162,7 +162,7 @@ const response = await fetch('https://api.example.com/data', {
 Protect against abuse.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const ip = req.ip;
     const key = `ratelimit:${ip}`;
     
@@ -179,14 +179,14 @@ module.exports = async function(req, res) {
     
     // Process request
     res.json({ success: true });
-};
+}
 ```
 
 ### Verify Webhooks
 Always verify webhook signatures.
 
 ```javascript
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 function verifySignature(payload, signature, secret) {
     const hmac = crypto.createHmac('sha256', secret);
@@ -197,7 +197,7 @@ function verifySignature(payload, signature, secret) {
     );
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const signature = req.get('x-signature');
     const secret = process.env.WEBHOOK_SECRET;
     
@@ -207,7 +207,7 @@ module.exports = function(req, res) {
     
     // Process webhook
     res.json({ success: true });
-};
+}
 ```
 
 ## Performance
@@ -216,7 +216,7 @@ module.exports = function(req, res) {
 Use KV store for caching.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const cacheKey = `cache:${req.path}`;
     
     // Check cache
@@ -230,7 +230,7 @@ module.exports = async function(req, res) {
     await kv.set(cacheKey, data, 300); // 5 minutes
     
     res.json({ ...data, fromCache: false });
-};
+}
 ```
 
 ### Minimize External Requests
@@ -250,7 +250,7 @@ const data = await fetch('/api/user/1?include=posts,comments');
 Don't load everything into memory.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     res.type('application/json');
     res.write('[');
     
@@ -263,7 +263,7 @@ module.exports = async function(req, res) {
     
     res.write(']');
     res.end();
-};
+}
 ```
 
 ### Use Appropriate Data Structures
@@ -285,7 +285,7 @@ const user = usersMap.get(userId);
 Log in a structured format for easy parsing.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     console.log(JSON.stringify({
         level: 'info',
         message: 'Request received',
@@ -316,14 +316,14 @@ module.exports = async function(req, res) {
         
         res.status(500).json({ error: error.message });
     }
-};
+}
 ```
 
 ### Track Metrics
 Store metrics for monitoring.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const startTime = Date.now();
     
     try {
@@ -339,7 +339,7 @@ module.exports = async function(req, res) {
         await trackMetric('requests.error', 1);
         throw error;
     }
-};
+}
 
 async function trackMetric(metric, value) {
     const key = `metrics:${metric}:${getTimeBucket()}`;
@@ -369,7 +369,7 @@ function sanitizeInput(input) {
 }
 
 // index.js
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { email, message } = req.body;
     
     if (!validateEmail(email)) {
@@ -380,7 +380,7 @@ module.exports = async function(req, res) {
     
     await processMessage(email, sanitized);
     res.json({ success: true });
-};
+}
 ```
 
 ### Document Your Code
@@ -393,7 +393,7 @@ Add comments for complex logic.
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Verify webhook signature to prevent spoofing
     const isValid = verifySignature(req);
     if (!isValid) {
@@ -412,7 +412,7 @@ module.exports = async function(req, res) {
     });
     
     res.json({ success: true });
-};
+}
 ```
 
 ## Testing
@@ -424,7 +424,7 @@ Use the Invoke admin panel or CLI to test functions before deployment.
 Test with various inputs.
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { items } = req.body;
     
     // Handle missing data
@@ -443,7 +443,7 @@ module.exports = async function(req, res) {
     const total = valid.reduce((sum, item) => sum + item.price, 0);
     
     res.json({ total, items: valid });
-};
+}
 ```
 
 ### Use TypeScript (If Supported)
@@ -455,13 +455,13 @@ interface RequestBody {
     name: string;
 }
 
-module.exports = async function(
+export default async function handler(
     req: { body: RequestBody },
     res: any
 ) {
     const { email, name } = req.body;
     // Type-safe code
-};
+}
 ```
 
 ## Next Steps

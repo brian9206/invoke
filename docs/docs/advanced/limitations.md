@@ -1,68 +1,40 @@
-# VM Limitations
+# Execution Environment Limitations
 
-Understanding the constraints and restrictions of the Invoke VM environment.
+Understanding the constraints and restrictions of the Invoke sandbox execution environment.
 
-## File System Restrictions
+## File System
 
-### Read-Only Access
-The file system is **read-only** and contains only your function code and dependencies.
+### Ephemeral File System Access
+The sandbox has full read/write access to the file system, but all writes are **ephemeral** — any files created or modified during an invocation are discarded when the invocation ends.
 
-**Not Available:**
+**Available (ephemeral writes):**
 - Writing to files: `fs.writeFile()`, `fs.writeFileSync()`
 - Creating directories: `fs.mkdir()`, `fs.mkdirSync()`
 - Deleting files: `fs.unlink()`, `fs.rmSync()`
 - Modifying permissions: `fs.chmod()`
-
-**Available:**
 - Reading files: `fs.readFile()`, `fs.readFileSync()`
 - Listing directories: `fs.readdir()`
 - File stats: `fs.stat()`, `fs.exists()`
 
-**Workaround:**
-Use the [KV Store](/docs/api/kv-store) for persistent data storage.
+**Note:** Ephemeral storage is useful for temporary files within a single invocation (e.g., building a zip in memory, writing intermediary data). For data that must persist across invocations, use the KV Store.
 
 ```javascript
-// ❌ Won't work
-fs.writeFileSync('/data.txt', 'content');
+import fs from 'fs';
 
-// ✅ Use KV store instead
-await kv.set('data', 'content');
+export default async function handler(req, res) {
+    // ✅ Works — file exists for this invocation only
+    fs.writeFileSync('/tmp/data.txt', 'content');
+    const content = fs.readFileSync('/tmp/data.txt', 'utf8');
+
+    // ✅ For persistent data, use KV store
+    await kv.set('data', 'content');
+}
 ```
-
-## Process Restrictions
-
-### Limited Process API
-The `process` object has restricted functionality.
-
-**Available:**
-```javascript
-process.env         // Environment variables (read-only)
-process.version     // Node.js version
-process.platform    // os platform
-process.arch        // CPU architecture
-process.cwd()       // Current working directory
-```
-
-**Not Available:**
-```javascript
-process.exit()      // Cannot exit VM
-process.kill()      // Cannot kill processes
-process.chdir()     // Cannot change directory
-process.setuid()    // Cannot change user
-```
-
-### No Child Processes
-Cannot spawn child processes or execute shell commands.
-
-**Not Available:**
-- `child_process.spawn()`
-- `child_process.exec()`
-- `child_process.fork()`
 
 ## Network Restrictions
 
 ### No Direct Server Binding
-Functions cannot create server sockets or bind to ports.
+Functions cannot create server sockets or bind to ports because it is in sandboxed network.
 
 **Not Available:**
 ```javascript
@@ -79,9 +51,6 @@ server.listen(8080);
 ```javascript
 // ✅ Make outbound HTTP requests
 const response = await fetch('https://api.example.com/data');
-
-// ✅ Create WebSocket client connections
-const ws = new WebSocket('wss://server.example.com');
 ```
 
 ### Network Policy Enforcement
@@ -95,25 +64,6 @@ Outbound connections are governed by network policies configured in the admin pa
 - Allowed protocols (HTTP, HTTPS, WebSocket)
 
 ## Module Restrictions
-
-### No Native Modules
-Cannot use Node.js native addons or modules with binary components.
-
-**Not Available:**
-- Modules requiring C++ compilation
-- Native database drivers (use HTTP APIs instead)
-- System-level modules
-
-### Limited Built-in Modules
-Only specific Node.js built-in modules are available. See the [API Reference](/docs/api/globals) for available modules.
-
-**Not Available:**
-- `child_process`
-- `cluster`
-- `os` (limited)
-- `worker_threads`
-- `v8`
-- `dgram`
 
 ## Resource Limits
 
@@ -194,7 +144,7 @@ console.timeEnd('operation');
 ## Security Restrictions
 
 ### Isolation
-Each function runs in an isolated VM with no access to:
+Each function runs in an isolated sandbox with no access to:
 - Host file system
 - Other functions' data
 - Shared memory
@@ -212,7 +162,7 @@ process.env.API_KEY = 'new-key'; // No effect
 ```
 
 ### No Reflection
-Limited access to VM internals and introspection capabilities.
+Limited access to sandbox internals and introspection capabilities.
 
 ## Global Scope Limitations
 
@@ -222,21 +172,21 @@ Global variables do not persist between invocations.
 ```javascript
 let counter = 0; // Reset on each invocation
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     counter++;
     res.json({ count: counter }); // Always returns 1
-};
+}
 ```
 
 **Workaround:**
 ```javascript
 // ✅ Use KV store for state
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     let counter = await kv.get('counter') || 0;
     counter++;
     await kv.set('counter', counter);
     res.json({ count: counter });
-};
+}
 ```
 
 ### Module Caching
@@ -249,21 +199,21 @@ Modules are not cached across invocations (unlike standard Node.js).
 **Stateless Functions:**
 ```javascript
 // ✅ Don't rely on state
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const result = processRequest(req.body);
     res.json(result);
-};
+}
 ```
 
 **External State:**
 ```javascript
 // ✅ Use KV store for state
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const state = await kv.get('state');
     const newState = updateState(state, req.body);
     await kv.set('state', newState);
     res.json(newState);
-};
+}
 ```
 
 **API-First:**

@@ -1,0 +1,31 @@
+# --- Build Directories ---
+# Meson usually uses 'build' or 'builddir'
+build/
+builddir/
+out/
+
+# --- Meson Subprojects ---
+# Ignore the extracted source code of dependencies
+subprojects/*
+# But DO NOT ignore the .wrap files (the instructions to download them)
+!subprojects/*.wrap
+# Also keep the packagefiles if you are using manual patches
+!subprojects/packagefiles/
+
+# --- Compiled Binaries & Objects ---
+*.o
+*.a
+*.so
+*.out
+*.exe
+
+# --- Editor & System Files ---
+.vscode/
+.history/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Tailscale / Network Logs (Optional) ---
+# Since you had those DNS issues earlier
+*.log

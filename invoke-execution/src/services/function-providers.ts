@@ -12,7 +12,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-interface FunctionMetadata {
+export interface FunctionMetadata {
   id: string;
   name: string;
   project_id: string;
@@ -31,8 +31,7 @@ interface FunctionMetadata {
 }
 
 interface NetworkPolicies {
-  globalRules: any[];
-  projectRules: any[];
+  rules: any[];
 }
 
 interface PackageInfo {
@@ -45,54 +44,9 @@ interface PackageInfo {
 type EnvVars = Record<string, string>;
 
 const envVarCache = new Map<string, CacheEntry<EnvVars>>();
-const networkPolicyCache = new Map<string, CacheEntry<any[]>>();
 
 export function invalidateEnvVarCache(functionId: string): void {
   envVarCache.delete(functionId);
-}
-
-export function invalidateNetworkPolicyCache(projectId: string | null): void {
-  networkPolicyCache.delete('__global__');
-  if (projectId) networkPolicyCache.delete(projectId);
-}
-
-export async function fetchFunctionMetadata(functionId: string): Promise<FunctionMetadata> {
-  const { Function: FunctionModel, FunctionVersion } = db.models;
-
-  const { Project } = db.models;
-
-  const func = await FunctionModel.findOne({
-    where: { id: functionId, is_active: true },
-    include: [
-      { model: FunctionVersion, as: 'activeVersion' },
-      { model: Project, where: { is_active: true }, required: true },
-    ],
-  });
-
-  if (!func) {
-    throw new Error('Function not found');
-  }
-
-  const f = func as any;
-  const fv = f.activeVersion;
-
-  return {
-    id: f.id,
-    name: f.name,
-    project_id: f.project_id,
-    project_slug: (f.Project as any).slug as string,
-    is_active: f.is_active,
-    created_at: f.created_at,
-    updated_at: f.updated_at,
-    version: fv ? fv.version : null,
-    package_path: fv ? fv.package_path : null,
-    package_hash: fv ? fv.package_hash : null,
-    file_size: fv ? fv.file_size : null,
-    custom_timeout_enabled: f.custom_timeout_enabled ?? false,
-    custom_timeout_seconds: f.custom_timeout_seconds ?? null,
-    custom_memory_enabled: f.custom_memory_enabled ?? false,
-    custom_memory_mb: f.custom_memory_mb ?? null,
-  };
 }
 
 export async function fetchEnvironmentVariables(functionId: string): Promise<EnvVars> {
@@ -120,66 +74,49 @@ export async function fetchEnvironmentVariables(functionId: string): Promise<Env
   }
 }
 
-export async function fetchNetworkPolicies(projectId: string): Promise<NetworkPolicies> {
+export async function fetchNetworkPolicies(): Promise<NetworkPolicies> {
   try {
     const now = Date.now();
 
-    const { GlobalNetworkPolicy, ProjectNetworkPolicy } = db.models;
+    const { NetworkPolicy } = db.models;
 
-    let globalRules: any[];
-    const cachedGlobal = networkPolicyCache.get('__global__');
-    if (cachedGlobal && cachedGlobal.expiresAt > now) {
-      globalRules = cachedGlobal.data;
-    } else {
-      const globalRows = await GlobalNetworkPolicy.findAll({
-        attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
-        order: [['priority', 'ASC']],
-      });
-      globalRules = (globalRows as any[]).map((r: any) => r.get({ plain: true }));
-      networkPolicyCache.set('__global__', {
-        data: globalRules,
-        expiresAt: now + NETWORK_POLICY_TTL_MS,
-      });
-    }
+    const rows = await NetworkPolicy.findAll({
+      attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
+      order: [['priority', 'ASC']],
+    });
+    
+    const rules = (rows as any[]).map((r: any) => r.get({ plain: true }));
 
-    let projectRules: any[];
-    const cachedProject = networkPolicyCache.get(projectId);
-    if (cachedProject && cachedProject.expiresAt > now) {
-      projectRules = cachedProject.data;
-    } else {
-      const projectRows = await ProjectNetworkPolicy.findAll({
-        where: { project_id: projectId },
-        attributes: ['action', 'target_type', 'target_value', 'description', 'priority'],
-        order: [['priority', 'ASC']],
-      });
-      projectRules = (projectRows as any[]).map((r: any) => r.get({ plain: true }));
-      networkPolicyCache.set(projectId, {
-        data: projectRules,
-        expiresAt: now + NETWORK_POLICY_TTL_MS,
-      });
-    }
-
-    return { globalRules, projectRules };
+    return { rules };
   } catch (err) {
     console.error('Error fetching network policies:', err);
-    return { globalRules: [], projectRules: [] };
+    return { rules: [] };
   }
 }
 
-export async function getFunctionPackage(functionId: string): Promise<PackageInfo> {
+export async function getFunctionPackage(functionId: string, metadata: FunctionMetadata): Promise<PackageInfo> {
   const releaseLock = await cache.acquireLock(functionId);
 
   try {
-    const functionData = await fetchFunctionMetadata(functionId);
+    const t1 = Date.now();
+    const functionData = metadata;
+    const metadataFetchTime = Date.now() - t1;
 
+    const t2 = Date.now();
     const cacheResult = await cache.checkCache(
       functionId,
       functionData.package_hash ?? '',
       functionData.version ?? '',
     );
+    const cacheCheckTime = Date.now() - t2;
 
     if (cacheResult.cached && cacheResult.valid) {
       await cache.updateAccessStats(functionId);
+
+      if (process.env.INVOKE_INSTRUMENT) {
+        console.log(`[PACKAGE] ${functionId}: CACHED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms)`);
+      }
+
       return {
         tempDir: cacheResult.extractedPath!,
         indexPath: path.join(cacheResult.extractedPath!, 'index.js'),
@@ -194,6 +131,7 @@ export async function getFunctionPackage(functionId: string): Promise<PackageInf
 
     console.log(`Downloading package for function ${functionId}`);
 
+    const t3 = Date.now();
     const extractedPath = await cache.cachePackageFromPathNoLock(
       functionId,
       functionData.version ?? '',
@@ -201,6 +139,11 @@ export async function getFunctionPackage(functionId: string): Promise<PackageInf
       functionData.file_size || 0,
       functionData.package_path ?? '',
     );
+    const downloadTime = Date.now() - t3;
+
+    if (process.env.INVOKE_INSTRUMENT) {
+      console.log(`[PACKAGE] ${functionId}: DOWNLOADED (metadata=${metadataFetchTime}ms | cacheCheck=${cacheCheckTime}ms | download=${downloadTime}ms)`);
+    }
 
     return {
       tempDir: extractedPath,

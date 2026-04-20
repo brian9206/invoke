@@ -23,7 +23,7 @@ ns.socket.on('$disconnect', function (reason) {
     console.log('Client disconnected:', ns.socket.id, reason);
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ## Creating a RealtimeNamespace
@@ -365,7 +365,7 @@ ns.socket.on('$disconnect', function (reason) {
     });
 });
 
-module.exports = ns;
+export default ns;
 ```
 
 ## Reference

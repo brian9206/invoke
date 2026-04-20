@@ -5,7 +5,7 @@ Practical examples of using the built-in key-value store.
 ## Session Management
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const sessionId = req.cookies.sessionId || crypto.randomUUID();
     const sessionKey = `session:${sessionId}`;
     
@@ -38,13 +38,13 @@ module.exports = async function(req, res) {
             lastAccess: new Date(session.lastAccess).toISOString()
         }
     });
-};
+}
 ```
 
 ## Rate Limiting
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const identifier = req.ip || req.headers['x-forwarded-for'];
     const rateLimitKey = `ratelimit:${identifier}`;
     
@@ -91,13 +91,13 @@ module.exports = async function(req, res) {
             resetAt: new Date(data.resetAt).toISOString()
         }
     });
-};
+}
 ```
 
 ## Caching API Responses
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const cacheKey = `cache:${req.path}:${JSON.stringify(req.query)}`;
     
     // Check cache
@@ -131,7 +131,7 @@ module.exports = async function(req, res) {
         ...data,
         fromCache: false
     });
-};
+}
 ```
 
 ## Feature Flags
@@ -143,7 +143,7 @@ const DEFAULT_FLAGS = {
     maintenance: false
 };
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const path = req.path;
     const method = req.method;
     
@@ -178,13 +178,13 @@ module.exports = async function(req, res) {
     }
     
     res.status(404).json({ error: 'Not found' });
-};
+}
 ```
 
 ## User Preferences
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const userId = req.query.userId || req.body.userId;
     
     if (!userId) {
@@ -232,7 +232,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(405).json({ error: 'Method not allowed' });
-};
+}
 ```
 
 ## Distributed Lock
@@ -261,7 +261,7 @@ async function releaseLock(lockKey, lockValue) {
     return false;
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const resourceId = req.body.resourceId;
     
     if (!resourceId) {
@@ -303,13 +303,13 @@ module.exports = async function(req, res) {
         await releaseLock(lockKey, lockValue);
         console.log('Lock released');
     }
-};
+}
 ```
 
 ## Event Log
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const { action, limit } = req.query;
     const EVENTS_KEY = 'events:log';
     const MAX_EVENTS = 1000;
@@ -364,7 +364,7 @@ module.exports = async function(req, res) {
     }
     
     res.status(400).json({ error: 'Invalid action' });
-};
+}
 ```
 
 ## Best Practices

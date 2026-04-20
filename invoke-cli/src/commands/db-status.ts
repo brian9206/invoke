@@ -14,19 +14,17 @@ export function register(program: Command): void {
         console.log(chalk.green('✅ Database connected successfully'));
 
         // Get statistics
-        const { User, Function: FunctionModel, FunctionLog } = database.models
+        const { User, Function: FunctionModel } = database.models
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
         const stats = await Promise.all([
           User.count(),
           FunctionModel.count({ where: { is_active: true } }),
-          FunctionLog.count({ where: { executed_at: { [Op.gt]: oneDayAgo } } }),
         ]);
 
         console.log('');
         console.log(chalk.cyan('📊 Database Statistics:'));
         console.log(`Users: ${stats[0]}`);
         console.log(`Active Functions: ${stats[1]}`);
-        console.log(`Executions (24h): ${stats[2]}`);
       } catch (error: any) {
         console.log(chalk.red('❌ Database connection failed:'), error.message);
         process.exit(1);

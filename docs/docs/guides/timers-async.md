@@ -7,7 +7,7 @@ Learn how to use timers and asynchronous operations in your Invoke functions.
 Execute code after a delay:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log('Start');
     
     setTimeout(() => {
@@ -15,7 +15,7 @@ module.exports = function(req, res) {
     }, 2000);
     
     res.send('Timer set');
-};
+}
 ```
 
 ### With Async/Await
@@ -25,13 +25,13 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     console.log('Start');
     await delay(2000);
     console.log('After 2 seconds');
     
     res.send('Done');
-};
+}
 ```
 
 ## setInterval
@@ -39,7 +39,7 @@ module.exports = async function(req, res) {
 Execute code repeatedly at intervals:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     let count = 0;
     
     const interval = setInterval(() => {
@@ -51,7 +51,7 @@ module.exports = function(req, res) {
             res.send('Completed 5 iterations');
         }
     }, 1000);
-};
+}
 ```
 
 ## setImmediate
@@ -59,7 +59,7 @@ module.exports = function(req, res) {
 Execute on next event loop tick:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log('1');
     
     setImmediate(() => {
@@ -70,7 +70,7 @@ module.exports = function(req, res) {
     
     // Output: 1, 2, 3 - Immediate
     res.send('Done');
-};
+}
 ```
 
 ## sleep() - Invoke-Specific
@@ -78,7 +78,7 @@ module.exports = function(req, res) {
 Promise-based sleep function:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     console.log('Start:', new Date().toISOString());
     
     await sleep(1000);
@@ -91,7 +91,7 @@ module.exports = async function(req, res) {
         message: 'Completed',
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 ## Timers/Promises API
@@ -99,9 +99,9 @@ module.exports = async function(req, res) {
 Modern promise-based timers:
 
 ```javascript
-const { setTimeout, setInterval } = require('timers/promises');
+import { setTimeout, setInterval } from 'timers/promises';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Promise-based setTimeout
     await setTimeout(1000);
     console.log('After 1 second');
@@ -111,15 +111,15 @@ module.exports = async function(req, res) {
     console.log(result); // 'delayed value'
     
     res.send('Done');
-};
+}
 ```
 
 ### Async Interval
 
 ```javascript
-const { setInterval } = require('timers/promises');
+import { setInterval } from 'timers/promises';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const messages = [];
     let count = 0;
     
@@ -132,7 +132,7 @@ module.exports = async function(req, res) {
     }
     
     res.json({ messages });
-};
+}
 ```
 
 ## AbortController with Timers
@@ -140,9 +140,9 @@ module.exports = async function(req, res) {
 Cancel timers using AbortController:
 
 ```javascript
-const { setTimeout } = require('timers/promises');
+import { setTimeout } from 'timers/promises';
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const controller = new AbortController();
     
     // Cancel after 3 seconds
@@ -160,7 +160,7 @@ module.exports = async function(req, res) {
             throw error;
         }
     }
-};
+}
 ```
 
 ## Common Patterns
@@ -186,10 +186,10 @@ async function fetchWithRetry(url, maxRetries = 3) {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const data = await fetchWithRetry('https://api.example.com/data');
     res.json(data);
-};
+}
 ```
 
 ### Timeout Wrapper
@@ -209,7 +209,7 @@ async function withTimeout(promise, ms) {
     }
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const data = await withTimeout(
             fetch('https://api.example.com/slow').then(r => r.json()),
@@ -219,7 +219,7 @@ module.exports = async function(req, res) {
     } catch (error) {
         res.status(408).json({ error: 'Request timeout' });
     }
-};
+}
 ```
 
 ### Debounce
@@ -233,7 +233,7 @@ function debounce(func, wait) {
     };
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const processRequest = debounce(async (data) => {
         console.log('Processing:', data);
         await kv.set('last:request', data);
@@ -242,7 +242,7 @@ module.exports = async function(req, res) {
     processRequest(req.body);
     
     res.send('Request queued');
-};
+}
 ```
 
 ### Throttle
@@ -259,7 +259,7 @@ function throttle(func, limit) {
     };
 }
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const logRequest = throttle(() => {
         console.log('Request logged at', new Date().toISOString());
     }, 5000);
@@ -267,7 +267,7 @@ module.exports = function(req, res) {
     logRequest();
     
     res.send('OK');
-};
+}
 ```
 
 ### Polling
@@ -284,7 +284,7 @@ async function poll(fn, validate, interval = 1000, maxAttempts = 30) {
     throw new Error('Max polling attempts exceeded');
 }
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     try {
         const result = await poll(
             () => fetch('https://api.example.com/job/123').then(r => r.json()),
@@ -297,13 +297,13 @@ module.exports = async function(req, res) {
     } catch (error) {
         res.status(408).json({ error: 'Job did not complete in time' });
     }
-};
+}
 ```
 
 ### Rate Limiting with Timers
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const clientId = req.headers['x-client-id'] || 'anonymous';
     const key = `ratelimit:${clientId}`;
     
@@ -329,7 +329,7 @@ module.exports = async function(req, res) {
     await kv.set(key, recentRequests, 60000);
     
     res.json({ success: true });
-};
+}
 ```
 
 ## Best Practices
@@ -380,6 +380,5 @@ for (let i = 0; i < 1000; i++) {
 
 ## Next Steps
 
-- [Timers Module](/docs/api/modules/timers) - Complete API reference
 - [HTTP Requests](/docs/guides/http-requests) - Async request patterns
 - [Examples](/docs/examples/hello-world) - Async function examples

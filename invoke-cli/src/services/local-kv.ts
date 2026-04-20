@@ -1,93 +1,88 @@
-import Keyv from 'keyv';
+import { KvClient } from "invoke-worker/src/kv";
+import fs from "fs";
 
-/**
- * A simple file-based key-value store using Keyv
- */
-class KeyvFileStore {
-  private store: Map<string, any>;
-  private filePath: string;
-  private namespace: string;
-  private ttlSupport: boolean;
-  private _db: Map<string, { value: any; expires?: number }>;
+class LocalInMemoryKvClient extends KvClient {
+  protected store: Record<string, unknown> = {};
 
-  constructor(filePath: string) {
-    this.filePath = filePath;
-    this.namespace = 'keyv';
-    this.ttlSupport = true;
-    this.store = new Map();
-    this._db = new Map();
+  constructor() {
+    super({} as any); // We won't use the socket-based communication in this local implementation
   }
 
-  async get(key: string): Promise<any> {
-    const entry = this._db.get(key);
-    if (!entry) return undefined;
-
-    if (entry.expires && entry.expires < Date.now()) {
-      this._db.delete(key);
-      return undefined;
+  async get(key: string): Promise<unknown> {
+    if (!this.store[key]) return this.store[key];
+  
+    try {
+      return JSON.parse(this.store[key] as string);
+    } catch {
+      return this.store[key];
     }
-
-    return entry.value;
   }
 
-  async set(key: string, value: any, ttl?: number): Promise<boolean> {
-    const entry: { value: any; expires?: number } = { value };
-
-    if (ttl) {
-      entry.expires = Date.now() + ttl;
-    }
-
-    this._db.set(key, entry);
+  async set(key: string, value: unknown, ttl?: number): Promise<boolean> {
+    this.store[key] = value;
     return true;
   }
 
   async delete(key: string): Promise<boolean> {
-    return this._db.delete(key);
-  }
-
-  async clear(): Promise<void> {
-    this._db.clear();
-  }
-
-  async has(key: string): Promise<boolean> {
-    const entry = this._db.get(key);
-    if (!entry) return false;
-
-    if (entry.expires && entry.expires < Date.now()) {
-      this._db.delete(key);
-      return false;
-    }
-
+    delete this.store[key];
     return true;
   }
 
-  async * iterator(namespace?: string): AsyncGenerator<[string, any]> {
-    for (const [key, entry] of this._db.entries()) {
-      if (entry.expires && entry.expires < Date.now()) {
-        this._db.delete(key);
-        continue;
-      }
+  async clear(): Promise<void> {
+    this.store = {};
+  }
 
-      if (!namespace || key.startsWith(namespace)) {
-        yield [key, entry.value];
-      }
-    }
+  async has(key: string): Promise<boolean> {
+    return key in this.store;
   }
 }
 
-/**
- * Create a local KV factory using a file-based store
- */
-function createLocalKVFactory(kvFilePath: string): (namespace?: string, ttl?: number) => Keyv {
-  return (namespace?: string, ttl?: number) => {
-    const store = new KeyvFileStore(kvFilePath);
+class LocalFileKvClient extends LocalInMemoryKvClient {
+  private filePath: string;
 
-    return new Keyv({
-      store: store as any,
-      namespace,
-      ttl,
-    });
-  };
+  constructor(filePath: string) {
+    super();
+    this.filePath = filePath;
+    this.loadFromFile();
+  }
+
+  private loadFromFile() {
+    try {
+      const data = fs.readFileSync(this.filePath, 'utf-8');
+      if (data) {
+        this.store = JSON.parse(data);
+      }
+    } catch {
+      this.store = {};
+    }
+  }
+
+  private saveToFile() {
+    fs.writeFileSync(this.filePath, JSON.stringify(this.store, null, 2), 'utf-8');
+  }
+
+  async set(key: string, value: unknown, ttl?: number): Promise<boolean> {
+    const result = await super.set(key, value, ttl);
+    this.saveToFile();
+    return result;
+  }
+
+  async delete(key: string): Promise<boolean> {
+    const result = await super.delete(key);
+    this.saveToFile();
+    return result;
+  }
+
+  async clear(): Promise<void> {
+    await super.clear();
+    this.saveToFile();
+  }
 }
 
-export { KeyvFileStore, createLocalKVFactory };
+export function createLocalKVClient(filePath?: string): () => KvClient {
+  if (filePath) {
+    return () => new LocalFileKvClient(filePath);
+  } else {
+    return () => new LocalInMemoryKvClient();
+  }
+}
