@@ -7,8 +7,8 @@
   },
   "scripts": {
     "start": "bun src/index.ts",
-    "build": "npm run typecheck && bun scripts/build.ts",
-    "build:postinstall": "npm run typecheck && bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
+    "build": "npm run postpublish && npm run typecheck && bun scripts/build.ts",
+    "build:postinstall": "bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build:postinstall && bun scripts/prepublishOnly.ts",
     "postpublish": "bun scripts/postpublish.ts",
@@ -31,7 +31,6 @@
     "form-data": "^4.0.0",
     "ignore": "^5.3.2",
     "inquirer": "^12.11.1",
-    "invoke-shared": "*",
     "invoke-worker": "*",
     "pg": "^8.11.3",
     "table": "^6.8.1",

@@ -55,13 +55,6 @@ import { register as functionKeyRegenerate } from './commands/function-key-regen
 import { register as functionInvoke } from './commands/function-invoke';
 import { register as functionTest } from './commands/function-test';
 
-import { register as userCreate } from './commands/user-create';
-import { register as userList } from './commands/user-list';
-import { register as userDelete } from './commands/user-delete';
-import { register as userSetPassword } from './commands/user-setpassword';
-
-import { register as dbStatus } from './commands/db-status';
-
 import { register as run } from './commands/run';
 import { checkForUpdates } from './services/update';
 
@@ -106,13 +99,6 @@ functionKeyRegenerate(program);
 
 functionInvoke(program);
 functionTest(program);
-
-userCreate(program);
-userList(program);
-userDelete(program);
-userSetPassword(program);
-
-dbStatus(program);
 
 run(program);
 
