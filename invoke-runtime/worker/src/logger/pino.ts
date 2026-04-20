@@ -17,7 +17,7 @@ const LEVEL_NAMES: Record<number, string> = {
 // Fields that Pino always injects — strip them before passing as `details`.
 const PINO_INTERNAL = new Set(['level', 'time', 'pid', 'hostname', 'v', 'msg']);
 
-export function setupLoggerGlobal(socket: net.Socket): void {
+export function setupLoggerGlobal(socket?: net.Socket): void {
   const dest = new Writable({
     write(chunk: Buffer | string, _encoding, callback) {
       try {
@@ -51,13 +51,18 @@ export function setupLoggerGlobal(socket: net.Socket): void {
             skipInvalid: true,
             noRefs: true,
             noCompatMode: true,
-          }).trimEnd('\n');
+          }).trimEnd();
         }
 
         const payload: Record<string, unknown> = { level, args: [msg] };
         if (hasDetails) payload.details = details;
 
-        socket.write(encode('console', payload));
+        if (socket) {
+          socket.write(encode('console', payload));
+        }
+        else {
+          console.log(`[${level}]`, msg, hasDetails ? details : '');
+        }
       } catch {
         // Never let a logging error crash user code.
       }

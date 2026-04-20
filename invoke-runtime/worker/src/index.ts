@@ -12,7 +12,6 @@ import { createReqObject, createResObject, stateToResponseData } from './exchang
 import { KvClient } from './kv';
 import { RealtimeClient } from './realtime';
 import { installConsoleBridge } from './logger/console-bridge';
-import { setupLoggerGlobal } from './logger/pino';
 import { setupEnvironment } from './environment';
 
 // ---------------------------------------------------------------------------
@@ -102,10 +101,9 @@ async function main(): Promise<void> {
   const kvClient = new KvClient(ipcSocket);
   const realtimeClient = new RealtimeClient(ipcSocket);
   const restoreConsole = installConsoleBridge(ipcSocket);
-  setupLoggerGlobal(ipcSocket);
 
   // 4. Setup environment
-  setupEnvironment(kvClient, realtimeClient);
+  setupEnvironment({ kvClient, realtimeClient, ipcSocket });
 
   // 5. Route host → worker events (kv_result, realtime_result)
   ipcSocket.on('data', (chunk: Buffer) => {

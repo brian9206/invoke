@@ -64,7 +64,7 @@ export function register(program: Command): void {
       const kvClient = createLocalKVClient(options.kvFile)();
       const realtimeClient = new RealtimeClient({} as any); // No-op realtime client for local runs
 
-      setupEnvironment(kvClient, realtimeClient);
+      setupEnvironment({ kvClient, realtimeClient });
 
       // Inject env vars
       for (const [key, value] of Object.entries(envVars)) {
