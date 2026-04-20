@@ -5,21 +5,21 @@ Learn how to serve static files from your Invoke functions.
 ## Basic File Serving
 
 ```javascript
-const path = require('path');
+import path from 'path';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'public', 'index.html');
     res.sendFile(filePath);
-};
+}
 ```
 
 ## Serving a Static Website
 
 ```javascript
-const path = require('path');
-const fs = require('fs');
+import path from 'path';
+import fs from 'fs';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Get requested path, default to index.html
     let requestPath = req.path === '/' ? 'index.html' : req.path.substring(1);
     
@@ -44,7 +44,7 @@ module.exports = function(req, res) {
     
     // Serve the file
     res.sendFile(filePath);
-};
+}
 ```
 
 ## Project Structure
@@ -77,9 +77,9 @@ function.zip
 ## Manual MIME Types
 
 ```javascript
-const mimeTypes = require('mime-types');
+import mimeTypes from 'mime-types';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'files', req.query.file);
     
     // Get MIME type
@@ -87,7 +87,7 @@ module.exports = function(req, res) {
     
     res.type(mimeType);
     res.sendFile(filePath);
-};
+}
 ```
 
 ## File Downloads
@@ -95,18 +95,18 @@ module.exports = function(req, res) {
 Force browser to download instead of display:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'reports', 'report.pdf');
     res.download(filePath, 'monthly-report.pdf');
-};
+}
 ```
 
 ## Streaming Large Files
 
 ```javascript
-const fs = require('fs');
+import fs from 'fs';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(__dirname, 'large-file.mp4');
     
     const stat = fs.statSync(filePath);
@@ -115,7 +115,7 @@ module.exports = function(req, res) {
     
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
-};
+}
 ```
 
 ## Security Best Practices
@@ -138,7 +138,7 @@ if (requestPath.includes('..') || requestPath.includes('\\')) {
 ```javascript
 const allowedExtensions = ['.html', '.css', '.js', '.png', '.jpg', '.gif'];
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const ext = path.extname(req.path).toLowerCase();
     
     if (!allowedExtensions.includes(ext)) {
@@ -146,7 +146,7 @@ module.exports = function(req, res) {
     }
     
     // Serve file...
-};
+}
 ```
 
 ### 3. Validate File Paths
@@ -154,7 +154,7 @@ module.exports = function(req, res) {
 ```javascript
 const publicDir = path.join(__dirname, 'public');
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const filePath = path.join(publicDir, req.path);
     const resolvedPath = path.resolve(filePath);
     
@@ -164,13 +164,13 @@ module.exports = function(req, res) {
     }
     
     res.sendFile(resolvedPath);
-};
+}
 ```
 
 ## Caching Headers
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const ext = path.extname(req.path);
     
     // Cache static assets for 1 year
@@ -179,16 +179,16 @@ module.exports = function(req, res) {
     }
     
     res.sendFile(filePath);
-};
+}
 ```
 
 ## Complete Example
 
 ```javascript
-const path = require('path');
-const fs = require('fs');
+import path from 'path';
+import fs from 'fs';
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Parse request path
     let requestPath = req.path === '/' ? '/index.html' : req.path;
     
@@ -238,11 +238,10 @@ module.exports = function(req, res) {
     
     // Serve file
     res.sendFile(resolvedPath);
-};
+}
 ```
 
 ## Next Steps
 
 - [Response Object](/docs/api/response) - File serving methods
 - [Examples](/docs/examples/static-website) - Complete static site example
-- [Path Module](/docs/api/modules/path) - Path manipulation

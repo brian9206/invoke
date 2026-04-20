@@ -32,8 +32,8 @@ function HomepageHeader() {
           </Heading>
           
           <p className={styles.heroSubtitle}>
-            Deploy Node.js functions in a secure, isolated VM environment. 
-            No servers to manage, just focus on your code with 24+ built-in modules.
+            Deploy Node.js functions in a secure sandbox environment. 
+            No servers to manage, just focus on your code with realtime Socket.IO support.
           </p>
           
           <div className={styles.heroButtons}>
@@ -52,18 +52,18 @@ function HomepageHeader() {
           
           <div className={styles.heroStats}>
             <div className={styles.stat}>
-              <div className={styles.statValue}>24+</div>
-              <div className={styles.statLabel}>Built-in Modules</div>
+              <div className={styles.statValue}>Realtime</div>
+              <div className={styles.statLabel}>Socket.IO Support</div>
             </div>
             <div className={styles.statDivider}></div>
             <div className={styles.stat}>
               <div className={styles.statValue}>Secure</div>
-              <div className={styles.statLabel}>VM Isolation</div>
+              <div className={styles.statLabel}>Sandbox Isolation</div>
             </div>
             <div className={styles.statDivider}></div>
             <div className={styles.stat}>
-              <div className={styles.statValue}>Express.js</div>
-              <div className={styles.statLabel}>Compatible API</div>
+              <div className={styles.statValue}>Easy to Use</div>
+              <div className={styles.statLabel}>Express.js-compatible API</div>
             </div>
           </div>
         </div>
@@ -82,7 +82,7 @@ function CodeExample() {
             <span className={styles.codeLang}>JavaScript</span>
           </div>
           <pre className={styles.codeBlock}>
-            <code>{`module.exports = function(req, res) {
+            <code>{`export default function handler(req, res) {
   const { name = 'World' } = req.query;
   
   res.json({
@@ -102,7 +102,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="Home"
-      description="Build powerful serverless functions with Node.js in a secure VM environment. Deploy with confidence using Express.js-compatible APIs and 24+ built-in modules.">
+      description="Build powerful serverless functions with Node.js in a secure sandbox environment. Deploy with confidence using Express.js-compatible APIs and realtime Socket.IO support.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

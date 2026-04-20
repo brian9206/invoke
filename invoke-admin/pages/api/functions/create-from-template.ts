@@ -13,26 +13,30 @@ import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 
 // Hello World function template (mirrors samples/hello-world)
-const helloWorldTemplate = `const crypto = require('crypto');
+const helloWorldTemplate = `import { createHash } from 'crypto';
 
-module.exports = async function(req, res) {
+export default async function(req, res) {
     const { name = 'World' } = req.query;
 
     res.setHeader('x-powered-by', 'Invoke');
 
-    const resp = await fetch('http://httpbin.org/json');
-    console.log('status is ', resp.status)
-    const fetchedData = await resp.json();
+    let fetchedData = await kv.get('fetchedData');
 
     res.json({
         message: \`Hello, \${name}!\`,
         name: {
             base64: Buffer.from(name).toString('base64'),
-            sha256: crypto.createHash('sha256').update(name).digest('hex')
+            sha256: createHash('sha256').update(name).digest('hex')
         },
         fetchedData,
         timestamp: Date.now()
     });
+
+    const resp = await fetch('http://httpbin.org/json');
+    console.log('status:', resp.status);
+    fetchedData = await resp.json();
+
+    await kv.set('fetchedData', fetchedData);
 }
 `
 
@@ -43,7 +47,7 @@ function buildPackageJson(name: string, description: string) {
     description,
     license: "UNLICENSED",
     private: true,
-    type: "commonjs",
+    type: "module",
     main: "index.js",
     scripts: {
       start: "invoke run",

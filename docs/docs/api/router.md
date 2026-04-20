@@ -11,7 +11,7 @@ router.get('/', (req, res) => {
     res.json({ message: 'Hello, world!' });
 });
 
-module.exports = router;
+export default router;
 ```
 
 ## Creating a Router
@@ -55,7 +55,7 @@ router.delete('/users/:id', (req, res) => {
     res.status(204).end();
 });
 
-module.exports = router;
+export default router;
 ```
 
 ## Path Parameters
@@ -118,7 +118,7 @@ router
     .get('/about', (req, res) => res.send('About'))
     .post('/contact', (req, res) => res.json({ ok: true }));
 
-module.exports = router;
+export default router;
 ```
 
 ## Async Handlers
@@ -203,7 +203,7 @@ router.use((req, res) => {
     res.status(404).json({ error: 'Not found' });
 });
 
-module.exports = router;
+export default router;
 ```
 
 ## Reference

@@ -5,13 +5,13 @@ Learn how to use environment variables in your Invoke functions.
 ## Accessing Environment Variables
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const apiKey = process.env.API_KEY;
     const debug = process.env.DEBUG === 'true';
     const port = parseInt(process.env.PORT) || 3000;
     
     res.json({ apiKey, debug, port });
-};
+}
 ```
 
 ## Setting via Admin Panel
@@ -41,7 +41,7 @@ node index.js function:deploy \
 ### API Configuration
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const apiUrl = process.env.API_URL || 'https://api.example.com';
     const apiKey = process.env.API_KEY;
     
@@ -57,13 +57,13 @@ module.exports = async function(req, res) {
     
     const data = await response.json();
     res.json(data);
-};
+}
 ```
 
 ### Database Connection
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const dbConfig = {
         host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT) || 5432,
@@ -74,13 +74,13 @@ module.exports = function(req, res) {
     
     // Connect to database...
     res.json({ configured: true });
-};
+}
 ```
 
 ### Feature Flags
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const features = {
         newUI: process.env.FEATURE_NEW_UI === 'true',
         betaFeatures: process.env.FEATURE_BETA === 'true',
@@ -92,13 +92,13 @@ module.exports = function(req, res) {
     }
     
     res.json({ features });
-};
+}
 ```
 
 ### Environment-Specific Behavior
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const env = process.env.NODE_ENV || 'development';
     
     const config = {
@@ -116,7 +116,7 @@ module.exports = function(req, res) {
     
     const settings = config[env];
     res.json(settings);
-};
+}
 ```
 
 ## Type Conversion
@@ -160,7 +160,7 @@ const config = JSON.parse(process.env.CONFIG || '{}');
 ```javascript
 const requiredEnvVars = ['API_KEY', 'API_URL', 'DATABASE_URL'];
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const missing = requiredEnvVars.filter(key => !process.env[key]);
     
     if (missing.length > 0) {
@@ -172,7 +172,7 @@ module.exports = function(req, res) {
     
     // Proceed with function logic...
     res.json({ configured: true });
-};
+}
 ```
 
 ## Best Practices

@@ -108,7 +108,7 @@ invoke function:env:delete my-api API_KEY --force
 Environment variables are available via `process.env`:
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const apiKey = process.env.API_KEY;
     const dbUrl = process.env.DATABASE_URL;
     const logLevel = process.env.LOG_LEVEL || 'info';
@@ -119,13 +119,13 @@ module.exports = async function(req, res) {
     res.json({ 
         configured: !!apiKey && !!dbUrl 
     });
-};
+}
 ```
 
 ### Checking for Required Variables
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const requiredVars = ['API_KEY', 'DATABASE_URL'];
     const missing = requiredVars.filter(v => !process.env[v]);
     
@@ -137,7 +137,7 @@ module.exports = async function(req, res) {
     }
     
     // Continue with function logic...
-};
+}
 ```
 
 ## Environment Variable Workflows
@@ -259,7 +259,7 @@ invoke function:env:set my-api DB_NAME "myapp_production"
 
 **In your function:**
 ```javascript
-const { Pool } = require('pg');
+import { Pool } from 'pg';
 
 const pool = new Pool({
     host: process.env.DB_HOST,
@@ -269,10 +269,10 @@ const pool = new Pool({
     database: process.env.DB_NAME,
 });
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const result = await pool.query('SELECT NOW()');
     res.json({ time: result.rows[0].now });
-};
+}
 ```
 
 ### External API Integration
@@ -284,15 +284,16 @@ invoke function:env:set my-api STRIPE_WEBHOOK_SECRET "whsec_..."
 
 **In your function:**
 ```javascript
-const stripe = require('stripe')(process.env.STRIPE_API_KEY);
+import Stripe from 'stripe';
+const stripe = new Stripe(process.env.STRIPE_API_KEY);
 
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const session = await stripe.checkout.sessions.create({
         // ... session config
     });
     
     res.json({ sessionId: session.id });
-};
+}
 ```
 
 ### Feature Flags
@@ -304,7 +305,7 @@ invoke function:env:set my-api FEATURE_CACHE_ENABLED "true"
 
 **In your function:**
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     const useNewAlgorithm = process.env.FEATURE_NEW_ALGORITHM === 'true';
     const cacheEnabled = process.env.FEATURE_CACHE_ENABLED === 'true';
     
@@ -320,7 +321,7 @@ module.exports = async function(req, res) {
     }
     
     res.json(result);
-};
+}
 ```
 
 ## Tips

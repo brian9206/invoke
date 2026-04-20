@@ -19,9 +19,9 @@ Your function needs at minimum:
 
 ```javascript
 // index.js
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     res.json({ message: 'Hello from Invoke!' });
-};
+}
 ```
 
 ### 2. Install Dependencies (Optional)
@@ -50,8 +50,8 @@ zip -r function.zip index.js package.json node_modules
 
 **Node.js Script:**
 ```javascript
-const archiver = require('archiver');
-const fs = require('fs');
+import archiver from 'archiver';
+import fs from 'fs';
 
 const output = fs.createWriteStream('function.zip');
 const archive = archiver('zip', { zlib: { level: 9 } });
@@ -202,12 +202,12 @@ invoke function:env:set my-function API_SECRET "abc123"
 
 **Access in function:**
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const dbUrl = process.env.DATABASE_URL;
     const apiSecret = process.env.API_SECRET;
     
     res.json({ configured: true });
-};
+}
 ```
 
 ### Memory Limits
@@ -400,7 +400,7 @@ Test locally before deploying:
 
 ```javascript
 // test.js
-const handler = require('./index');
+import handler from './index.js';
 
 const mockReq = {
     method: 'GET',
@@ -424,12 +424,12 @@ handler(mockReq, mockRes);
 Use environment variables for different environments:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const isProduction = process.env.NODE_ENV === 'production';
     const apiUrl = process.env.API_URL || 'http://localhost:3000';
     
     res.json({ isProduction, apiUrl });
-};
+}
 ```
 
 ### 4. Keep Packages Small

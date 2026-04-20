@@ -586,7 +586,7 @@ invoke function:schedule:disable <id>
 
 ### `run`
 
-Run a function locally using the same isolated-vm sandbox as the execution service. No server or network connection is required.
+Run a function locally using the same sandbox environment as the execution service. No server or network connection is required.
 
 ```bash
 invoke run [path]

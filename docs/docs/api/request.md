@@ -5,7 +5,7 @@ The request object (`req`) contains information about the incoming HTTP request.
 ## Overview
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log(req.method);   // 'GET', 'POST', etc.
     console.log(req.path);     // '/api/users'
     console.log(req.query);    // { name: 'Alice' }
@@ -13,7 +13,7 @@ module.exports = function(req, res) {
     console.log(req.headers);  // Request headers
     
     res.json({ received: true });
-};
+}
 ```
 
 ## Properties
@@ -23,7 +23,7 @@ module.exports = function(req, res) {
 The HTTP method of the request:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     switch(req.method) {
         case 'GET':
             // Handle GET
@@ -39,7 +39,7 @@ module.exports = function(req, res) {
             break;
     }
     res.send('OK');
-};
+}
 ```
 
 **Values:** `'GET'`, `'POST'`, `'PUT'`, `'DELETE'`, `'PATCH'`, `'HEAD'`, `'OPTIONS'`
@@ -49,13 +49,13 @@ module.exports = function(req, res) {
 The path part of the URL:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log(req.path);
     // Request: /api/users/123
     // Output: /api/users/123
     
     res.json({ path: req.path });
-};
+}
 ```
 
 ### req.url
@@ -63,13 +63,13 @@ module.exports = function(req, res) {
 The full URL including query string:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log(req.url);
     // Request: /api/users?sort=name&limit=10
     // Output: /api/users?sort=name&limit=10
     
     res.json({ url: req.url });
-};
+}
 ```
 
 ### req.query
@@ -77,7 +77,7 @@ module.exports = function(req, res) {
 Parsed query string parameters as an object:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Request: /api/users?name=Alice&age=30&active=true
     
     console.log(req.query);
@@ -88,7 +88,7 @@ module.exports = function(req, res) {
     const active = req.query.active === 'true';
     
     res.json({ name, age, active });
-};
+}
 ```
 
 **Note:** All query values are strings. Parse numbers/booleans as needed.
@@ -98,7 +98,7 @@ module.exports = function(req, res) {
 Parsed request body (for POST/PUT/PATCH):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // JSON body (Content-Type: application/json)
     console.log(req.body);
     // { name: 'Alice', email: 'alice@example.com' }
@@ -106,7 +106,7 @@ module.exports = function(req, res) {
     const { name, email } = req.body;
     
     res.json({ created: true, name, email });
-};
+}
 ```
 
 **Supported Content-Types:**
@@ -120,7 +120,7 @@ module.exports = function(req, res) {
 Request headers object (lowercase keys):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     console.log(req.headers);
     // {
     //   'content-type': 'application/json',
@@ -134,7 +134,7 @@ module.exports = function(req, res) {
     const auth = req.headers['authorization'];
     
     res.json({ contentType, userAgent });
-};
+}
 ```
 
 **Note:** All header names are lowercase.
@@ -144,7 +144,7 @@ module.exports = function(req, res) {
 Parsed cookies object:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Request with: Cookie: session=abc123; user=alice
     
     console.log(req.cookies);
@@ -154,7 +154,7 @@ module.exports = function(req, res) {
     const username = req.cookies.user;
     
     res.json({ sessionId, username });
-};
+}
 ```
 
 ### req.params
@@ -162,7 +162,7 @@ module.exports = function(req, res) {
 Route parameters (if using routing):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Route: /api/users/:userId/posts/:postId
     // Request: /api/users/123/posts/456
     
@@ -173,7 +173,7 @@ module.exports = function(req, res) {
     const postId = req.params.postId;
     
     res.json({ userId, postId });
-};
+}
 ```
 
 **Note:** This requires route configuration in the Invoke platform.
@@ -183,7 +183,7 @@ module.exports = function(req, res) {
 Boolean indicating if request was made via XMLHttpRequest:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (req.xhr) {
         // AJAX request
         res.json({ message: 'AJAX response' });
@@ -191,7 +191,7 @@ module.exports = function(req, res) {
         // Regular request
         res.send('<html>...</html>');
     }
-};
+}
 ```
 
 Checks for `X-Requested-With: XMLHttpRequest` header.
@@ -203,13 +203,13 @@ Checks for `X-Requested-With: XMLHttpRequest` header.
 Get a request header value (case-insensitive):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const contentType = req.get('Content-Type');
     const userAgent = req.get('User-Agent');
     const customHeader = req.get('X-Custom-Header');
     
     res.json({ contentType, userAgent, customHeader });
-};
+}
 ```
 
 Aliases: `req.header(name)`
@@ -219,10 +219,10 @@ Aliases: `req.header(name)`
 Alias for `req.get()`:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const auth = req.header('Authorization');
     res.json({ hasAuth: !!auth });
-};
+}
 ```
 
 ### req.is(type)
@@ -230,7 +230,7 @@ module.exports = function(req, res) {
 Check if the request Content-Type matches:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (req.is('json')) {
         // Content-Type is application/json
         const data = req.body;
@@ -241,7 +241,7 @@ module.exports = function(req, res) {
     } else {
         res.status(415).send('Unsupported Media Type');
     }
-};
+}
 ```
 
 **Examples:**
@@ -255,7 +255,7 @@ module.exports = function(req, res) {
 Content negotiation - check what client accepts:
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const accept = req.accepts(['json', 'html']);
     
     if (accept === 'json') {
@@ -265,7 +265,7 @@ module.exports = function(req, res) {
     } else {
         res.status(406).send('Not Acceptable');
     }
-};
+}
 ```
 
 **Examples:**
@@ -278,12 +278,12 @@ module.exports = function(req, res) {
 Get parameter from params, query, or body (in that order):
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // Checks req.params.id, then req.query.id, then req.body.id
     const id = req.param('id', 'default-id');
     
     res.json({ id });
-};
+}
 ```
 
 **Deprecated:** Use `req.params`, `req.query`, or `req.body` directly instead.
@@ -293,7 +293,7 @@ module.exports = function(req, res) {
 ### Parsing Query Parameters
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     // GET /api/users?page=2&limit=20&sort=name&active=true
     
     const page = parseInt(req.query.page) || 1;
@@ -302,13 +302,13 @@ module.exports = function(req, res) {
     const active = req.query.active === 'true';
     
     res.json({ page, limit, sort, active });
-};
+}
 ```
 
 ### Handling JSON POST
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -326,13 +326,13 @@ module.exports = function(req, res) {
     // Process data...
     
     res.status(201).json({ created: true, name, email });
-};
+}
 ```
 
 ### Authentication
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const authHeader = req.get('Authorization');
     
     if (!authHeader) {
@@ -348,13 +348,13 @@ module.exports = function(req, res) {
     // Validate token...
     
     res.json({ authenticated: true });
-};
+}
 ```
 
 ### Content Type Negotiation
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const data = {
         message: 'Hello',
         timestamp: new Date().toISOString()
@@ -375,13 +375,13 @@ module.exports = function(req, res) {
         default:
             res.status(406).json({ error: 'Not Acceptable' });
     }
-};
+}
 ```
 
 ### Reading Cookies
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const sessionId = req.cookies.session;
     
     if (!sessionId) {
@@ -391,13 +391,13 @@ module.exports = function(req, res) {
     // Validate session...
     
     res.json({ session: sessionId });
-};
+}
 ```
 
 ### Handling Different Methods
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     switch(req.method) {
         case 'GET':
             // List items
@@ -424,7 +424,7 @@ module.exports = function(req, res) {
         default:
             res.status(405).json({ error: 'Method not allowed' });
     }
-};
+}
 ```
 
 ## Request Validation
@@ -432,7 +432,7 @@ module.exports = function(req, res) {
 ### Validate Required Fields
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const requiredFields = ['name', 'email', 'password'];
     const missing = requiredFields.filter(field => !req.body[field]);
     
@@ -444,13 +444,13 @@ module.exports = function(req, res) {
     }
     
     res.json({ valid: true });
-};
+}
 ```
 
 ### Validate Email
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const { email } = req.body;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
@@ -459,7 +459,7 @@ module.exports = function(req, res) {
     }
     
     res.json({ valid: true });
-};
+}
 ```
 
 ## Next Steps

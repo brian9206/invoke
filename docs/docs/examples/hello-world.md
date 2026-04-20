@@ -5,12 +5,12 @@ The simplest Invoke function examples.
 ## Basic Hello World
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({
         message: 'Hello World!',
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 **Test:**
@@ -29,7 +29,7 @@ curl http://<your invoke-execution URL>/invoke/{functionId}
 ## With Query Parameters
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const name = req.query.name || 'World';
     const greeting = req.query.greeting || 'Hello';
     
@@ -37,7 +37,7 @@ module.exports = function(req, res) {
         message: `${greeting}, ${name}!`,
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 **Test:**
@@ -56,7 +56,7 @@ curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice&greeting
 ## Async Hello World
 
 ```javascript
-module.exports = async function(req, res) {
+export default async function handler(req, res) {
     // Simulate async operation
     await sleep(100);
     
@@ -64,13 +64,13 @@ module.exports = async function(req, res) {
         message: 'Hello from async function!',
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 ## Request Information
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({
         message: 'Hello World!',
         request: {
@@ -84,28 +84,28 @@ module.exports = function(req, res) {
         },
         timestamp: new Date().toISOString()
     });
-};
+}
 ```
 
 ## Different Response Formats
 
 ### JSON
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.json({ message: 'Hello World!' });
-};
+}
 ```
 
 ### Plain Text
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.send('Hello World!');
-};
+}
 ```
 
 ### HTML
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     res.type('html').send(`
         <!DOCTYPE html>
         <html>
@@ -116,7 +116,7 @@ module.exports = function(req, res) {
         </body>
         </html>
     `);
-};
+}
 ```
 
 ## Next Steps

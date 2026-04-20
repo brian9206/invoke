@@ -4,15 +4,15 @@ sidebar_position: 1
 
 # Welcome to Invoke
 
-**Invoke** is a modern serverless function management platform that lets you deploy and execute custom functions in a secure, isolated VM environment.
+**Invoke** is a modern serverless function management platform that lets you deploy and execute custom functions in a secure, isolated sandbox environment.
 
 ## What is Invoke?
 
 Invoke allows you to write serverless functions using Node.js-compatible JavaScript, with access to a rich set of built-in modules and APIs. Your functions run in a sandboxed environment with:
 
-- **24 Built-in Modules**: Including `crypto`, `http`, `fs`, `dns`, and more
 - **Express.js-compatible APIs**: Familiar `req` and `res` objects
 - **Persistent Storage**: Built-in key-value store with TTL support
+- **Realtime Support**: Socket.IO-style real-time communication via `RealtimeNamespace`
 - **Modern JavaScript**: Full async/await, Promises, and ES6+ support
 - **Package Support**: Use npm packages with `node_modules`
 
@@ -21,12 +21,13 @@ Invoke allows you to write serverless functions using Node.js-compatible JavaScr
 Here's a simple Invoke function:
 
 ```javascript
-module.exports = async function(req, res) {
+import crypto from 'crypto';
+
+export default async function handler(req, res) {
     // Access request data
     const name = req.query.name || 'World';
     
     // Use built-in modules
-    const crypto = require('crypto');
     const id = crypto.randomUUID();
     
     // Store data in KV store
@@ -37,13 +38,13 @@ module.exports = async function(req, res) {
         message: `Hello, ${name}!`,
         id 
     });
-};
+}
 ```
 
 ## Key Features
 
 ### 🔒 Secure Execution
-Functions run in isolated VM environments with controlled access to system resources.
+Functions run in isolated sandbox environments with controlled access to system resources.
 
 ### 🌐 HTTP/HTTPS Support  
 Make external API calls using `fetch`, `http`, or `https` modules.

@@ -5,7 +5,7 @@ Serve HTML, CSS, JavaScript, and other static assets.
 ## Basic HTML Page
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -48,7 +48,7 @@ module.exports = function(req, res) {
     `;
     
     res.type('html').send(html);
-};
+}
 ```
 
 ## Multi-Page Website
@@ -151,7 +151,7 @@ const pages = {
     `
 };
 
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const path = req.path || '/';
     
     // Handle form submission
@@ -177,13 +177,13 @@ module.exports = function(req, res) {
             </html>
         `);
     }
-};
+}
 ```
 
 ## With JavaScript
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const path = req.path;
     
     // Main HTML page
@@ -252,13 +252,13 @@ module.exports = function(req, res) {
     }
     
     res.status(404).send('Not Found');
-};
+}
 ```
 
 ## Single Page Application (SPA)
 
 ```javascript
-module.exports = function(req, res) {
+export default function handler(req, res) {
     const path = req.path;
     
     // Serve HTML for all routes
@@ -311,7 +311,7 @@ module.exports = function(req, res) {
     }
     
     res.status(404).send('Not Found');
-};
+}
 ```
 
 ## Best Practices
