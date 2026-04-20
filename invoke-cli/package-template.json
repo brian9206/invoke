@@ -1,6 +1,6 @@
 {
   "name": "invoke-cli",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "CLI tool for managing Invoke functions, admin accounts, and API keys",
   "bin": {
     "invoke": "dist/invoke"
@@ -10,8 +10,8 @@
     "build": "npm run typecheck && bun scripts/build.ts",
     "build:postinstall": "npm run typecheck && bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
     "typecheck": "tsc --noEmit",
-    "prepack": "npm run build:postinstall && bun scripts/prepack.ts",
-    "postpack": "bun scripts/postpack.ts",
+    "prepublishOnly": "npm run build:postinstall && bun scripts/prepublishOnly.ts",
+    "postpublish": "bun scripts/postpublish.ts",
     "postinstall": "node postinstall.js"
   },
   "files": [

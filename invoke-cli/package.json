@@ -1,6 +1,6 @@
 {
   "name": "invoke-cli",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "CLI tool for managing Invoke functions, admin accounts, and API keys",
   "bin": {
     "invoke": "dist/invoke"
@@ -10,8 +10,8 @@
     "build": "npm run typecheck && bun scripts/build.ts",
     "build:postinstall": "npm run typecheck && bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
     "typecheck": "tsc --noEmit",
-    "prepack": "npm run build:postinstall && bun scripts/prepack.ts",
-    "postpack": "bun scripts/postpack.ts",
+    "prepublishOnly": "npm run build:postinstall && bun scripts/prepublishOnly.ts",
+    "postpublish": "bun scripts/postpublish.ts",
     "postinstall": "node postinstall.js"
   },
   "files": [
@@ -19,34 +19,8 @@
     "dist/postinstall.js",
     "dist/invoke"
   ],
-  "dependencies": {
-    "adm-zip": "^0.5.10",
-    "archiver": "^6.0.1",
-    "axios": "^1.6.2",
-    "bcrypt": "^6.0.0",
-    "chalk": "^4.1.2",
-    "cli-table3": "^0.6.3",
-    "commander": "^11.1.0",
-    "dotenv": "^16.6.1",
-    "form-data": "^4.0.0",
-    "ignore": "^5.3.2",
-    "inquirer": "^12.11.1",
-    "invoke-shared": "*",
-    "invoke-worker": "*",
-    "pg": "^8.11.3",
-    "table": "^6.8.1",
-    "zxcvbn": "^4.4.2",
-    "listr2": "^10.2.1"
-  },
-  "devDependencies": {
-    "@types/adm-zip": "^0.5.5",
-    "@types/archiver": "^6.0.3",
-    "@types/bcrypt": "^5.0.2",
-    "@types/bun": "^1.3.12",
-    "@types/node": "^20",
-    "@types/zxcvbn": "^4.4.4",
-    "typescript": "^5.9.3"
-  },
+  "dependencies": {},
+  "devDependencies": {},
   "keywords": [
     "invoke",
     "cli",
