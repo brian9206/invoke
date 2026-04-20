@@ -28,18 +28,19 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
   try {
     console.log(`Executing scheduled function: ${functionData.name} (ID: ${functionData.id})`);
 
+    const activeVersion = functionData.activeVersion;
     const metadata = {
       id: functionData.id,
       name: functionData.name,
       project_id: functionData.project_id,
-      project_slug: functionData.project_slug,
+      project_slug: functionData.Project?.slug ?? '',
       is_active: functionData.is_active,
       created_at: functionData.created_at,
       updated_at: functionData.updated_at,
-      version: functionData.version ?? null,
-      package_path: functionData.package_path ?? null,
-      package_hash: functionData.package_hash ?? null,
-      file_size: functionData.file_size ?? null,
+      version: activeVersion?.version ?? null,
+      package_path: activeVersion?.package_path ?? null,
+      package_hash: activeVersion?.package_hash ?? null,
+      file_size: activeVersion?.file_size ?? null,
       custom_timeout_enabled: functionData.custom_timeout_enabled ?? false,
       custom_timeout_seconds: functionData.custom_timeout_seconds ?? null,
       custom_memory_enabled: functionData.custom_memory_enabled ?? false,
@@ -163,15 +164,17 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
     console.log('Checking for scheduled functions to execute...');
 
     const now = new Date();
-    const { Project } = database.models;
+    const { Project, FunctionVersion } = database.models;
     const functionsToExecute = await FunctionModel.findAll({
       where: {
         schedule_enabled: true,
         is_active: true,
         next_execution: { [Op.lte]: now },
       },
-      include: [{ model: Project, where: { is_active: true }, required: true }],
-      attributes: ['id', 'name', 'schedule_cron', 'next_execution', 'is_active', 'project_id'],
+      include: [
+        { model: Project, where: { is_active: true }, required: true },
+        { model: FunctionVersion, as: 'activeVersion' },
+      ],
       order: [['next_execution', 'ASC']],
     });
 
