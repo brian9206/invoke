@@ -11,6 +11,7 @@ on:
       - 'invoke-cli/**'
       - 'invoke-runtime/**'
       - 'shared/**'
+      - '.github/workflows/build-cli.yml'
 
 jobs:
   build:
