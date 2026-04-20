@@ -147,6 +147,8 @@ export class SandboxPool extends EventEmitter {
       await this.waitForReady(sandbox);
       const readyTime = Date.now() - readyStart;
       
+      // Remove from idleSet (ready handler may have added it) and mark as busy
+      this.idleSet.delete(sandbox);
       this.busySet.add(sandbox);
       const totalColdTime = Date.now() - acquireStart;
       console.log(`[POOL] acquire (COLD START) total=${totalColdTime}ms (spawn=${spawnTime}ms, ready=${readyTime}ms)`);

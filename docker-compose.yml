@@ -95,7 +95,6 @@ services:
       # Set GVISOR_PLATFORM=ptrace to fall back if /dev/kvm is unavailable
       - GVISOR_PLATFORM=${GVISOR_PLATFORM:-kvm}
     privileged: true
-    cgroup: host
     security_opt:
       - seccomp=unconfined
       - apparmor=unconfined

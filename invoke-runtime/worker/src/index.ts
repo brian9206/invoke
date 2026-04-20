@@ -6,6 +6,7 @@
 // ============================================================================
 
 import net from 'net';
+import path from 'path';
 import { EventDecoder, ResponseData, encode, type ParsedEvent, type RequestData } from './protocol';
 import { createReqObject, createResObject, stateToResponseData } from './exchange';
 import { KvClient } from './kv';
@@ -23,6 +24,12 @@ const IPC_SOCKET_PATH = '/run/events.sock';
 const _workerArgs = process.argv.slice(2);
 const entry = _workerArgs.find(a => !a.startsWith('--'));
 const instrument = _workerArgs.includes('--instrument');
+
+// Fail fast if entry basename was not provided by supervisor
+if (!entry) {
+  console.error('[worker] Fatal: entry script basename not provided by supervisor');
+  process.exit(1);
+}
 
 // Immediately clear internal args so user code cannot see them
 process.argv.splice(2);
@@ -140,18 +147,21 @@ async function main(): Promise<void> {
     // Polyfill require() for user functions that use CommonJS.
     // Bun's native import() handles ESM/CJS loading, but globalThis.require
     // must be set so that user code calling require() at the top-level works.
+    const entryDir = path.dirname(entryPath);
     const userRequire = (id: string) => {
-      // 1. Try to resolve relative to your entry path
-      // Bun.resolveSync is the high-speed version of 'require.resolve'
-      try {
-        const resolved = Bun.resolveSync(id, import.meta.dir);
-        // @ts-ignore
-        return Bun.require(resolved);
-      } catch (e) {
-        // 2. Fallback to standard internal search
-        // @ts-ignore
-        return Bun.require(id);
+      // 1. If it's a relative import, resolve relative to the entry's directory
+      if (id.startsWith('.')) {
+        try {
+          const resolved = Bun.resolveSync(id, entryDir);
+          // @ts-ignore
+          return Bun.require(resolved);
+        } catch (e) {
+          throw new Error(`Failed to resolve relative import "${id}" from ${entryDir}`);
+        }
       }
+      // 2. For bare package imports, use standard resolution
+      // @ts-ignore
+      return Bun.require(id);
     };
 
     (globalThis as any).require = userRequire;
