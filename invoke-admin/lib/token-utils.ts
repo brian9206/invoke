@@ -50,7 +50,14 @@ export function setAuthCookies(req: NextApiRequest, res: NextApiResponse, access
       httpOnly: true,
       secure,
       sameSite: 'strict',
-      path: '/',
+      path: '/api',
+      maxAge: ACCESS_TOKEN_MAX_AGE,
+    }),
+    serialize('access_token', accessToken, {
+      httpOnly: true,
+      secure,
+      sameSite: 'strict',
+      path: '/admin',
       maxAge: ACCESS_TOKEN_MAX_AGE,
     }),
     serialize('refresh_token', refreshToken, {
@@ -73,7 +80,14 @@ export function clearAuthCookies(req: NextApiRequest, res: NextApiResponse): voi
       httpOnly: true,
       secure,
       sameSite: 'strict',
-      path: '/',
+      path: '/api',
+      maxAge: 0,
+    }),
+    serialize('access_token', '', {
+      httpOnly: true,
+      secure,
+      sameSite: 'strict',
+      path: '/admin',
       maxAge: 0,
     }),
     serialize('refresh_token', '', {
