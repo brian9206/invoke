@@ -11,9 +11,10 @@
     "build:postinstall": "npm run typecheck && bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
     "typecheck": "tsc --noEmit",
     "prepack": "npm run build:postinstall",
-    "postinstall": "node dist/postinstall.js"
+    "postinstall": "node postinstall.js"
   },
   "files": [
+    "postinstall.js",
     "dist/postinstall.js"
   ],
   "dependencies": {},
