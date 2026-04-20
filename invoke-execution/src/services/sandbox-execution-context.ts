@@ -33,7 +33,7 @@ export interface SandboxExecutionOptions {
   /** Project slug for realtime namespace resolution */
   projectSlug: string;
   /** Console log handler (optional) */
-  consoleLogger?: (data: { level: string; message: string; timestamp: number }) => void;
+  consoleLogger?: (data: { level: string; message: string; timestamp: number, details?: object }) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,10 +113,10 @@ export async function executeSandbox(
       });
     };
 
-    const onConsole = (payload: { level: string; args: string[] }) => {
+    const onConsole = (payload: { level: string; args: string[], details?: object }) => {
       if (!payload) return;
       const message = payload.args?.join(' ') ?? '';
-      consoleLogger?.({ level: payload.level, message, timestamp: Date.now() });
+      consoleLogger?.({ level: payload.level, message, timestamp: Date.now(), details: payload.details });
     };
 
     const onKvGet = async (payload: { id: string; key: string }) => {

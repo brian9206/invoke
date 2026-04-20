@@ -11,7 +11,8 @@ import { EventDecoder, ResponseData, encode, type ParsedEvent, type RequestData 
 import { createReqObject, createResObject, stateToResponseData } from './exchange';
 import { KvClient } from './kv';
 import { RealtimeClient } from './realtime';
-import { installConsoleBridge } from './console-bridge';
+import { installConsoleBridge } from './logger/console-bridge';
+import { setupLoggerGlobal } from './logger/pino';
 import { setupEnvironment } from './environment';
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,7 @@ async function main(): Promise<void> {
   const kvClient = new KvClient(ipcSocket);
   const realtimeClient = new RealtimeClient(ipcSocket);
   const restoreConsole = installConsoleBridge(ipcSocket);
+  setupLoggerGlobal(ipcSocket);
 
   // 4. Setup environment
   setupEnvironment(kvClient, realtimeClient);

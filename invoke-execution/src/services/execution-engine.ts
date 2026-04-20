@@ -15,6 +15,7 @@ export interface AppLogEntry {
   projectId: string;
   traceId?: string;
   timestamp: number;
+  details?: object;
 }
 
 interface ExecutionEngineOptions {
@@ -121,7 +122,7 @@ export class ExecutionEngine {
       const resolvedProjectId: string = projectId!;
       const traceId = context.traceId;
       const boundConsoleLogger = this.appLogHandler
-        ? (data: { level: string; message: string; timestamp: number }) => {
+        ? (data: { level: string; message: string; timestamp: number, details?: object }) => {
             this.appLogHandler!({ ...data, functionId, projectId: resolvedProjectId, traceId });
           }
         : undefined;

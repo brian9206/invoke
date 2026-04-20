@@ -215,8 +215,8 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, sele
                               </td>
                               <td className="py-1 pr-3 font-mono">
                                 <div className="flex items-start gap-1.5">
-                                  <span className="break-all text-foreground">{String(value ?? '—')}</span>
-                                  {value != null && value !== '' && (
+                                  <pre className="break-all text-foreground">{String(value ?? '—')}</pre>
+                                  {value != null && value !== '' && !String(value).match(/(\n|\"|\*)/g) && (
                                     <FilterButton
                                       field={field}
                                       value={String(value)}

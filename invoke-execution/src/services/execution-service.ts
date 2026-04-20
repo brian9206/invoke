@@ -26,6 +26,7 @@ const executionEngine = new ExecutionEngine({
         message: entry.message,
         ...(entry.traceId ? { trace_id: entry.traceId } : {}),
         timestamp: new Date(entry.timestamp).toISOString(),
+        details: entry.details || undefined
       },
       executedAt: new Date(entry.timestamp),
     });
