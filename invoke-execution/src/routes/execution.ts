@@ -177,6 +177,8 @@ router.all(/^\/([^/]+)(?:\/(.*))?$/, gatewayAuth, fetchFunctionInfo, authenticat
       version: fv?.version ?? null,
       package_path: fv?.package_path ?? null,
       package_hash: fv?.package_hash ?? null,
+      artifact_path: fv?.artifact_path ?? null,
+      artifact_hash: fv?.artifact_hash ?? null,
       file_size: fv?.file_size ?? null,
       custom_timeout_enabled: fi.custom_timeout_enabled ?? false,
       custom_timeout_seconds: fi.custom_timeout_seconds ?? null,

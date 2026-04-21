@@ -21,6 +21,7 @@ import {
   Shield,
   Globe,
   ChevronRight,
+  Hammer,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -70,6 +71,7 @@ export default function Layout({ children, title }: LayoutProps) {
   const mainNavItems: NavItem[] = [
     { name: 'Dashboard', href: '/admin', icon: BarChart3, active: router.pathname === '/admin' },
     { name: 'Functions', href: '/admin/functions', icon: Package, active: router.pathname.startsWith('/admin/functions') || router.pathname === '/admin/deploy' },
+    { name: 'Builds', href: '/admin/builds', icon: Hammer, active: router.pathname === '/admin/builds' },
     { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
     ...(user?.isAdmin ? [{ name: 'Network Security', href: '/admin/network-security', icon: Shield, active: router.pathname === '/admin/network-security' }] : []),
     ...(gatewayEnabled ? [{ name: 'API Gateway', href: '/admin/api-gateway', icon: Globe, active: router.pathname === '/admin/api-gateway' }] : []),

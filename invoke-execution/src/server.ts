@@ -21,6 +21,7 @@ import {
   reloadExecutionSettings,
   invalidateExecutionSettings,
 } from './services/execution-settings';
+import { getBuildService } from './services/build-service';
 
 import executionRoutes, { invalidateFunctionInfoCache } from './routes/execution';
 import healthRoutes from './routes/health';
@@ -195,7 +196,11 @@ class ExecutionServer {
       await initializeExecutionEngine();
       console.log('✅ Execution engine initialized');
 
-      console.log('🔒 Applying global network policy...');
+      console.log('� Starting build service...');
+      await getBuildService().start();
+      console.log('✅ Build service started');
+
+      console.log('�🔒 Applying global network policy...');
       await applyGlobalNetworkPolicy();
       console.log('✅ Global network policy applied');
 
@@ -230,6 +235,7 @@ class ExecutionServer {
 
     await executionPgNotify.stop();
     await executionSettingsPgNotify.stop();
+    await getBuildService().stop();
 
     console.log('🛑 Shutting down execution engine...');
     await shutdownExecutionEngine();

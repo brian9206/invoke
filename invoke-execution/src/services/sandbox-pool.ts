@@ -33,6 +33,7 @@ const MAINTENANCE_INTERVAL_MS = parseInt(process.env.SANDBOX_MAINTENANCE_INTERVA
 // The host cache directory where extracted function packages live.
 // Must match the cacheDir used by cache.ts: path.join(os.tmpdir(), 'cache')
 const PACKAGES_DIR = path.join(os.tmpdir(), 'cache', 'packages');
+export const BUILD_TEMP_DIR = path.join(os.tmpdir(), 'builds');
 
 // ---------------------------------------------------------------------------
 // Pool metrics
@@ -78,6 +79,7 @@ export class SandboxPool extends EventEmitter {
       runtime: RUNTIME,
       filesystem: [
         { host: PACKAGES_DIR, target: '/functions', flag: 'ro' },
+        { host: BUILD_TEMP_DIR, target: '/builds', flag: 'rw' },
         { host: '/sys/fs/cgroup', target: '/sys/fs/cgroup', flag: 'rw' },
       ],
       env: {
@@ -94,6 +96,7 @@ export class SandboxPool extends EventEmitter {
     // Ensure the packages directory exists before spawning containers
     // (bind-mount will fail if the host path does not exist)
     fs.mkdirSync(PACKAGES_DIR, { recursive: true });
+    fs.mkdirSync(BUILD_TEMP_DIR, { recursive: true });
 
     // Pre-spawn MIN_POOL_SIZE containers
     const spawnPromises: Promise<void>[] = [];

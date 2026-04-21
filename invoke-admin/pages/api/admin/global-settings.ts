@@ -14,7 +14,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { setting_key: { [Op.like]: 'execution_%' } },
           { setting_key: 'function_base_url' },
           { setting_key: 'kv_storage_limit_bytes' },
-          { setting_key: 'api_gateway_domain' }
+          { setting_key: 'api_gateway_domain' },
+          { setting_key: 'max_concurrent_builds' }
         ]
       },
       attributes: ['setting_key', 'setting_value', 'description'],
@@ -30,6 +31,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         key = 'kv_storage_limit_bytes'
       } else if (row.setting_key === 'api_gateway_domain') {
         key = 'api_gateway_domain'
+      } else if (row.setting_key === 'max_concurrent_builds') {
+        key = 'max_concurrent_builds'
       } else if (row.setting_key.startsWith('execution_')) {
         key = row.setting_key
       } else {
@@ -54,6 +57,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       type, value, enabled, function_base_url, kv_storage_limit_bytes, api_gateway_domain,
       execution_default_timeout_seconds, execution_max_timeout_seconds,
       execution_default_memory_mb, execution_max_memory_mb,
+      max_concurrent_builds,
     } = req.body
 
     // Validate execution timeout fields
@@ -159,6 +163,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
       queries.push(GlobalSetting.update(
         { setting_value: String(execution_max_memory_mb), updated_at: new Date() },
         { where: { setting_key: 'execution_max_memory_mb' } }
+      ))
+    }
+
+    if (max_concurrent_builds !== undefined) {
+      const v = Number(max_concurrent_builds)
+      if (!Number.isInteger(v) || v < 1)
+        return res.status(400).json(createResponse(false, null, 'Max concurrent builds must be an integer ≥ 1', 400))
+      queries.push(GlobalSetting.update(
+        { setting_value: String(v), updated_at: new Date() },
+        { where: { setting_key: 'max_concurrent_builds' } }
       ))
     }
 

@@ -16,6 +16,7 @@ function initModels(sequelize) {
   const FunctionGroup              = require('./FunctionGroup')(sequelize);
   const FunctionModel              = require('./Function')(sequelize);
   const FunctionVersion            = require('./FunctionVersion')(sequelize);
+  const FunctionBuild              = require('./FunctionBuild')(sequelize);
   const ApiKey                     = require('./ApiKey')(sequelize);
   const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize);
   const GlobalSetting              = require('./GlobalSetting')(sequelize);
@@ -45,6 +46,7 @@ function initModels(sequelize) {
     // Exposed as 'Function' so callers write models.Function
     Function: FunctionModel,
     FunctionVersion,
+    FunctionBuild,
     ApiKey,
     FunctionEnvironmentVariable,
     GlobalSetting,

@@ -42,12 +42,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (versionId) {
       versionRecord = await FunctionVersion.findOne({
         where: { id: versionId, function_id: functionId },
-        attributes: ['id', 'version']
+        attributes: ['id', 'version', 'artifact_path', 'build_status']
       });
     } else {
       versionRecord = await FunctionVersion.findOne({
         where: { version: version_number, function_id: functionId },
-        attributes: ['id', 'version']
+        attributes: ['id', 'version', 'artifact_path', 'build_status']
       });
     }
 
@@ -55,6 +55,28 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(404).json({
         success: false,
         message: 'Version not found'
+      })
+    }
+
+    // If the version has not been built yet, enqueue a build with after_build_action=switch
+    if (!versionRecord.artifact_path) {
+      const { FunctionBuild } = database.models as any
+      const build = await FunctionBuild.create({
+        function_id: functionId,
+        version_id: versionRecord.id,
+        status: 'queued',
+        after_build_action: 'switch',
+        created_by: req.user!.id,
+      })
+      await FunctionVersion.update(
+        { build_status: 'queued' },
+        { where: { id: versionRecord.id } },
+      )
+      return res.status(202).json({
+        success: true,
+        buildRequired: true,
+        message: `Version ${versionRecord.version} must be built before switching. Build queued.`,
+        build: build.toJSON(),
       })
     }
 

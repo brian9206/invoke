@@ -79,7 +79,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
       const versionRows = await FunctionVersion.findAll({
         where: { function_id: functionId },
-        attributes: ['id', 'version', 'file_size', 'package_hash', 'created_at', 'created_by'],
+        attributes: ['id', 'version', 'file_size', 'package_hash', 'created_at', 'created_by', 'build_status', 'artifact_path'],
         include: [{ model: User, as: 'creator', attributes: ['username'], required: false }],
         order: [['created_at', 'DESC']],
       })
@@ -95,6 +95,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           created_at: raw.created_at,
           created_by: raw.created_by,
           created_by_name: raw.creator?.username ?? null,
+          build_status: raw.build_status ?? 'none',
+          artifact_path: raw.artifact_path ?? null,
         }
       })
 
@@ -251,6 +253,17 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
         // Clean up uploaded file
         await fs.remove(packagePath)
+
+        // Enqueue build for the new version
+        const { FunctionBuild } = database.models as any
+        await FunctionBuild.create({
+          function_id: functionId,
+          version_id: newVersion.id,
+          status: 'queued',
+          after_build_action: 'none',
+          created_by: userId,
+        })
+        await FnVersion.update({ build_status: 'queued' }, { where: { id: newVersion.id } })
 
         res.status(201).json(createResponse(true, {
           id: newVersion.id,

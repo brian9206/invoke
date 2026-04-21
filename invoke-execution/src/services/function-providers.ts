@@ -23,6 +23,8 @@ export interface FunctionMetadata {
   version: string | null;
   package_path: string | null;
   package_hash: string | null;
+  artifact_path: string | null;
+  artifact_hash: string | null;
   file_size: number | null;
   custom_timeout_enabled: boolean;
   custom_timeout_seconds: number | null;
@@ -102,10 +104,15 @@ export async function getFunctionPackage(functionId: string, metadata: FunctionM
     const functionData = metadata;
     const metadataFetchTime = Date.now() - t1;
 
+    // Prefer pre-built artifact over raw source package
+    const useArtifact = !!functionData.artifact_path && !!functionData.artifact_hash;
+    const effectiveHash = useArtifact ? functionData.artifact_hash! : (functionData.package_hash ?? '');
+    const effectivePath = useArtifact ? functionData.artifact_path! : (functionData.package_path ?? '');
+
     const t2 = Date.now();
     const cacheResult = await cache.checkCache(
       functionId,
-      functionData.package_hash ?? '',
+      effectiveHash,
       functionData.version ?? '',
     );
     const cacheCheckTime = Date.now() - t2;
@@ -135,9 +142,9 @@ export async function getFunctionPackage(functionId: string, metadata: FunctionM
     const extractedPath = await cache.cachePackageFromPathNoLock(
       functionId,
       functionData.version ?? '',
-      functionData.package_hash ?? '',
+      effectiveHash,
       functionData.file_size || 0,
-      functionData.package_path ?? '',
+      effectivePath,
     );
     const downloadTime = Date.now() - t3;
 

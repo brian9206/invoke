@@ -38,6 +38,7 @@ export default function GlobalSettingsPage() {
   const [execMaxTimeout, setExecMaxTimeout] = useState('60');
   const [execDefaultMemory, setExecDefaultMemory] = useState('256');
   const [execMaxMemory, setExecMaxMemory] = useState('1024');
+  const [maxConcurrentBuilds, setMaxConcurrentBuilds] = useState('2');
 
   const { lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -113,6 +114,8 @@ export default function GlobalSettingsPage() {
         if (execDefaultMemVal) setExecDefaultMemory(formatMemoryMb(Number(execDefaultMemVal)))
         const execMaxMemVal = readSetting('execution_max_memory_mb')
         if (execMaxMemVal) setExecMaxMemory(formatMemoryMb(Number(execMaxMemVal)))
+        const maxBuildsVal = readSetting('max_concurrent_builds')
+        if (maxBuildsVal) setMaxConcurrentBuilds(maxBuildsVal)
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -141,6 +144,10 @@ export default function GlobalSettingsPage() {
     if (maxTimeout < defTimeout) {
       toast.error('Max timeout must be ≥ default timeout.'); return;
     }
+    const maxBuilds = Number(maxConcurrentBuilds);
+    if (!Number.isInteger(maxBuilds) || maxBuilds < 1) {
+      toast.error('Max concurrent builds must be an integer ≥ 1.'); return;
+    }
     const isAligned = (n: number) => Number.isInteger(n) && n >= 256 && n % 256 === 0;
     if (isNaN(defMemory) || !isAligned(defMemory)) {
       toast.error('Default memory must be a multiple of 256 MB and at least 256 MB.'); return;
@@ -167,6 +174,7 @@ export default function GlobalSettingsPage() {
           execution_max_timeout_seconds: Number(execMaxTimeout),
           execution_default_memory_mb: parseMemoryMb(execDefaultMemory) ?? 256,
           execution_max_memory_mb: parseMemoryMb(execMaxMemory) ?? 1024,
+          max_concurrent_builds: Number(maxConcurrentBuilds),
         }),
       });
       if (res.ok) {
@@ -352,6 +360,28 @@ export default function GlobalSettingsPage() {
                         />
                         <p className="text-xs text-muted-foreground">Upper bound for per-function custom memory limits. Must be ≥ default.</p>
                       </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Build Settings */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Build Settings</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Control the build pipeline for function versions.</p>
+                    </div>
+                    <div className="max-w-xs space-y-1.5">
+                      <Label>Max Concurrent Builds</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={maxConcurrentBuilds}
+                        onChange={(e) => setMaxConcurrentBuilds(e.target.value)}
+                        placeholder="e.g. 2"
+                      />
+                      <p className="text-xs text-muted-foreground">Maximum number of builds that can run simultaneously. Minimum: 1.</p>
                     </div>
                   </div>
 

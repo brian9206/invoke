@@ -149,6 +149,17 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     console.log(`🔗 Setting active version for function ${functionId}`)
     await FunctionModel.update({ active_version_id: firstVersion.id }, { where: { id: functionId } });
     console.log(`✅ Active version set to: ${firstVersion.id}`)
+
+    // Enqueue build with after_build_action='switch' (deploy = upload + build + switch)
+    const { FunctionBuild } = database.models as any
+    await FunctionBuild.create({
+      function_id: functionId,
+      version_id: firstVersion.id,
+      status: 'queued',
+      after_build_action: 'switch',
+      created_by: req.user!.id,
+    })
+    await FunctionVersion.update({ build_status: 'queued' }, { where: { id: firstVersion.id } })
     
     console.log(`✅ Created new function ${functionName} version ${version}`)
 

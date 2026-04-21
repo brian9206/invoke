@@ -1,6 +1,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import * as tar from 'tar';
 import { s3Service } from 'invoke-shared';
 
 interface CacheMetadata {
@@ -216,8 +217,6 @@ class CacheService {
 
       await fs.remove(extractedPath);
       await fs.ensureDir(extractedPath);
-
-      const tar = require('tar');
       await tar.extract({ file: cachedPath, cwd: extractedPath });
 
       await this.saveCacheMetadata(functionId, {
@@ -270,8 +269,6 @@ class CacheService {
 
       await fs.remove(extractedPath);
       await fs.ensureDir(extractedPath);
-
-      const tar = require('tar');
       await tar.extract({ file: cachedPath, cwd: extractedPath });
 
       await this.saveCacheMetadata(functionId, {
@@ -336,8 +333,6 @@ class CacheService {
 
       await fs.remove(extractedPath);
       await fs.ensureDir(extractedPath);
-
-      const tar = require('tar');
       await tar.extract({ file: cachedPath, cwd: extractedPath });
 
       await this.saveCacheMetadata(functionId, {

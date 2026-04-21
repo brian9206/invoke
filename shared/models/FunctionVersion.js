@@ -31,6 +31,20 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(64),
         allowNull: false,
       },
+      artifact_path: {
+        type: DataTypes.STRING(500),
+        allowNull: true,
+      },
+      artifact_hash: {
+        type: DataTypes.STRING(64),
+        allowNull: true,
+      },
+      build_status: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'none',
+        // none | queued | building | built | failed
+      },
       created_at: {
         type: DataTypes.DATE,
       },

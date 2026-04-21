@@ -40,6 +40,8 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       version: activeVersion?.version ?? null,
       package_path: activeVersion?.package_path ?? null,
       package_hash: activeVersion?.package_hash ?? null,
+      artifact_path: activeVersion?.artifact_path ?? null,
+      artifact_hash: activeVersion?.artifact_hash ?? null,
       file_size: activeVersion?.file_size ?? null,
       custom_timeout_enabled: functionData.custom_timeout_enabled ?? false,
       custom_timeout_seconds: functionData.custom_timeout_seconds ?? null,

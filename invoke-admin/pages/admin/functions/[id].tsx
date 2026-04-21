@@ -8,7 +8,7 @@ import {
   Package, Edit, Save, X, Copy, Check, Key, RefreshCw, Activity,
   Calendar, Clock, AlertCircle, Filter, ChevronLeft, ChevronRight,
   Upload, Code2, Trash2, History, Timer, Settings, Plus, Minus, Loader,
-  FileText, CheckCircle, Play, Pause, HardDrive, Hash, User, Download, Terminal, ExternalLink
+  FileText, CheckCircle, Play, Pause, HardDrive, Hash, User, Download, Terminal, ExternalLink, Hammer
 } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import PageHeader from '@/components/PageHeader'
@@ -59,6 +59,8 @@ interface FunctionVersion {
   created_at: string
   created_by?: string
   created_by_name?: string
+  build_status?: string
+  artifact_path?: string | null
 }
 
 interface ExecutionLog {
@@ -128,6 +130,7 @@ export default function FunctionDetails() {
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null)
   const deployFileInputRef = useRef<HTMLInputElement>(null)
   const [cleaningUpVersions, setCleaningUpVersions] = useState(false)
+  const [buildLogModal, setBuildLogModal] = useState<{ open: boolean; versionId: string | null; log: string | null; error: string | null; status: string | null; loading: boolean }>({ open: false, versionId: null, log: null, error: null, status: null, loading: false })
 
   // ── Environment variables ───────────────────────────────────────────────────
   const [environmentVariables, setEnvironmentVariables] = useState<EnvironmentVariable[]>([])
@@ -436,7 +439,10 @@ export default function FunctionDetails() {
         try {
           const r = await authenticatedFetch(`/api/functions/${id}/switch-version`, { method: 'POST', body: JSON.stringify({ versionId }) })
           const result = await r.json()
-          if (result.success) { fetchVersions(); fetchFunctionData(); setDialogState({ type: null, title: '', message: '' }) }
+          if (r.status === 202 && result.buildRequired) {
+            setDialogState({ type: 'alert', title: 'Build Queued', message: `Version ${version} has not been built yet. A build has been queued and will automatically activate this version when complete.` })
+            fetchVersions()
+          } else if (result.success) { fetchVersions(); fetchFunctionData(); setDialogState({ type: null, title: '', message: '' }) }
           else setDialogState({ type: 'alert', title: 'Error', message: result.message || 'Version switch failed' })
         } catch { setDialogState({ type: 'alert', title: 'Error', message: 'Network error occurred' }) }
         finally { setSwitchingVersion(null) }
@@ -496,8 +502,19 @@ export default function FunctionDetails() {
     })
   }
 
-  const handleDownloadVersion = async (versionId: string, version: string) => {
-    setDownloadingVersion(versionId)
+  const handleViewBuildLog = async (versionId: string) => {
+    setBuildLogModal({ open: true, versionId, log: null, error: null, status: null, loading: true })
+    try {
+      const r = await authenticatedFetch(`/api/functions/${id}/builds?limit=1&versionId=${versionId}`)
+      const data = await r.json()
+      const build = data.data?.builds?.[0]
+      setBuildLogModal({ open: true, versionId, log: build?.build_log ?? null, error: build?.error_message ?? null, status: build?.status ?? null, loading: false })
+    } catch {
+      setBuildLogModal({ open: true, versionId, log: null, error: 'Failed to load build log', status: null, loading: false })
+    }
+  }
+
+  const handleDownloadVersion = async (versionId: string, version: string) => {    setDownloadingVersion(versionId)
     try {
       const r = await authenticatedFetch(`/api/functions/${id}/versions/${versionId}/download`)
       if (r.ok) {
@@ -946,15 +963,33 @@ export default function FunctionDetails() {
                                     </TooltipTrigger>
                                     <TooltipContent>Download</TooltipContent>
                                   </Tooltip>
+                                  {version.build_status && version.build_status !== 'none' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={() => handleViewBuildLog(version.id)} className="text-muted-foreground hover:text-foreground h-8 w-8">
+                                          <Hammer className="w-4 h-4" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>View build log</TooltipContent>
+                                    </Tooltip>
+                                  )}
                                   {!version.is_active && (
                                     <>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={() => handleSwitchVersion(version.id, version.version)} disabled={switchingVersion === version.id} className="text-green-400 hover:text-green-300 h-8 w-8">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleSwitchVersion(version.id, version.version)}
+                                            disabled={switchingVersion === version.id || version.build_status === 'running' || version.build_status === 'queued'}
+                                            className="text-green-400 hover:text-green-300 h-8 w-8"
+                                          >
                                             {switchingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                                           </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>Activate version</TooltipContent>
+                                        <TooltipContent>
+                                          {version.build_status === 'queued' ? 'Build queued…' : version.build_status === 'running' ? 'Building…' : 'Activate version'}
+                                        </TooltipContent>
                                       </Tooltip>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
@@ -1543,6 +1578,36 @@ export default function FunctionDetails() {
                 <Button variant="outline" onClick={() => setRetentionModalOpen(false)}><X className="w-4 h-4 mr-1" />Cancel</Button>
               </div>
             </div>
+        </Modal>
+
+        <Modal
+          isOpen={buildLogModal.open}
+          title={<span className="flex items-center gap-2"><Hammer className="w-5 h-5" />Build Log{buildLogModal.versionId ? ` — v${versions.find(v => v.id === buildLogModal.versionId)?.version ?? ''}` : ''}</span>}
+          onCancel={() => setBuildLogModal(s => ({ ...s, open: false }))}
+          hideFooter
+          className="max-w-3xl"
+        >
+          {buildLogModal.loading ? (
+            <div className="flex items-center justify-center p-8 text-muted-foreground">
+              <Loader className="h-5 w-5 animate-spin mr-2" />Loading…
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {buildLogModal.status && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  Status: <Badge variant={buildLogModal.status === 'success' ? 'default' : buildLogModal.status === 'failed' ? 'destructive' : 'secondary'}>{buildLogModal.status}</Badge>
+                </div>
+              )}
+              {buildLogModal.error && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                  {buildLogModal.error}
+                </div>
+              )}
+              <pre className="bg-muted rounded-md p-4 text-xs overflow-auto max-h-96 whitespace-pre-wrap font-mono">
+                {buildLogModal.log || '(no log output)'}
+              </pre>
+            </div>
+          )}
         </Modal>
       </Layout>
       </TooltipProvider>

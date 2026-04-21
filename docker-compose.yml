@@ -105,6 +105,7 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - /var/lib/docker
       - execution_cache:/tmp/cache
+      - execution_builds:/tmp/builds
     depends_on:
       postgres-app:
         condition: service_healthy
@@ -238,6 +239,7 @@ volumes:
   postgres-logs_data:
   minio_data:
   execution_cache:
+  execution_builds:
 
 networks:
   default:

@@ -290,6 +290,46 @@ class S3Service {
   }
 
   /**
+   * Upload a build artifact tarball to S3.
+   * Stored at artifacts/{functionId}/{version}/artifact.tgz
+   * @param {string} functionId
+   * @param {string|number} version
+   * @param {string} filePath – local path to artifact.tgz
+   * @returns {Promise<{objectName:string, size:number, hash:string}>}
+   */
+  async uploadArtifact(functionId, version, filePath) {
+    await this.initialize()
+
+    const objectName = `artifacts/${functionId}/${version}/artifact.tgz`
+    const fileStats = fs.statSync(filePath)
+    const hash = await this.computeFileHash(filePath)
+
+    await this.fPutObject(this.bucketName, objectName, filePath, {
+      'Content-Type': 'application/gzip',
+      'x-function-id': functionId,
+      'x-artifact-version': String(version),
+      'x-artifact-hash': hash,
+    })
+
+    console.log(`✅ Uploaded artifact: ${objectName}`)
+    return { objectName, size: fileStats.size, hash }
+  }
+
+  /**
+   * Download a build artifact tarball from S3.
+   * @param {string} artifactPath – S3 object key (artifact_path from DB)
+   * @param {string} downloadPath – local path to write
+   * @returns {Promise<{hash:string, size:number}>}
+   */
+  async downloadArtifact(artifactPath, downloadPath) {
+    await this.initialize()
+    await this.fGetObject(this.bucketName, artifactPath, downloadPath)
+    const hash = await this.computeFileHash(downloadPath)
+    const stats = fs.statSync(downloadPath)
+    return { hash, size: stats.size }
+  }
+
+  /**
    * List all package objects for a function with full metadata.
    * Handles S3 pagination automatically.
    * @param {string} functionId
