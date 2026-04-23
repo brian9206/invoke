@@ -14,11 +14,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <iomanip>
-#include <poll.h>
-#include <sys/socket.h>
+#include <memory>
 #include <sys/stat.h>
-#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -35,42 +32,18 @@ static void signal_handler(int /*sig*/) {
 }
 
 // ---------------------------------------------------------------------------
-// Host socket connection
-// ---------------------------------------------------------------------------
-
-static int connect_host(const std::string& socket_path) {
-    int fd = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
-    if (fd < 0) {
-        std::perror("[supervisor] socket");
-        return -1;
-    }
-
-    struct sockaddr_un addr{};
-    addr.sun_family = AF_UNIX;
-    std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
-
-    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
-        std::perror("[supervisor] connect to host");
-        ::close(fd);
-        return -1;
-    }
-
-    return fd;
-}
-
-// ---------------------------------------------------------------------------
 // Build handler
 // ---------------------------------------------------------------------------
 
-static void handle_build(int host_fd, const SupervisorConfig& config, const ParsedEvent& ev) {
+static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const ParsedEvent& ev) {
     const auto& p = ev.payload;
 
     std::string build_id   = p.value("buildId", "");
 
     if (build_id.empty()) {
         std::fprintf(stderr, "[supervisor] Invalid build event: missing buildId\n");
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Missing buildId"}});
-        write_event(host_fd, "ready");
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Missing buildId"}});
+        ipc.send("ready");
         return;
     }
 
@@ -78,8 +51,8 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
     std::string build_rw = std::string("/builds/") + build_id;
     if (::mkdir(build_rw.c_str(), 0755) < 0 && errno != EEXIST) {
         std::fprintf(stderr, "[supervisor] Failed to create build output dir: %s\n", std::strerror(errno));
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create build dir"}});
-        write_event(host_fd, "ready");
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create build dir"}});
+        ipc.send("ready");
         return;
     }
 
@@ -87,8 +60,8 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
     std::string source_dir = build_rw + "/source";
     if (::mkdir(source_dir.c_str(), 0755) < 0 && errno != EEXIST) {
         std::fprintf(stderr, "[supervisor] Failed to create build source dir: %s\n", std::strerror(errno));
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create build source dir"}});
-        write_event(host_fd, "ready");
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create build source dir"}});
+        ipc.send("ready");
         return;
     }
 
@@ -96,16 +69,16 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
     std::string output_dir = build_rw + "/output";
     if (::mkdir(output_dir.c_str(), 0755) < 0 && errno != EEXIST) {
         std::fprintf(stderr, "[supervisor] Failed to create build output subdir: %s\n", std::strerror(errno));
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create output dir"}});
-        write_event(host_fd, "ready");
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create output dir"}});
+        ipc.send("ready");
         return;
     }
 
     const std::string sandbox_dir = std::string("/opt/inv/bld-") + build_id;
     if (::mkdir(sandbox_dir.c_str(), 0755) < 0 && errno != EEXIST) {
         std::fprintf(stderr, "[supervisor] Failed to create build sandbox dir: %s\n", std::strerror(errno));
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create inv dir"}});
-        write_event(host_fd, "ready");
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create inv dir"}});
+        ipc.send("ready");
         return;
     }
 
@@ -115,9 +88,9 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
         const auto& detail = sandbox_last_setup_error();
         std::fprintf(stderr, "[supervisor] Build filesystem setup failed for %s: %s\n",
                      build_id.c_str(), detail.c_str());
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Filesystem setup failed: " + detail}});
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Filesystem setup failed: " + detail}});
         sandbox_cleanup_build(sandbox_dir, "bld-" + build_id);
-        write_event(host_fd, "ready");
+        ipc.send("ready");
         return;
     }
 
@@ -145,9 +118,9 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
 
     if (worker_pid < 0) {
         std::fprintf(stderr, "[supervisor] Build worker spawn failed for %s\n", build_id.c_str());
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Worker spawn failed"}});
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Worker spawn failed"}});
         sandbox_cleanup_build(sandbox_dir, "bld-" + build_id);
-        write_event(host_fd, "ready");
+        ipc.send("ready");
         return;
     }
 
@@ -173,9 +146,9 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
         sandbox_cleanup_build(sandbox_dir, "bld-" + build_id);
         std::string rm_cmd = "rm -rf " + build_rw;
         ::system(rm_cmd.c_str());
-        write_event(host_fd, "build_complete", {{"success", false}, {"buildId", build_id},
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id},
                     {"error", "Build worker exited with code " + std::to_string(exit_code)}});
-        write_event(host_fd, "ready");
+        ipc.send("ready");
         return;
     }
 
@@ -186,18 +159,18 @@ static void handle_build(int host_fd, const SupervisorConfig& config, const Pars
     // Clean up the build sandbox in /opt/inv
     std::string rm_cmd = "rm -rf " + build_rw;
     ::system(rm_cmd.c_str());
-    write_event(host_fd, "build_complete", {
+    ipc.send("build_complete", {
         {"success", true},
         {"buildId", build_id}
     });
-    write_event(host_fd, "ready");
+    ipc.send("ready");
 }
 
 // ---------------------------------------------------------------------------
 // Execute handler
 // ---------------------------------------------------------------------------
 
-static void handle_execute(int host_fd, const SupervisorConfig& config, const ParsedEvent& ev) {
+static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, const ParsedEvent& ev) {
     // Extract fields from the execute event payload
     const auto& p = ev.payload;
 
@@ -210,8 +183,8 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
 
     if (invocation_id.empty() || code_path.empty()) {
         std::fprintf(stderr, "[supervisor] Invalid execute event: missing fields\n");
-        write_event(host_fd, "worker_error", {{"error", "Missing invocationId or codePath"}});
-        write_event(host_fd, "ready");
+        ipc.send("worker_error", {{"error", "Missing invocationId or codePath"}});
+        ipc.send("ready");
         return;
     }
 
@@ -234,9 +207,9 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
         const auto& detail = sandbox_last_setup_error();
         std::fprintf(stderr, "[supervisor] Filesystem setup failed for %s: %s\n",
                      invocation_id.c_str(), detail.c_str());
-        write_event(host_fd, "worker_error", {{"error", "Filesystem setup failed"}, {"detail", detail}});
+        ipc.send("worker_error", {{"error", "Filesystem setup failed"}, {"detail", detail}});
         sandbox_cleanup(sandbox_dir, invocation_id);
-        write_event(host_fd, "ready");
+        ipc.send("ready");
         return;
     }
     auto fs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -268,16 +241,25 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
 
     if (worker_pid < 0) {
         std::fprintf(stderr, "[supervisor] Worker spawn failed for %s\n", invocation_id.c_str());
-        write_event(host_fd, "worker_error", {{"error", "Worker spawn failed"}});
+        ipc.send("worker_error", {{"error", "Worker spawn failed"}});
         sandbox_cleanup(sandbox_dir, invocation_id);
-        write_event(host_fd, "ready");
+        ipc.send("ready");
         return;
     }
 
-    // Wait for worker to finish while listening for kill events on host_fd
-    EventDecoder kill_decoder;
+    // Wait for worker to finish while listening for kill events via IpcChannel
     bool kill_sent = false;
     int worker_status = 0;
+
+    ipc.once("kill", [&](const json& p) {
+        if (!kill_sent) {
+            kill_sent = true;
+            const std::string reason = p.value("reason", "unknown");
+            ILOG("[supervisor] kill event received (reason=%s) — sending SIGKILL to pid %d\n",
+                 reason.c_str(), worker_pid);
+            ::kill(worker_pid, SIGKILL);
+        }
+    });
 
     while (true) {
         pid_t ret = ::waitpid(worker_pid, &worker_status, WNOHANG);
@@ -287,30 +269,16 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
             break;
         }
 
-        struct pollfd pfd{ host_fd, POLLIN, 0 };
-        if (::poll(&pfd, 1, 50) > 0 && (pfd.revents & POLLIN)) {
-            char ibuf[4096];
-            ssize_t n = ::read(host_fd, ibuf, sizeof(ibuf));
-            if (n > 0) {
-                auto kill_events = kill_decoder.feed(ibuf, static_cast<size_t>(n));
-                for (const auto& kev : kill_events) {
-                    if (kev.event == "kill" && !kill_sent) {
-                        kill_sent = true;
-                        const std::string reason = kev.payload.value("reason", "unknown");
-                        ILOG("[supervisor] kill event received (reason=%s) — sending SIGKILL to pid %d\n",
-                             reason.c_str(), worker_pid);
-                        ::kill(worker_pid, SIGKILL);
-                    }
-                }
-            } else if (n == 0) {
-                // Host closed connection — kill worker
-                if (!kill_sent) {
-                    kill_sent = true;
-                    ::kill(worker_pid, SIGKILL);
-                }
+        if (!ipc.process_once(50)) {
+            // Host closed connection — kill worker
+            if (!kill_sent) {
+                kill_sent = true;
+                ::kill(worker_pid, SIGKILL);
             }
         }
     }
+
+    ipc.off("kill");
 
     auto spawn_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - spawn_start).count();
@@ -323,7 +291,7 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
     if (exit_code != 0 && !kill_sent) {
         std::fprintf(stderr, "[supervisor] Worker exited with code %d for %s\n",
                      exit_code, invocation_id.c_str());
-        write_event(host_fd, "worker_error", {{"error", "Worker exited with code " + std::to_string(exit_code)}});
+        ipc.send("worker_error", {{"error", "Worker exited with code " + std::to_string(exit_code)}});
     }
 
     // 3. Cleanup
@@ -342,11 +310,8 @@ static void handle_execute(int host_fd, const SupervisorConfig& config, const Pa
 
     // 4. Signal ready for next invocation
     std::cout << "[supervisor] ready for next invocation" << std::endl;
-    if (!write_event(host_fd, "ready", {{"exitCode", exit_code}})) {
-        std::fprintf(stderr, "[supervisor] Failed to send ready event\n");
-    } else {
-        ILOG("[supervisor] Ready event sent, waiting for next invocation\n");
-    }
+    ipc.send("ready", {{"exitCode", exit_code}});
+    ILOG("[supervisor] Ready event sent, waiting for next invocation\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -368,53 +333,41 @@ void supervisor_run(const SupervisorConfig& config) {
     cgroup_init();
 
     // Connect to host IPC socket
-    int host_fd = connect_host(config.socket_path);
-    if (host_fd < 0) {
-        std::fprintf(stderr, "[supervisor] Failed to connect to host\n");
+    std::unique_ptr<IpcChannel> ipc_owner;
+    try {
+        ipc_owner = std::make_unique<IpcChannel>(config.socket_path);
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "[supervisor] Failed to connect to host: %s\n", e.what());
         return;
     }
-
+    IpcChannel& ipc = *ipc_owner;
     ILOG("[supervisor] Connected to host IPC\n");
 
+    // Register event handlers
+    ipc.on("execute", [&](const json& p) {
+        ParsedEvent ev{ "execute", p };
+        std::cout << "[supervisor] execute request received" << std::endl;
+        handle_execute(ipc, config, ev);
+    });
+    ipc.on("build", [&](const json& p) {
+        ParsedEvent ev{ "build", p };
+        std::cout << "[supervisor] build request received" << std::endl;
+        handle_build(ipc, config, ev);
+    });
+
     // Send initial ready
-    if (!write_event(host_fd, "ready")) {
-        std::fprintf(stderr, "[supervisor] Failed to send initial ready event\n");
-        return;
-    }
+    ipc.send("ready");
     ILOG("[supervisor] Initial ready sent, entering event loop\n");
 
     // Event loop
-    EventDecoder decoder;
-    char buf[8192];
-
     while (!g_shutdown) {
         ILOG("[supervisor] Waiting for event from host...\n");
-        ssize_t n = ::read(host_fd, buf, sizeof(buf));
-        if (n < 0) {
-            if (errno == EINTR) continue;
-            std::fprintf(stderr, "[supervisor] Read error: %s\n", std::strerror(errno));
+        if (!ipc.process_once()) {
+            std::fprintf(stderr, "[supervisor] Host socket closed (EOF) or read error, exiting\n");
             break;
-        }
-        if (n == 0) {
-            // Host closed connection
-            std::fprintf(stderr, "[supervisor] Host socket closed (EOF), exiting\n");
-            break;
-        }
-        ILOG("[supervisor] Received %zd bytes from host\n", n);
-
-        auto events = decoder.feed(buf, static_cast<size_t>(n));
-        for (const auto& ev : events) {
-            if (ev.event == "execute") {
-                std::cout << "[supervisor] execute request received" << std::endl;
-                handle_execute(host_fd, config, ev);
-            } else if (ev.event == "build") {
-                std::cout << "[supervisor] build request received" << std::endl;
-                handle_build(host_fd, config, ev);
-            }
         }
     }
 
-    ::close(host_fd);
     ILOG("[supervisor] Shutdown complete\n");
 }
 

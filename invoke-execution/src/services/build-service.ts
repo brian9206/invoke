@@ -185,7 +185,7 @@ export class BuildService {
       }
 
       // Create and Upload artifact.tgz to S3
-      const artifactLocalPath = path.join(buildTempDir, 'artifact.tgz');
+      const artifactLocalPath = path.join(artifactDir, 'artifact.tgz');
       await tar.create({ gzip: true, file: artifactLocalPath, cwd: artifactDir }, ['.']);
       const uploadResult = await s3Service.uploadArtifact(functionId, versionNum, artifactLocalPath);
 

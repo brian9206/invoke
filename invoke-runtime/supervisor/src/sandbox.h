@@ -22,9 +22,7 @@ using json = nlohmann::json;
 bool sandbox_setup_fs(const std::string& sandbox_dir,
                       const std::string& lower_dir,
                       const std::string& rootfs,
-                      bool use_tmpfs,
-                      int tmpfs_mb = 0,
-                      const std::string& build_rw_dir = "");
+                      int tmpfs_mb);
 
 /// Return the last sandbox setup error message from sandbox_setup_fs.
 const std::string& sandbox_last_setup_error();

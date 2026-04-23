@@ -24,10 +24,10 @@ RUN ARCH=$(uname -m) && \
 FROM bun-base AS worker-builder
 
 WORKDIR /opt/shim
-COPY invoke-runtime/worker/package.json ./
+COPY tsconfig.base.json /
+COPY invoke-runtime/worker/ ./
 # Install devDependencies too for the build step if needed, or just install all
 RUN bun install
-COPY invoke-runtime/worker/src/ ./src/
 RUN bun run build
 
 # ============ STAGE 2: C++ supervisor builder ============

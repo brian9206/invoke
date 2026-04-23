@@ -2,8 +2,7 @@
 // Console Bridge — Overrides console methods to send logs to the host
 // ============================================================================
 
-import type net from 'net';
-import { encode } from '../protocol';
+import type { IIpcChannel } from '../protocol';
 
 const ORIGINAL_CONSOLE: Record<string, Function> = {};
 
@@ -13,7 +12,7 @@ const ORIGINAL_CONSOLE: Record<string, Function> = {};
  *
  * Returns a restore function that puts the original methods back.
  */
-export function installConsoleBridge(socket: net.Socket): () => void {
+export function installConsoleBridge(ipc: IIpcChannel): () => void {
   const levels = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
 
   for (const level of levels) {
@@ -23,7 +22,7 @@ export function installConsoleBridge(socket: net.Socket): () => void {
     (console as any)[level] = (...args: unknown[]) => {
       // Fire-and-forget — don't await, don't throw on write failure
       try {
-        socket.write(encode('console', { level, args: args.map(formatArg) }));
+        ipc.emit('console', { level, args: args.map(formatArg) });
       } catch {
         // Socket may be closed; fall through to original
       }

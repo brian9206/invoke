@@ -1,25 +1,22 @@
-import net from "net";
-import { KvClient, setupKvGlobal } from "./kv";
-import { RealtimeClient, setupRealtimeGlobal } from "./realtime";
+import { type IIpcChannel } from "./protocol";
+import { setupKvGlobal } from "./kv";
+import { setupRealtimeGlobal } from "./realtime";
 import { setupRouterGlobal } from "./router";
 import { setupSleepGlobal } from "./sleep";
 import { setupLoggerGlobal } from "./logger/pino";
 
-export function setupEnvironment(options: {
-  kvClient: KvClient,
-  realtimeClient: RealtimeClient,
-  ipcSocket?: net.Socket
-}) {
+export function setupEnvironment(ipc: IIpcChannel): void {
   // Expose Pino
-  setupLoggerGlobal(options.ipcSocket);
+  setupLoggerGlobal(ipc);
 
+  // Expose sleep()
   setupSleepGlobal();
 
   // Expose KV on globalThis for user code
-  setupKvGlobal(options.kvClient);
+  setupKvGlobal(ipc);
 
   // Expose RealtimeNamespace class on globalThis for user code
-  setupRealtimeGlobal(options.realtimeClient);
+  setupRealtimeGlobal(ipc);
 
   // Expose Router class on globalThis for user code
   setupRouterGlobal();

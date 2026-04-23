@@ -2,8 +2,7 @@
 // KV Client — Proxy client that sends KV commands to the host over IPC
 // ============================================================================
 
-import type net from 'net';
-import { encode } from '../protocol';
+import type { IIpcChannel } from '../protocol';
 
 type PendingResolve = (result: { value?: unknown; error?: string }) => void;
 
@@ -12,16 +11,18 @@ type PendingResolve = (result: { value?: unknown; error?: string }) => void;
  * Each operation sends an event to the host and awaits a matching reply.
  */
 export class KvClient {
-  private socket: net.Socket;
+  private ipc: IIpcChannel;
   private seq = 0;
   private pending = new Map<string, PendingResolve>();
 
-  constructor(socket: net.Socket) {
-    this.socket = socket;
+  constructor(ipc: IIpcChannel) {
+    this.ipc = ipc;
+    this.ipc.on('kv_result', (payload: { id: string; value?: unknown; error?: string }) => {
+      this.handleResult(payload);
+    });
   }
 
-  /** Called by the event router when a `kv_result` event arrives from the host */
-  handleResult(payload: { id: string; value?: unknown; error?: string }): void {
+  private handleResult(payload: { id: string; value?: unknown; error?: string }): void {
     const resolve = this.pending.get(payload.id);
     if (resolve) {
       this.pending.delete(payload.id);
@@ -36,7 +37,7 @@ export class KvClient {
   private request(event: string, payload: Record<string, unknown>): Promise<{ value?: unknown; error?: string }> {
     return new Promise((resolve) => {
       this.pending.set(payload.id as string, resolve);
-      this.socket.write(encode(event, payload));
+      this.ipc.emit(event, payload);
     });
   }
 

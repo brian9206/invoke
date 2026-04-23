@@ -3,11 +3,9 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import type { Command } from 'commander';
-import { createLocalKVClient } from '../services/local-kv';
 import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/exchange';
 import { setupEnvironment } from 'invoke-worker/src/environment';
-import type { RequestData } from 'invoke-worker/src/protocol';
-import { RealtimeClient } from 'invoke-worker/src/realtime';
+import { NoOpIpcChannel, type RequestData } from 'invoke-worker/src/protocol';
 
 export function register(program: Command): void {
   program
@@ -61,10 +59,7 @@ export function register(program: Command): void {
       const reqUrl = (options.path || '/').startsWith('/') ? options.path : '/' + options.path;
 
       // Environment setup
-      const kvClient = createLocalKVClient(options.kvFile)();
-      const realtimeClient = new RealtimeClient({} as any); // No-op realtime client for local runs
-
-      setupEnvironment({ kvClient, realtimeClient });
+      setupEnvironment(new NoOpIpcChannel());
 
       // Inject env vars
       for (const [key, value] of Object.entries(envVars)) {

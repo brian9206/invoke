@@ -3,18 +3,18 @@
 // Runs bun build, installs dependencies, and prepares output
 // ============================================================================
 
-import net from 'net';
 import fs from 'fs/promises';
-import { encode } from './protocol';
+import type { IIpcChannel } from './protocol';
 import path from 'path';
 
 export async function runBuild(
-  ipcSocket: net.Socket,
+  ipc: IIpcChannel,
   payload: { buildId: string },
   log: (...args: unknown[]) => void,
 ): Promise<void> {
   const sendLog = (message: string) => {
-    ipcSocket.write(encode('build_log', { message }));
+    console.log('[worker:build]', message);
+    ipc.emit('build_log', { message });
   };
 
   const spawn = (cmds: string[], cwd: string) => {
@@ -122,10 +122,7 @@ export async function runBuild(
     sendLog('[build] build completed successfully.');
 
     // Flush and exit with success
-    await new Promise<void>((resolve) => {
-      ipcSocket.end(() => resolve());
-      setTimeout(resolve, 1000).unref();
-    });
+    await ipc.end();
     process.exit(0);
   } catch (err: any) {
     sendLog(`[build] Unexpected error: ${err.message}`);

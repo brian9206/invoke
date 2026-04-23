@@ -1,7 +1,6 @@
-import type net from 'net';
+import type { IIpcChannel } from '../protocol';
 import { Writable } from 'stream';
 import pino from 'pino';
-import { encode } from '../protocol';
 import yaml from 'js-yaml';
 
 // Pino encodes level as a number; map back to the string names our IPC uses.
@@ -17,7 +16,7 @@ const LEVEL_NAMES: Record<number, string> = {
 // Fields that Pino always injects — strip them before passing as `details`.
 const PINO_INTERNAL = new Set(['level', 'v', 'msg']);
 
-export function setupLoggerGlobal(socket?: net.Socket): void {
+export function setupLoggerGlobal(ipc?: IIpcChannel): void {
   const dest = new Writable({
     write(chunk: Buffer | string, _encoding, callback) {
       try {
@@ -57,8 +56,8 @@ export function setupLoggerGlobal(socket?: net.Socket): void {
         const payload: Record<string, unknown> = { level, args: [msg] };
         if (hasDetails) payload.details = details;
 
-        if (socket) {
-          socket.write(encode('console', payload));
+        if (ipc) {
+          ipc.emit('console', payload);
         }
         else {
           console.log(`[${level}]`, msg, hasDetails ? details : '');

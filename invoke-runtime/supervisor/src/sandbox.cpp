@@ -211,19 +211,11 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         return false;
     }
 
-    // Create merged_dir; rw_dir only needed if using tmpfs
-    if (use_tmpfs) {
-        if (!mkdirp(actual_rw_dir) || !mkdirp(merged_dir)) {
-            g_last_setup_error = "failed to create invocation directories under " + sandbox_dir;
-            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-            return false;
-        }
-    } else {
-        if (!mkdirp(merged_dir)) {
-            g_last_setup_error = "failed to create merged dir";
-            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-            return false;
-        }
+    // Create merged_dir
+    if (!mkdirp(actual_rw_dir) || !mkdirp(merged_dir)) {
+        g_last_setup_error = "failed to create invocation directories under " + sandbox_dir;
+        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+        return false;
     }
 
     // Determine where upper/work directories go
@@ -233,23 +225,21 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     const std::string app_work   = actual_rw_dir + "/app_work";
 
     auto tmpfs_ms = 0;
-    if (use_tmpfs) {
-        // Mount tmpfs for writable layer
-        // tmpfs data only accepts tmpfs-specific options (size, mode, uid, gid, ...).
-        // nosuid/noexec must be provided as mount flags, not in the data string.
-        auto tmpfs_opts = "size=" + std::to_string(tmpfs_mb) + "m,mode=777";
-        ILOG("[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", actual_rw_dir.c_str(), tmpfs_opts.c_str());
-        auto tmpfs_start = std::chrono::high_resolution_clock::now();
-        if (::mount("tmpfs", actual_rw_dir.c_str(), "tmpfs",
-                    MS_NOSUID | MS_NOEXEC, tmpfs_opts.c_str()) < 0) {
-            g_last_setup_error = "mount tmpfs failed at " + actual_rw_dir + " (" + std::string(std::strerror(errno)) + ")";
-            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-            return false;
-        }
-        tmpfs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::high_resolution_clock::now() - tmpfs_start).count();
-        ILOG("[sandbox_setup_fs] tmpfs mount took %ldms\n", tmpfs_ms);
+    // Mount tmpfs for writable layer
+    // tmpfs data only accepts tmpfs-specific options (size, mode, uid, gid, ...).
+    // nosuid/noexec must be provided as mount flags, not in the data string.
+    auto tmpfs_opts = "size=" + std::to_string(tmpfs_mb) + "m,mode=777";
+    ILOG("[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", actual_rw_dir.c_str(), tmpfs_opts.c_str());
+    auto tmpfs_start = std::chrono::high_resolution_clock::now();
+    if (::mount("tmpfs", actual_rw_dir.c_str(), "tmpfs",
+                MS_NOSUID | MS_NOEXEC, tmpfs_opts.c_str()) < 0) {
+        g_last_setup_error = "mount tmpfs failed at " + actual_rw_dir + " (" + std::string(std::strerror(errno)) + ")";
+        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+        return false;
     }
+    tmpfs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::high_resolution_clock::now() - tmpfs_start).count();
+    ILOG("[sandbox_setup_fs] tmpfs mount took %ldms\n", tmpfs_ms);
 
     // Create upper/work subdirs
     ILOG("[sandbox_setup_fs] creating upper/work dirs\n");
@@ -257,7 +247,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         !mkdirp(app_upper)  || !mkdirp(app_work)) {
         g_last_setup_error = "failed to create upper/work dirs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     ILOG("[sandbox_setup_fs] upper/work dirs created\n");
@@ -266,7 +256,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     if (!mkdirp(root_upper + "/output", 0777)) {
         g_last_setup_error = "failed to create output dir";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     ::chmod((root_upper + "/output").c_str(), 0777);
@@ -281,7 +271,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
                 MS_NOSUID, overlay_opts.c_str()) < 0) {
         g_last_setup_error = "mount overlay failed at " + merged_dir + " (" + std::string(std::strerror(errno)) + "), opts=" + overlay_opts;
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     auto overlay_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -295,7 +285,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         g_last_setup_error = "failed to create /app dirs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2(merged_dir.c_str(), MNT_DETACH);
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     
@@ -308,7 +298,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         g_last_setup_error = "mount nested overlay at /app failed (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2(merged_dir.c_str(), MNT_DETACH);
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     ILOG("[sandbox_setup_fs] nested overlay at /app mounted\n");
@@ -319,7 +309,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
         ::umount2(merged_dir.c_str(), MNT_DETACH);
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     ILOG("[sandbox_setup_fs] /app permissions set to 777\n");
@@ -333,7 +323,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
         ::umount2(merged_dir.c_str(), MNT_DETACH);
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     ILOG("[sandbox_setup_fs] creating socket bind mount target file\n");
@@ -346,7 +336,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
             std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
             ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
             ::umount2(merged_dir.c_str(), MNT_DETACH);
-            if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+            ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
             return false;
         }
         ::close(tfd);
@@ -358,7 +348,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
         ::umount2(merged_dir.c_str(), MNT_DETACH);
-        if (use_tmpfs) ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
     }
     auto bind_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -529,26 +519,24 @@ bool sandbox_setup_build_fs(const std::string& sandbox_dir,
     
     sandbox_setup_fs(sandbox_dir, source_dir, rootfs, tmpfs_mb);
 
-    const std::string merged_dir = sandbox_dir + "/merged";
-
+    const std::string merged_dir = sandbox_dir + "/merged/output";
+    if (::mount(output_dir.c_str(), merged_dir.c_str(), nullptr, MS_BIND | MS_NOSUID, nullptr) < 0) {
+        std::fprintf(stderr, "[sandbox_setup_build_fs] error: output_dir bind mount failed (%s) — output may not be available\n",
+                        std::strerror(errno));
+        sandbox_cleanup(sandbox_dir, "");
+        return false;
+    } else {
+        ILOG("[sandbox_setup_build_fs] output_dir bind mounted\n");
+    }              
     
-    
-
     return true;
 }
 
 void sandbox_cleanup_build(const std::string& sandbox_dir, const std::string& invocation_id) {
-    const std::string merged_dir = sandbox_dir + "/merged";
-
-    ::umount2((merged_dir + "/run/events.sock").c_str(), MNT_DETACH);
-    ::umount2((merged_dir + "/etc/resolv.conf").c_str(), MNT_DETACH);
-    ::umount2((merged_dir + "/output").c_str(), MNT_DETACH);
-    ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
-    ::umount2((merged_dir + "/tmp").c_str(), MNT_DETACH);
+    const std::string merged_dir = sandbox_dir + "/merged/output";
     ::umount2(merged_dir.c_str(), MNT_DETACH);
 
-    rmtree(sandbox_dir);
-    cgroup_destroy(invocation_id);
+    sandbox_cleanup(sandbox_dir, invocation_id);
 }
 
 void sandbox_cleanup(const std::string& sandbox_dir, const std::string& invocation_id) {

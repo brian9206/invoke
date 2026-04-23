@@ -2,8 +2,7 @@
 // Realtime Client — Bridge for realtime socket commands sent to the host
 // ============================================================================
 
-import type net from 'net';
-import { encode } from '../protocol';
+import type { IIpcChannel } from '../protocol';
 
 type PendingResolve = (result: { error?: string }) => void;
 
@@ -12,16 +11,18 @@ type PendingResolve = (result: { error?: string }) => void;
  * Sends commands to the gateway via the host process.
  */
 export class RealtimeClient {
-  private socket: net.Socket;
+  private ipc: IIpcChannel;
   private seq = 0;
   private pending = new Map<string, PendingResolve>();
 
-  constructor(socket: net.Socket) {
-    this.socket = socket;
+  constructor(ipc: IIpcChannel) {
+    this.ipc = ipc;
+    this.ipc.on('realtime_result', (payload: { id: string; error?: string }) => {
+      this.handleResult(payload);
+    });
   }
 
-  /** Called by the event router when a `realtime_result` event arrives from the host */
-  handleResult(payload: { id: string; error?: string }): void {
+  private handleResult(payload: { id: string; error?: string }): void {
     const resolve = this.pending.get(payload.id);
     if (resolve) {
       this.pending.delete(payload.id);
@@ -42,7 +43,7 @@ export class RealtimeClient {
 
     const result = await new Promise<{ error?: string }>((resolve) => {
       this.pending.set(id, resolve);
-      this.socket.write(encode('realtime_cmd', { id, cmd }));
+      this.ipc.emit('realtime_cmd', { id, cmd });
     });
 
     if (result.error) {

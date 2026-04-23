@@ -5,6 +5,7 @@
 // bind-mounted UDS, requests payload, executes user code, sends result back.
 // ============================================================================
 
+import { IpcChannel } from './protocol';
 import { runUserCode } from './run_execute';
 import { runBuild } from './run_build';
 
@@ -35,38 +36,24 @@ function log(...args: unknown[]): void {
 // ---------------------------------------------------------------------------
 
 async function bootstrap(): Promise<void> {
-  const { EventDecoder, encode } = await import('./protocol');
-  const net = await import('net');
+  const ipc = IpcChannel.getInstance();
 
-  const socket = net.createConnection('/run/events.sock');
-
-  socket.on('error', (err) => {
+  ipc.on('error', (err: Error) => {
     console.error('[worker] Connection error:', err);
     process.exit(1);
   });
 
-  socket.on('connect', () => {
-    socket.write(encode('payload'));
-    log('[worker] Requested payload from host');
+  await ipc.connected;
+  ipc.emit('payload');
+  log('[worker] Requested payload from host');
 
-    const decoder = new EventDecoder();
-    socket.once('data', async (chunk: Buffer) => {
-      const events = decoder.feed(chunk);
-      for (const ev of events) {
-        if (ev.event === 'payload') {
-          const bootstrapPayload = ev.payload;
-
-          if (bootstrapPayload?.request?.type === 'build') {
-            await runBuild(socket, bootstrapPayload.request, log);
-          }
-          else {
-            await runUserCode(entry!, log);
-          }
-
-          return;
-        }
-      }
-    });
+  ipc.once('payload', async (bootstrapPayload: any) => {
+    if (bootstrapPayload?.request?.type === 'build') {
+      await runBuild(ipc, bootstrapPayload.request, log);
+    }
+    else {
+      await runUserCode(entry!, log);
+    }
   });
 }
 
