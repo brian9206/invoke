@@ -8,6 +8,7 @@
 import { IpcChannel } from './protocol';
 import { runUserCode } from './run_execute';
 import { runBuild } from './run_build';
+import { enableInstrument } from './logger/console-bridge';
 
 // ---------------------------------------------------------------------------
 // Read and sanitize argv
@@ -31,6 +32,8 @@ function log(...args: unknown[]): void {
   if (instrument) console.error(...args);
 }
 
+if (instrument) enableInstrument();
+
 // ---------------------------------------------------------------------------
 // Bootstrap and Dispatch
 // ---------------------------------------------------------------------------
@@ -47,12 +50,19 @@ async function bootstrap(): Promise<void> {
   ipc.emit('payload');
   log('[worker] Requested payload from host');
 
-  ipc.once('payload', async (bootstrapPayload: any) => {
-    if (bootstrapPayload?.request?.type === 'build') {
-      await runBuild(bootstrapPayload, log);
-    }
-    else {
-      await runUserCode(entry!, bootstrapPayload, log);
+  ipc.once('payload', async (payload: any) => {
+    switch (payload?.type) {
+      case 'execute':
+        console.log('[worker] Starting user code execution procedure...');
+        await runUserCode(entry!, payload, log);
+        break;
+      case 'build':
+        console.log('[worker] Starting build procedure...');
+        await runBuild(payload, log);
+        break;
+      default:
+        console.error('[worker] Fatal error: unknown payload type:', payload?.type);
+        process.exit(1);
     }
   });
 }

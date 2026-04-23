@@ -5,7 +5,7 @@
  * and exposes the same API surface that routes and server.ts previously imported.
  */
 
-import { insertLog } from './logger-client';
+import { insertAppLog } from './logger-client';
 import { ExecutionEngine, createExecutionContext, AppLogEntry } from './execution-engine';
 import {
   fetchEnvironmentVariables,
@@ -18,7 +18,7 @@ const executionEngine = new ExecutionEngine({
   kvStoreFactory: createDefaultKVFactory,
   envVarsProvider: fetchEnvironmentVariables,
   appLogHandler: (entry: AppLogEntry) => {
-    insertLog({
+    insertAppLog({
       project: { id: entry.projectId },
       function: { id: entry.functionId },
       payload: {

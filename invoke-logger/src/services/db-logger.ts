@@ -5,7 +5,7 @@ import { PayloadField } from '../models/PayloadField';
 export interface DbInsertLogOptions {
   project?: { id?: string; name?: string | null } | null;
   function?: { id?: string; name?: string | null } | null;
-  type: 'request' | 'app';
+  type: 'request' | 'app' | 'build';
   source: 'execution' | 'gateway';
   payload: Record<string, unknown>;
   executedAt?: Date;

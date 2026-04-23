@@ -6,13 +6,26 @@ import type { IIpcChannel } from '../protocol';
 
 const ORIGINAL_CONSOLE: Record<string, Function> = {};
 
+type Middleware = (level: string, args: string[]) => Record<string, unknown> | null;
+
+function consoleMiddleware(level: string, args: string[]) {
+  return { level, args };
+}
+
+let instrument = false;
+
+export function enableInstrument() {
+  instrument = true;
+  console.log('[console-bridge] instrument enabled');
+}
+
 /**
  * Install console overrides that send log output to the host over the
  * Unix socket as fire-and-forget `console` events.
  *
  * Returns a restore function that puts the original methods back.
  */
-export function installConsoleBridge(ipc: IIpcChannel): () => void {
+export function installConsoleBridge(ipc: IIpcChannel, middleware: Middleware = consoleMiddleware): () => void {
   const levels = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
 
   for (const level of levels) {
@@ -22,9 +35,16 @@ export function installConsoleBridge(ipc: IIpcChannel): () => void {
     (console as any)[level] = (...args: unknown[]) => {
       // Fire-and-forget — don't await, don't throw on write failure
       try {
-        ipc.emit('console', { level, args: args.map(formatArg) });
+        const payload = middleware(level, args.map(formatArg));
+        if (payload) {
+          ipc.emit('console', payload);
+        }
       } catch {
         // Socket may be closed; fall through to original
+      } finally {
+        if (instrument) {
+          original(...args);
+        }
       }
     };
   }

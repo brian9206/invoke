@@ -3,143 +3,79 @@
 // Runs bun build, installs dependencies, and prepares output
 // ============================================================================
 
-import fs from 'fs/promises';
-import { IpcChannel } from './protocol';
-import path from 'path';
+import fs from 'fs/promises'
+import { type BuildData, IpcChannel } from './protocol';
 import * as tar from 'tar';
+import { installConsoleBridge } from './logger/console-bridge';
+import { createPipelineRunner } from './buildSysten';
 
 export async function runBuild(
   bootstrapPayload: any,
   log: (...args: unknown[]) => void,
 ): Promise<void> {
   const ipc = IpcChannel.getInstance();
+  const buildData: BuildData = bootstrapPayload.request;
 
-  const sendLog = (message: string) => {
-    console.log('[worker:build]', message);
-    ipc.emit('build_log', { message });
-  };
+  const restoreConsole = installConsoleBridge(ipc);  
 
-  const spawn = (cmds: string[], cwd: string) => {
-    const proc = Bun.spawnSync(cmds,
-      { cwd, stderr: 'pipe', stdout: 'pipe' },
-    );
-
-    const procStdout = proc.stdout ? Buffer.from(proc.stdout).toString() : '';
-    const procStderr = proc.stderr ? Buffer.from(proc.stderr).toString() : '';
-    if (procStdout) sendLog(procStdout);
-    if (procStderr) sendLog(procStderr);
-
-    if (proc.exitCode !== 0) {
-      sendLog(`[build] Command '${cmds.join(' ')}' failed with exit code ${proc.exitCode}`);
-      process.exit(1);
-    }
-  }
-
+  let error = false;
   try {
-    log('[worker:build] Starting build for', bootstrapPayload.request.buildId);
+    log('[build] Creating build pipeline runner...');
+    const runner = await createPipelineRunner('bun');
 
-    // bun install
-    sendLog('[build] Running bun install...');
-    spawn(['bun', 'install'], '/app');
+    runner.on('running', ({ stage }: { stage: string }) => {
+      console.log(`[build] Starting stage "${stage}"...`);
+    });
 
-    // Detect build script
-    let entrypoint = '';
-    let hasBuildScript = false;
-    try {
-      const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }));
-      entrypoint = path.resolve(path.join('/app', packageJson.main || 'index.js'));
-      hasBuildScript = !!packageJson?.scripts?.build;
-    }
-    catch {
-      hasBuildScript = false;
-      entrypoint = '/app/index.js';
-    }
+    runner.on('success', ({ stage }: { stage: string }) => {
+      console.log(`[build] Stage "${stage}" completed successfully.`);
+    });
 
-    if (hasBuildScript) {
-      sendLog('[build] Running build script...');
-      spawn(['bun', 'run', 'build'], '/app');
-    }
+    runner.on('failure', ({ stage, error }: { stage: string, error?: string }) => {
+      console.log(`[build] Stage "${stage}" failed with error ${error}`);
+    });
 
-    // Detect entrypoint: prefer index.js, fall back to index.ts
-    try {
-      entrypoint = '/app/index.js';
-      await fs.access(entrypoint);
-    } catch {
-      try {
-        entrypoint = '/app/index.ts';
-        await fs.access(entrypoint);
-      } catch {
-        sendLog('[build] Error: no index.js or index.ts found in /app');
-        process.exit(1);
-      }
-    }
-   
-    sendLog(`[build] Using entrypoint: ${entrypoint}`);
-    spawn(
-      ['bun', 'build', entrypoint, '--outdir', '/output/artifacts', '--target', 'bun', '--minify', '--sourcemap'],
-      '/app'
+    runner.on('error', (error: Error) => {
+      console.log(`[build] Build failed with error:`, error);
+    });
+
+    log('[build] Start running...');
+    await runner.run(buildData);
+
+    // Create /output/artifacts.tgz
+const outFiles = await fs.readdir('/output/artifacts');
+        if (outFiles.length === 0) {
+          throw new Error('bun build produced no output files');
+        }
+
+    console.log('[build] Creating artifacts tarball...');
+    await tar.create(
+      {
+        gzip: true,
+        file: '/output/artifacts.tgz',
+        cwd: '/output/artifacts',
+      },
+      ['.']
     );
 
-
-    // Verify output was produced
-    try {
-      const outFiles = await fs.readdir('/output/artifacts');
-      if (outFiles.length === 0) {
-        sendLog('[build] ERROR: bun build produced no output files');
-        process.exit(1);
-      }
-    } catch (e: any) {
-      sendLog(`[build] ERROR: could not list /output/artifacts: ${e.message}`);
-      process.exit(1);
-    }
-
-    sendLog('[build] Bundle completed successfully.');
-
-    // Step 2: Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
-    const copyRecursive = async (src: string, dest: string) => {
-      const entries = await fs.readdir(src, { withFileTypes: true });
-      await fs.mkdir(dest, { recursive: true });
-
-      for (const entry of entries) {
-        if (entry.name === 'node_modules') continue; // skip node_modules
-
-        const srcPath = path.join(src, entry.name);
-        const destPath = path.join(dest, entry.name);
-
-        if (entry.isDirectory()) {
-          await copyRecursive(srcPath, destPath);
-        } else if (entry.isFile()) {
-          await fs.copyFile(srcPath, destPath);
-        }
-      }
-    };
-
-    await copyRecursive('/app', '/output/artifacts');
-    sendLog('[build] Copied source files to output directory.');
-
-    // Step 3: Install production dependencies in output directory
-    sendLog('[build] Running bun install --production...');
-    spawn(['bun', 'install', '--production'], '/output/artifacts');
-
-    // Step 4: Archive artifacts
-    sendLog('[build] Archiving artifacts...');
-    await tar.create({
-      gzip: true,
-      file: '/output/artifacts.tgz',
-      cwd: '/output/artifacts',
-    }, ['.']);
-
-    // Build complete, notify host and wait for artifact collection before exiting
-    await ipc.emit('build_complete');
+    log('[build] Notifying host build success...');
+    ipc.emit('build_complete');
 
     await Promise.any([
+      new Promise<void>((resolve) => setTimeout(resolve, 30 * 1000)),
       new Promise<void>((resolve) => ipc.once('build_end', () => resolve())),
-      new Promise<void>((resolve) => setTimeout(resolve, 30000)), // timeout after 30s
     ]);
 
-    process.exit(0);
-  } catch (err: any) {
-    sendLog(`[build] Unexpected error: ${err.message}`);
-    process.exit(1);
+    log('[build] Build end received. exiting...');
+  }
+  catch (err) {
+    error = true;
+    console.log('Build failed with error:', err instanceof Error ? err.stack : err);
+  }
+  finally {
+    restoreConsole();
+    await ipc.end();
+    process.exit(error ? 1 : 0);
+  
   }
 }

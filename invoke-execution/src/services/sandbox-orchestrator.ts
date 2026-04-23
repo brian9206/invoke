@@ -172,7 +172,7 @@ export class Sandbox extends EventEmitter {
   private _container: Dockerode.Container;
   private _ipcServer: net.Server;
   private _ipcClients: net.Socket[] = [];
-  private _pendingBootstrapPayload: { request: unknown } | null = null;
+  private _pendingBootstrapPayload: unknown = null;
   private _destroyed = false;
 
   constructor(
@@ -189,7 +189,7 @@ export class Sandbox extends EventEmitter {
   }
 
   setPendingBootstrapPayload(request: unknown): void {
-    this._pendingBootstrapPayload = { request };
+    this._pendingBootstrapPayload = request;
   }
 
   /** @internal — called by orchestrator to register an IPC client */

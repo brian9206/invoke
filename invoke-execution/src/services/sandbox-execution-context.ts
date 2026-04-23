@@ -262,7 +262,7 @@ export async function executeSandbox(
     const codePath = `/functions/${functionId}/index.js`;
 
     try {
-      sandbox.setPendingBootstrapPayload(request);
+      sandbox.setPendingBootstrapPayload({ type: 'execute', request });
 
       if (process.env.INVOKE_INSTRUMENT) {
         console.log(`[EXECUTE] ${functionId}: emitting execute command at ${Date.now()}`);

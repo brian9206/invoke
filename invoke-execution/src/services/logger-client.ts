@@ -55,6 +55,17 @@ export interface AppLogOptions {
   executedAt?: Date;
 }
 
+export interface BuildLogOptions {
+  project?: { id?: string; name?: string | null };
+  function?: { id?: string; name?: string | null };
+  build: { 
+    id: string; 
+    version: number,
+    stage: string;
+  };
+  message: string;
+}
+
 export interface RequestLogInfo {
   request?: {
     url?: string;
@@ -76,7 +87,7 @@ export interface RequestLogInfo {
   };
 }
 
-export interface InsertRequestLogOptions {
+export interface RequestLogOptions {
   project?: { id?: string; name?: string | null };
   function?: { id?: string; name?: string | null };
   traceId?: string;
@@ -89,7 +100,7 @@ export interface InsertRequestLogOptions {
 /**
  * Fire-and-forget: send an app log entry to invoke-logger.
  */
-export function insertLog(opts: AppLogOptions): void {
+export function insertAppLog(opts: AppLogOptions): void {
   postLog({
     project: opts.project,
     function: opts.function,
@@ -101,11 +112,26 @@ export function insertLog(opts: AppLogOptions): void {
 }
 
 /**
+ * Fire-and-forget: send an build log entry to invoke-logger.
+ */
+export function insertBuildLog(opts: BuildLogOptions): void {
+  postLog({
+    project: opts.project,
+    function: opts.function,
+    type: 'build',
+    payload: {
+      build: opts.build,
+      message: opts.message,
+    }
+  });
+}
+
+/**
  * Fire-and-forget: build the structured request log payload locally
  * (handling response body text/binary serialization and truncation),
  * then send to invoke-logger.
  */
-export function insertRequestLog(opts: InsertRequestLogOptions): void {
+export function insertRequestLog(opts: RequestLogOptions): void {
   const {
     project,
     function: functionArg,

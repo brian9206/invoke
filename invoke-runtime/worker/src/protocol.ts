@@ -27,6 +27,10 @@ export interface RequestData {
   headers: Record<string, string>;
 }
 
+export interface BuildData {
+  buildId: string;
+}
+
 /** Serialised HTTP response sent back from the sandbox */
 export interface ResponseData {
   statusCode: number;

@@ -158,6 +158,8 @@ export class BuildService {
                 const artifactBuf = await fs.readFile(artifactLocalPath);
                 const artifactHash = crypto.createHash('sha256').update(artifactBuf).digest('hex');
 
+                sandbox.emit('build_end');
+
                 resolve({ ...payload, success: true, artifactHash, uploadResult });
               }
               catch (err) {
