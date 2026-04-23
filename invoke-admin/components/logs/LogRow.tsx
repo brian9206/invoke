@@ -210,7 +210,7 @@ export function LogRow({ log, columns, isExpanded, onToggle, onClickFilter, sele
                               key={field}
                               className="group border-b border-border/40 last:border-0 hover:bg-muted/30"
                             >
-                              <td className="py-1 pl-3 pr-2 text-muted-foreground font-mono align-top text-xs break-all w-[250px]">
+                              <td className="py-1 pl-3 pr-2 text-muted-foreground font-mono align-top text-xs break-all w-[250px] min-w-[250px] max-w-[250px]">
                                 {field}
                               </td>
                               <td className="py-1 pr-3 font-mono">
@@ -431,14 +431,30 @@ export const ALL_COLUMN_DEFS: ColumnDef[] = [
       )
     },
   },
+  {
+    key: 'build.version',
+    label: 'Build Version',
+    render: (log) => {
+      const v = (log.payload as any)?.build?.version
+      return v ? (
+        <span className="text-xs truncate max-w-[280px] block" title={'v' + String(v)}>v{String(v)}</span>
+      ) : (
+        <span className="text-muted-foreground text-xs">—</span>
+      )
+    },
+  },
 ]
 
 export const DEFAULT_HTTP_COLUMN_KEYS = ['timestamp', 'function', 'method', 'url', 'status', 'duration', 'ip']
 export const DEFAULT_APP_COLUMN_KEYS = ['timestamp', 'function', 'trace_id', 'level', 'message']
+export const DEFAULT_BUILD_COLUMN_KEYS = ['timestamp', 'function', 'build.version', 'message']
+export const DEFAULT_COLUMN_KEYS = ['timestamp'];
 
-/** @deprecated use DEFAULT_HTTP_COLUMN_KEYS */
-export const DEFAULT_COLUMN_KEYS = DEFAULT_HTTP_COLUMN_KEYS
-
-export function getDefaultColumnKeys(type: 'request' | 'app'): string[] {
-  return type === 'app' ? DEFAULT_APP_COLUMN_KEYS : DEFAULT_HTTP_COLUMN_KEYS
+export function getDefaultColumnKeys(type: 'request' | 'app' | 'build'): string[] {
+  switch (type) {
+    case 'request': return DEFAULT_HTTP_COLUMN_KEYS;
+    case 'app': return DEFAULT_APP_COLUMN_KEYS;
+    case 'build': return DEFAULT_BUILD_COLUMN_KEYS;
+    default: return DEFAULT_COLUMN_KEYS;
+  }
 }

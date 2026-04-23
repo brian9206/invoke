@@ -256,8 +256,9 @@ class CacheService {
     const extractedPath = this.getExtractedPackagePath(functionId, version);
 
     try {
+      console.log(`  [1/5] Downloading from S3: ${packagePath} → ${cachedPath}`);
       await (s3Service as any).downloadPackageFromPath(packagePath, cachedPath);
-
+      console.log(`  [2/5] Computing hash for ${cachedPath}`);
       const actualHash = await (s3Service as any).computeFileHash(cachedPath);
 
       if (hash && actualHash !== hash) {
@@ -269,8 +270,9 @@ class CacheService {
 
       await fs.remove(extractedPath);
       await fs.ensureDir(extractedPath);
+      console.log(`  [3/5] Extracting tarball to ${extractedPath}`);
       await tar.extract({ file: cachedPath, cwd: extractedPath });
-
+      console.log(`  [4/5] Saving cache metadata`);
       await this.saveCacheMetadata(functionId, {
         version,
         hash: actualHash,
@@ -281,7 +283,7 @@ class CacheService {
         accessCount: 1,
       });
 
-      console.log(`✅ Package ${functionId} cached successfully from ${packagePath}`);
+      console.log(`  [5/5] ✅ Package ${functionId} cached successfully from ${packagePath}`);
       return extractedPath;
     } catch (error: any) {
       console.error(

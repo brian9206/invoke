@@ -52,7 +52,7 @@ function extractFieldPaths(
 export async function dbInsertLog(opts: DbInsertLogOptions): Promise<void> {
   const { project = null, function: functionArg = null, type, source, payload, executedAt } = opts;
 
-  if (type !== 'request' && type !== 'app') throw new Error(`[dbInsertLog] Invalid type: ${type}`);
+  if (type !== 'request' && type !== 'app' && type !== 'build') throw new Error(`[dbInsertLog] Invalid type: ${type}`);
   if (source !== 'execution' && source !== 'gateway')
     throw new Error(`[dbInsertLog] Invalid source: ${source}`);
 

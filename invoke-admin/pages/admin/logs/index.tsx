@@ -43,7 +43,7 @@ export default function Logs() {
 
   // ── URL-derived filter state ────────────────────────────────────────
   const kqlQuery = (router.query.q as string) ?? ''
-  const logType = ((router.query.type as string) === 'app' ? 'app' : 'request') as 'app' | 'request'
+  const logType = ['app', 'request', 'build'].includes(router.query.type as string) ? (router.query.type as string) : 'request' as 'app' | 'request' | 'build'
   const currentPage = Math.max(1, parseInt((router.query.page as string) ?? '1', 10) || 1)
   const pageSize = parseInt((router.query.limit as string) ?? '20', 10) || 20
 
@@ -239,6 +239,7 @@ export default function Logs() {
               <SelectContent>
                 <SelectItem value="request" className="text-xs">HTTP</SelectItem>
                 <SelectItem value="app" className="text-xs">Application</SelectItem>
+                <SelectItem value="build" className="text-xs">Build Log</SelectItem>
               </SelectContent>
             </Select>
             <KqlSearchBar

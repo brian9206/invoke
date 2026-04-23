@@ -25,7 +25,7 @@ interface ColumnSelectorProps {
   selectedKeys: string[]
   onChange: (keys: string[]) => void
   projectId: string
-  logType: 'request' | 'app'
+  logType: 'request' | 'app' | 'build'
 }
 
 export function ColumnSelector({ selectedKeys, onChange, projectId, logType }: ColumnSelectorProps) {
@@ -202,7 +202,7 @@ export function ColumnSelector({ selectedKeys, onChange, projectId, logType }: C
     <Modal
       isOpen={showResetModal}
       title="Reset columns to default?"
-      description={`This will replace your current column selection with the default columns for ${logType === 'app' ? 'Application' : 'HTTP'} logs.`}
+      description={`This will replace your current column selection with the default columns.`}
       confirmText="Reset"
       confirmVariant="danger"
       size="sm"

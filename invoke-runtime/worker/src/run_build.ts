@@ -17,38 +17,39 @@ export async function runBuild(
   const buildData: BuildData = bootstrapPayload.request;
 
   const restoreConsole = installConsoleBridge(ipc);  
+  const pipeline = 'bun';
 
   let error = false;
   try {
-    log('[build] Creating build pipeline runner...');
-    const runner = await createPipelineRunner('bun');
+    log('[builder] Creating build pipeline runner...');
+    const runner = await createPipelineRunner(pipeline);
 
     runner.on('running', ({ stage }: { stage: string }) => {
-      console.log(`[build] Starting stage "${stage}"...`);
+      console.log(`[builder] Starting stage "${stage}"...`);
     });
 
     runner.on('success', ({ stage }: { stage: string }) => {
-      console.log(`[build] Stage "${stage}" completed successfully.`);
+      console.log(`[builder] Stage "${stage}" completed successfully.`);
     });
 
     runner.on('failure', ({ stage, error }: { stage: string, error?: string }) => {
-      console.log(`[build] Stage "${stage}" failed with error ${error}`);
+      console.log(`[builder] Stage "${stage}" failed with error ${error}`);
     });
 
     runner.on('error', (error: Error) => {
-      console.log(`[build] Build failed with error:`, error);
+      console.log(`[builder] Build failed with error:`, error);
     });
 
-    log('[build] Start running...');
+    console.log(`[builder] Start running pipeline "${pipeline}"...`);
     await runner.run(buildData);
 
     // Create /output/artifacts.tgz
-const outFiles = await fs.readdir('/output/artifacts');
-        if (outFiles.length === 0) {
-          throw new Error('bun build produced no output files');
-        }
+    const outFiles = await fs.readdir('/output/artifacts');
+    if (outFiles.length === 0) {
+      throw new Error('pipeline produced no output files');
+    }
 
-    console.log('[build] Creating artifacts tarball...');
+    console.log(`[builder] Creating artifacts tarball...`);
     await tar.create(
       {
         gzip: true,
@@ -58,7 +59,7 @@ const outFiles = await fs.readdir('/output/artifacts');
       ['.']
     );
 
-    log('[build] Notifying host build success...');
+    console.log('[builder] Artifacts tarball created successfully.');
     ipc.emit('build_complete');
 
     await Promise.any([
@@ -66,7 +67,7 @@ const outFiles = await fs.readdir('/output/artifacts');
       new Promise<void>((resolve) => ipc.once('build_end', () => resolve())),
     ]);
 
-    log('[build] Build end received. exiting...');
+    log('[builder] Build end received. exiting...');
   }
   catch (err) {
     error = true;

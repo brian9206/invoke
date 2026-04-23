@@ -60,8 +60,7 @@ export interface BuildLogOptions {
   function?: { id?: string; name?: string | null };
   build: { 
     id: string; 
-    version: number,
-    stage: string;
+    version: number;
   };
   message: string;
 }
@@ -122,7 +121,8 @@ export function insertBuildLog(opts: BuildLogOptions): void {
     payload: {
       build: opts.build,
       message: opts.message,
-    }
+    },
+    source: 'execution'
   });
 }
 

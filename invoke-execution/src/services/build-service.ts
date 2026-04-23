@@ -10,6 +10,7 @@ import * as tar from 'tar';
 import { createNotifyListener } from 'invoke-shared';
 import database from './database';
 import { getSandboxPool, BUILD_TEMP_DIR } from './sandbox-pool';
+import { insertBuildLog } from './logger-client';
 const { s3Service } = require('invoke-shared');
 
 const BUILD_TIMEOUT_MS = parseInt(process.env.BUILD_TIMEOUT_MINUTES || '5', 10) * 60 * 1000;
@@ -90,10 +91,23 @@ export class BuildService {
 
     console.log(`[BuildService] Starting build ${buildId} (fn=${functionId} v${versionNum})`);
 
-    const { FunctionBuild, FunctionVersion, Function: FunctionModel } = database.models as any;
+    const { FunctionBuild, FunctionVersion, Function: FunctionModel, Project } = database.models as any;
     const buildTempDir = path.join(BUILD_TEMP_DIR, buildId);
 
     try {
+      // Retrieve function and project info for logging context
+      const fnRecord = await FunctionModel.findByPk(functionId, {
+        attributes: ['id', 'name', 'project_id'],
+      });
+      const functionName = fnRecord?.name ?? null;
+      const projectId = fnRecord?.project_id ?? null;
+
+      let projectName: string | null = null;
+      if (projectId) {
+        const projectRecord = await Project.findByPk(projectId, { attributes: ['name'] });
+        projectName = projectRecord?.name ?? null;
+      }
+
       // Mark running
       await FunctionBuild.update(
         { status: 'running', started_at: new Date() },
@@ -127,15 +141,20 @@ export class BuildService {
 
       let buildLogs: { message: string, timestamp: string }[] = [];
       let buildResult: { success: boolean; error?: string, artifactHash?: string, uploadResult?: any } | null = null;
-      const onBuildLog = (payload: { message: string }) => {
-        if (payload?.message) {
-          buildLogs.push({ message: payload.message, timestamp: new Date().toISOString() });
-        }
+      const onConsole = (payload: { level: string; args: string[], details?: object }) => {
+        if (!payload) return;
+        const message = payload.args?.join(' ') ?? '';
+        insertBuildLog({
+          project: { id: projectId, name: projectName },
+          function: { id: functionId, name: functionName },
+          build: { id: buildId, version: versionNum },
+          message
+        });
       };
 
       try {
         // Collect build_log events from worker
-        sandbox.on('build_log', onBuildLog);
+        sandbox.on('console', onConsole);
 
         // Wait for build_complete from supervisor
         const buildCompletePromise = new Promise<{ success: boolean; error?: string, artifactHash?: string, uploadResult?: any }>(
@@ -191,10 +210,10 @@ export class BuildService {
         });
 
         buildResult = await buildCompletePromise;
-        sandbox.removeListener('build_log', onBuildLog);
+        sandbox.removeListener('console', onConsole);
         // Note: no explicit release — pool returns sandbox to idle on supervisor's 'ready' event
       } catch (err) {
-        sandbox.removeListener('build_log', onBuildLog);
+        sandbox.removeListener('console', onConsole);
         throw err;
       }
 

@@ -89,7 +89,6 @@ const pipeline: Pipeline = {
         await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] });
 
         // Install production dependencies in output directory
-        console.log('[build] Running bun install --production...');
         await exec(['bun', 'install', '--production'], { cwd: '/output/artifacts' });
       },
     },

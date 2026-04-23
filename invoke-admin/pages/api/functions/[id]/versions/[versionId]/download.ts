@@ -53,7 +53,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       try {
         // Download tgz file from MinIO
         const tgzPath = path.join(tempDir, 'package.tgz')
-        await s3Service.fGetObject(bucketName, objectKey, tgzPath)
+        await s3Service.fGetObject(bucketName, objectKey, tgzPath, 300000)
         
         // Extract tgz to temp directory
         const extractDir = path.join(tempDir, 'extracted')

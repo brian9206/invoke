@@ -1,4 +1,4 @@
-import { Op, literal } from 'sequelize'
+import { Op } from 'sequelize'
 import { v4 as uuidv4 } from 'uuid'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 import { createResponse, generateApiKey } from '@/lib/utils'
@@ -17,11 +17,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { model: User, as: 'deployedBy', attributes: ['username'], required: false },
           { model: Project, attributes: ['name'], required: false },
         ],
-        order: [
-          [literal('"Function"."group_id" NULLS LAST')],
-          ['sort_order', 'ASC'],
-          ['created_at', 'DESC'],
-        ],
+        order: database.sequelize.literal('"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'),
       })
     } else {
       // Regular users or project-specific query
@@ -52,11 +48,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
             include: [{ model: ProjectMembership, attributes: ['role'], where: { user_id: req.user!.id }, required: false }],
           },
         ],
-        order: [
-          [literal('"Function"."group_id" NULLS LAST')],
-          ['sort_order', 'ASC'],
-          ['created_at', 'DESC'],
-        ],
+        order: database.sequelize.literal('"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'),
       })
     }
 
