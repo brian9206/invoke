@@ -4,14 +4,15 @@
 // ============================================================================
 
 import fs from 'fs/promises';
-import type { IIpcChannel } from './protocol';
+import { IpcChannel } from './protocol';
 import path from 'path';
 
 export async function runBuild(
-  ipc: IIpcChannel,
-  payload: { buildId: string },
+  bootstrapPayload: any,
   log: (...args: unknown[]) => void,
 ): Promise<void> {
+  const ipc = IpcChannel.getInstance();
+
   const sendLog = (message: string) => {
     console.log('[worker:build]', message);
     ipc.emit('build_log', { message });
@@ -34,7 +35,7 @@ export async function runBuild(
   }
 
   try {
-    log('[worker:build] Starting build for', payload.buildId);
+    log('[worker:build] Starting build for', bootstrapPayload.request.buildId);
 
     // bun install
     sendLog('[build] Running bun install...');

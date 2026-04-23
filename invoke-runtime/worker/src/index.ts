@@ -49,10 +49,10 @@ async function bootstrap(): Promise<void> {
 
   ipc.once('payload', async (bootstrapPayload: any) => {
     if (bootstrapPayload?.request?.type === 'build') {
-      await runBuild(ipc, bootstrapPayload.request, log);
+      await runBuild(bootstrapPayload, log);
     }
     else {
-      await runUserCode(entry!, log);
+      await runUserCode(entry!, bootstrapPayload, log);
     }
   });
 }

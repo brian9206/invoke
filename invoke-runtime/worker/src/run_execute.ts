@@ -5,56 +5,27 @@
 import path from 'path';
 import { IpcChannel, type ResponseData, type RequestData } from './protocol';
 import { createReqObject, createResObject, stateToResponseData } from './exchange';
-import { KvClient } from './kv';
-import { RealtimeClient } from './realtime';
 import { installConsoleBridge } from './logger/console-bridge';
 import { setupEnvironment } from './environment';
 
 export async function runUserCode(
   entry: string,
+  bootstrapPayload: any,
   log: (...args: unknown[]) => void,
 ): Promise<void> {
   const startupTime = Date.now();
   log('[worker] Starting with entry=' + entry);
 
-  // 1. Connect to the host runtime over the bind-mounted socket.
-  const connectionStart = Date.now();
   const ipc = IpcChannel.getInstance();
-
-  ipc.on('error', (err: Error) => {
-    log('[worker] Socket error:', err);
-    process.exit(1);
-  });
-
-  await ipc.connected;
-  const connectionTime = Date.now() - connectionStart;
-  log(`[worker] Connected (${connectionTime}ms)`);
-
-  ipc.emit('payload');
-  log('[worker] Requested payload from host');
-  log('[worker] Waiting for payload...');
-
-  // 2. Read the payload from the socket (first 'payload' event)
-  const payloadStart = Date.now();
-  const bootstrapPayload = await new Promise<any>((resolve, reject) => {
-    ipc.once('payload', (payload: any) => {
-      log('[worker] Got payload event');
-      resolve(payload);
-    });
-    ipc.once('close', () => reject(new Error('Socket closed before payload received')));
-  });
-  const payloadTime = Date.now() - payloadStart;
-  log(`[worker] Received payload (${payloadTime}ms)`);
-
   const request: RequestData = bootstrapPayload.request;
 
-  // 3. Set up Console bridge
+  // 1. Set up Console bridge
   const restoreConsole = installConsoleBridge(ipc);
 
-  // 4. Setup environment
+  // 2. Setup environment
   setupEnvironment(ipc);
 
-  // 5. Load and execute user function
+  // 3. Load and execute user function
   let resultSent = false;
   let response: ResponseData | undefined;
   let state: any;
@@ -156,7 +127,7 @@ export async function runUserCode(
   }
 
   const totalWorkerTime = Date.now() - startupTime;
-  log(`[worker] Total worker time: ${totalWorkerTime}ms (conn=${connectionTime}ms, payload=${payloadTime}ms`);
+  log(`[worker] Total worker time: ${totalWorkerTime}ms`);
 
   // Signal handler completion, then close socket and exit
   await ipc.end('execute_end', {});
