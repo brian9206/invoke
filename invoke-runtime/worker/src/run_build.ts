@@ -6,6 +6,7 @@
 import fs from 'fs/promises';
 import { IpcChannel } from './protocol';
 import path from 'path';
+import * as tar from 'tar';
 
 export async function runBuild(
   bootstrapPayload: any,
@@ -75,26 +76,26 @@ export async function runBuild(
    
     sendLog(`[build] Using entrypoint: ${entrypoint}`);
     spawn(
-      ['bun', 'build', entrypoint, '--outdir', '/output', '--target', 'bun', '--minify', '--sourcemap'],
+      ['bun', 'build', entrypoint, '--outdir', '/output/artifacts', '--target', 'bun', '--minify', '--sourcemap'],
       '/app'
     );
 
 
     // Verify output was produced
     try {
-      const outFiles = await fs.readdir('/output');
+      const outFiles = await fs.readdir('/output/artifacts');
       if (outFiles.length === 0) {
         sendLog('[build] ERROR: bun build produced no output files');
         process.exit(1);
       }
     } catch (e: any) {
-      sendLog(`[build] ERROR: could not list /output: ${e.message}`);
+      sendLog(`[build] ERROR: could not list /output/artifacts: ${e.message}`);
       process.exit(1);
     }
 
-    sendLog('[build] bundle completed successfully.');
+    sendLog('[build] Bundle completed successfully.');
 
-    // Step 2: Copy everything from /app to /output (except node_modules) so that user code can require() them
+    // Step 2: Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
     const copyRecursive = async (src: string, dest: string) => {
       const entries = await fs.readdir(src, { withFileTypes: true });
       await fs.mkdir(dest, { recursive: true });
@@ -113,17 +114,29 @@ export async function runBuild(
       }
     };
 
-    await copyRecursive('/app', '/output');
+    await copyRecursive('/app', '/output/artifacts');
     sendLog('[build] Copied source files to output directory.');
 
     // Step 3: Install production dependencies in output directory
     sendLog('[build] Running bun install --production...');
-    spawn(['bun', 'install', '--production'], '/output');
+    spawn(['bun', 'install', '--production'], '/output/artifacts');
 
-    sendLog('[build] build completed successfully.');
+    // Step 4: Archive artifacts
+    sendLog('[build] Archiving artifacts...');
+    await tar.create({
+      gzip: true,
+      file: '/output/artifacts.tgz',
+      cwd: '/output/artifacts',
+    }, ['.']);
 
-    // Flush and exit with success
-    await ipc.end();
+    // Build complete, notify host and wait for artifact collection before exiting
+    await ipc.emit('build_complete');
+
+    await Promise.any([
+      new Promise<void>((resolve) => ipc.once('build_end', () => resolve())),
+      new Promise<void>((resolve) => setTimeout(resolve, 30000)), // timeout after 30s
+    ]);
+
     process.exit(0);
   } catch (err: any) {
     sendLog(`[build] Unexpected error: ${err.message}`);

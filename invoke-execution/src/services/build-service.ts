@@ -126,7 +126,7 @@ export class BuildService {
       const sandbox = await pool.acquire();
 
       let buildLogs: { message: string, timestamp: string }[] = [];
-      let buildResult: { success: boolean; error?: string } | null = null;
+      let buildResult: { success: boolean; error?: string, artifactHash?: string, uploadResult?: any } | null = null;
       const onBuildLog = (payload: { message: string }) => {
         if (payload?.message) {
           buildLogs.push({ message: payload.message, timestamp: new Date().toISOString() });
@@ -138,17 +138,33 @@ export class BuildService {
         sandbox.on('build_log', onBuildLog);
 
         // Wait for build_complete from supervisor
-        const buildCompletePromise = new Promise<{ success: boolean; error?: string }>(
+        const buildCompletePromise = new Promise<{ success: boolean; error?: string, artifactHash?: string, uploadResult?: any }>(
           (resolve, reject) => {
             const timer = setTimeout(() => {
               reject(new Error(`Build timeout (${BUILD_TIMEOUT_MS}ms)`));
             }, BUILD_TIMEOUT_MS);
 
-            const onComplete = (payload: any) => {
+            const onComplete = async (payload: any) => {
               clearTimeout(timer);
               sandbox.removeListener('build_complete', onComplete);
               sandbox.removeListener('ready', onReady);
-              resolve(payload);
+
+              try {
+                // Create and Upload artifact.tgz to S3
+                const artifactLocalPath = path.join(artifactDir, 'artifacts.tgz');
+                const uploadResult = await s3Service.uploadArtifact(functionId, versionNum, artifactLocalPath);
+
+                // Compute hash of artifact
+                const artifactBuf = await fs.readFile(artifactLocalPath);
+                const artifactHash = crypto.createHash('sha256').update(artifactBuf).digest('hex');
+
+                resolve({ ...payload, success: true, artifactHash, uploadResult });
+              }
+              catch (err) {
+                console.log(`[BuildService] Unable to upload artifact of ${buildId}.`, err);
+                const errorMessage = (err instanceof Error) ? err.message : String(err) || 'unknown error';
+                resolve({ success: false, error: `Failed to upload artifact: ${errorMessage}` });
+              }
             };
 
             const onReady = () => {
@@ -184,20 +200,11 @@ export class BuildService {
         throw new Error(buildResult?.error ?? 'Build failed');
       }
 
-      // Create and Upload artifact.tgz to S3
-      const artifactLocalPath = path.join(artifactDir, 'artifact.tgz');
-      await tar.create({ gzip: true, file: artifactLocalPath, cwd: artifactDir }, ['.']);
-      const uploadResult = await s3Service.uploadArtifact(functionId, versionNum, artifactLocalPath);
-
-      // Compute hash of artifact
-      const artifactBuf = await fs.readFile(artifactLocalPath);
-      const artifactHash = crypto.createHash('sha256').update(artifactBuf).digest('hex');
-
       // Update function_versions with artifact info
       await (FunctionVersion as any).update(
         {
-          artifact_path: uploadResult.objectName,
-          artifact_hash: artifactHash,
+          artifact_path: buildResult?.uploadResult?.objectName,
+          artifact_hash: buildResult?.artifactHash,
           build_status: 'built',
         },
         { where: { id: build.version_id } },
@@ -207,15 +214,15 @@ export class BuildService {
       await FunctionBuild.update(
         {
           status: 'success',
-          artifact_path: uploadResult.objectName,
-          artifact_hash: artifactHash,
+          artifact_path: buildResult?.uploadResult?.objectName,
+          artifact_hash: buildResult?.artifactHash,
           build_log: buildLogs.length > 0 ? JSON.stringify(buildLogs) : null,
           completed_at: new Date(),
         },
         { where: { id: buildId } },
       );
 
-      console.log(`[BuildService] Build ${buildId} succeeded. Artifact: ${uploadResult.objectName}`);
+      console.log(`[BuildService] Build ${buildId} succeeded. Artifact: ${buildResult?.uploadResult?.objectName}`);
 
       // Handle after_build_action
       if (build.after_build_action === 'switch') {
