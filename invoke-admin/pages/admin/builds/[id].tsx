@@ -21,6 +21,7 @@ import {
   Package,
   Ban,
   Circle,
+  Download,
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -277,6 +278,7 @@ export default function BuildDetail() {
   const [error, setError] = useState('')
   const [rebuilding, setRebuilding] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const fetchBuild = useCallback(async () => {
     if (!id) return
@@ -324,6 +326,32 @@ export default function BuildDetail() {
       // ignore
     } finally {
       setRebuilding(false)
+    }
+  }
+
+  const handleDownloadArtifact = async () => {
+    if (!data?.artifact_path) return
+    setDownloading(true)
+    try {
+      const res = await authenticatedFetch(`/api/builds/${id}/artifact`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        console.error('Artifact download failed:', json.message)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const disposition = res.headers.get('content-disposition') ?? ''
+      const match = disposition.match(/filename="([^"]+)"/) 
+      a.download = match?.[1] ?? `artifact-${id}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // ignore
+    } finally {
+      setDownloading(false)
     }
   }
 
@@ -441,6 +469,12 @@ export default function BuildDetail() {
                     <Button size="sm" onClick={handleRebuild} disabled={rebuilding}>
                       {rebuilding ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                       Rebuild
+                    </Button>
+                  )}
+                  {data.artifact_path && (
+                    <Button variant="outline" size="sm" onClick={handleDownloadArtifact} disabled={downloading}>
+                      {downloading ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                      Download Artifacts
                     </Button>
                   )}
                   {isActive && (

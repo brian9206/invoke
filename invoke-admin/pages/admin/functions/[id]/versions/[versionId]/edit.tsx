@@ -688,7 +688,7 @@ export default function FunctionCodeEditor() {
         const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `${functionData.functionName || 'function'}-v${functionData.version}.zip`
+        a.download = `${functionData.functionName || 'function'}-v${functionData.version}.tgz`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
