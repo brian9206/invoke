@@ -124,7 +124,6 @@ export default function FunctionDetails() {
   const [versions, setVersions] = useState<FunctionVersion[]>([])
   const [switchingVersion, setSwitchingVersion] = useState<string | null>(null)
   const [deletingVersion, setDeletingVersion] = useState<string | null>(null)
-  const [downloadingVersion, setDownloadingVersion] = useState<string | null>(null)
   const [deployModalOpen, setDeployModalOpen] = useState(false)
   const [deployFile, setDeployFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -528,18 +527,6 @@ export default function FunctionDetails() {
     } catch {
       // ignore
     }
-  }
-
-  const handleDownloadVersion = async (versionId: string, version: string) => {    setDownloadingVersion(versionId)
-    try {
-      const r = await authenticatedFetch(`/api/functions/${id}/versions/${versionId}/download`)
-      if (r.ok) {
-        const blob = await r.blob(); const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a'); a.href = url; a.download = `${functionData?.name || 'function'}-v${version}.zip`
-        document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url)
-      }
-    } catch { console.error('Error downloading version') }
-    finally { setDownloadingVersion(null) }
   }
 
   // ── Deploy (upload new version) ──────────────────────────────────────────────
@@ -970,10 +957,7 @@ export default function FunctionDetails() {
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuItem onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}>
-                                      <Code2 className="w-4 h-4 mr-2" />View / Edit Code
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleDownloadVersion(version.id, version.version)} disabled={downloadingVersion === version.id}>
-                                      <Download className="w-4 h-4 mr-2" />Download
+                                      <Code2 className="w-4 h-4 mr-2" />Open Code Editor
                                     </DropdownMenuItem>
                                     {version.build_status && version.build_status !== 'none' && (
                                       <DropdownMenuItem onClick={() => handleViewBuildLog(version.id)}>

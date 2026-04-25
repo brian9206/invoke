@@ -276,6 +276,17 @@ class S3Service {
   }
 
   /**
+   * Delete a build artifact by its S3 object key.
+   * @param {string} artifactPath – S3 object key (artifact_path from DB)
+   */
+  async deleteArtifact(artifactPath) {
+    await this.initialize()
+
+    await this.removeObject(this.bucketName, artifactPath)
+    console.log(`✅ Deleted artifact: ${artifactPath}`)
+  }
+
+  /**
    * Delete all stored packages for a function.
    * @param {string} functionId
    * @returns {Promise<number>} count of deleted objects
@@ -287,6 +298,58 @@ class S3Service {
     await Promise.all(packages.map((pkg) => this.removeObject(this.bucketName, pkg.name)))
     console.log(`✅ Deleted ${packages.length} packages for function ${functionId}`)
     return packages.length
+  }
+
+  /**
+   * List all artifact objects for a function with full metadata.
+   * Handles S3 pagination automatically.
+   * @param {string} functionId
+   * @returns {Promise<Array<{version:string, name:string, size:number, lastModified:Date, etag:string}>>}
+   */
+  async listFunctionArtifacts(functionId) {
+    await this.initialize()
+
+    const client = this._ensureClient()
+    const prefix = `artifacts/${functionId}/`
+    const artifacts = []
+    let continuationToken
+
+    do {
+      const response = await client.send(new ListObjectsV2Command({
+        Bucket: this.bucketName,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      }))
+
+      for (const obj of response.Contents || []) {
+        artifacts.push({
+          version: obj.Key.split('/')[2],
+          name: obj.Key,
+          size: obj.Size,
+          lastModified: obj.LastModified,
+          etag: obj.ETag,
+        })
+      }
+
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined
+    } while (continuationToken)
+
+    return artifacts
+  }
+
+  /**
+   * Delete all build artifacts for a function (all versions).
+   * Lists objects under artifacts/{functionId}/ and removes them.
+   * @param {string} functionId
+   * @returns {Promise<number>} count of deleted objects
+   */
+  async deleteAllArtifactsForFunction(functionId) {
+    await this.initialize()
+
+    const artifacts = await this.listFunctionArtifacts(functionId)
+    await Promise.all(artifacts.map((a) => this.removeObject(this.bucketName, a.name)))
+    console.log(`✅ Deleted ${artifacts.length} artifacts for function ${functionId}`)
+    return artifacts.length
   }
 
   /**

@@ -124,7 +124,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       const versionStr = Array.isArray(version) ? version[0] : version
       const versionRecord = await FunctionVersion.findOne({
         where: { function_id: functionId, version: parseInt(versionStr) },
-        attributes: ['id', 'version']
+        attributes: ['id', 'version', 'artifact_path']
       });
 
         if (!versionRecord) {
@@ -139,6 +139,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         }
 
         // Delete the version record
+        const artifactPath: string | null = (versionData as any).artifact_path ?? null;
         await versionRecord.destroy();
 
         // Delete the package from S3
@@ -148,6 +149,17 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         } catch (s3Error) {
           console.error('Error deleting package from S3:', s3Error)
           // Continue even if S3 deletion fails
+        }
+
+        // Delete the build artifact from S3 if present
+        if (artifactPath) {
+          try {
+            await s3Service.deleteArtifact(artifactPath)
+            console.log(`✓ Deleted S3 artifact for function ${functionId} version ${version}`)
+          } catch (artifactError) {
+            console.error('Error deleting artifact from S3:', artifactError)
+            // Continue even if artifact deletion fails
+          }
         }
 
         return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))

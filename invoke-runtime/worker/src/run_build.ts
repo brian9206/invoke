@@ -68,7 +68,7 @@ export async function runBuild(
     // Create /output/artifacts.tgz
     const outFiles = await fs.readdir('/output/artifacts');
     if (outFiles.length === 0) {
-      throw new Error('pipeline produced no output files');
+      throw new Error('Pipeline produced no output files');
     }
 
     console.log(`[builder] Creating artifacts tarball...`);
