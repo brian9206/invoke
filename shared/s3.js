@@ -402,7 +402,7 @@ class S3Service {
     await this.initialize()
 
     const client = this._ensureClient()
-    const prefix = `packages/${functionId}/`
+    const prefix = `functions/${functionId}/`
     const packages = []
     let continuationToken
 
