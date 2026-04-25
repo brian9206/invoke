@@ -1,12 +1,33 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
-import Modal from '@/components/Modal'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Hammer, Loader, AlertCircle, RefreshCw, FileText } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Hammer,
+  Loader,
+  AlertCircle,
+  RefreshCw,
+  Search,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  Zap,
+  Ban,
+} from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
 
@@ -19,7 +40,6 @@ interface Build {
   status: 'queued' | 'running' | 'success' | 'failed'
   after_build_action: 'none' | 'switch'
   artifact_path: string | null
-  build_log: string | null
   error_message: string | null
   created_by_name: string | null
   created_at: string
@@ -27,28 +47,64 @@ interface Build {
   completed_at: string | null
 }
 
+const statusConfig: Record<string, { icon: typeof Hammer; bg: string; text: string; label: string }> = {
+  queued:  { icon: Clock,        bg: 'bg-muted',           text: 'text-muted-foreground', label: 'Queued' },
+  running: { icon: Loader,       bg: 'bg-blue-900/30',     text: 'text-blue-400',         label: 'Running' },
+  success: { icon: CheckCircle2, bg: 'bg-green-900/30',    text: 'text-green-400',        label: 'Success' },
+  failed:    { icon: XCircle,      bg: 'bg-red-900/30',      text: 'text-red-400',          label: 'Failed' },
+  cancelled: { icon: Ban,           bg: 'bg-muted',           text: 'text-muted-foreground', label: 'Cancelled' },
+}
+
 function statusBadge(status: string) {
+  const cfg = statusConfig[status]
+  if (!cfg) return <Badge variant="outline">{status}</Badge>
   switch (status) {
-    case 'queued':   return <Badge variant="secondary">Queued</Badge>
-    case 'running':  return <Badge className="bg-blue-500 text-white">Running</Badge>
-    case 'success':  return <Badge className="bg-green-600 text-white">Success</Badge>
-    case 'failed':   return <Badge variant="destructive">Failed</Badge>
+    case 'queued':   return <Badge variant="secondary">{cfg.label}</Badge>
+    case 'running':  return <Badge className="bg-blue-500/20 text-blue-400 border-blue-800/50">{cfg.label}</Badge>
+    case 'success':  return <Badge className="bg-green-900/30 text-green-400 border-green-800/50">{cfg.label}</Badge>
+    case 'failed':   return <Badge variant="destructive">{cfg.label}</Badge>
+    case 'cancelled': return <Badge variant="secondary">{cfg.label}</Badge>
     default:         return <Badge variant="outline">{status}</Badge>
   }
 }
 
+function formatRelativeTime(dt: string | null) {
+  if (!dt) return '—'
+  const diff = Date.now() - new Date(dt).getTime()
+  if (diff < 60_000) return 'Just now'
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(dt).toLocaleDateString()
+}
+
+function formatDuration(start: string | null, end: string | null) {
+  if (!start || !end) return null
+  const ms = new Date(end).getTime() - new Date(start).getTime()
+  if (ms < 1000) return `${ms}ms`
+  const secs = Math.round(ms / 1000)
+  if (secs < 60) return `${secs}s`
+  return `${Math.floor(secs / 60)}m ${secs % 60}s`
+}
+
 export default function Builds() {
+  const router = useRouter()
   const { activeProject } = useProject()
   const [builds, setBuilds] = useState<Build[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [logModal, setLogModal] = useState<{ open: boolean; build: Build | null }>({ open: false, build: null })
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const limit = 20
 
-  const fetchBuilds = useCallback(async (p = page) => {
+  const fetchBuilds = useCallback(async (p = page, s = search, st = statusFilter) => {
     setLoading(true)
     setError(null)
     try {
@@ -56,6 +112,8 @@ export default function Builds() {
       if (activeProject?.id && activeProject.id !== 'system') {
         params.set('project_id', activeProject.id)
       }
+      if (s) params.set('search', s)
+      if (st && st !== 'all') params.set('status', st)
       const res = await authenticatedFetch(`/api/builds?${params}`)
       const data = await res.json()
       if (data.success) {
@@ -69,47 +127,95 @@ export default function Builds() {
     } finally {
       setLoading(false)
     }
-  }, [activeProject, page])
+  }, [activeProject, page, search, statusFilter])
 
   useEffect(() => {
     setPage(1)
-    fetchBuilds(1)
+    setSearch('')
+    setStatusFilter('all')
+    fetchBuilds(1, '', 'all')
   }, [activeProject])
 
   useEffect(() => {
-    fetchBuilds(page)
+    fetchBuilds(page, search, statusFilter)
   }, [page])
+
+  // Debounced search
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setPage(1)
+      fetchBuilds(1, value, statusFilter)
+    }, 300)
+  }
+
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value)
+    setPage(1)
+    fetchBuilds(1, search, value)
+  }
 
   // Auto-refresh every 3 seconds if any build is queued or running
   useEffect(() => {
     const hasActive = builds.some(b => b.status === 'queued' || b.status === 'running')
     if (!hasActive) return
-    const timer = setInterval(() => fetchBuilds(page), 3000)
+    const timer = setInterval(() => fetchBuilds(page, search, statusFilter), 3000)
     return () => clearInterval(timer)
-  }, [builds, page, fetchBuilds])
+  }, [builds, page, search, statusFilter, fetchBuilds])
 
   const totalPages = Math.ceil(total / limit)
 
-  function formatDate(dt: string | null) {
-    if (!dt) return '—'
-    return new Date(dt).toLocaleString()
+  const pageNumbers = () => {
+    const pages: number[] = []
+    const maxVisible = 5
+    let start = Math.max(1, page - Math.floor(maxVisible / 2))
+    const end = Math.min(totalPages, start + maxVisible - 1)
+    start = Math.max(1, end - maxVisible + 1)
+    for (let i = start; i <= end; i++) pages.push(i)
+    return pages
   }
 
   return (
     <ProtectedRoute>
       <Layout title="Builds">
-        <div className="flex flex-col gap-6">
+        <div className="space-y-6">
           <PageHeader
             title="Builds"
-            description="Build queue and history for function versions"
+            subtitle="Build queue and history for function versions"
             icon={<Hammer className="h-6 w-6" />}
-            actions={
-              <Button variant="outline" size="sm" onClick={() => fetchBuilds(page)} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            }
-          />
+          >
+            <Button variant="outline" size="sm" onClick={() => fetchBuilds(page, search, statusFilter)} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </PageHeader>
+
+          {/* Search + Filters */}
+          <div className="flex items-center gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by function name…"
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="queued">Queued</SelectItem>
+                <SelectItem value="running">Running</SelectItem>
+                <SelectItem value="success">Success</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           {error && (
             <div className="flex items-center gap-2 text-destructive">
@@ -118,98 +224,104 @@ export default function Builds() {
             </div>
           )}
 
-          <Card>
-            <CardContent className="p-0">
-              {loading && builds.length === 0 ? (
-                <div className="flex items-center justify-center p-12 text-muted-foreground">
-                  <Loader className="h-6 w-6 animate-spin mr-2" />
-                  Loading builds…
-                </div>
-              ) : builds.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-12 text-muted-foreground gap-2">
-                  <Hammer className="h-8 w-8 opacity-40" />
-                  <p>No builds found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left p-3 font-medium">Function</th>
-                        <th className="text-left p-3 font-medium">Version</th>
-                        <th className="text-left p-3 font-medium">Status</th>
-                        <th className="text-left p-3 font-medium">Action</th>
-                        <th className="text-left p-3 font-medium">Created</th>
-                        <th className="text-left p-3 font-medium">Completed</th>
-                        <th className="text-left p-3 font-medium">By</th>
-                        <th className="text-left p-3 font-medium"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {builds.map(build => (
-                        <tr key={build.id} className="border-b hover:bg-muted/30 transition-colors">
-                          <td className="p-3 font-medium">{build.function_name}</td>
-                          <td className="p-3 text-muted-foreground">v{build.version_number}</td>
-                          <td className="p-3">{statusBadge(build.status)}</td>
-                          <td className="p-3 text-muted-foreground capitalize">{build.after_build_action}</td>
-                          <td className="p-3 text-muted-foreground text-xs">{formatDate(build.created_at)}</td>
-                          <td className="p-3 text-muted-foreground text-xs">{formatDate(build.completed_at)}</td>
-                          <td className="p-3 text-muted-foreground">{build.created_by_name ?? '—'}</td>
-                          <td className="p-3">
-                            {(build.build_log || build.error_message) && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setLogModal({ open: true, build })}
-                              >
-                                <FileText className="h-4 w-4 mr-1" />
-                                Log
-                              </Button>
+          {/* Build list */}
+          {loading && builds.length === 0 ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          ) : builds.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center text-muted-foreground">
+                <Hammer className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium">No builds found</p>
+                <p className="text-sm mt-1">
+                  {search || statusFilter !== 'all'
+                    ? 'Try adjusting your search or filters'
+                    : 'Builds will appear here when you deploy function versions'}
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {builds.map(build => {
+                const cfg = statusConfig[build.status] || statusConfig.queued
+                const Icon = cfg.icon
+                const duration = formatDuration(build.started_at, build.completed_at)
+                return (
+                  <Card
+                    key={build.id}
+                    className="hover:bg-card/80 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/admin/builds/${build.id}`)}
+                  >
+                    <CardContent className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded ${cfg.bg} ${cfg.text} shrink-0`}>
+                          <Icon className={`w-4 h-4 ${build.status === 'running' ? 'animate-spin' : ''}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center flex-wrap gap-1.5">
+                            <span className="text-sm font-semibold text-foreground truncate">
+                              {build.function_name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">v{build.version_number}</span>
+                            {statusBadge(build.status)}
+                            {build.after_build_action === 'switch' && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 gap-0.5">
+                                <Zap className="w-3 h-3" />Switch
+                              </Badge>
                             )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                          </div>
+                          <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(build.created_at)}
+                            </span>
+                            {build.created_by_name && (
+                              <span className="text-xs text-muted-foreground">
+                                by {build.created_by_name}
+                              </span>
+                            )}
+                            {duration && (
+                              <span className="text-xs text-muted-foreground">
+                                {duration}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
 
+          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}</span>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
-                  Previous
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
-                  Next
+                {pageNumbers().map(p => (
+                  <Button
+                    key={p}
+                    variant={p === page ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                ))}
+                <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages} onClick={() => setPage(p => p + 1)}>
+                  <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           )}
         </div>
-
-        <Modal
-          open={logModal.open}
-          onClose={() => setLogModal({ open: false, build: null })}
-          title={logModal.build ? `Build Log — ${logModal.build.function_name} v${logModal.build.version_number}` : 'Build Log'}
-          maxWidth="max-w-3xl"
-        >
-          {logModal.build && (
-            <div className="space-y-4">
-              {logModal.build.error_message && (
-                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                  {logModal.build.error_message}
-                </div>
-              )}
-              <pre className="bg-muted rounded-md p-4 text-xs overflow-auto max-h-96 whitespace-pre-wrap">
-                {logModal.build.build_log || '(no log output)'}
-              </pre>
-            </div>
-          )}
-        </Modal>
       </Layout>
     </ProtectedRoute>
   )

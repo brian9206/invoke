@@ -107,6 +107,7 @@ class ExecutionServer {
           execute: 'POST /invoke/:functionId',
           executeGet: 'GET /invoke/:functionId',
           triggerScheduled: 'POST /scheduler/trigger-scheduled',
+          cancelExpiredBuilds: 'POST /scheduler/cancel-expired-builds',
         },
         features: {
           apiKeyAuth: true,

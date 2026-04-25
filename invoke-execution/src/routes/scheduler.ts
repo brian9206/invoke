@@ -230,4 +230,57 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
   }
 });
 
+// ── Cancel expired builds (queued/running > 60 minutes) ───────────────────
+router.post('/cancel-expired-builds', async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const { FunctionBuild, FunctionVersion } = database.models as any;
+    const expiryThreshold = new Date(Date.now() - 60 * 60 * 1000); // 60 minutes ago
+
+    // Find builds that are queued or running and created more than 60 minutes ago
+    const expiredBuilds = await FunctionBuild.findAll({
+      where: {
+        status: { [Op.in]: ['queued', 'running'] },
+        created_at: { [Op.lt]: expiryThreshold },
+      },
+      attributes: ['id', 'version_id', 'status'],
+    });
+
+    if (expiredBuilds.length === 0) {
+      res.json({ success: true, cancelled: 0, message: 'No expired builds found' });
+      return;
+    }
+
+    const buildIds = expiredBuilds.map((b: any) => b.id);
+    const versionIds = [...new Set(expiredBuilds.map((b: any) => b.version_id))];
+
+    // Cancel all expired builds
+    await FunctionBuild.update(
+      { status: 'cancelled', error_message: 'Cancelled: build exceeded 60 minute limit', completed_at: new Date() },
+      { where: { id: { [Op.in]: buildIds } } },
+    );
+
+    // Reset version build_status for versions that were queued/building
+    await FunctionVersion.update(
+      { build_status: 'none' },
+      { where: { id: { [Op.in]: versionIds }, build_status: { [Op.in]: ['queued', 'building'] } } },
+    );
+
+    console.log(`[Scheduler] Cancelled ${expiredBuilds.length} expired builds: ${buildIds.join(', ')}`);
+
+    res.json({
+      success: true,
+      cancelled: expiredBuilds.length,
+      build_ids: buildIds,
+      message: `Cancelled ${expiredBuilds.length} expired builds`,
+    });
+  } catch (error: any) {
+    console.error('Error in cancel-expired-builds endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      message: error.message,
+    });
+  }
+});
+
 export default router;

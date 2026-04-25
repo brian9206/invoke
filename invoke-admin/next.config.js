@@ -3,6 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ['pg-listen', 'pg-format', 'sequelize', 'pg', 'pg-hstore'],
   poweredByHeader: false,
+  allowedDevOrigins: ['dev-machine'],
   async headers() {
     return [{
       source: '/(.*)',

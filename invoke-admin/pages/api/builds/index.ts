@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
+import { Op } from 'sequelize'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const { FunctionBuild, FunctionVersion, Function: FunctionModel, User, Project } = database.models as any
@@ -10,10 +11,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const limit = parseInt((req.query.limit as string) || '20', 10)
   const offset = (page - 1) * limit
   const projectId = req.query.project_id as string | undefined
+  const search = (req.query.search as string || '').trim()
+  const status = req.query.status as string | undefined
 
   // Build where clause — filter by project via Function association
   const functionWhere: any = {}
   if (projectId) functionWhere.project_id = projectId
+  if (search) functionWhere.name = { [Op.iLike]: `%${search}%` }
+
+  // Filter by build status
+  const buildWhere: any = {}
+  if (status && ['queued', 'running', 'success', 'failed', 'cancelled'].includes(status)) {
+    buildWhere.status = status
+  }
 
   // Non-admins can only see builds for functions in their visible projects
   if (!req.user?.isAdmin) {
@@ -29,6 +39,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   const { count, rows } = await FunctionBuild.findAndCountAll({
+    where: Object.keys(buildWhere).length ? buildWhere : undefined,
     include: [
       {
         model: FunctionModel,
@@ -63,7 +74,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       version_number: raw.version?.version ?? null,
       status: raw.status,
       after_build_action: raw.after_build_action,
-      build_log: raw.build_log,
       error_message: raw.error_message,
       created_by: raw.created_by,
       created_by_name: raw.creator?.username ?? null,

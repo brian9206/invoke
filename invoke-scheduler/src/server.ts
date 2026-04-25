@@ -12,6 +12,7 @@ const LOGGER_SERVICE_URL = (process.env.LOGGER_SERVICE_URL || 'http://invoke-log
 const INTERNAL_SERVICE_SECRET = process.env.INTERNAL_SERVICE_SECRET || '';
 const SCHEDULER_INTERVAL = parseInt(process.env.SCHEDULER_INTERVAL ?? '60000', 10) || 60000; // 1 minute default
 const LOG_CLEANUP_INTERVAL = parseInt(process.env.LOG_CLEANUP_INTERVAL ?? '3600000', 10) || 3600000; // 1 hour default
+const BUILD_CLEANUP_INTERVAL = parseInt(process.env.BUILD_CLEANUP_INTERVAL ?? '300000', 10) || 300000; // 5 minutes default
 
 let isRunning = false;
 
@@ -132,6 +133,37 @@ async function triggerCleanupLogs(): Promise<void> {
 }
 
 /**
+ * Cancel expired builds (queued/running > 60 minutes) by calling the execution service
+ */
+async function cancelExpiredBuilds(): Promise<void> {
+  const startTime = new Date();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const response = await fetch(`${EXECUTION_SERVICE_URL}/scheduler/cancel-expired-builds`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+
+    if (response.ok) {
+      const result = await response.json() as { cancelled?: number };
+      if (result.cancelled && result.cancelled > 0) {
+        console.log(`[${new Date().toISOString()}] Cancelled ${result.cancelled} expired builds`);
+      }
+    } else {
+      console.error(`[${new Date().toISOString()}] Cancel expired builds failed:`, response.status, response.statusText);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[${new Date().toISOString()}] Error cancelling expired builds:`, message);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Start the scheduler interval
  */
 function startScheduler(): void {
@@ -140,6 +172,7 @@ function startScheduler(): void {
   console.log(`Admin service URL: ${ADMIN_SERVICE_URL}`);
   console.log(`Logger service URL: ${LOGGER_SERVICE_URL}`);
   console.log(`Log cleanup interval: ${LOG_CLEANUP_INTERVAL}ms`);
+  console.log(`Build cleanup interval: ${BUILD_CLEANUP_INTERVAL}ms`);
 
   // calculate next :00 second to align with minute intervals
   const now = new Date();
@@ -148,10 +181,12 @@ function startScheduler(): void {
   setTimeout(() => {
     void triggerScheduledFunctions();
     void triggerCleanupLogs();
+    void cancelExpiredBuilds();
 
     // Set up intervals after the initial delay
     setInterval(() => void triggerScheduledFunctions(), SCHEDULER_INTERVAL);
     setInterval(() => void triggerCleanupLogs(), LOG_CLEANUP_INTERVAL);
+    setInterval(() => void cancelExpiredBuilds(), BUILD_CLEANUP_INTERVAL);
   }, delayUntilNextMinute);
 }
 
@@ -163,6 +198,7 @@ app.get('/health', (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     schedulerInterval: SCHEDULER_INTERVAL,
     logCleanupInterval: LOG_CLEANUP_INTERVAL,
+    buildCleanupInterval: BUILD_CLEANUP_INTERVAL,
     executionServiceUrl: EXECUTION_SERVICE_URL,
     adminServiceUrl: ADMIN_SERVICE_URL,
   });

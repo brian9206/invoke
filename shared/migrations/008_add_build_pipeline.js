@@ -54,10 +54,6 @@ module.exports = {
         type: 'VARCHAR(64)',
         allowNull: true,
       },
-      build_log: {
-        type: 'TEXT',
-        allowNull: true,
-      },
       error_message: {
         type: 'TEXT',
         allowNull: true,

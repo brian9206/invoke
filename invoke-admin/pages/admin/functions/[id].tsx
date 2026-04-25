@@ -8,7 +8,7 @@ import {
   Package, Edit, Save, X, Copy, Check, Key, RefreshCw, Activity,
   Calendar, Clock, AlertCircle, Filter, ChevronLeft, ChevronRight,
   Upload, Code2, Trash2, History, Timer, Settings, Plus, Minus, Loader,
-  FileText, CheckCircle, Play, Pause, HardDrive, Hash, User, Download, Terminal, ExternalLink, Hammer
+  FileText, CheckCircle, Play, Pause, HardDrive, Hash, User, Download, Terminal, ExternalLink, Hammer, MoreHorizontal
 } from 'lucide-react'
 import { getFunctionUrl, authenticatedFetch } from '@/lib/frontend-utils'
 import PageHeader from '@/components/PageHeader'
@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/cn'
@@ -130,7 +131,6 @@ export default function FunctionDetails() {
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string } | null>(null)
   const deployFileInputRef = useRef<HTMLInputElement>(null)
   const [cleaningUpVersions, setCleaningUpVersions] = useState(false)
-  const [buildLogModal, setBuildLogModal] = useState<{ open: boolean; versionId: string | null; log: string | null; error: string | null; status: string | null; loading: boolean }>({ open: false, versionId: null, log: null, error: null, status: null, loading: false })
 
   // ── Environment variables ───────────────────────────────────────────────────
   const [environmentVariables, setEnvironmentVariables] = useState<EnvironmentVariable[]>([])
@@ -503,14 +503,30 @@ export default function FunctionDetails() {
   }
 
   const handleViewBuildLog = async (versionId: string) => {
-    setBuildLogModal({ open: true, versionId, log: null, error: null, status: null, loading: true })
     try {
       const r = await authenticatedFetch(`/api/functions/${id}/builds?limit=1&versionId=${versionId}`)
       const data = await r.json()
       const build = data.data?.builds?.[0]
-      setBuildLogModal({ open: true, versionId, log: build?.build_log ?? null, error: build?.error_message ?? null, status: build?.status ?? null, loading: false })
+      if (build?.id) {
+        router.push(`/admin/builds/${build.id}`)
+      }
     } catch {
-      setBuildLogModal({ open: true, versionId, log: null, error: 'Failed to load build log', status: null, loading: false })
+      // ignore
+    }
+  }
+
+  const handleBuildVersion = async (versionId: string) => {
+    try {
+      const res = await authenticatedFetch(`/api/functions/${id}/builds`, {
+        method: 'POST',
+        body: JSON.stringify({ versionId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        fetchVersions()
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -946,62 +962,57 @@ export default function FunctionDetails() {
                               <TableCell className="text-sm text-muted-foreground"><span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{formatDate(version.created_at)}</span></TableCell>
                               <TableCell className="text-sm text-muted-foreground"><span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{version.created_by_name || 'Unknown'}</span></TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)} className="text-blue-400 hover:text-blue-300 h-8 w-8">
-                                        <Code2 className="w-4 h-4" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>View / Edit code</TooltipContent>
-                                  </Tooltip>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Button variant="ghost" size="icon" onClick={() => handleDownloadVersion(version.id, version.version)} disabled={downloadingVersion === version.id} className="text-primary hover:text-primary/80 h-8 w-8">
-                                        {downloadingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Download</TooltipContent>
-                                  </Tooltip>
-                                  {version.build_status && version.build_status !== 'none' && (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={() => handleViewBuildLog(version.id)} className="text-muted-foreground hover:text-foreground h-8 w-8">
-                                          <Hammer className="w-4 h-4" />
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>View build log</TooltipContent>
-                                    </Tooltip>
-                                  )}
-                                  {!version.is_active && (
-                                    <>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleSwitchVersion(version.id, version.version)}
-                                            disabled={switchingVersion === version.id || version.build_status === 'running' || version.build_status === 'queued'}
-                                            className="text-green-400 hover:text-green-300 h-8 w-8"
-                                          >
-                                            {switchingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          {version.build_status === 'queued' ? 'Build queued…' : version.build_status === 'running' ? 'Building…' : 'Activate version'}
-                                        </TooltipContent>
-                                      </Tooltip>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button variant="ghost" size="icon" onClick={() => handleDeleteVersion(version.id, parseInt(version.version))} disabled={deletingVersion === version.id} className="text-destructive hover:text-destructive/80 h-8 w-8">
-                                            {deletingVersion === version.id ? <Loader className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Delete version</TooltipContent>
-                                      </Tooltip>
-                                    </>
-                                  )}
-                                </div>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                      <MoreHorizontal className="w-4 h-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => router.push(`/admin/functions/${id}/versions/${version.id}/edit`)}>
+                                      <Code2 className="w-4 h-4 mr-2" />View / Edit Code
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDownloadVersion(version.id, version.version)} disabled={downloadingVersion === version.id}>
+                                      <Download className="w-4 h-4 mr-2" />Download
+                                    </DropdownMenuItem>
+                                    {version.build_status && version.build_status !== 'none' && (
+                                      <DropdownMenuItem onClick={() => handleViewBuildLog(version.id)}>
+                                        <Hammer className="w-4 h-4 mr-2" />View Build
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    {(!version.build_status || version.build_status === 'none') && (
+                                      <DropdownMenuItem onClick={() => handleBuildVersion(version.id)}>
+                                        <Hammer className="w-4 h-4 mr-2" />Build
+                                      </DropdownMenuItem>
+                                    )}
+                                    {(version.build_status === 'built' || version.build_status === 'failed') && (
+                                      <DropdownMenuItem onClick={() => handleBuildVersion(version.id)}>
+                                        <RefreshCw className="w-4 h-4 mr-2" />Rebuild
+                                      </DropdownMenuItem>
+                                    )}
+                                    {!version.is_active && (
+                                      <DropdownMenuItem
+                                        onClick={() => handleSwitchVersion(version.id, version.version)}
+                                        disabled={switchingVersion === version.id || version.build_status === 'running' || version.build_status === 'queued'}
+                                      >
+                                        <Play className="w-4 h-4 mr-2" />Switch
+                                      </DropdownMenuItem>
+                                    )}
+                                    {!version.is_active && (
+                                      <>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                          onClick={() => handleDeleteVersion(version.id, parseInt(version.version))}
+                                          disabled={deletingVersion === version.id}
+                                          className="text-destructive focus:text-destructive"
+                                        >
+                                          <Trash2 className="w-4 h-4 mr-2" />Delete
+                                        </DropdownMenuItem>
+                                      </>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1580,35 +1591,6 @@ export default function FunctionDetails() {
             </div>
         </Modal>
 
-        <Modal
-          isOpen={buildLogModal.open}
-          title={<span className="flex items-center gap-2"><Hammer className="w-5 h-5" />Build Log{buildLogModal.versionId ? ` — v${versions.find(v => v.id === buildLogModal.versionId)?.version ?? ''}` : ''}</span>}
-          onCancel={() => setBuildLogModal(s => ({ ...s, open: false }))}
-          hideFooter
-          className="max-w-3xl"
-        >
-          {buildLogModal.loading ? (
-            <div className="flex items-center justify-center p-8 text-muted-foreground">
-              <Loader className="h-5 w-5 animate-spin mr-2" />Loading…
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {buildLogModal.status && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  Status: <Badge variant={buildLogModal.status === 'success' ? 'default' : buildLogModal.status === 'failed' ? 'destructive' : 'secondary'}>{buildLogModal.status}</Badge>
-                </div>
-              )}
-              {buildLogModal.error && (
-                <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
-                  {buildLogModal.error}
-                </div>
-              )}
-              <pre className="bg-muted rounded-md p-4 text-xs overflow-auto max-h-96 whitespace-pre-wrap font-mono">
-                {buildLogModal.log || '(no log output)'}
-              </pre>
-            </div>
-          )}
-        </Modal>
       </Layout>
       </TooltipProvider>
     </ProtectedRoute>

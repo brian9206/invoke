@@ -42,13 +42,14 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING(64),
         allowNull: true,
       },
-      build_log: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-      },
       error_message: {
         type: DataTypes.TEXT,
         allowNull: true,
+      },
+      build_context: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+        defaultValue: null,
       },
       created_by: {
         type: DataTypes.INTEGER,

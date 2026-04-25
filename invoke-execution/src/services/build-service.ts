@@ -92,6 +92,14 @@ export class BuildService {
     console.log(`[BuildService] Starting build ${buildId} (fn=${functionId} v${versionNum})`);
 
     const { FunctionBuild, FunctionVersion, Function: FunctionModel, Project } = database.models as any;
+
+    // Re-check status in case build was cancelled while queued
+    const freshBuild = await FunctionBuild.findByPk(buildId, { attributes: ['status'] });
+    if (!freshBuild || freshBuild.status === 'cancelled') {
+      console.log(`[BuildService] Build ${buildId} was cancelled before start, skipping`);
+      return;
+    }
+
     const buildTempDir = path.join(BUILD_TEMP_DIR, buildId);
 
     try {
@@ -139,7 +147,6 @@ export class BuildService {
       const pool = getSandboxPool();
       const sandbox = await pool.acquire();
 
-      let buildLogs: { message: string, timestamp: string }[] = [];
       let buildResult: { success: boolean; error?: string, artifactHash?: string, uploadResult?: any } | null = null;
       const onConsole = (payload: { level: string; args: string[], details?: object }) => {
         if (!payload) return;
@@ -152,9 +159,20 @@ export class BuildService {
         });
       };
 
+      const onBuildContext = (payload: any) => {
+        if (!payload) return;
+        FunctionBuild.update(
+          { build_context: payload },
+          { where: { id: buildId } },
+        ).catch((err: any) => {
+          console.error(`[BuildService] Failed to update build_context for ${buildId}:`, err.message);
+        });
+      };
+
       try {
         // Collect build_log events from worker
         sandbox.on('console', onConsole);
+        sandbox.on('build_context', onBuildContext);
 
         // Wait for build_complete from supervisor
         const buildCompletePromise = new Promise<{ success: boolean; error?: string, artifactHash?: string, uploadResult?: any }>(
@@ -211,9 +229,11 @@ export class BuildService {
 
         buildResult = await buildCompletePromise;
         sandbox.removeListener('console', onConsole);
+        sandbox.removeListener('build_context', onBuildContext);
         // Note: no explicit release — pool returns sandbox to idle on supervisor's 'ready' event
       } catch (err) {
         sandbox.removeListener('console', onConsole);
+        sandbox.removeListener('build_context', onBuildContext);
         throw err;
       }
 
@@ -237,7 +257,6 @@ export class BuildService {
           status: 'success',
           artifact_path: buildResult?.uploadResult?.objectName,
           artifact_hash: buildResult?.artifactHash,
-          build_log: buildLogs.length > 0 ? JSON.stringify(buildLogs) : null,
           completed_at: new Date(),
         },
         { where: { id: buildId } },

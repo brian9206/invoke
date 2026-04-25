@@ -54,7 +54,6 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         version_number: raw.version?.version ?? null,
         status: raw.status,
         after_build_action: raw.after_build_action,
-        build_log: raw.build_log,
         error_message: raw.error_message,
         created_by: raw.created_by,
         created_by_name: raw.creator?.username ?? null,

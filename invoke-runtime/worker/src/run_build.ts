@@ -7,7 +7,8 @@ import fs from 'fs/promises'
 import { type BuildData, IpcChannel } from './protocol';
 import * as tar from 'tar';
 import { installConsoleBridge } from './logger/console-bridge';
-import { createPipelineRunner } from './buildSysten';
+import { createPipelineRunner } from './builder';
+import type { BuildContext, Pipeline } from './builder/types';
 
 export async function runBuild(
   bootstrapPayload: any,
@@ -24,16 +25,37 @@ export async function runBuild(
     log('[builder] Creating build pipeline runner...');
     const runner = await createPipelineRunner(pipeline);
 
-    runner.on('running', ({ stage }: { stage: string }) => {
+    // Extract pipeline definition (stage names + dependencies) for build_context
+    const pipelineDefinition = runner.getPipelineDefinition();
+
+    // Helper: emit build_context IPC event with current stage statuses
+    const emitBuildContext = (context: BuildContext) => {
+      ipc.emit('build_context', {
+        pipeline: pipelineDefinition,
+        stages: context.stages,
+      });
+    };
+
+    // Emit initial build_context with all stages pending
+    const initialStages: Record<string, { status: string }> = {};
+    for (const s of pipelineDefinition.stages) {
+      initialStages[s.name] = { status: 'pending' };
+    }
+    ipc.emit('build_context', { pipeline: pipelineDefinition, stages: initialStages });
+
+    runner.on('running', ({ stage, context }: { stage: string; context: BuildContext }) => {
       console.log(`[builder] Starting stage "${stage}"...`);
+      emitBuildContext(context);
     });
 
-    runner.on('success', ({ stage }: { stage: string }) => {
+    runner.on('success', ({ stage, context }: { stage: string; context: BuildContext }) => {
       console.log(`[builder] Stage "${stage}" completed successfully.`);
+      emitBuildContext(context);
     });
 
-    runner.on('failure', ({ stage, error }: { stage: string, error?: string }) => {
+    runner.on('failure', ({ stage, error, context }: { stage: string; error?: string; context: BuildContext }) => {
       console.log(`[builder] Stage "${stage}" failed with error ${error}`);
+      emitBuildContext(context);
     });
 
     runner.on('error', (error: Error) => {

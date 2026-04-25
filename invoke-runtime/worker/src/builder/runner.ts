@@ -20,6 +20,19 @@ export class PipelineRunner extends EventEmitter {
     this.pipeline = pipeline;
   }
 
+  /**
+   * Returns the pipeline definition (name, stages with dependencies) without run functions.
+   */
+  getPipelineDefinition(): { name: string; stages: { name: string; dependsOn: string[] }[] } {
+    return {
+      name: this.pipeline.name,
+      stages: this.pipeline.stages.map((s) => ({
+        name: s.name,
+        dependsOn: s.dependsOn ?? [],
+      })),
+    };
+  }
+
   emit<K>(eventName: string | symbol, ...args: any[]): boolean {
     this._throwError(new Error('Cannot emit events from PipelineRunner'));
     return false;
