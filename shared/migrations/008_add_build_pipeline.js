@@ -54,6 +54,11 @@ module.exports = {
         type: 'VARCHAR(64)',
         allowNull: true,
       },
+      build_context: {
+        type: 'JSONB',
+        allowNull: true,
+        defaultValue: null,
+      },
       error_message: {
         type: 'TEXT',
         allowNull: true,
@@ -83,12 +88,23 @@ module.exports = {
     await queryInterface.addIndex('function_builds', ['version_id']);
     await queryInterface.addIndex('function_builds', ['status', 'created_at']);
 
-    // 3. Seed max_concurrent_builds into global_settings if not present
-    await queryInterface.sequelize.query(`
-      INSERT INTO global_settings (setting_key, setting_value, description)
-      VALUES ('max_concurrent_builds', '2', 'Maximum number of concurrent build jobs')
-      ON CONFLICT (setting_key) DO NOTHING;
-    `);
+    // 3. Insert global_settings using queryInterface
+    await queryInterface.bulkInsert('global_settings', [
+      {
+        setting_key: 'max_concurrent_builds',
+        setting_value: '2',
+        description: 'Maximum number of concurrent build jobs',
+        updated_at: new Date(),
+      },
+      {
+        setting_key: 'build_memory_mb',
+        setting_value: '1024',
+        description: 'Memory limit for build sandbox in MB.',
+        updated_at: new Date(),
+      },
+    ], {
+      ignoreDuplicates: true,
+    });
 
     // 4. Add pg-notify trigger on function_builds changes
     await queryInterface.sequelize.query(`
@@ -124,8 +140,8 @@ module.exports = {
     await queryInterface.removeColumn('function_versions', 'artifact_hash');
     await queryInterface.removeColumn('function_versions', 'artifact_path');
 
-    await queryInterface.sequelize.query(`
-      DELETE FROM global_settings WHERE setting_key = 'max_concurrent_builds';
-    `);
+    await queryInterface.bulkDelete('global_settings', {
+      setting_key: ['max_concurrent_builds', 'build_memory_mb'],
+    }, {});
   },
 };

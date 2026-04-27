@@ -104,13 +104,18 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
         }
     }
 
-    // Spawn worker with build payload (no cgroup / memory limit for builds)
+    // Spawn worker with build payload
+    // memoryMb minimum is 256 MB (enforced by API)
     ILOG("[supervisor:build] Spawning build worker for %s\n", build_id.c_str());
+    int build_memory_mb = p.value("memoryMb", 256);
+    uint64_t build_memory_bytes = (build_memory_mb > 0)
+        ? static_cast<uint64_t>(build_memory_mb) * 1024 * 1024
+        : 0;
     pid_t worker_pid = sandbox_start_worker(
         sandbox_dir,
         "bld-" + build_id,
         "index.js",     // entry (unused by build worker but required by signature)
-        0,              // memory_bytes = 0 → cgroup created but with no limit
+        build_memory_bytes,
         config.worker_uid,
         config.worker_gid,
         build_env

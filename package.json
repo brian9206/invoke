@@ -15,9 +15,12 @@
     "invoke-runtime/worker"
   ],
   "scripts": {
-    "setup:env": "node scripts/setup-env.js"
+    "setup:env": "node scripts/setup-env.js",
+    "start": "pm2 start ecosystem.config.js --attach --no-daemon",
+    "stop": "pm2 stop ecosystem.config.js"
   },
   "dependencies": {
-    "plain": "^0.0.0"
+    "plain": "^0.0.0",
+    "pm2": "^6.0.14"
   }
 }

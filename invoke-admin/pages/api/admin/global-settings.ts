@@ -15,7 +15,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { setting_key: 'function_base_url' },
           { setting_key: 'kv_storage_limit_bytes' },
           { setting_key: 'api_gateway_domain' },
-          { setting_key: 'max_concurrent_builds' }
+          { setting_key: 'max_concurrent_builds' },
+          { setting_key: 'build_memory_mb' }
         ]
       },
       attributes: ['setting_key', 'setting_value', 'description'],
@@ -33,6 +34,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         key = 'api_gateway_domain'
       } else if (row.setting_key === 'max_concurrent_builds') {
         key = 'max_concurrent_builds'
+      } else if (row.setting_key === 'build_memory_mb') {
+        key = 'build_memory_mb'
       } else if (row.setting_key.startsWith('execution_')) {
         key = row.setting_key
       } else {
@@ -58,6 +61,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       execution_default_timeout_seconds, execution_max_timeout_seconds,
       execution_default_memory_mb, execution_max_memory_mb,
       max_concurrent_builds,
+      build_memory_mb,
     } = req.body
 
     // Validate execution timeout fields
@@ -173,6 +177,17 @@ async function handler(req: AuthenticatedRequest, res: any) {
       queries.push(GlobalSetting.update(
         { setting_value: String(v), updated_at: new Date() },
         { where: { setting_key: 'max_concurrent_builds' } }
+      ))
+    }
+
+    if (build_memory_mb !== undefined) {
+      const v = Number(build_memory_mb)
+      const isValidBuildMemory = Number.isInteger(v) && v >= 256 && v % 256 === 0
+      if (!isValidBuildMemory)
+        return res.status(400).json(createResponse(false, null, 'Build memory must be a multiple of 256 MB, minimum 256 MB', 400))
+      queries.push(GlobalSetting.update(
+        { setting_value: String(v), updated_at: new Date() },
+        { where: { setting_key: 'build_memory_mb' } }
       ))
     }
 

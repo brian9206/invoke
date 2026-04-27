@@ -91,7 +91,7 @@ export class BuildService {
 
     console.log(`[BuildService] Starting build ${buildId} (fn=${functionId} v${versionNum})`);
 
-    const { FunctionBuild, FunctionVersion, Function: FunctionModel, Project } = database.models as any;
+    const { FunctionBuild, FunctionVersion, Function: FunctionModel, Project, GlobalSetting } = database.models as any;
 
     // Re-check status in case build was cancelled while queued
     const freshBuild = await FunctionBuild.findByPk(buildId, { attributes: ['status'] });
@@ -142,6 +142,13 @@ export class BuildService {
       const artifactDir = path.join(buildTempDir, 'output');
       await fs.ensureDir(artifactDir);
       await fs.chmod(artifactDir, 0o777); // ensure write permissions for sandbox user
+
+      // Read build memory limit from settings
+      const buildMemorySetting = await GlobalSetting.findOne({
+        where: { setting_key: 'build_memory_mb' },
+        attributes: ['setting_value'],
+      });
+      const buildMemoryMb = parseInt(buildMemorySetting?.setting_value ?? '256', 10) || 256;
 
       // Acquire sandbox from pool
       const pool = getSandboxPool();
@@ -224,6 +231,7 @@ export class BuildService {
         // Send build event to supervisor
         sandbox.emit('build', {
           buildId,
+          memoryMb: buildMemoryMb,
           env: {},
         });
 

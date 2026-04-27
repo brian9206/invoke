@@ -18,12 +18,19 @@ import {
   Trash2,
   Download,
   ChevronRight,
+  ChevronDown,
   FilePlus,
   FolderPlus,
   Pencil,
   Code,
   Search,
-  Replace
+  Replace,
+  X,
+  Terminal,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Minus
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { toast } from 'sonner'
@@ -47,8 +54,37 @@ interface FunctionData {
   functionName: string
   project_id: string
   project_name: string
+  build_status: string
+  is_active: boolean
   files: FileNode[]
 }
+
+interface VersionInfo {
+  id: string
+  version: number
+  is_active: boolean
+  build_status: string
+  created_at: string
+  artifact_path: string | null
+}
+
+interface BuildInfo {
+  id: string
+  status: string
+  error_message?: string
+  created_at: string
+  started_at?: string
+  completed_at?: string
+}
+
+interface BuildLog {
+  message: string
+  timestamp: string
+}
+
+// Guard against re-registering Monaco completion providers on hot-reload / component remount.
+// The providers are language-global and only need to be set up once per page lifecycle.
+let __invokeCompletionProvidersRegistered = false
 
 export default function FunctionCodeEditor() {
   const router = useRouter()
@@ -125,6 +161,22 @@ export default function FunctionCodeEditor() {
   // Editor state
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 })
 
+  // Version dropdown state
+  const [versions, setVersions] = useState<VersionInfo[]>([])
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false)
+  const [versionSearch, setVersionSearch] = useState('')
+  const versionSearchRef = useRef<HTMLInputElement>(null)
+
+  // Build panel state
+  const [showBuildPanel, setShowBuildPanel] = useState(false)
+  const [buildPanelHeight, setBuildPanelHeight] = useState(200)
+  const [currentBuild, setCurrentBuild] = useState<BuildInfo | null>(null)
+  const [buildLogs, setBuildLogs] = useState<BuildLog[]>([])
+  const [isResizingBuildPanel, setIsResizingBuildPanel] = useState(false)
+  const buildPanelResizeStartY = useRef(0)
+  const buildPanelResizeStartHeight = useRef(0)
+  const buildLogsEndRef = useRef<HTMLDivElement>(null)
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -141,7 +193,11 @@ export default function FunctionCodeEditor() {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
         if (hasChanges && !saving && !deploying) {
-          confirmSave()
+          if (canOverwrite) {
+            handleSaveOverwrite()
+          } else {
+            confirmSave()
+          }
         }
       }
       
@@ -221,8 +277,23 @@ export default function FunctionCodeEditor() {
   }, [hasChanges, router])
 
   useEffect(() => {
-    if (functionId && versionId && typeof functionId === 'string' && typeof versionId === 'string' && !hasFetchedRef.current) {
+    if (functionId && versionId && typeof functionId === 'string' && typeof versionId === 'string') {
+      // Reset all version-specific state when versionId changes
+      hasFetchedRef.current = false
+      setFunctionData(null)
+      setFiles([])
+      setSelectedFile(null)
+      setEditorContent('')
+      setOpenTabs([])
+      setActiveTabPath(null)
+      setHasChanges(false)
+      setModifiedFiles(new Set())
+      setCurrentBuild(null)
+      setBuildLogs([])
+      setShowBuildPanel(false)
+      setLoading(true)
       fetchSourceCode()
+      fetchLatestBuild()
     }
   }, [functionId, versionId])
 
@@ -245,6 +316,149 @@ export default function FunctionCodeEditor() {
       }
     }
   }, [functionData?.project_id, functionData?.project_name])
+
+  // Computed: can overwrite this version in-place
+  const canOverwrite = functionData ? (functionData.build_status === 'none' && !functionData.is_active) : false
+
+  // Fetch versions list
+  const fetchVersions = async () => {
+    if (!functionId) return
+    try {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions`)
+      const result = await response.json()
+      if (result.success) {
+        setVersions(result.data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching versions:', error)
+    }
+  }
+
+  // Fetch versions on mount
+  useEffect(() => {
+    if (functionId && typeof functionId === 'string') {
+      fetchVersions()
+    }
+  }, [functionId])
+
+  // Close version dropdown on outside click, reset search on close
+  useEffect(() => {
+    if (!showVersionDropdown) {
+      setVersionSearch('')
+      return
+    }
+    const handleClick = () => setShowVersionDropdown(false)
+    document.addEventListener('click', handleClick)
+    // Auto-focus search input
+    setTimeout(() => versionSearchRef.current?.focus(), 10)
+    return () => document.removeEventListener('click', handleClick)
+  }, [showVersionDropdown])
+
+  // Build panel polling
+  const isBuildActive = currentBuild?.status === 'queued' || currentBuild?.status === 'running'
+
+  const fetchBuildStatus = async (buildId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/builds/${buildId}`)
+      const result = await response.json()
+      if (result.success) {
+        const build = result.data
+        setCurrentBuild({
+          id: build.id,
+          status: build.status,
+          error_message: build.error_message,
+          created_at: build.created_at,
+          started_at: build.started_at,
+          completed_at: build.completed_at,
+        })
+        if (build.logs && Array.isArray(build.logs)) {
+          setBuildLogs(build.logs)
+        }
+        // If build completed, refresh versions and functionData
+        if (build.status === 'success' || build.status === 'failed' || build.status === 'cancelled') {
+          fetchVersions()
+          // Refresh build_status/is_active using functional update to avoid stale closure
+          try {
+            const srcResp = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`)
+            const srcResult = await srcResp.json()
+            if (srcResult.success) {
+              setFunctionData(prev => prev ? {
+                ...prev,
+                build_status: srcResult.data.build_status,
+                is_active: srcResult.data.is_active,
+              } : prev)
+            }
+          } catch {}
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching build status:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (!isBuildActive || !currentBuild?.id) return
+    const interval = setInterval(() => fetchBuildStatus(currentBuild.id), 3000)
+    return () => clearInterval(interval)
+  }, [isBuildActive, currentBuild?.id])
+
+  // Auto-scroll build logs
+  useEffect(() => {
+    if (buildLogsEndRef.current && showBuildPanel) {
+      buildLogsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [buildLogs, showBuildPanel])
+
+  // Build panel resize handlers
+  const handleBuildPanelResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizingBuildPanel(true)
+    buildPanelResizeStartY.current = e.clientY
+    buildPanelResizeStartHeight.current = buildPanelHeight
+  }
+
+  useEffect(() => {
+    if (!isResizingBuildPanel) return
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = buildPanelResizeStartY.current - e.clientY
+      const newHeight = Math.max(100, Math.min(600, buildPanelResizeStartHeight.current + delta))
+      setBuildPanelHeight(newHeight)
+    }
+    const handleMouseUp = () => setIsResizingBuildPanel(false)
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizingBuildPanel])
+
+  // Auto-load latest build on mount
+  const fetchLatestBuild = async () => {
+    if (!functionId || !versionId) return
+    try {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/builds?limit=1&versionId=${versionId}`)
+      const result = await response.json()
+      const build = result.data?.builds?.[0]
+      if (build) {
+        setCurrentBuild({
+          id: build.id,
+          status: build.status,
+          error_message: build.error_message,
+          created_at: build.created_at,
+          started_at: build.started_at,
+          completed_at: build.completed_at,
+        })
+        if (build.status === 'queued' || build.status === 'running') {
+          setShowBuildPanel(true)
+        }
+        // Always fetch full build details (including logs) for any known build
+        fetchBuildStatus(build.id)
+      }
+    } catch (error) {
+      console.error('Error fetching latest build:', error)
+    }
+  }
 
   const fetchSourceCode = async () => {
     if (hasFetchedRef.current) return // Prevent multiple calls
@@ -630,41 +844,62 @@ export default function FunctionCodeEditor() {
     setDialogState({
       type: 'confirm',
       title: 'Deploy Function',
-      message: 'Deploying will create a new version and will immediately switch. Continue?',
+      message: hasChanges
+        ? 'This will save your changes and switch to this version. If a build is needed, it will be queued. Continue?'
+        : 'This will switch to this version. If a build is needed, it will be queued. Continue?',
       onConfirm: async () => {
         setDialogState({ type: null, title: '', message: '' });
         setDeploying(true)
         
         try {
-          // Create new version and set it as active
-          const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
+          // Step 1: Save if there are changes
+          let targetVersionId = functionData.versionId
+          if (hasChanges) {
+            targetVersionId = (await saveAndGetVersionId()) || functionData.versionId
+          }
+
+          // Step 2: Call switch-version
+          const switchResponse = await authenticatedFetch(`/api/functions/${functionId}/switch-version`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-              files,
-              setActive: true 
-            })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ versionId: targetVersionId })
           })
           
-          const result = await response.json()
+          const switchResult = await switchResponse.json()
           
-          if (result.success) {
-            toast.success(`Version ${result.data.version} deployed and activated successfully!`)
-            setHasChanges(false)
-            setFunctionData({
-              ...functionData,
-              versionId: result.data.versionId,
-              version: result.data.version
-            })
-                        
-            // Navigate to the new version's edit page
-            setTimeout(() => {
-              router.push(`/admin/functions/${functionId}/versions/${result.data.versionId}/edit`)
-            }, 100)
+          if (switchResponse.status === 202 && switchResult.buildRequired) {
+            // Build queued
+            toast.success(`Build queued. Will auto-switch when complete.`)
+            if (switchResult.build) {
+              setCurrentBuild({
+                id: switchResult.build.id,
+                status: switchResult.build.status || 'queued',
+                created_at: switchResult.build.created_at,
+              })
+              setShowBuildPanel(true)
+              setBuildLogs([])
+            }
+            // Update functionData to reflect new state
+            setFunctionData(prev => prev ? { ...prev, build_status: 'queued', is_active: false } : prev)
+            fetchVersions()
+            // If we created a new version, navigate to it
+            if (targetVersionId !== functionData.versionId) {
+              setTimeout(() => {
+                router.push(`/admin/functions/${functionId}/versions/${targetVersionId}/edit`)
+              }, 100)
+            }
+          } else if (switchResult.success) {
+            toast.success(`Version switched successfully!`)
+            setFunctionData(prev => prev ? { ...prev, is_active: true } : prev)
+            fetchVersions()
+            // If we created a new version, navigate to it
+            if (targetVersionId !== functionData.versionId) {
+              setTimeout(() => {
+                router.push(`/admin/functions/${functionId}/versions/${targetVersionId}/edit`)
+              }, 100)
+            }
           } else {
-            toast.error(result.message || 'Failed to deploy version')
+            toast.error(switchResult.message || 'Failed to deploy version')
           }
         } catch (error) {
           toast.error('Network error occurred during deployment')
@@ -700,6 +935,68 @@ export default function FunctionCodeEditor() {
       console.error('Error downloading version:', error)
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleSaveOverwrite = async () => {
+    if (!functionData) return
+    setSaving(true)
+    try {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      })
+      const result = await response.json()
+      if (result.success) {
+        toast.success(`Version ${functionData.version} saved successfully!`)
+        setHasChanges(false)
+        setModifiedFiles(new Set())
+        fetchVersions()
+      } else if (response.status === 409) {
+        // Version was built/activated in the meantime, fall back to save as new
+        toast.error(result.message || 'Cannot overwrite. Saving as new version instead.')
+      } else {
+        toast.error(result.message || 'Failed to save changes')
+      }
+    } catch (error) {
+      toast.error('Network error occurred')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Helper: save and return the versionId (either overwrite or create new)
+  const saveAndGetVersionId = async (): Promise<string | null> => {
+    if (!functionData) return null
+    if (!hasChanges) return functionData.versionId
+
+    if (canOverwrite) {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      })
+      const result = await response.json()
+      if (result.success) {
+        setHasChanges(false)
+        setModifiedFiles(new Set())
+        return functionData.versionId
+      }
+      throw new Error(result.message || 'Failed to save')
+    } else {
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files })
+      })
+      const result = await response.json()
+      if (result.success) {
+        setHasChanges(false)
+        setModifiedFiles(new Set())
+        return result.data.versionId
+      }
+      throw new Error(result.message || 'Failed to save')
     }
   }
 
@@ -1701,7 +1998,105 @@ export default function FunctionCodeEditor() {
               <span className="text-[#858585]">//</span>
               <span className="text-[#cccccc]">{functionData.functionName}</span>
               <ChevronRight className="w-3 h-3 text-[#858585]" />
-              <span className="text-[#858585]">v{functionData.version}</span>
+              {/* Version dropdown */}
+              <div className="relative">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowVersionDropdown(!showVersionDropdown) }}
+                  className="flex items-center space-x-1 text-[#858585] hover:text-[#cccccc] hover:bg-[#2a2d2e] px-1.5 py-0.5 rounded transition-colors"
+                >
+                  <span>v{functionData.version}</span>
+                  {functionData.is_active && <span className="text-[#4ec9b0] text-[10px] ml-1">●</span>}
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {showVersionDropdown && (
+                  <div
+                    className="absolute top-full left-0 mt-1 w-[240px] bg-[#252526] border border-[#3c3c3c] rounded shadow-lg z-[100]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Search input */}
+                    <div className="px-2 py-1.5 border-b border-[#3c3c3c]">
+                      <input
+                        ref={versionSearchRef}
+                        type="text"
+                        value={versionSearch}
+                        onChange={(e) => setVersionSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') setShowVersionDropdown(false)
+                          if (e.key === 'Enter') {
+                            const sorted = [...versions].sort((a, b) => b.version - a.version)
+                            const filtered = versionSearch.trim()
+                              ? sorted.filter(v => String(v.version).includes(versionSearch.trim()))
+                              : sorted.slice(0, 5)
+                            if (filtered.length === 1) {
+                              const v = filtered[0]
+                              setShowVersionDropdown(false)
+                              if (v.id !== functionData.versionId) {
+                                if (!hasChanges || confirm('You have unsaved changes. Switch version anyway?')) {
+                                  router.push(`/admin/functions/${functionId}/versions/${v.id}/edit`)
+                                }
+                              }
+                            }
+                          }
+                        }}
+                        placeholder="Search version..."
+                        className="w-full bg-[#3c3c3c] text-[#cccccc] placeholder-[#858585] text-xs px-2 py-1 rounded focus:outline-none focus:ring-1 focus:ring-[#007acc]"
+                      />
+                    </div>
+                    {/* Version list */}
+                    <div className="max-h-[220px] overflow-y-auto">
+                      {(() => {
+                        const sorted = [...versions].sort((a, b) => b.version - a.version)
+                        const filtered = versionSearch.trim()
+                          ? sorted.filter(v => String(v.version).includes(versionSearch.trim()))
+                          : sorted.slice(0, 5)
+                        const showingAll = !!versionSearch.trim()
+                        return (
+                          <>
+                            {filtered.map((v) => (
+                              <button
+                                key={v.id}
+                                onClick={() => {
+                                  setShowVersionDropdown(false)
+                                  if (v.id === functionData.versionId) return
+                                  if (hasChanges) {
+                                    if (!confirm('You have unsaved changes. Switch version anyway?')) return
+                                  }
+                                  router.push(`/admin/functions/${functionId}/versions/${v.id}/edit`)
+                                }}
+                                className={`w-full text-left px-3 py-1.5 text-sm flex items-center justify-between transition-colors ${
+                                  v.id === functionData.versionId
+                                    ? 'bg-[#094771] text-[#ffffff]'
+                                    : 'text-[#cccccc] hover:bg-[#2a2d2e]'
+                                }`}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span>v{v.version}</span>
+                                  {v.is_active && (
+                                    <span className="text-[9px] bg-[#4ec9b0] text-black px-1.5 py-0 rounded-full font-medium">ACTIVE</span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  {v.build_status === 'built' && <CheckCircle2 className="w-3 h-3 text-[#4ec9b0]" />}
+                                  {v.build_status === 'failed' && <XCircle className="w-3 h-3 text-[#f48771]" />}
+                                  {(v.build_status === 'queued' || v.build_status === 'building') && <Clock className="w-3 h-3 text-[#dcdcaa]" />}
+                                </div>
+                              </button>
+                            ))}
+                            {filtered.length === 0 && (
+                              <div className="px-3 py-4 text-center text-[#858585] text-xs">No matching versions</div>
+                            )}
+                            {!showingAll && versions.length > 5 && (
+                              <div className="px-3 py-1.5 text-[10px] text-[#858585] border-t border-[#3c3c3c] text-center">
+                                {versions.length - 5} older version{versions.length - 5 !== 1 ? 's' : ''} — type to search
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )}
+              </div>
               {selectedFile && (
                 <>
                   <ChevronRight className="w-3 h-3 text-[#858585]" />
@@ -1716,7 +2111,7 @@ export default function FunctionCodeEditor() {
             )}
             
             <button
-              onClick={confirmSave}
+              onClick={canOverwrite ? handleSaveOverwrite : confirmSave}
               disabled={!hasChanges || saving || deploying}
               className={`flex items-center space-x-2 px-3 py-1 rounded text-sm transition-colors ${
                 !hasChanges || saving || deploying 
@@ -1729,14 +2124,14 @@ export default function FunctionCodeEditor() {
               ) : (
                 <Save className="w-4 h-4" />
               )}
-              <span>{saving ? 'Saving...' : 'Save as New Version'}</span>
+              <span>{saving ? 'Saving...' : canOverwrite ? 'Save' : 'Save as New Version'}</span>
             </button>
             
             <button
               onClick={handleDeploy}
-              disabled={!hasChanges || saving || deploying}
+              disabled={saving || deploying || (functionData.is_active && !hasChanges)}
               className={`flex items-center space-x-2 px-3 py-1 rounded text-sm transition-colors ${
-                !hasChanges || saving || deploying 
+                saving || deploying || (functionData.is_active && !hasChanges)
                   ? 'bg-[#2d2d30] text-[#656565] cursor-not-allowed' 
                   : 'bg-[#c72c2c] text-white hover:bg-[#e53935]'
               }`}
@@ -1935,6 +2330,212 @@ export default function FunctionCodeEditor() {
                   }}
                   onMount={(editor, monaco) => {
                     editorRef.current = editor
+
+                    // Load invoke runtime ambient type definitions
+                    fetch('/api/editor/ambient-types')
+                      .then(r => r.text())
+                      .then(dts => {
+                        // Strip triple-slash directives Monaco can't resolve in the browser
+                        const cleaned = dts
+                          .replace(/\/\/\/\s*<reference types="node"\s*\/>/g, '')
+                          .replace(/\/\/\/\s*<reference types="bun"\s*\/>/g, '')
+
+                        // Global var declarations — used by the helper models for
+                        // completion provider (where req/res are NOT shadowed by params)
+                        const withAliases = cleaned + `
+declare var req: InvokeRequest;
+declare var res: InvokeResponse;
+declare var next: (err?: unknown) => void;
+`
+
+                        const uri = 'ts:filename/invoke-ambient.d.ts'
+
+                        // Register for both JS and TS
+                        for (const lang of ['typescript', 'javascript'] as const) {
+                          const defaults = lang === 'typescript'
+                            ? monaco.languages.typescript.typescriptDefaults
+                            : monaco.languages.typescript.javascriptDefaults
+
+                          defaults.addExtraLib(withAliases, uri)
+                          defaults.setCompilerOptions({
+                            ...defaults.getCompilerOptions(),
+                            lib: ['es2022'],
+                            target: monaco.languages.typescript.ScriptTarget.ES2022,
+                            allowNonTsExtensions: true,
+                            allowJs: true,
+                            checkJs: true,
+                            noImplicitAny: false,
+                            strict: false,
+                            noLib: false,
+                          })
+                          defaults.setDiagnosticsOptions({
+                            ...defaults.getDiagnosticsOptions?.() ?? {},
+                            diagnosticCodesToIgnore: [7006, 7044],
+                          })
+
+                          // Disable the built-in TS/JS hover so we can provide our own
+                          // that overrides `any`-typed req/res/next with the correct Invoke types.
+                          defaults.setModeConfiguration({
+                            completionItems: true,
+                            hovers: false,
+                            documentSymbols: true,
+                            definitions: true,
+                            references: true,
+                            documentHighlights: true,
+                            rename: true,
+                            diagnostics: true,
+                            documentRangeFormattingEdits: true,
+                            signatureHelp: true,
+                            onTypeFormattingEdits: true,
+                            codeActions: true,
+                            inlayHints: true,
+                          })
+                        }
+
+                        if (!__invokeCompletionProvidersRegistered) {
+                          __invokeCompletionProvidersRegistered = true
+
+                          // --- Custom hover provider ---
+                          // Replaces the built-in TS hover. Queries the TS worker for
+                          // quick-info, then overrides `any`-typed req/res/next params
+                          // with the correct Invoke platform types.
+                          const paramTypeOverrides: Record<string, string> = {
+                            req: '(parameter) req: InvokeRequest',
+                            res: '(parameter) res: InvokeResponse',
+                            next: '(parameter) next: (err?: unknown) => void',
+                          }
+
+                          const hoverProvider = {
+                            provideHover: async (model: any, position: any) => {
+                              const word = model.getWordAtPosition(position)
+                              if (!word) return null
+
+                              try {
+                                const isJS = model.getLanguageId() === 'javascript'
+                                const getWorker = isJS
+                                  ? monaco.languages.typescript.getJavaScriptWorker
+                                  : monaco.languages.typescript.getTypeScriptWorker
+                                const worker = await getWorker()
+                                const client = await worker(model.uri)
+                                const offset = model.getOffsetAt(position)
+                                const info = await (client as any).getQuickInfoAtPosition(
+                                  model.uri.toString(), offset,
+                                )
+                                if (!info || !info.displayParts) return null
+
+                                const display = (info.displayParts as any[]).map((p: any) => p.text).join('')
+                                const range = new monaco.Range(
+                                  position.lineNumber, word.startColumn,
+                                  position.lineNumber, word.endColumn,
+                                )
+
+                                // Override any-typed req/res/next with correct Invoke types
+                                const override = paramTypeOverrides[word.word]
+                                const showDisplay = (override && display.includes(': any'))
+                                  ? override
+                                  : display
+
+                                const contents: { value: string }[] = [
+                                  { value: '```typescript\n' + showDisplay + '\n```' },
+                                ]
+                                if (info.documentation?.length) {
+                                  contents.push({
+                                    value: (info.documentation as any[]).map((d: any) => d.text).join(''),
+                                  })
+                                }
+                                if (info.tags?.length) {
+                                  for (const tag of info.tags as any[]) {
+                                    const tagText = tag.text?.map((t: any) => t.text).join('') ?? ''
+                                    contents.push({ value: `*@${tag.name}* — ${tagText}` })
+                                  }
+                                }
+                                return { range, contents }
+                              } catch {
+                                return null
+                              }
+                            },
+                          }
+
+                          monaco.languages.registerHoverProvider('javascript', hoverProvider)
+                          monaco.languages.registerHoverProvider('typescript', hoverProvider)
+
+                          // --- Custom completion provider for req./res. member access ---
+                          // Uses hidden helper models where req/res are global-typed vars
+                          // (not shadowed by function params) to get correct completions.
+                          const reqHelperUri = monaco.Uri.parse('ts:invoke-helper/req.ts')
+                          const resHelperUri = monaco.Uri.parse('ts:invoke-helper/res.ts')
+                          if (!monaco.editor.getModel(reqHelperUri)) {
+                            monaco.editor.createModel('req.', 'typescript', reqHelperUri)
+                          }
+                          if (!monaco.editor.getModel(resHelperUri)) {
+                            monaco.editor.createModel('res.', 'typescript', resHelperUri)
+                          }
+
+                          const { CompletionItemKind: CIK } = monaco.languages
+                          const kindMap: Record<string, number> = {
+                            method: CIK.Method, function: CIK.Function,
+                            constructor: CIK.Constructor, field: CIK.Field,
+                            member: CIK.Field, variable: CIK.Variable,
+                            class: CIK.Class, interface: CIK.Interface,
+                            module: CIK.Module, property: CIK.Property,
+                            event: CIK.Event, operator: CIK.Operator,
+                            unit: CIK.Unit, value: CIK.Value,
+                            'enum member': CIK.EnumMember, constant: CIK.Constant,
+                            keyword: CIK.Keyword, 'type parameter': CIK.TypeParameter,
+                            snippet: CIK.Snippet,
+                          }
+
+                          const completionProvider = {
+                            triggerCharacters: ['.'],
+                            provideCompletionItems: async (model: any, position: any) => {
+                              const lineText = model.getValueInRange({
+                                startLineNumber: position.lineNumber,
+                                startColumn: 1,
+                                endLineNumber: position.lineNumber,
+                                endColumn: position.column,
+                              })
+                              const isReq = /\breq\.$/.test(lineText)
+                              const isRes = /\bres\.$/.test(lineText)
+                              if (!isReq && !isRes) return null
+
+                              try {
+                                const helperUri = isReq ? reqHelperUri : resHelperUri
+                                const helperModel = monaco.editor.getModel(helperUri)!
+                                const workerFn = await monaco.languages.typescript.getTypeScriptWorker()
+                                const client = await workerFn(helperUri)
+                                const offset = helperModel.getValueLength()
+                                const info = await (client as any).getCompletionsAtPosition(
+                                  helperUri.toString(), offset, undefined,
+                                )
+                                if (!info) return null
+
+                                const word = model.getWordAtPosition(position)
+                                const range = {
+                                  startLineNumber: position.lineNumber,
+                                  endLineNumber: position.lineNumber,
+                                  startColumn: word ? word.startColumn : position.column,
+                                  endColumn: word ? word.endColumn : position.column,
+                                }
+                                return {
+                                  suggestions: (info.entries as any[]).map((e: any) => ({
+                                    label: e.name,
+                                    kind: kindMap[e.kind as string] ?? CIK.Property,
+                                    insertText: e.name,
+                                    range,
+                                    sortText: e.sortText,
+                                  })),
+                                }
+                              } catch {
+                                return null
+                              }
+                            },
+                          }
+
+                          monaco.languages.registerCompletionItemProvider('javascript', completionProvider)
+                          monaco.languages.registerCompletionItemProvider('typescript', completionProvider)
+                        }
+                      })
+                      .catch(() => {/* silently ignore if types can't load */})
                     
                     // Track cursor position
                     editor.onDidChangeCursorPosition((e) => {
@@ -2000,6 +2601,100 @@ export default function FunctionCodeEditor() {
           </div>
         </div>
         
+        {/* Build Panel */}
+        {showBuildPanel && (
+          <>
+            {/* Resize Handle */}
+            <div
+              className={`h-1 bg-[#1e1e1e] hover:bg-[#007acc] cursor-row-resize transition-colors ${
+                isResizingBuildPanel ? 'bg-[#007acc]' : ''
+              }`}
+              onMouseDown={handleBuildPanelResizeStart}
+            />
+            <div
+              className="bg-[#1e1e1e] border-t border-[#3c3c3c] flex flex-col"
+              style={{ height: `${buildPanelHeight}px` }}
+            >
+              {/* Panel Header */}
+              <div className="h-[35px] bg-[#252526] border-b border-[#1e1e1e] flex items-center justify-between px-3 flex-shrink-0">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 text-[#cccccc] text-xs font-medium">
+                    <Terminal className="w-3.5 h-3.5" />
+                    <span>BUILD</span>
+                  </div>
+                  {currentBuild && (
+                    <div className="flex items-center space-x-1.5">
+                      {currentBuild.status === 'queued' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-[#dcdcaa] bg-[#dcdcaa20] px-2 py-0.5 rounded">
+                          <Clock className="w-3 h-3" /> <span>Queued</span>
+                        </span>
+                      )}
+                      {currentBuild.status === 'running' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-[#569cd6] bg-[#569cd620] px-2 py-0.5 rounded">
+                          <Loader2 className="w-3 h-3 animate-spin" /> <span>Running</span>
+                        </span>
+                      )}
+                      {currentBuild.status === 'success' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-[#4ec9b0] bg-[#4ec9b020] px-2 py-0.5 rounded">
+                          <CheckCircle2 className="w-3 h-3" /> <span>Success</span>
+                        </span>
+                      )}
+                      {currentBuild.status === 'failed' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-[#f48771] bg-[#f4877120] px-2 py-0.5 rounded">
+                          <XCircle className="w-3 h-3" /> <span>Failed</span>
+                        </span>
+                      )}
+                      {currentBuild.status === 'cancelled' && (
+                        <span className="flex items-center space-x-1 text-[10px] text-[#858585] bg-[#85858520] px-2 py-0.5 rounded">
+                          <Minus className="w-3 h-3" /> <span>Cancelled</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => setShowBuildPanel(false)}
+                    className="p-1 hover:bg-[#2a2d2e] rounded transition-colors text-[#858585] hover:text-[#cccccc]"
+                    title="Close Panel"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              {/* Panel Body - Logs */}
+              <div className="flex-1 overflow-y-auto bg-black p-3 font-mono text-xs">
+                {!currentBuild && (
+                  <div className="text-[#858585]">No build information available.</div>
+                )}
+                {currentBuild?.status === 'queued' && buildLogs.length === 0 && (
+                  <div className="text-[#dcdcaa]">Waiting for build to start...</div>
+                )}
+                {currentBuild?.error_message && (
+                  <div className="text-[#f48771] mb-2 p-2 bg-[#f4877115] rounded border border-[#f4877130]">
+                    Error: {currentBuild.error_message}
+                  </div>
+                )}
+                {buildLogs.map((log, index) => (
+                  <div key={index} className="leading-5 text-[#cccccc]">
+                    <span className="text-[#858585] mr-2 select-none">
+                      [{new Date(log.timestamp).toLocaleTimeString()}]
+                    </span>
+                    {log.message}
+                  </div>
+                ))}
+                {currentBuild?.status === 'success' && (
+                  <div className="text-[#4ec9b0] mt-2">Build completed successfully.</div>
+                )}
+                {currentBuild?.status === 'failed' && buildLogs.length > 0 && (
+                  <div className="text-[#f48771] mt-2">Build failed.</div>
+                )}
+                <div ref={buildLogsEndRef} />
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Status Bar - Full Width */}
         <div className="h-[22px] bg-[#007acc] flex items-center justify-between px-4 text-xs text-white">
           <div className="flex items-center space-x-2">
@@ -2027,6 +2722,17 @@ export default function FunctionCodeEditor() {
               title="Find and Replace (Ctrl+Shift+H)"
             >
               <Replace className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setShowBuildPanel(!showBuildPanel)}
+              className={`flex items-center space-x-1 p-1 hover:bg-[#1177bb] rounded transition-colors ${showBuildPanel ? 'bg-[#1177bb]' : ''}`}
+              title="Toggle Build Panel"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Build</span>
+              {currentBuild && isBuildActive && (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              )}
             </button>
           </div>
           

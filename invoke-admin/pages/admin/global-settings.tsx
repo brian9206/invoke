@@ -38,7 +38,10 @@ export default function GlobalSettingsPage() {
   const [execMaxTimeout, setExecMaxTimeout] = useState('60');
   const [execDefaultMemory, setExecDefaultMemory] = useState('256');
   const [execMaxMemory, setExecMaxMemory] = useState('1024');
+
+  // Build settings
   const [maxConcurrentBuilds, setMaxConcurrentBuilds] = useState('2');
+  const [buildMemoryMb, setBuildMemoryMb] = useState('256');
 
   const { lockProject, unlockProject, userProjects } = useProject();
   const hasLockedProject = useRef(false);
@@ -116,6 +119,8 @@ export default function GlobalSettingsPage() {
         if (execMaxMemVal) setExecMaxMemory(formatMemoryMb(Number(execMaxMemVal)))
         const maxBuildsVal = readSetting('max_concurrent_builds')
         if (maxBuildsVal) setMaxConcurrentBuilds(maxBuildsVal)
+        const buildMemoryVal = readSetting('build_memory_mb')
+        if (buildMemoryVal !== '') setBuildMemoryMb(buildMemoryVal)
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -148,6 +153,11 @@ export default function GlobalSettingsPage() {
     if (!Number.isInteger(maxBuilds) || maxBuilds < 1) {
       toast.error('Max concurrent builds must be an integer ≥ 1.'); return;
     }
+    const buildMem = Number(buildMemoryMb);
+    const isValidBuildMemory = Number.isInteger(buildMem) && buildMem >= 256 && buildMem % 256 === 0;
+    if (!isValidBuildMemory) {
+      toast.error('Build memory must be a multiple of 256 MB, minimum 256 MB.'); return;
+    }
     const isAligned = (n: number) => Number.isInteger(n) && n >= 256 && n % 256 === 0;
     if (isNaN(defMemory) || !isAligned(defMemory)) {
       toast.error('Default memory must be a multiple of 256 MB and at least 256 MB.'); return;
@@ -175,6 +185,7 @@ export default function GlobalSettingsPage() {
           execution_default_memory_mb: parseMemoryMb(execDefaultMemory) ?? 256,
           execution_max_memory_mb: parseMemoryMb(execMaxMemory) ?? 1024,
           max_concurrent_builds: Number(maxConcurrentBuilds),
+          build_memory_mb: Number(buildMemoryMb),
         }),
       });
       if (res.ok) {
@@ -238,6 +249,7 @@ export default function GlobalSettingsPage() {
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="execution">Execution</TabsTrigger>
+              <TabsTrigger value="build">Build</TabsTrigger>
               <TabsTrigger value="log-retention">Log Retention</TabsTrigger>
               <TabsTrigger value="api-gateway">API Gateway</TabsTrigger>
             </TabsList>
@@ -365,11 +377,24 @@ export default function GlobalSettingsPage() {
 
                   <Separator />
 
-                  {/* Build Settings */}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <Button onClick={handleSave} disabled={saving}>
+                      {saving ? <><Loader className="w-4 h-4 mr-2 animate-spin" /> Saving…</> : 'Save Settings'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Build Tab */}
+            <TabsContent value="build" className="space-y-6 mt-0">
+              <Card>
+                <CardContent className="pt-6 space-y-8">
+                  {/* Concurrency Settings */}
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-base font-semibold text-foreground">Build Settings</h3>
-                      <p className="text-sm text-muted-foreground mt-1">Control the build pipeline for function versions.</p>
+                      <h3 className="text-base font-semibold text-foreground">Concurrency</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Control how many builds can run simultaneously.</p>
                     </div>
                     <div className="max-w-xs space-y-1.5">
                       <Label>Max Concurrent Builds</Label>
@@ -382,6 +407,28 @@ export default function GlobalSettingsPage() {
                         placeholder="e.g. 2"
                       />
                       <p className="text-xs text-muted-foreground">Maximum number of builds that can run simultaneously. Minimum: 1.</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Memory Limit */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">Memory Limit</h3>
+                      <p className="text-sm text-muted-foreground mt-1">Cgroup memory limit applied to each build sandbox. Must be a multiple of 256 MB.</p>
+                    </div>
+                    <div className="max-w-xs space-y-1.5">
+                      <Label>Build Memory Limit (MB)</Label>
+                      <Input
+                        type="number"
+                        min={256}
+                        step={256}
+                        value={buildMemoryMb}
+                        onChange={(e) => setBuildMemoryMb(e.target.value)}
+                        placeholder="256"
+                      />
+                      <p className="text-xs text-muted-foreground">Minimum 256 MB, multiples of 256 MB (e.g. 512, 1024, 2048).</p>
                     </div>
                   </div>
 
