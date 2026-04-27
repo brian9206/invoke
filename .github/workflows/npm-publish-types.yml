@@ -30,9 +30,11 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Install dependencies
-        run: npm install --include=dev
-        working-directory: invoke-runtime/types
+      - name: Install root dependencies
+        run: npm install
+
+      - name: Install invoke-runtime/types dependencies
+        run: npm install --prefix invoke-runtime/types --include=dev
 
       - name: Check if version already published
         id: version_check
