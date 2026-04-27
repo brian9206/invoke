@@ -17,12 +17,108 @@
 // ============================================================================
 
 import { match } from 'path-to-regexp';
+import type { InvokeRequest } from './exchange/request';
+import type { InvokeResponse } from './exchange/response';
+
+/**
+ * Request handler used by the Invoke router.
+ * @param req Incoming request object.
+ * @param res Outgoing response object.
+ * @param next Optional callback to continue to the next matching handler.
+ * @returns Any value returned by the handler.
+ */
+export type InvokeHandler = (req: InvokeRequest, res: InvokeResponse, next?: (err?: unknown) => void) => unknown;
+
+/**
+ * Express-style router API available through the global `Router` constructor.
+ */
+export interface InvokeRouter {
+  /**
+   * Register middleware for all routes that match a path prefix.
+   * @param path Path prefix to match.
+   * @param handlers Middleware handlers.
+   * @returns The router instance.
+   */
+  use(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register global middleware.
+   * @param handlers Middleware handlers.
+   * @returns The router instance.
+   */
+  use(...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP GET.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  get(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP POST.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  post(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP PUT.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  put(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP PATCH.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  patch(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP DELETE.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  delete(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP OPTIONS.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  options(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for HTTP HEAD.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  head(path: string, ...handlers: InvokeHandler[]): this;
+  /**
+   * Register a handler for all HTTP methods.
+   * @param path Route path.
+   * @param handlers Route handlers.
+   * @returns The router instance.
+   */
+  all(path: string, ...handlers: InvokeHandler[]): this;
+}
+
+declare global {
+  /**
+   * Global router constructor for creating reusable route handlers.
+   */
+  var Router: new () => InvokeRouter;
+}
 
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'options', 'head'] as const;
 
+/** @internal */
 type MatchFn = (path: string) => { path: string; params: Record<string, unknown> } | false;
+/** @internal */
 type Handler = (req: any, res: any, next?: (err?: unknown) => void) => unknown;
 
+/** @internal */
 interface Layer {
   method: string | null;
   matchFn: MatchFn;
@@ -202,9 +298,11 @@ for (const m of HTTP_METHODS) {
 
 /**
  * Wire up the Router global so user code can use `new Router()` without any imports.
+ * @internal
  */
 export function setupRouterGlobal(): void {
   (globalThis as any).Router = RouterFactory;
 }
 
+/** @internal */
 export const Router = RouterFactory as unknown as new () => any;

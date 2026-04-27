@@ -1,0 +1,40 @@
+{
+  "name": "@types/invoke",
+  "version": "1.0.0",
+  "description": "Type definitions for Invoke Runtime",
+  "license": "MIT",
+  "types": "dist/ambient.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/ambient.d.ts"
+    }
+  },
+  "files": [
+    "dist/ambient.d.ts"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brian9206/invoke.git",
+    "directory": "invoke-runtime/types"
+  },
+  "bugs": {
+    "url": "https://github.com/brian9206/invoke/issues"
+  },
+  "homepage": "https://github.com/brian9206/invoke#readme",
+  "scripts": {
+    "build": "tsc && bun scripts/build-ambient.ts",
+    "test": "tsc test.ts --noEmit --skipLibCheck",
+    "prepack": "bun run build && bun run test"
+  },
+  "dependencies": {
+    "@types/bun": "^1.3.12",
+    "@types/node": "^20.19.39"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "typescript": "^5.9.3"
+  }
+}

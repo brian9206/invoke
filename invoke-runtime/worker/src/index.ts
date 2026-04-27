@@ -8,7 +8,7 @@
 import { IpcChannel } from './protocol';
 import { runUserCode } from './run_execute';
 import { runBuild } from './run_build';
-import { enableInstrument } from './logger/console-bridge';
+import { enableInstrument } from './console-bridge';
 
 // ---------------------------------------------------------------------------
 // Read and sanitize argv

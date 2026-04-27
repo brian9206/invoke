@@ -6,29 +6,51 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import mime from 'mime-types';
-import type { ResponseData } from '../protocol';
+
+/** @internal */
+import type { ResponseData } from '../../protocol';
+
 import { InvokeRequest } from './request';
 
-interface SendFileOptions {
+/**
+ * Options for `res.sendFile()` and `res.download()`.
+ */
+export interface SendFileOptions {
+  /** Root directory to resolve the file path against. Defaults to `'/'`. */
   root?: string;
+  /** Cache max-age in milliseconds for the `Cache-Control` header. */
   maxAge?: number;
+  /** Whether to set the `Cache-Control` header. Defaults to `true`. */
   cacheControl?: boolean;
+  /** Whether to set the `Last-Modified` header. Defaults to `true`. */
   lastModified?: boolean;
+  /** Additional response headers to include. */
   headers?: Record<string, string>;
 }
 
-interface CookieOptions {
+/**
+ * Cookie options for `res.cookie()` and `res.clearCookie()`.
+ */
+export interface CookieOptions {
+  /** Cookie path. Defaults to `'/'`. */
   path?: string;
+  /** Cookie domain scope. */
   domain?: string;
+  /** Max-age in seconds. */
   maxAge?: number;
+  /** Explicit expiry date. */
   expires?: Date | string;
+  /** Restrict cookie to HTTP(S) only; inaccessible from JavaScript. */
   httpOnly?: boolean;
+  /** Only transmit the cookie over HTTPS. */
   secure?: boolean;
+  /** `SameSite` attribute: `'strict'`, `'lax'`, `'none'`, or a boolean. */
   sameSite?: string | boolean;
+  /** Custom encoder applied to the cookie value before serialization. */
   encode?: (val: string) => string;
 }
 
-/** Internal response state — read by the shim after handler completes */
+/** @internal */
 export interface ResponseState {
   statusCode: number;
   headers: Record<string, string | string[]>;
@@ -36,10 +58,16 @@ export interface ResponseState {
   finished: boolean;
 }
 
+/**
+ * Express-compatible response object passed to function handlers.
+ */
 export class InvokeResponse {
+  /** @internal */
   readonly state: ResponseState;
+  /** `true` once the response headers have been flushed to the client. */
   headersSent = false;
 
+  /** @internal */
   constructor(private readonly req: InvokeRequest, private _endCallback?: (res: InvokeResponse) => void) {
     this.state = {
       statusCode: 200,
@@ -49,25 +77,49 @@ export class InvokeResponse {
     };
   }
 
+  /**
+   * Current HTTP status code.
+   * @returns The current status code.
+   */
   get statusCode(): number {
     return this.state.statusCode;
   }
 
+  /**
+   * Set the response HTTP status code.
+   * @param code HTTP status code.
+   * @returns The response instance.
+   */
   status(code: number): InvokeResponse {
     this.state.statusCode = code;
     return this;
   }
 
+  /**
+   * Set status and send its default status message body.
+   * @param code HTTP status code.
+   * @returns The response instance.
+   */
   sendStatus(code: number): InvokeResponse {
     const message = http.STATUS_CODES[code] || 'Unknown';
     return this.status(code).type('txt').send(message);
   }
 
+  /**
+   * Send a JSON response body.
+   * @param data Serializable payload.
+   * @returns The response instance.
+   */
   json(data: unknown): InvokeResponse {
     this.setHeader('content-type', 'application/json; charset=utf-8');
     return this.end(JSON.stringify(data));
   }
 
+  /**
+   * Send a response body and infer content type when needed.
+   * @param data Response body to send.
+   * @returns The response instance.
+   */
   send(data?: unknown): InvokeResponse {
     if (data === undefined) {
       this.removeHeader('Content-Type');
@@ -101,6 +153,12 @@ export class InvokeResponse {
     return this.end(buf);
   }
 
+  /**
+   * Send a file from ephemeral storage.
+   * @param filePath File path to send.
+   * @param options File sending options.
+   * @returns The response instance.
+   */
   sendFile(filePath: string, options: SendFileOptions = {}): InvokeResponse {
     const root = options.root || '/';
     const resolved = path.resolve(root, filePath);
@@ -145,11 +203,23 @@ export class InvokeResponse {
     return this.send(data);
   }
 
+  /**
+   * Send a file as a download attachment.
+   * @param filePath File path to download.
+   * @param filename Optional download name.
+   * @param options File sending options.
+   * @returns The response instance.
+   */
   download(filePath: string, filename?: string, options?: SendFileOptions): InvokeResponse {
     this.attachment(filename || path.basename(filePath));
     return this.sendFile(filePath, options);
   }
 
+  /**
+   * Set `Content-Disposition` as attachment.
+   * @param filename Optional attachment filename.
+   * @returns The response instance.
+   */
   attachment(filename?: string): InvokeResponse {
     if (filename) {
       const needsEncoding = /[^\x20-\x7E]/.test(filename);
@@ -166,6 +236,12 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Redirect to another URL using the given status or default 302.
+   * @param statusOrUrl Status code or redirect URL.
+   * @param url Redirect URL when the first argument is a status code.
+   * @returns The response instance.
+   */
   redirect(statusOrUrl: number | string, url?: string): InvokeResponse {
     let statusCode = 302;
     let location: string;
@@ -195,11 +271,21 @@ export class InvokeResponse {
     return this.end(`<p>Found. Redirecting to <a href="${escapedUrl}">${escapedUrl}</a></p>`);
   }
 
+  /**
+   * Set the `Location` header.
+   * @param url Redirect target.
+   * @returns The response instance.
+   */
   location(url: string): InvokeResponse {
     this.setHeader('Location', url);
     return this;
   }
 
+  /**
+   * Set response content type by extension or mime type.
+   * @param type Extension or mime type.
+   * @returns The response instance.
+   */
   type(type: string): InvokeResponse {
     const mimeType = mime.contentType(type);
     if (mimeType) {
@@ -208,10 +294,22 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Alias of `res.type(type)`.
+   * @param type Extension or mime type.
+   * @returns The response instance.
+   */
   contentType(type: string): InvokeResponse {
     return this.type(type);
   }
 
+  /**
+   * Set a response cookie.
+   * @param name Cookie name.
+   * @param value Cookie value.
+   * @param options Cookie options.
+   * @returns The response instance.
+   */
   cookie(name: string, value: unknown, options: CookieOptions = {}): InvokeResponse {
     const encoder = options.encode || encodeURIComponent;
     let cookieValue: string;
@@ -251,23 +349,52 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Clear a response cookie.
+   * @param name Cookie name.
+   * @param options Cookie options.
+   * @returns The response instance.
+   */
   clearCookie(name: string, options: CookieOptions = {}): InvokeResponse {
     return this.cookie(name, '', { ...options, expires: new Date(1), maxAge: 0 });
   }
 
+  /**
+   * Set a response header value.
+   * @param name Header name.
+   * @param value Header value.
+   * @returns The response instance.
+   */
   setHeader(name: string, value: string): InvokeResponse {
     this.state.headers[name.toLowerCase()] = value;
     return this;
   }
 
+  /**
+   * Alias of `res.setHeader(name, value)`.
+   * @param name Header name.
+   * @param value Header value.
+   * @returns The response instance.
+   */
   set(name: string, value: string): InvokeResponse {
     return this.setHeader(name, value);
   }
 
+  /**
+   * Get a response header value.
+   * @param name Header name.
+   * @returns The header value, or `undefined`.
+   */
   get(name: string): string | string[] | undefined {
     return this.state.headers[name.toLowerCase()];
   }
 
+  /**
+   * Append a value to an existing response header.
+   * @param field Header name.
+   * @param value Header value to append.
+   * @returns The response instance.
+   */
   append(field: string, value: string): InvokeResponse {
     const lowerName = field.toLowerCase();
     const existing = this.state.headers[lowerName];
@@ -288,11 +415,23 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Remove a response header.
+   * @param name Header name.
+   * @returns The response instance.
+   */
   removeHeader(name: string): InvokeResponse {
     delete this.state.headers[name.toLowerCase()];
     return this;
   }
 
+  /**
+   * Set status and headers in one call.
+   * @param statusCode HTTP status code.
+   * @param statusMessage Optional status message or headers object.
+   * @param headers Optional headers object.
+   * @returns The response instance.
+   */
   writeHead(statusCode: number, statusMessage?: string | Record<string, string | string[]>, headers?: Record<string, string | string[]>): InvokeResponse {
     if (typeof statusMessage === 'object' && statusMessage !== null) {
       headers = statusMessage;
@@ -319,6 +458,11 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Finalize and send the response.
+   * @param data Optional response body.
+   * @returns The response instance.
+   */
   end(data?: unknown): InvokeResponse {
     this.headersSent = true;
     this.state.finished = true;
@@ -339,6 +483,11 @@ export class InvokeResponse {
     return this;
   }
 
+  /**
+   * Pipe a Fetch API `Response` into this response object.
+   * @param fetchResponse Source fetch response.
+   * @returns A promise that resolves after the response is copied.
+   */
   async pipeFrom(fetchResponse: Response): Promise<void> {
     const blacklistedHeaders = ['transfer-encoding', 'content-length', 'connection', 'content-encoding'];
 
@@ -356,6 +505,7 @@ export class InvokeResponse {
 
 /**
  * Convert internal ResponseState to the wire ResponseData format.
+ * @internal
  */
 export function stateToResponseData(state: ResponseState): ResponseData {
   return {

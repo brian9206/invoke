@@ -1,9 +1,9 @@
 import { type IIpcChannel } from "./protocol";
-import { setupKvGlobal } from "./kv";
-import { setupRealtimeGlobal } from "./realtime";
-import { setupRouterGlobal } from "./router";
-import { setupSleepGlobal } from "./sleep";
-import { setupLoggerGlobal } from "./logger/pino";
+import { setupKvGlobal } from "./public-api/kv";
+import { setupRealtimeGlobal } from "./public-api/realtime";
+import { setupRouterGlobal } from "./public-api/router";
+import { setupSleepGlobal } from "./public-api/sleep";
+import { setupLoggerGlobal } from "./public-api/logger/pino";
 
 export function setupEnvironment(ipc: IIpcChannel): void {
   // Expose Pino

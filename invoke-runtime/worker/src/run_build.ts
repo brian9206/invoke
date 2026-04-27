@@ -6,7 +6,7 @@
 import fs from 'fs/promises'
 import { type BuildData, IpcChannel } from './protocol';
 import * as tar from 'tar';
-import { installConsoleBridge } from './logger/console-bridge';
+import { installConsoleBridge } from './console-bridge';
 import { createPipelineRunner } from './builder';
 import type { BuildContext, Pipeline } from './builder/types';
 

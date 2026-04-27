@@ -4,6 +4,11 @@
 
 import mime from 'mime-types';
 
+/**
+ * Parse a Cookie header string into a key/value object.
+ * @param cookieHeader Raw Cookie header value.
+ * @returns Parsed cookie map.
+ */
 export function parseCookies(cookieHeader: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!cookieHeader) return cookies;
@@ -30,11 +35,22 @@ export function parseCookies(cookieHeader: string | undefined): Record<string, s
   return cookies;
 }
 
+/**
+ * Normalize a mime type for matching.
+ * @param type Input mime type value.
+ * @returns Lower-cased mime type without parameters.
+ */
 export function normalizeMimeType(type: string | undefined): string {
   if (!type) return '';
   return type.toLowerCase().split(';')[0].trim();
 }
 
+/**
+ * Check if a content type matches a target mime pattern.
+ * @param contentType Actual content type value.
+ * @param type Target mime type or wildcard pattern.
+ * @returns The matched target type or `false`.
+ */
 export function matchMimeType(contentType: string | undefined, type: string): string | false {
   const normalizedContent = normalizeMimeType(contentType);
   let targetType = (mime.lookup(type) || type) as string;
@@ -59,6 +75,11 @@ export interface AcceptEntry {
   specificity: number;
 }
 
+/**
+ * Parse and sort an HTTP Accept header.
+ * @param acceptHeader Raw Accept header value.
+ * @returns Parsed entries sorted by quality and specificity.
+ */
 export function parseAcceptHeader(acceptHeader: string | undefined): AcceptEntry[] {
   if (!acceptHeader) return [];
 

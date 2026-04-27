@@ -10,7 +10,7 @@ import net from 'net';
 // Request / Response data types (shared between host and runtime)
 // ---------------------------------------------------------------------------
 
-/** Serialised HTTP request forwarded into the sandbox */
+/** @internal */
 export interface RequestData {
   method: string;
   url: string;
@@ -27,11 +27,12 @@ export interface RequestData {
   headers: Record<string, string>;
 }
 
+/** @internal */
 export interface BuildData {
   buildId: string;
 }
 
-/** Serialised HTTP response sent back from the sandbox */
+/** @internal */
 export interface ResponseData {
   statusCode: number;
   headers: Record<string, string | string[]>;
@@ -178,6 +179,7 @@ const IPC_SOCKET_PATH = '/run/events.sock';
  *
  * The socket is created and connected in the constructor — no path or socket
  * parameter is needed. Await `ipc.connected` before sending the first message.
+ * @internal
  */
 export interface IIpcChannel extends EventEmitter {
   readonly connected: Promise<void>;
@@ -186,6 +188,7 @@ export interface IIpcChannel extends EventEmitter {
   end(event?: string, payload?: unknown, binary?: Buffer): Promise<void>;
 }
 
+/** @internal */
 export class IpcChannel extends EventEmitter implements IIpcChannel {
   private readonly socket: net.Socket;
   private readonly decoder = new EventDecoder();
@@ -278,6 +281,7 @@ export class IpcChannel extends EventEmitter implements IIpcChannel {
   }
 }
 
+/** @internal */
 export class NoOpIpcChannel extends EventEmitter implements IIpcChannel {
   readonly connected = Promise.resolve();
 

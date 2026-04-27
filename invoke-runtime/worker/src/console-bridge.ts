@@ -2,7 +2,7 @@
 // Console Bridge — Overrides console methods to send logs to the host
 // ============================================================================
 
-import type { IIpcChannel } from '../protocol';
+import type { IIpcChannel } from './protocol';
 
 const ORIGINAL_CONSOLE: Record<string, Function> = {};
 
@@ -14,6 +14,7 @@ function consoleMiddleware(level: string, args: string[]) {
 
 let instrument = false;
 
+/** @internal */
 export function enableInstrument() {
   instrument = true;
   console.log('[console-bridge] instrument enabled');
@@ -24,6 +25,7 @@ export function enableInstrument() {
  * Unix socket as fire-and-forget `console` events.
  *
  * Returns a restore function that puts the original methods back.
+ * @internal
  */
 export function installConsoleBridge(ipc: IIpcChannel, middleware: Middleware = consoleMiddleware): () => void {
   const levels = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;

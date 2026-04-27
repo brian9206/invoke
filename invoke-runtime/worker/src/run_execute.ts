@@ -4,8 +4,8 @@
 
 import path from 'path';
 import { IpcChannel, type ResponseData, type RequestData } from './protocol';
-import { createReqObject, createResObject, stateToResponseData } from './exchange';
-import { installConsoleBridge } from './logger/console-bridge';
+import { createReqObject, createResObject, stateToResponseData } from './public-api/exchange';
+import { installConsoleBridge } from './console-bridge';
 import { setupEnvironment } from './environment';
 
 export async function runUserCode(

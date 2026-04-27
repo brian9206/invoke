@@ -251,6 +251,7 @@
         "@types/mime-types": "^2.1.4",
         "@types/node": "^20.19.39",
         "@types/tar": "^7.0.87",
+        "dets": "^0.17.0",
         "typescript": "^5.9.3",
       },
     },
@@ -1394,6 +1395,8 @@
     "detect-libc": ["detect-libc@2.1.2", "", {}, "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ=="],
 
     "detect-node-es": ["detect-node-es@1.1.0", "", {}, "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ=="],
+
+    "dets": ["dets@0.17.0", "", { "peerDependencies": { "typescript": "4.x || 5.x" }, "bin": { "dets": "dist/cli.js" } }, "sha512-osDHUsvlQBcMozWt3tEVCk8S0OHYXzBb+Dfmp2KmBESqZac5+BwiV1mByH1DhdshzDQjmvfIMY4iKacqujfK7w=="],
 
     "didyoumean": ["didyoumean@1.2.2", "", {}, "sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw=="],
 

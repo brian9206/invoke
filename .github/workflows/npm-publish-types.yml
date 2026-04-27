@@ -1,4 +1,4 @@
-name: Publish invoke-cli to npm
+name: Publish @types/invoke to npm
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ on:
       - main
       - master
     paths:
-      - 'invoke-cli/package.json'
-      - '.github/workflows/npm-publish.yml'
+      - 'invoke-runtime/types/package.json'
+      - '.github/workflows/npm-publish-types.yml'
 
 permissions:
   id-token: write  # Required for OIDC
@@ -29,17 +29,15 @@ jobs:
         with:
           bun-version: latest
 
-      # Install from repo root to set up workspace symlinks so that
-      # the invoke-cli build script can resolve invoke-execution
       - name: Install dependencies
         run: npm install
 
       - name: Check if version already published
         id: version_check
         run: |
-          VERSION=$(node -p "require('./invoke-cli/package.json').version")
+          VERSION=$(node -p "require('./invoke-runtime/types/package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          if npm view invoke-cli@$VERSION version 2>/dev/null; then
+          if npm view @types/invoke@$VERSION version 2>/dev/null; then
             echo "already_published=true" >> $GITHUB_OUTPUT
             echo "Version $VERSION is already published, skipping."
           else
@@ -50,6 +48,6 @@ jobs:
       - name: Publish to npm
         if: steps.version_check.outputs.already_published == 'false'
         run: npm publish
-        working-directory: invoke-cli
+        working-directory: invoke-runtime/types
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

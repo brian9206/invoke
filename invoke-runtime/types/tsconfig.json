@@ -1,0 +1,11 @@
+{
+  "extends": "../worker/tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "stripInternal": true,
+    "declarationDir": "./dist"
+  },
+  "include": ["../worker/src/public-api/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

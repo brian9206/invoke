@@ -15,10 +15,44 @@ import type { RealtimeClient } from './client';
 import { BroadcastOperator } from './broadcast-operator';
 import { SocketProxy } from './socket-proxy';
 
+/**
+ * Realtime namespace API for socket event handlers and broadcast operations.
+ */
+export interface InvokeRealtimeNamespace {
+  /** Socket proxy for the currently connected client during event dispatch. */
+  socket: SocketProxy;
+  /**
+   * Target a room for broadcast operations.
+   * @param room Room identifier.
+   * @returns A chainable broadcast operator.
+   */
+  to(room: string): BroadcastOperator;
+  /**
+   * Alias of `to(room)`.
+   * @param room Room identifier.
+   * @returns A chainable broadcast operator.
+   */
+  in(room: string): BroadcastOperator;
+  /**
+   * Exclude a room from broadcast operations.
+   * @param room Room identifier.
+   * @returns A chainable broadcast operator.
+   */
+  except(room: string): BroadcastOperator;
+  /**
+   * Emit an event to the namespace.
+   * @param event Event name.
+   * @param args Event payload arguments.
+   * @returns A promise that resolves when the command is accepted.
+   */
+  emit(event: string, ...args: unknown[]): Promise<void>;
+}
+
 // Module-level client reference — set once by setClient() before any
 // RealtimeNamespace is constructed.
 let _client: RealtimeClient;
 
+/** @internal */
 export function setClient(client: RealtimeClient): void {
   _client = client;
 }
@@ -178,4 +212,4 @@ RealtimeNamespaceFactory.prototype._dispatch = async function (
 // Export as a newable constructor — TypeScript sees it as `new (namespace?: string) => any`
 export const RealtimeNamespace = RealtimeNamespaceFactory as unknown as new (
   namespace?: string,
-) => any;
+) => InvokeRealtimeNamespace;
