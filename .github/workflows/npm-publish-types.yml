@@ -31,7 +31,8 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --include=dev
+        working-directory: invoke-runtime/types
 
       - name: Check if version already published
         id: version_check
