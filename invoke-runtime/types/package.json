@@ -1,6 +1,6 @@
 {
   "name": "@types/invoke",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "Type definitions for Invoke Runtime",
   "license": "MIT",
   "types": "dist/ambient.d.ts",
