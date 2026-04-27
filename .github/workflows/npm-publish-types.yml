@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - feat/build-system
     paths:
       - 'invoke-runtime/types/package.json'
       - '.github/workflows/npm-publish-types.yml'
