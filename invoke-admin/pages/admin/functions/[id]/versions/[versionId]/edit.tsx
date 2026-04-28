@@ -2335,10 +2335,17 @@ export default function FunctionCodeEditor() {
                     fetch('/api/editor/ambient-types')
                       .then(r => r.text())
                       .then(dts => {
-                        // Strip triple-slash directives Monaco can't resolve in the browser
+                        // Strip triple-slash directives Monaco can't resolve in the browser,
+                        // then unwrap `declare global { }` so all declarations become
+                        // top-level globals in the extra lib (a script, not a module).
+                        // Must strip `export {}` first — that's what makes the file a
+                        // module — before the declare global unwrap regex can match the
+                        // final closing brace.
                         const cleaned = dts
                           .replace(/\/\/\/\s*<reference types="node"\s*\/>/g, '')
                           .replace(/\/\/\/\s*<reference types="bun"\s*\/>/g, '')
+                          .replace(/export\s*\{\s*\};\s*/g, '')
+                          .replace(/declare global\s*\{([\s\S]*)\}/, '$1')
 
                         // Global var declarations — used by the helper models for
                         // completion provider (where req/res are NOT shadowed by params)
@@ -2359,8 +2366,15 @@ declare var next: (err?: unknown) => void;
                           defaults.addExtraLib(withAliases, uri)
                           defaults.setCompilerOptions({
                             ...defaults.getCompilerOptions(),
-                            lib: ['es2022'],
+                            lib: ['es2022', 'dom', 'dom.iterable'],
                             target: monaco.languages.typescript.ScriptTarget.ES2022,
+                            // CommonJS + NodeJs resolution so `import fs from 'fs'`
+                            // resolves against the @types/node extra libs we've added
+                            module: monaco.languages.typescript.ModuleKind.CommonJS,
+                            moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+                            // Allow `import fs from 'fs'` (default import of CJS module)
+                            esModuleInterop: true,
+                            allowSyntheticDefaultImports: true,
                             allowNonTsExtensions: true,
                             allowJs: true,
                             checkJs: true,
@@ -2371,24 +2385,6 @@ declare var next: (err?: unknown) => void;
                           defaults.setDiagnosticsOptions({
                             ...defaults.getDiagnosticsOptions?.() ?? {},
                             diagnosticCodesToIgnore: [7006, 7044],
-                          })
-
-                          // Disable the built-in TS/JS hover so we can provide our own
-                          // that overrides `any`-typed req/res/next with the correct Invoke types.
-                          defaults.setModeConfiguration({
-                            completionItems: true,
-                            hovers: false,
-                            documentSymbols: true,
-                            definitions: true,
-                            references: true,
-                            documentHighlights: true,
-                            rename: true,
-                            diagnostics: true,
-                            documentRangeFormattingEdits: true,
-                            signatureHelp: true,
-                            onTypeFormattingEdits: true,
-                            codeActions: true,
-                            inlayHints: true,
                           })
                         }
 
@@ -2536,6 +2532,28 @@ declare var next: (err?: unknown) => void;
                         }
                       })
                       .catch(() => {/* silently ignore if types can't load */})
+
+                    // Load @types/node and bun-types as extra libs so Node.js / Bun
+                    // globals and APIs get IntelliSense in function source files.
+                    // Files are added with file:/// URIs matching the paths TypeScript
+                    // uses when resolving `/// <reference types="node" />` and
+                    // `/// <reference path="...">` directives.
+                    Promise.all([
+                      fetch('/api/editor/package-types?pkg=node').then(r => r.json()),
+                      fetch('/api/editor/package-types?pkg=bun').then(r => r.json()),
+                    ]).then(([nodeFiles, bunFiles]: [Record<string, string>, Record<string, string>]) => {
+                      for (const lang of ['typescript', 'javascript'] as const) {
+                        const defaults = lang === 'typescript'
+                          ? monaco.languages.typescript.typescriptDefaults
+                          : monaco.languages.typescript.javascriptDefaults
+                        for (const [relPath, content] of Object.entries(nodeFiles)) {
+                          defaults.addExtraLib(content, `file:///node_modules/@types/node/${relPath}`)
+                        }
+                        for (const [relPath, content] of Object.entries(bunFiles)) {
+                          defaults.addExtraLib(content, `file:///node_modules/bun-types/${relPath}`)
+                        }
+                      }
+                    }).catch(() => {/* silently ignore if node/bun types can't load */})
                     
                     // Track cursor position
                     editor.onDidChangeCursorPosition((e) => {
