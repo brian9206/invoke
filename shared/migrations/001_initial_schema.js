@@ -474,8 +474,7 @@ module.exports = {
       { action: 'deny', target_type: 'cidr', target_value: '10.0.0.0/8',     description: 'Block private network (RFC1918)', priority: 1, created_at: new Date() },
       { action: 'deny', target_type: 'cidr', target_value: '172.16.0.0/12',  description: 'Block private network (RFC1918)', priority: 2, created_at: new Date() },
       { action: 'deny', target_type: 'cidr', target_value: '192.168.0.0/16', description: 'Block private network (RFC1918)', priority: 3, created_at: new Date() },
-      { action: 'deny', target_type: 'cidr', target_value: '127.0.0.0/8',    description: 'Block loopback',                  priority: 4, created_at: new Date() },
-      { action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0',     description: 'Allow Internet access',           priority: 5, created_at: new Date() },
+      { action: 'allow', target_type: 'cidr', target_value: '0.0.0.0/0',     description: 'Allow Internet access',           priority: 4, created_at: new Date() },
     ]);
 
     await queryInterface.bulkInsert('project_network_policies', [
