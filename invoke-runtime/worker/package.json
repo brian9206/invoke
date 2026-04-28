@@ -18,7 +18,6 @@
     "@types/js-yaml": "^4.0.9",
     "@types/mime-types": "^2.1.4",
     "@types/node": "^20.19.39",
-    "@types/tar": "^7.0.87",
     "typescript": "^5.9.3"
   }
 }

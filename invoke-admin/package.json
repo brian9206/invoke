@@ -89,7 +89,6 @@
     "@types/proxy-addr": "^2.0.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "19.2.3",
-    "@types/tar": "^6.1.13",
     "@types/uuid": "^9.0.7",
     "@types/zxcvbn": "^4.4.5",
     "eslint": "^9.8.0",

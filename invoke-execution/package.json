@@ -48,7 +48,6 @@
     "@types/mime-types": "^2.1.4",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^20.10.2",
-    "@types/tar": "^6.1.13",
     "assert": "^2.1.0",
     "buffer": "^6.0.3",
     "esbuild": "^0.27.3",
