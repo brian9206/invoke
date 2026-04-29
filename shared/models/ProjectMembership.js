@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class ProjectMembership extends Model {}
 
   ProjectMembership.init(
@@ -8,32 +8,32 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
+        autoIncrement: true
       },
       project_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'projects', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       user_id: {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: { model: 'users', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       role: {
         type: DataTypes.STRING(20),
         allowNull: false,
-        validate: { isIn: [['owner', 'developer']] },
+        validate: { isIn: [['owner', 'developer']] }
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       created_by: {
         type: DataTypes.INTEGER,
-        references: { model: 'users', key: 'id' },
-      },
+        references: { model: 'users', key: 'id' }
+      }
     },
     {
       sequelize,
@@ -42,14 +42,14 @@ module.exports = (sequelize) => {
       timestamps: false,
       underscored: true,
       freezeTableName: true,
-      indexes: [{ unique: true, fields: ['project_id', 'user_id'] }],
+      indexes: [{ unique: true, fields: ['project_id', 'user_id'] }]
     }
-  );
+  )
 
-  ProjectMembership.associate = (models) => {
-    ProjectMembership.belongsTo(models.Project, { foreignKey: 'project_id' });
-    ProjectMembership.belongsTo(models.User, { foreignKey: 'user_id' });
-  };
+  ProjectMembership.associate = models => {
+    ProjectMembership.belongsTo(models.Project, { foreignKey: 'project_id' })
+    ProjectMembership.belongsTo(models.User, { foreignKey: 'user_id' })
+  }
 
-  return ProjectMembership;
-};
+  return ProjectMembership
+}

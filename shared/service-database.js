@@ -1,5 +1,5 @@
-const { createDatabase } = require('./database');
-const { initModels } = require('./models');
+const { createDatabase } = require('./database')
+const { initModels } = require('./models')
 
 /**
  * Factory that creates a fully-initialised Sequelize database singleton
@@ -14,8 +14,8 @@ const { initModels } = require('./models');
  * @returns {{ sequelize: import('sequelize').Sequelize, models: object, getConnectionConfig: () => object, close: () => Promise<void> }}
  */
 function createServiceDatabase({ poolMax = 20 } = {}) {
-  const sequelize = createDatabase({ pool: { max: poolMax } });
-  const models = initModels(sequelize);
+  const sequelize = createDatabase({ pool: { max: poolMax } })
+  const models = initModels(sequelize)
 
   return {
     sequelize,
@@ -31,15 +31,15 @@ function createServiceDatabase({ poolMax = 20 } = {}) {
         host: process.env.DB_HOST || 'localhost',
         database: process.env.DB_NAME || 'invoke_db',
         password: process.env.DB_PASSWORD,
-        port: parseInt(process.env.DB_PORT || '5432', 10),
-      };
+        port: parseInt(process.env.DB_PORT || '5432', 10)
+      }
     },
 
     /** Close the Sequelize connection pool. */
     async close() {
-      await sequelize.close();
-    },
-  };
+      await sequelize.close()
+    }
+  }
 }
 
-module.exports = { createServiceDatabase };
+module.exports = { createServiceDatabase }

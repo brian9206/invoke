@@ -1,20 +1,20 @@
-import axios from 'axios';
+import axios from 'axios'
 
-const LOGGER_URL = process.env.LOGGER_SERVICE_URL;
-const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET;
+const LOGGER_URL = process.env.LOGGER_SERVICE_URL
+const INTERNAL_SECRET = process.env.INTERNAL_SERVICE_SECRET
 
-const DEFAULT_MAX_RESPONSE_LOG_SIZE = 10 * 1024 * 1024; // 10 MB
+const DEFAULT_MAX_RESPONSE_LOG_SIZE = 10 * 1024 * 1024 // 10 MB
 
 function getMaxResponseLogSize(): number {
-  const envValue = process.env.MAX_RESPONSE_LOG_SIZE;
-  if (!envValue) return DEFAULT_MAX_RESPONSE_LOG_SIZE;
-  const parsed = parseInt(envValue, 10);
-  if (isNaN(parsed) || parsed <= 0) return DEFAULT_MAX_RESPONSE_LOG_SIZE;
-  return parsed;
+  const envValue = process.env.MAX_RESPONSE_LOG_SIZE
+  if (!envValue) return DEFAULT_MAX_RESPONSE_LOG_SIZE
+  const parsed = parseInt(envValue, 10)
+  if (isNaN(parsed) || parsed <= 0) return DEFAULT_MAX_RESPONSE_LOG_SIZE
+  return parsed
 }
 
 function isTextContentType(contentType: string): boolean {
-  const ct = (contentType || '').toLowerCase();
+  const ct = (contentType || '').toLowerCase()
   return (
     ct.startsWith('text/') ||
     ct.includes('application/json') ||
@@ -23,77 +23,77 @@ function isTextContentType(contentType: string): boolean {
     ct.includes('application/x-www-form-urlencoded') ||
     ct.includes('+json') ||
     ct.includes('+xml')
-  );
+  )
 }
 
 function toNullableSize(value: unknown): number | null {
-  if (value == null || !Number.isFinite(value as number) || (value as number) < 0) return null;
-  return Math.trunc(value as number);
+  if (value == null || !Number.isFinite(value as number) || (value as number) < 0) return null
+  return Math.trunc(value as number)
 }
 
 function postLog(body: Record<string, unknown>): void {
   if (!LOGGER_URL) {
-    console.warn('[LoggerClient] LOGGER_SERVICE_URL is not set. Log dropped.');
-    return;
+    console.warn('[LoggerClient] LOGGER_SERVICE_URL is not set. Log dropped.')
+    return
   }
   axios
     .post(`${LOGGER_URL}/log`, body, {
       headers: {
         'Content-Type': 'application/json',
-        ...(INTERNAL_SECRET ? { 'x-internal-secret': INTERNAL_SECRET } : {}),
-      },
+        ...(INTERNAL_SECRET ? { 'x-internal-secret': INTERNAL_SECRET } : {})
+      }
     })
     .catch((err: Error) => {
-      console.error('[LoggerClient] Failed to send log:', err.message);
-    });
+      console.error('[LoggerClient] Failed to send log:', err.message)
+    })
 }
 
 export interface AppLogOptions {
-  project?: { id?: string; name?: string | null };
-  function?: { id?: string; name?: string | null };
-  payload: Record<string, unknown>;
-  executedAt?: Date;
+  project?: { id?: string; name?: string | null }
+  function?: { id?: string; name?: string | null }
+  payload: Record<string, unknown>
+  executedAt?: Date
 }
 
 export interface BuildLogOptions {
-  project?: { id?: string; name?: string | null };
-  function?: { id?: string; name?: string | null };
-  build: { 
-    id: string; 
-    version: number;
-  };
-  message: string;
+  project?: { id?: string; name?: string | null }
+  function?: { id?: string; name?: string | null }
+  build: {
+    id: string
+    version: number
+  }
+  message: string
 }
 
 export interface RequestLogInfo {
   request?: {
-    url?: string;
-    method?: string;
-    ip?: string | null;
-    userAgent?: string;
-    headers?: Record<string, unknown>;
+    url?: string
+    method?: string
+    ip?: string | null
+    userAgent?: string
+    headers?: Record<string, unknown>
     body?: {
-      size?: number | null;
-      payload?: string;
-    };
-  };
+      size?: number | null
+      payload?: string
+    }
+  }
   response?: {
-    headers?: Record<string, string | string[]>;
+    headers?: Record<string, string | string[]>
     body?: {
-      size?: number | null;
-      payload?: Buffer | string | unknown;
-    };
-  };
+      size?: number | null
+      payload?: Buffer | string | unknown
+    }
+  }
 }
 
 export interface RequestLogOptions {
-  project?: { id?: string; name?: string | null };
-  function?: { id?: string; name?: string | null };
-  traceId?: string;
-  executionTime: number;
-  statusCode: number;
-  error?: string | null;
-  requestInfo?: RequestLogInfo;
+  project?: { id?: string; name?: string | null }
+  function?: { id?: string; name?: string | null }
+  traceId?: string
+  executionTime: number
+  statusCode: number
+  error?: string | null
+  requestInfo?: RequestLogInfo
 }
 
 /**
@@ -106,8 +106,8 @@ export function insertAppLog(opts: AppLogOptions): void {
     type: 'app',
     source: 'execution',
     payload: opts.payload,
-    executedAt: opts.executedAt?.toISOString(),
-  });
+    executedAt: opts.executedAt?.toISOString()
+  })
 }
 
 /**
@@ -120,10 +120,10 @@ export function insertBuildLog(opts: BuildLogOptions): void {
     type: 'build',
     payload: {
       build: opts.build,
-      message: opts.message,
+      message: opts.message
     },
     source: 'execution'
-  });
+  })
 }
 
 /**
@@ -132,45 +132,35 @@ export function insertBuildLog(opts: BuildLogOptions): void {
  * then send to invoke-logger.
  */
 export function insertRequestLog(opts: RequestLogOptions): void {
-  const {
-    project,
-    function: functionArg,
-    traceId,
-    executionTime,
-    statusCode,
-    error = null,
-    requestInfo = {},
-  } = opts;
+  const { project, function: functionArg, traceId, executionTime, statusCode, error = null, requestInfo = {} } = opts
 
   // Serialize response body
-  const MAX_RESPONSE_LOG_SIZE = getMaxResponseLogSize();
-  let responseBodyLog = '';
+  const MAX_RESPONSE_LOG_SIZE = getMaxResponseLogSize()
+  let responseBodyLog = ''
 
   if (requestInfo.response?.body?.payload) {
-    const contentType = (requestInfo.response?.headers?.['content-type'] || '') as string;
+    const contentType = (requestInfo.response?.headers?.['content-type'] || '') as string
 
     if (isTextContentType(contentType)) {
-      const rawPayload = requestInfo.response.body.payload;
+      const rawPayload = requestInfo.response.body.payload
       if (Buffer.isBuffer(rawPayload)) {
-        responseBodyLog = rawPayload.toString('utf8');
+        responseBodyLog = rawPayload.toString('utf8')
       } else if (typeof rawPayload === 'string') {
-        responseBodyLog = rawPayload;
+        responseBodyLog = rawPayload
       } else {
-        responseBodyLog = JSON.stringify(rawPayload);
+        responseBodyLog = JSON.stringify(rawPayload)
       }
 
       if (responseBodyLog.length > MAX_RESPONSE_LOG_SIZE) {
-        const sizeMB = (MAX_RESPONSE_LOG_SIZE / (1024 * 1024)).toFixed(1);
-        responseBodyLog =
-          responseBodyLog.substring(0, MAX_RESPONSE_LOG_SIZE) +
-          `...<TRUNCATED at ${sizeMB}MB>`;
+        const sizeMB = (MAX_RESPONSE_LOG_SIZE / (1024 * 1024)).toFixed(1)
+        responseBodyLog = responseBodyLog.substring(0, MAX_RESPONSE_LOG_SIZE) + `...<TRUNCATED at ${sizeMB}MB>`
       }
     } else {
-      responseBodyLog = '<BINARY>';
+      responseBodyLog = '<BINARY>'
     }
   }
 
-  const executedAt = new Date();
+  const executedAt = new Date()
 
   const payload: Record<string, unknown> = {
     executed_at: executedAt.toISOString(),
@@ -184,19 +174,19 @@ export function insertRequestLog(opts: RequestLogOptions): void {
       headers: requestInfo.request?.headers || {},
       body: {
         size: toNullableSize(requestInfo.request?.body?.size),
-        ...(requestInfo.request?.body?.payload ? { payload: requestInfo.request.body.payload } : {}),
-      },
+        ...(requestInfo.request?.body?.payload ? { payload: requestInfo.request.body.payload } : {})
+      }
     },
     response: {
       ...(statusCode ? { status: statusCode } : {}),
       headers: requestInfo.response?.headers || {},
       body: {
         size: toNullableSize(requestInfo.response?.body?.size),
-        ...(responseBodyLog ? { payload: responseBodyLog } : {}),
-      },
+        ...(responseBodyLog ? { payload: responseBodyLog } : {})
+      }
     },
-    error: error || undefined,
-  };
+    error: error || undefined
+  }
 
   postLog({
     project,
@@ -204,6 +194,6 @@ export function insertRequestLog(opts: RequestLogOptions): void {
     type: 'request',
     source: 'execution',
     payload,
-    executedAt: executedAt.toISOString(),
-  });
+    executedAt: executedAt.toISOString()
+  })
 }

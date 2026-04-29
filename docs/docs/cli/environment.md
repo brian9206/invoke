@@ -9,6 +9,7 @@ Manage environment variables for your functions using the Invoke CLI.
 ## Overview
 
 Environment variables allow you to:
+
 - Store configuration separately from code
 - Keep secrets secure (API keys, database passwords)
 - Use different values per environment (dev/staging/prod)
@@ -23,6 +24,7 @@ invoke function:env:list my-api
 ```
 
 **Example output:**
+
 ```
 🔐 Environment Variables:
 
@@ -40,6 +42,7 @@ Long values are truncated in table view. Use `--output json` for full values.
 :::
 
 **JSON output:**
+
 ```bash
 invoke function:env:list my-api --output json
 ```
@@ -53,6 +56,7 @@ invoke function:env:set my-api API_KEY sk_live_xyz789
 ```
 
 **Example output:**
+
 ```
 ✅ Environment variable set successfully
 ```
@@ -77,7 +81,7 @@ while IFS='=' read -r key value; do
   # Skip comments and empty lines
   [[ $key =~ ^#.*$ ]] && continue
   [[ -z $key ]] && continue
-  
+
   # Set the variable
   invoke function:env:set my-api "$key" "$value"
 done < .env
@@ -92,11 +96,13 @@ invoke function:env:delete my-api API_KEY
 ```
 
 You'll be prompted for confirmation:
+
 ```
 ? Are you sure you want to delete environment variable API_KEY? (y/N)
 ```
 
 **Skip confirmation:**
+
 ```bash
 invoke function:env:delete my-api API_KEY --force
 ```
@@ -109,16 +115,16 @@ Environment variables are available via `process.env`:
 
 ```javascript
 export default async function handler(req, res) {
-    const apiKey = process.env.API_KEY;
-    const dbUrl = process.env.DATABASE_URL;
-    const logLevel = process.env.LOG_LEVEL || 'info';
-    
-    // Use the variables
-    console.log('Log level:', logLevel);
-    
-    res.json({ 
-        configured: !!apiKey && !!dbUrl 
-    });
+  const apiKey = process.env.API_KEY
+  const dbUrl = process.env.DATABASE_URL
+  const logLevel = process.env.LOG_LEVEL || 'info'
+
+  // Use the variables
+  console.log('Log level:', logLevel)
+
+  res.json({
+    configured: !!apiKey && !!dbUrl
+  })
 }
 ```
 
@@ -126,17 +132,17 @@ export default async function handler(req, res) {
 
 ```javascript
 export default async function handler(req, res) {
-    const requiredVars = ['API_KEY', 'DATABASE_URL'];
-    const missing = requiredVars.filter(v => !process.env[v]);
-    
-    if (missing.length > 0) {
-        return res.status(500).json({
-            error: 'Missing required environment variables',
-            missing: missing
-        });
-    }
-    
-    // Continue with function logic...
+  const requiredVars = ['API_KEY', 'DATABASE_URL']
+  const missing = requiredVars.filter(v => !process.env[v])
+
+  if (missing.length > 0) {
+    return res.status(500).json({
+      error: 'Missing required environment variables',
+      missing: missing
+    })
+  }
+
+  // Continue with function logic...
 }
 ```
 
@@ -258,20 +264,21 @@ invoke function:env:set my-api DB_NAME "myapp_production"
 ```
 
 **In your function:**
+
 ```javascript
-import { Pool } from 'pg';
+import { Pool } from 'pg'
 
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: parseInt(process.env.DB_PORT),
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-});
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT),
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME
+})
 
 export default async function handler(req, res) {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ time: result.rows[0].now });
+  const result = await pool.query('SELECT NOW()')
+  res.json({ time: result.rows[0].now })
 }
 ```
 
@@ -283,16 +290,17 @@ invoke function:env:set my-api STRIPE_WEBHOOK_SECRET "whsec_..."
 ```
 
 **In your function:**
+
 ```javascript
-import Stripe from 'stripe';
-const stripe = new Stripe(process.env.STRIPE_API_KEY);
+import Stripe from 'stripe'
+const stripe = new Stripe(process.env.STRIPE_API_KEY)
 
 export default async function handler(req, res) {
-    const session = await stripe.checkout.sessions.create({
-        // ... session config
-    });
-    
-    res.json({ sessionId: session.id });
+  const session = await stripe.checkout.sessions.create({
+    // ... session config
+  })
+
+  res.json({ sessionId: session.id })
 }
 ```
 
@@ -304,23 +312,24 @@ invoke function:env:set my-api FEATURE_CACHE_ENABLED "true"
 ```
 
 **In your function:**
+
 ```javascript
 export default async function handler(req, res) {
-    const useNewAlgorithm = process.env.FEATURE_NEW_ALGORITHM === 'true';
-    const cacheEnabled = process.env.FEATURE_CACHE_ENABLED === 'true';
-    
-    let result;
-    if (useNewAlgorithm) {
-        result = await newAlgorithm(req.body);
-    } else {
-        result = await oldAlgorithm(req.body);
-    }
-    
-    if (cacheEnabled) {
-        await kv.set(`result:${req.body.id}`, result, 3600);
-    }
-    
-    res.json(result);
+  const useNewAlgorithm = process.env.FEATURE_NEW_ALGORITHM === 'true'
+  const cacheEnabled = process.env.FEATURE_CACHE_ENABLED === 'true'
+
+  let result
+  if (useNewAlgorithm) {
+    result = await newAlgorithm(req.body)
+  } else {
+    result = await oldAlgorithm(req.body)
+  }
+
+  if (cacheEnabled) {
+    await kv.set(`result:${req.body.id}`, result, 3600)
+  }
+
+  res.json(result)
 }
 ```
 
@@ -329,6 +338,7 @@ export default async function handler(req, res) {
 ### Bulk Export/Import
 
 Export all variables:
+
 ```bash
 invoke function:env:list my-api --output json > env-backup.json
 ```
@@ -342,6 +352,7 @@ invoke function:env:list my-api --output json | grep "API_KEY"
 ### Validate Variables
 
 Create a validation script:
+
 ```bash
 #!/bin/bash
 

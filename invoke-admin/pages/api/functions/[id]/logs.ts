@@ -33,8 +33,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         logType: 'request',
         q: kqlParts.join(' AND '),
         page: req.query.page as string,
-        limit: req.query.limit as string,
-      },
+        limit: req.query.limit as string
+      }
     })
 
     res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))

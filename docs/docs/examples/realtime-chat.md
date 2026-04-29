@@ -5,6 +5,7 @@ A complete chat application with rooms, usernames, and typing indicators using `
 ## Overview
 
 This example builds a multi-room chat where clients can:
+
 - Connect with a username
 - Join and leave rooms
 - Send messages to a room
@@ -16,119 +17,119 @@ This example builds a multi-room chat where clients can:
 Create a function and map it to the `$connect`, `$disconnect`, `joinRoom`, `leaveRoom`, `message`, and `typing` events in your namespace configuration.
 
 ```javascript
-const ns = new RealtimeNamespace('/chat');
+const ns = new RealtimeNamespace('/chat')
 
 // ─── Connection ──────────────────────────────────────────────────
 
 ns.socket.on('$connect', async function () {
-    const username = ns.socket.handshake.auth.username || 'Anonymous';
+  const username = ns.socket.handshake.auth.username || 'Anonymous'
 
-    await kv.set(`${ns.socket.id}:username`, username);
-    await kv.set(`${ns.socket.id}:currentRoom`, null);
+  await kv.set(`${ns.socket.id}:username`, username)
+  await kv.set(`${ns.socket.id}:currentRoom`, null)
 
-    ns.socket.emit('welcome', {
-        message: `Welcome, ${username}!`,
-        socketId: ns.socket.id,
-    });
-});
+  ns.socket.emit('welcome', {
+    message: `Welcome, ${username}!`,
+    socketId: ns.socket.id
+  })
+})
 
 // ─── Room Management ─────────────────────────────────────────────
 
 ns.socket.on('joinRoom', async function (data) {
-    if (!data || typeof data.room !== 'string') return;
+  if (!data || typeof data.room !== 'string') return
 
-    const room = data.room;
-    const currentRoom = await kv.get(`${ns.socket.id}:currentRoom`);
-    const username = await kv.get(`${ns.socket.id}:username`);
+  const room = data.room
+  const currentRoom = await kv.get(`${ns.socket.id}:currentRoom`)
+  const username = await kv.get(`${ns.socket.id}:username`)
 
-    // Leave current room if already in one
-    if (currentRoom) {
-        ns.socket.to(currentRoom).emit('userLeft', { username });
-        ns.socket.leave(currentRoom);
-    }
+  // Leave current room if already in one
+  if (currentRoom) {
+    ns.socket.to(currentRoom).emit('userLeft', { username })
+    ns.socket.leave(currentRoom)
+  }
 
-    ns.socket.join(room);
-    await kv.set(`${ns.socket.id}:currentRoom`, room);
+  ns.socket.join(room)
+  await kv.set(`${ns.socket.id}:currentRoom`, room)
 
-    ns.socket.emit('joinedRoom', { room });
-    ns.socket.to(room).emit('userJoined', { username });
-});
+  ns.socket.emit('joinedRoom', { room })
+  ns.socket.to(room).emit('userJoined', { username })
+})
 
 ns.socket.on('leaveRoom', async function () {
-    const room = await kv.get(`${ns.socket.id}:currentRoom`);
-    const username = await kv.get(`${ns.socket.id}:username`);
-    if (!room) return;
+  const room = await kv.get(`${ns.socket.id}:currentRoom`)
+  const username = await kv.get(`${ns.socket.id}:username`)
+  if (!room) return
 
-    ns.socket.to(room).emit('userLeft', { username });
-    ns.socket.leave(room);
-    await kv.set(`${ns.socket.id}:currentRoom`, null);
+  ns.socket.to(room).emit('userLeft', { username })
+  ns.socket.leave(room)
+  await kv.set(`${ns.socket.id}:currentRoom`, null)
 
-    ns.socket.emit('leftRoom', { room });
-});
+  ns.socket.emit('leftRoom', { room })
+})
 
 // ─── Messaging ───────────────────────────────────────────────────
 
 ns.socket.on('message', async function (data) {
-    if (!data || typeof data.text !== 'string' || !data.text.trim()) return;
-    if (data.text.length > 2000) return;
+  if (!data || typeof data.text !== 'string' || !data.text.trim()) return
+  if (data.text.length > 2000) return
 
-    const room = await kv.get(`${ns.socket.id}:currentRoom`);
-    const username = await kv.get(`${ns.socket.id}:username`);
+  const room = await kv.get(`${ns.socket.id}:currentRoom`)
+  const username = await kv.get(`${ns.socket.id}:username`)
 
-    if (!room) {
-        ns.socket.emit('error', { message: 'Join a room first' });
-        return;
-    }
+  if (!room) {
+    ns.socket.emit('error', { message: 'Join a room first' })
+    return
+  }
 
-    const message = {
-        from: username,
-        text: data.text.trim(),
-        timestamp: Date.now(),
-    };
+  const message = {
+    from: username,
+    text: data.text.trim(),
+    timestamp: Date.now()
+  }
 
-    ns.to(room).emit('message', message);
-});
+  ns.to(room).emit('message', message)
+})
 
 ns.socket.on('typing', async function () {
-    const room = await kv.get(`${ns.socket.id}:currentRoom`);
-    const username = await kv.get(`${ns.socket.id}:username`);
-    if (!room) return;
+  const room = await kv.get(`${ns.socket.id}:currentRoom`)
+  const username = await kv.get(`${ns.socket.id}:username`)
+  if (!room) return
 
-    ns.socket.to(room).emit('typing', { username });
-});
+  ns.socket.to(room).emit('typing', { username })
+})
 
 // ─── Disconnect ──────────────────────────────────────────────────
 
 ns.socket.on('$disconnect', async function (reason) {
-    const room = await kv.get(`${ns.socket.id}:currentRoom`);
-    const username = await kv.get(`${ns.socket.id}:username`);
-    if (room) {
-        ns.to(room).emit('userLeft', { username });
-    }
-});
+  const room = await kv.get(`${ns.socket.id}:currentRoom`)
+  const username = await kv.get(`${ns.socket.id}:username`)
+  if (room) {
+    ns.to(room).emit('userLeft', { username })
+  }
+})
 
-export default ns;
+export default ns
 ```
 
 ## Namespace Configuration
 
 In the admin UI (**API Gateway → Realtime → Add Namespace**):
 
-| Setting | Value |
-|---------|-------|
+| Setting        | Value   |
+| -------------- | ------- |
 | Namespace Path | `/chat` |
-| Active | Yes |
+| Active         | Yes     |
 
 Map **all event handlers** to the same function:
 
-| Event | Function |
-|-------|----------|
-| `$connect` | `chat-handler` |
+| Event         | Function       |
+| ------------- | -------------- |
+| `$connect`    | `chat-handler` |
 | `$disconnect` | `chat-handler` |
-| `joinRoom` | `chat-handler` |
-| `leaveRoom` | `chat-handler` |
-| `message` | `chat-handler` |
-| `typing` | `chat-handler` |
+| `joinRoom`    | `chat-handler` |
+| `leaveRoom`   | `chat-handler` |
+| `message`     | `chat-handler` |
+| `typing`      | `chat-handler` |
 
 ## Client Code
 
@@ -137,88 +138,113 @@ A minimal HTML client that connects and interacts with the chat:
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Invoke Chat</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }
-        #messages { border: 1px solid #ccc; height: 300px; overflow-y: auto; padding: 0.5rem; margin-bottom: 1rem; }
-        .msg { margin: 0.25rem 0; }
-        .system { color: #888; font-style: italic; }
-        input, button { padding: 0.4rem 0.8rem; }
+      body {
+        font-family: sans-serif;
+        max-width: 600px;
+        margin: 2rem auto;
+      }
+      #messages {
+        border: 1px solid #ccc;
+        height: 300px;
+        overflow-y: auto;
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+      }
+      .msg {
+        margin: 0.25rem 0;
+      }
+      .system {
+        color: #888;
+        font-style: italic;
+      }
+      input,
+      button {
+        padding: 0.4rem 0.8rem;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Chat</h1>
     <div>
-        <input id="username" placeholder="Username" value="User1" />
-        <input id="room" placeholder="Room" value="general" />
-        <button onclick="connect()">Connect</button>
-        <button onclick="joinRoom()">Join Room</button>
+      <input id="username" placeholder="Username" value="User1" />
+      <input id="room" placeholder="Room" value="general" />
+      <button onclick="connect()">Connect</button>
+      <button onclick="joinRoom()">Join Room</button>
     </div>
     <div id="messages"></div>
     <div>
-        <input id="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMessage()" oninput="sendTyping()" />
-        <button onclick="sendMessage()">Send</button>
+      <input
+        id="text"
+        placeholder="Type a message..."
+        onkeydown="if(event.key==='Enter')sendMessage()"
+        oninput="sendTyping()"
+      />
+      <button onclick="sendMessage()">Send</button>
     </div>
     <div id="typing" style="color:#888; height:1.2em;"></div>
 
     <script src="/socket.io/socket.io.min.js"></script>
     <script>
-        let socket;
-        const messagesEl = document.getElementById('messages');
-        const typingEl = document.getElementById('typing');
+      let socket
+      const messagesEl = document.getElementById('messages')
+      const typingEl = document.getElementById('typing')
 
-        function log(text, cls) {
-            const div = document.createElement('div');
-            div.className = 'msg ' + (cls || '');
-            div.textContent = text;
-            messagesEl.appendChild(div);
-            messagesEl.scrollTop = messagesEl.scrollHeight;
-        }
+      function log(text, cls) {
+        const div = document.createElement('div')
+        div.className = 'msg ' + (cls || '')
+        div.textContent = text
+        messagesEl.appendChild(div)
+        messagesEl.scrollTop = messagesEl.scrollHeight
+      }
 
-        function connect() {
-            const username = document.getElementById('username').value;
-            // Replace with your gateway URL and project slug
-            socket = io('https://api.brianchoi.me/testing/chat', {
-                auth: { username },
-                transports: ["websocket"],
-            });
+      function connect() {
+        const username = document.getElementById('username').value
+        // Replace with your gateway URL and project slug
+        socket = io('https://api.brianchoi.me/testing/chat', {
+          auth: { username },
+          transports: ['websocket']
+        })
 
-            socket.on('connect', () => log('Connected as ' + username, 'system'));
-            socket.on('welcome', (d) => log(d.message, 'system'));
-            socket.on('userJoined', (d) => log(d.username + ' joined', 'system'));
-            socket.on('userLeft', (d) => log(d.username + ' left', 'system'));
-            socket.on('joinedRoom', (d) => log('Joined room: ' + d.room, 'system'));
-            socket.on('message', (d) => log(d.from + ': ' + d.text));
-            socket.on('typing', (d) => {
-                typingEl.textContent = d.username + ' is typing...';
-                clearTimeout(typingEl._timer);
-                typingEl._timer = setTimeout(() => { typingEl.textContent = ''; }, 2000);
-            });
-            socket.on('error', (d) => log('Error: ' + d.message, 'system'));
-            socket.on('disconnect', (r) => log('Disconnected: ' + r, 'system'));
-        }
+        socket.on('connect', () => log('Connected as ' + username, 'system'))
+        socket.on('welcome', d => log(d.message, 'system'))
+        socket.on('userJoined', d => log(d.username + ' joined', 'system'))
+        socket.on('userLeft', d => log(d.username + ' left', 'system'))
+        socket.on('joinedRoom', d => log('Joined room: ' + d.room, 'system'))
+        socket.on('message', d => log(d.from + ': ' + d.text))
+        socket.on('typing', d => {
+          typingEl.textContent = d.username + ' is typing...'
+          clearTimeout(typingEl._timer)
+          typingEl._timer = setTimeout(() => {
+            typingEl.textContent = ''
+          }, 2000)
+        })
+        socket.on('error', d => log('Error: ' + d.message, 'system'))
+        socket.on('disconnect', r => log('Disconnected: ' + r, 'system'))
+      }
 
-        function joinRoom() {
-            if (!socket) return;
-            socket.emit('joinRoom', { room: document.getElementById('room').value });
-        }
+      function joinRoom() {
+        if (!socket) return
+        socket.emit('joinRoom', { room: document.getElementById('room').value })
+      }
 
-        function sendMessage() {
-            if (!socket) return;
-            const input = document.getElementById('text');
-            if (!input.value.trim()) return;
-            socket.emit('message', { text: input.value });
-            input.value = '';
-        }
+      function sendMessage() {
+        if (!socket) return
+        const input = document.getElementById('text')
+        if (!input.value.trim()) return
+        socket.emit('message', { text: input.value })
+        input.value = ''
+      }
 
-        function sendTyping() {
-            if (!socket) return;
-            socket.emit('typing');
-        }
+      function sendTyping() {
+        if (!socket) return
+        socket.emit('typing')
+      }
     </script>
-</body>
+  </body>
 </html>
 ```
 

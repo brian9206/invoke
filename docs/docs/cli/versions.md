@@ -9,6 +9,7 @@ Manage multiple versions of your functions with the Invoke CLI.
 ## Understanding Versions
 
 Every time you upload new code, a new version is created. Each version:
+
 - Has a sequential version number (1, 2, 3, ...)
 - Can be independently activated
 - Contains the complete function code
@@ -23,6 +24,7 @@ invoke function:versions:list my-api
 ```
 
 **Example output:**
+
 ```
 📦 Function Versions:
 
@@ -36,6 +38,7 @@ invoke function:versions:list my-api
 ```
 
 **JSON output:**
+
 ```bash
 invoke function:versions:list my-api --output json
 ```
@@ -55,6 +58,7 @@ invoke function:versions:upload my-api ./my-function.zip
 ```
 
 **Example output:**
+
 ```
 Preparing upload...
 ✅ Version 4 uploaded successfully
@@ -69,6 +73,7 @@ invoke function:versions:upload my-api ./my-function --switch
 ```
 
 **Example output:**
+
 ```
 Preparing upload...
 ✅ Version 4 uploaded successfully
@@ -77,6 +82,7 @@ Switching to new version...
 ```
 
 This is equivalent to:
+
 ```bash
 invoke function:versions:upload my-api ./my-function
 invoke function:versions:switch my-api --ver 4
@@ -93,6 +99,7 @@ invoke function:versions:switch my-api --ver 2
 ```
 
 **Example output:**
+
 ```
 ✅ Switched to version 2
 ```
@@ -114,12 +121,14 @@ invoke function:versions:download my-api --ver 3 --output ./backup.zip
 ```
 
 **Example output:**
+
 ```
 Downloading version...
 ✅ Downloaded to: ./backup
 ```
 
 **Default behavior:**
+
 - If output path ends with `.zip` → saves as zip file
 - Otherwise → extracts to directory
 
@@ -134,20 +143,23 @@ invoke function:versions:delete my-api --ver 1
 ```
 
 You'll be prompted for confirmation:
+
 ```
 ? Are you sure you want to delete version 1? This cannot be undone. (y/N)
 ```
 
 **Skip confirmation:**
+
 ```bash
 invoke function:versions:delete my-api --ver 1 --force
 ```
 
 :::warning
+
 - You cannot delete the active version
 - Deleted versions cannot be recovered
 - Version numbers are not reused
-:::
+  :::
 
 ## Version Workflow Examples
 
@@ -231,6 +243,7 @@ invoke function:versions:delete my-api --ver 3 --force
 ### Version Retention
 
 Keep a few recent versions for quick rollback:
+
 - Production: Keep last 5-10 versions
 - Development: Keep only last 2-3 versions
 - Archive old versions locally if needed
@@ -238,6 +251,7 @@ Keep a few recent versions for quick rollback:
 ### Testing Versions
 
 Before switching an active version:
+
 1. Upload the new version
 2. Test it in a staging environment
 3. Review logs and metrics

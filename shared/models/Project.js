@@ -1,7 +1,7 @@
-const { Model, DataTypes } = require('sequelize');
-const { default: slugify } = require('@sindresorhus/slugify');
+const { Model, DataTypes } = require('sequelize')
+const { default: slugify } = require('@sindresorhus/slugify')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class Project extends Model {}
 
   Project.init(
@@ -9,41 +9,41 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       name: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: false
       },
       description: {
-        type: DataTypes.TEXT,
+        type: DataTypes.TEXT
       },
       created_by: {
         type: DataTypes.INTEGER,
-        references: { model: 'users', key: 'id' },
+        references: { model: 'users', key: 'id' }
       },
       is_active: {
         type: DataTypes.BOOLEAN,
-        defaultValue: true,
+        defaultValue: true
       },
       kv_storage_limit_bytes: {
         type: DataTypes.BIGINT,
-        defaultValue: 1073741824,
+        defaultValue: 1073741824
       },
       slug: {
         type: DataTypes.VIRTUAL,
         get() {
-          const name = this.getDataValue('name');
-          if (!name) return null;
-          return slugify(name);
-        },
+          const name = this.getDataValue('name')
+          if (!name) return null
+          return slugify(name)
+        }
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -51,16 +51,16 @@ module.exports = (sequelize) => {
       tableName: 'projects',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
-  Project.associate = (models) => {
-    Project.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
-    Project.hasMany(models.Function, { foreignKey: 'project_id' });
-    Project.hasMany(models.ProjectMembership, { foreignKey: 'project_id' });
-    Project.hasOne(models.ApiGatewayConfig, { foreignKey: 'project_id' });
-  };
+  Project.associate = models => {
+    Project.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' })
+    Project.hasMany(models.Function, { foreignKey: 'project_id' })
+    Project.hasMany(models.ProjectMembership, { foreignKey: 'project_id' })
+    Project.hasOne(models.ApiGatewayConfig, { foreignKey: 'project_id' })
+  }
 
-  return Project;
-};
+  return Project
+}

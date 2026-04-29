@@ -24,6 +24,7 @@ This test function verifies that the `net` module is properly exposed in the Inv
 ## Expected Results
 
 The test should complete without errors and report:
+
 - Socket creation successful
 - All socket methods available and callable
 - Method chaining working correctly

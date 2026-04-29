@@ -13,11 +13,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // Proxy log cleanup to logger service
     const logResult = await proxyToLogger<{ deleted: number; functions: number }>('/cleanup', {
       method: 'POST',
-      body: functionId ? { functionId } : {},
+      body: functionId ? { functionId } : {}
     })
 
     if (!logResult.success) {
-      return res.status(logResult.status).json(createResponse(false, null, logResult.message ?? 'Log cleanup failed', logResult.status))
+      return res
+        .status(logResult.status)
+        .json(createResponse(false, null, logResult.message ?? 'Log cleanup failed', logResult.status))
     }
 
     const { deleted = 0, functions = 0 } = logResult.data ?? {}
@@ -27,7 +29,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
       const { RefreshToken } = database.models
       expiredTokensDeleted = await RefreshToken.destroy({
-        where: { expires_at: { [Op.lt]: new Date() } },
+        where: { expires_at: { [Op.lt]: new Date() } }
       })
       if (expiredTokensDeleted > 0) {
         console.log(`Cleaned ${expiredTokensDeleted} expired refresh tokens`)
@@ -36,12 +38,17 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       console.error('Error cleaning expired refresh tokens:', tokenError)
     }
 
-    res.json(createResponse(true, {
-      deleted,
-      functions,
-      expiredTokensDeleted,
-    }, `Cleanup completed: ${deleted} logs deleted from ${functions} functions, ${expiredTokensDeleted} expired tokens removed`))
-
+    res.json(
+      createResponse(
+        true,
+        {
+          deleted,
+          functions,
+          expiredTokensDeleted
+        },
+        `Cleanup completed: ${deleted} logs deleted from ${functions} functions, ${expiredTokensDeleted} expired tokens removed`
+      )
+    )
   } catch (error) {
     console.error('Cleanup error:', error)
     res.status(500).json(createResponse(false, null, 'Cleanup failed'))
@@ -60,4 +67,3 @@ export default function routeHandler(req: NextApiRequest, res: NextApiResponse) 
   }
   return withAuthAndMethods(['POST'], { adminRequired: true })(handler)(req as AuthenticatedRequest, res)
 }
-

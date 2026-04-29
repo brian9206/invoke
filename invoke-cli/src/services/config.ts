@@ -1,19 +1,19 @@
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
-const CONFIG_DIR = path.join(os.homedir(), '.invoke');
-const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
+const CONFIG_DIR = path.join(os.homedir(), '.invoke')
+const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
 
 /**
  * Ensure config directory exists
  */
 function ensureConfigDir(): string {
   if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.mkdirSync(CONFIG_DIR, { recursive: true })
   }
 
-  return CONFIG_DIR;
+  return CONFIG_DIR
 }
 
 /**
@@ -23,13 +23,13 @@ function ensureConfigDir(): string {
 function loadConfig(): Record<string, string> {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      const content = fs.readFileSync(CONFIG_FILE, 'utf8');
-      return JSON.parse(content);
+      const content = fs.readFileSync(CONFIG_FILE, 'utf8')
+      return JSON.parse(content)
     }
   } catch (error: any) {
-    console.error('Error loading config file:', error.message);
+    console.error('Error loading config file:', error.message)
   }
-  return {};
+  return {}
 }
 
 /**
@@ -38,10 +38,10 @@ function loadConfig(): Record<string, string> {
  */
 function saveConfig(config: Record<string, string>): void {
   try {
-    ensureConfigDir();
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+    ensureConfigDir()
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8')
   } catch (error: any) {
-    throw new Error(`Failed to save config: ${error.message}`);
+    throw new Error(`Failed to save config: ${error.message}`)
   }
 }
 
@@ -52,11 +52,11 @@ function saveConfig(config: Record<string, string>): void {
 function getApiKey(): string | null {
   // Environment variable takes precedence
   if (process.env.INVOKE_API_KEY) {
-    return process.env.INVOKE_API_KEY;
+    return process.env.INVOKE_API_KEY
   }
 
-  const config = loadConfig();
-  return config.apiKey || null;
+  const config = loadConfig()
+  return config.apiKey || null
 }
 
 /**
@@ -66,11 +66,11 @@ function getApiKey(): string | null {
 function getBaseUrl(): string {
   // Environment variable takes precedence
   if (process.env.INVOKE_BASE_URL) {
-    return process.env.INVOKE_BASE_URL;
+    return process.env.INVOKE_BASE_URL
   }
 
-  const config = loadConfig();
-  return config.baseUrl || 'http://localhost:3000';
+  const config = loadConfig()
+  return config.baseUrl || 'http://localhost:3000'
 }
 
 /**
@@ -79,15 +79,15 @@ function getBaseUrl(): string {
  */
 function getExecutionUrl(): string {
   if (process.env.INVOKE_EXECUTION_SERVICE_URL) {
-    return process.env.INVOKE_EXECUTION_SERVICE_URL;
+    return process.env.INVOKE_EXECUTION_SERVICE_URL
   }
 
   if (process.env.EXECUTION_SERVICE_URL) {
-    return process.env.EXECUTION_SERVICE_URL;
+    return process.env.EXECUTION_SERVICE_URL
   }
 
-  const config = loadConfig();
-  return config.executionUrl || getBaseUrl();
+  const config = loadConfig()
+  return config.executionUrl || getBaseUrl()
 }
 
 /**
@@ -96,11 +96,11 @@ function getExecutionUrl(): string {
 function clearConfig(): void {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      fs.unlinkSync(CONFIG_FILE);
+      fs.unlinkSync(CONFIG_FILE)
     }
   } catch (error: any) {
-    throw new Error(`Failed to clear config: ${error.message}`);
+    throw new Error(`Failed to clear config: ${error.message}`)
   }
 }
 
-export { ensureConfigDir,loadConfig, saveConfig, getApiKey, getBaseUrl, getExecutionUrl, clearConfig, CONFIG_FILE };
+export { ensureConfigDir, loadConfig, saveConfig, getApiKey, getBaseUrl, getExecutionUrl, clearConfig, CONFIG_FILE }

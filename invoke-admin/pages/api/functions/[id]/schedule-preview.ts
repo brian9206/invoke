@@ -4,7 +4,7 @@ import { CronJob } from 'cron'
 
 function calculateNextExecution(cronExpression: string): Date | null {
   try {
-    const job = new CronJob(cronExpression, function() {})
+    const job = new CronJob(cronExpression, function () {})
     return job.nextDate().toJSDate()
   } catch {
     return null
@@ -27,8 +27,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     return res.json({
       success: true,
       data: {
-        next_execution: nextExecution,
-      },
+        next_execution: nextExecution
+      }
     })
   } catch (error) {
     console.error('Schedule preview API error:', error)

@@ -8,7 +8,7 @@
  * All services share this factory; per-service pool sizes are passed via options.
  */
 
-const { Sequelize } = require('sequelize');
+const { Sequelize } = require('sequelize')
 
 /**
  * @param {object} [options]
@@ -21,27 +21,22 @@ function createDatabase(options = {}) {
     min: 0,
     acquire: 30000,
     idle: 10000,
-    ...options.pool,
-  };
+    ...options.pool
+  }
 
-  return new Sequelize(
-    process.env.DB_NAME || 'invoke_db',
-    process.env.DB_USER || 'postgres',
-    process.env.DB_PASSWORD,
-    {
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT, 10) || 5432,
-      dialect: 'postgres',
-      pool,
-      logging: process.env.SEQUELIZE_LOG === 'true' ? console.log : false,
-      define: {
-        // Applied globally; individual models can override.
-        underscored: true,
-        timestamps: false,
-        freezeTableName: true,
-      },
+  return new Sequelize(process.env.DB_NAME || 'invoke_db', process.env.DB_USER || 'postgres', process.env.DB_PASSWORD, {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || 5432,
+    dialect: 'postgres',
+    pool,
+    logging: process.env.SEQUELIZE_LOG === 'true' ? console.log : false,
+    define: {
+      // Applied globally; individual models can override.
+      underscored: true,
+      timestamps: false,
+      freezeTableName: true
     }
-  );
+  })
 }
 
-module.exports = { createDatabase };
+module.exports = { createDatabase }

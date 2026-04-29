@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 
 declare global {
   interface Window {
-    turnstile?: any;
+    turnstile?: any
   }
 }
 
@@ -40,7 +40,7 @@ export default function Login() {
         }
 
         // Define the callback before loading the script
-        (window as any).onTurnstileSuccess = (token: string) => {
+        ;(window as any).onTurnstileSuccess = (token: string) => {
           console.log('Turnstile success:', token)
           setTurnstileToken(token)
         }
@@ -61,7 +61,7 @@ export default function Login() {
                   console.log('Turnstile callback triggered:', token)
                   setTurnstileToken(token)
                 },
-                theme: 'dark',
+                theme: 'dark'
               })
               console.log('Turnstile widget rendered with ID:', turnstileIdRef.current)
             } catch (error) {
@@ -86,16 +86,16 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!turnstileToken) {
       toast.error('Please complete the verification challenge')
       return
     }
-    
+
     setLoading(true)
 
     try {
-      const {success, message} = await login(username, password, turnstileToken)
+      const { success, message } = await login(username, password, turnstileToken)
       if (success) {
         toast.success('Welcome to Invoke !')
         router.push('/admin')
@@ -123,71 +123,64 @@ export default function Login() {
     <>
       <Head>
         <title>Welcome to Invoke Admin</title>
-        <meta name="description" content="Sign in to Invoke Admin Panel" />
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name='description' content='Sign in to Invoke Admin Panel' />
+        <link rel='icon' type='image/svg+xml' href='/favicon.svg' />
       </Head>
-      <div className="min-h-screen bg-background flex items-center justify-center px-4">
-        <div className="w-full max-w-md space-y-6">
-          <div className="text-center">
-            <div className="flex justify-center">
-              <Rocket className="w-14 h-14 text-primary" />
+      <div className='min-h-screen bg-background flex items-center justify-center px-4'>
+        <div className='w-full max-w-md space-y-6'>
+          <div className='text-center'>
+            <div className='flex justify-center'>
+              <Rocket className='w-14 h-14 text-primary' />
             </div>
-            <h2 className="mt-4 text-3xl font-bold text-foreground">Sign in to Invoke</h2>
-            <p className="mt-2 text-muted-foreground text-sm">
-              Access your serverless function management panel
-            </p>
+            <h2 className='mt-4 text-3xl font-bold text-foreground'>Sign in to Invoke</h2>
+            <p className='mt-2 text-muted-foreground text-sm'>Access your serverless function management panel</p>
           </div>
 
           <Card>
-            <CardContent className="pt-6">
-              <form className="space-y-4" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="username" className="flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5" />
+            <CardContent className='pt-6'>
+              <form className='space-y-4' onSubmit={handleSubmit}>
+                <div className='space-y-2'>
+                  <Label htmlFor='username' className='flex items-center gap-1.5'>
+                    <User className='w-3.5 h-3.5' />
                     Username
                   </Label>
                   <Input
-                    id="username"
-                    name="username"
-                    type="text"
-                    autoComplete="username"
+                    id='username'
+                    name='username'
+                    type='text'
+                    autoComplete='username'
                     required
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter your username"
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder='Enter your username'
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5" />
+                <div className='space-y-2'>
+                  <Label htmlFor='password' className='flex items-center gap-1.5'>
+                    <Lock className='w-3.5 h-3.5' />
                     Password
                   </Label>
                   <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
+                    id='password'
+                    name='password'
+                    type='password'
+                    autoComplete='current-password'
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder='Enter your password'
                   />
                 </div>
 
                 <div>
-                  <div ref={turnstileWidgetRef} className="flex justify-center" />
+                  <div ref={turnstileWidgetRef} className='flex justify-center' />
                 </div>
 
-                <Button
-                  type="submit"
-                  disabled={loading || !turnstileToken}
-                  className="w-full"
-                  size="lg"
-                >
+                <Button type='submit' disabled={loading || !turnstileToken} className='w-full' size='lg'>
                   {loading ? (
-                    <span className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <span className='flex items-center gap-2'>
+                      <div className='animate-spin rounded-full h-4 w-4 border-b-2 border-white' />
                       Signing in...
                     </span>
                   ) : (
@@ -198,7 +191,7 @@ export default function Login() {
             </CardContent>
           </Card>
 
-          <p className="text-center text-sm text-muted-foreground">
+          <p className='text-center text-sm text-muted-foreground'>
             Need an admin account? Contact your system administrator.
           </p>
         </div>

@@ -18,7 +18,7 @@ export async function proxyToLogger<T = unknown>(
     method?: 'GET' | 'POST' | 'DELETE'
     body?: Record<string, unknown>
     query?: Record<string, string | number | boolean | undefined | null>
-  } = {},
+  } = {}
 ): Promise<ProxyResult<T>> {
   const { method = 'GET', body, query } = opts
 
@@ -32,7 +32,7 @@ export async function proxyToLogger<T = unknown>(
   }
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json'
   }
   if (INTERNAL_SECRET) {
     headers['x-internal-secret'] = INTERNAL_SECRET
@@ -40,7 +40,7 @@ export async function proxyToLogger<T = unknown>(
 
   const fetchOpts: RequestInit = {
     method,
-    headers,
+    headers
   }
   if (body !== undefined && method !== 'GET') {
     fetchOpts.body = JSON.stringify(body)
@@ -53,6 +53,6 @@ export async function proxyToLogger<T = unknown>(
     status: response.status,
     success: json.success ?? response.ok,
     data: (json.data as T) ?? null,
-    message: json.message ?? null,
+    message: json.message ?? null
   }
 }

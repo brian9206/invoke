@@ -31,7 +31,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
       return res.status(200).json(createResponse(true, null, 'API key revoked successfully'))
     }
-
   } catch (error) {
     console.error('API key delete endpoint error:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))

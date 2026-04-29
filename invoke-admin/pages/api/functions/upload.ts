@@ -1,4 +1,4 @@
-export const runtime = 'nodejs';
+export const runtime = 'nodejs'
 
 import { NextApiRequest, NextApiResponse } from 'next'
 import { AuthenticatedRequest, withAuthOrApiKeyAndMethods } from '@/lib/middleware'
@@ -20,15 +20,15 @@ import runMiddleware from '@/lib/multer'
 const upload = multer({
   dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['application/zip', 'application/x-gzip', 'application/gzip']
     const allowedExtensions = ['.zip', '.tar.gz', '.tgz']
-    
+
     const hasValidType = allowedTypes.includes(file.mimetype)
     const hasValidExtension = allowedExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext))
-    
+
     if (hasValidType || hasValidExtension) {
       cb(null, true)
     } else {
@@ -40,8 +40,8 @@ const upload = multer({
 // Disable body parser for multer
 export const config = {
   api: {
-    bodyParser: false,
-  },
+    bodyParser: false
+  }
 }
 
 // Handler logic separated so we can apply middleware wrappers below.
@@ -70,21 +70,32 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (!req.user?.isAdmin && projectId) {
       const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
       if (!access.allowed) {
-        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to upload functions', 403))
+        return res
+          .status(403)
+          .json(createResponse(false, null, access.message || 'Insufficient permissions to upload functions', 403))
       }
     }
 
     // Check if function already exists by name - reject duplicates for new uploads
-    const { Function: FunctionModel, FunctionVersion } = database.models;
-    const existingFn = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] });
+    const { Function: FunctionModel, FunctionVersion } = database.models
+    const existingFn = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] })
 
     if (existingFn) {
-      return res.status(409).json(createResponse(false, null, `Function with name "${functionName}" already exists. Use the update function feature to modify existing functions.`, 409))
+      return res
+        .status(409)
+        .json(
+          createResponse(
+            false,
+            null,
+            `Function with name "${functionName}" already exists. Use the update function feature to modify existing functions.`,
+            409
+          )
+        )
     }
 
     // New function only
     const functionId = uuidv4()
-    const version = 1  // Integer version instead of semantic version
+    const version = 1 // Integer version instead of semantic version
     const isUpdate = false
 
     // Prepare package for upload to MinIO
@@ -95,21 +106,18 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (originalName.endsWith('.zip')) {
       const extractDir = path.join(path.dirname(packagePath), `extract_${Date.now()}`)
       const tgzPath = path.join(path.dirname(packagePath), `${functionId}_${version}.tgz`)
-      
+
       try {
         // Extract zip
         const zip = new AdmZip(packagePath)
         zip.extractAllTo(extractDir, true)
-        
+
         // Create tar.gz
-        await tar.create(
-          { gzip: true, file: tgzPath, cwd: extractDir },
-          fs.readdirSync(extractDir)
-        )
-        
+        await tar.create({ gzip: true, file: tgzPath, cwd: extractDir }, fs.readdirSync(extractDir))
+
         // Update package path
         packagePath = tgzPath
-        
+
         // Clean up
         await fs.remove(extractDir)
       } catch (error) {
@@ -132,7 +140,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       api_key: apiKey,
       is_active: true,
       project_id: projectId
-    });
+    })
 
     // Create first version record
     const firstVersion = await FunctionVersion.create({
@@ -142,12 +150,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       file_size: uploadResult.size,
       package_hash: uploadResult.hash,
       created_by: req.user!.id
-    });
+    })
     console.log(`✅ Version record created with ID: ${firstVersion.id}`)
 
     // Update function to reference the active version
     console.log(`🔗 Setting active version for function ${functionId}`)
-    await FunctionModel.update({ active_version_id: firstVersion.id }, { where: { id: functionId } });
+    await FunctionModel.update({ active_version_id: firstVersion.id }, { where: { id: functionId } })
     console.log(`✅ Active version set to: ${firstVersion.id}`)
 
     // Enqueue build with after_build_action='switch' (deploy = upload + build + switch)
@@ -157,10 +165,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       version_id: firstVersion.id,
       status: 'queued',
       after_build_action: 'switch',
-      created_by: req.user!.id,
+      created_by: req.user!.id
     })
     await FunctionVersion.update({ build_status: 'queued' }, { where: { id: firstVersion.id } })
-    
+
     console.log(`✅ Created new function ${functionName} version ${version}`)
 
     // Clean up temporary files
@@ -170,24 +178,29 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Return function details with version info
-    const uploadedFn = await FunctionModel.findByPk(functionId, {
-      include: [{ model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size', 'package_hash'], required: false }],
-    }) as any
+    const uploadedFn = (await FunctionModel.findByPk(functionId, {
+      include: [
+        {
+          model: FunctionVersion,
+          as: 'activeVersion',
+          attributes: ['version', 'file_size', 'package_hash'],
+          required: false
+        }
+      ]
+    })) as any
     const uploadedRaw = uploadedFn.toJSON()
     const finalData = {
       ...uploadedRaw,
       version: uploadedRaw.activeVersion?.version ?? null,
       file_size: uploadedRaw.activeVersion?.file_size ?? null,
-      package_hash: uploadedRaw.activeVersion?.package_hash ?? null,
+      package_hash: uploadedRaw.activeVersion?.package_hash ?? null
     }
     delete finalData.activeVersion
 
-    return res.status(201).json(createResponse(true, finalData,
-      'Function uploaded successfully', 201))
-
+    return res.status(201).json(createResponse(true, finalData, 'Function uploaded successfully', 201))
   } catch (error) {
     console.error('Upload error:', error)
-    
+
     // Clean up uploaded file on error
     if (uploadedFile && uploadedFile.path) {
       try {

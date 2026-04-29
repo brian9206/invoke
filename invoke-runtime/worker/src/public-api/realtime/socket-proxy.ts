@@ -2,67 +2,61 @@
 // SocketProxy — Per-invocation socket representation exposed as `ns.socket`
 // ============================================================================
 
-import type { RealtimeClient } from './client';
-import { BroadcastOperator } from './broadcast-operator';
+import type { RealtimeClient } from './client'
+import { BroadcastOperator } from './broadcast-operator'
 
 /** Metadata about the current realtime socket handshake. */
 export interface Handshake {
   /** HTTP headers sent during the initial handshake request. */
-  headers: Record<string, unknown>;
+  headers: Record<string, unknown>
   /** Query string parameters from the handshake URL. */
-  query: Record<string, unknown>;
+  query: Record<string, unknown>
   /** Auth payload passed by the client (e.g. token). */
-  auth: Record<string, unknown>;
+  auth: Record<string, unknown>
   /** Remote IP address of the connecting client. */
-  address?: string;
+  address?: string
   /** Timestamp string of when the handshake occurred. */
-  time?: string;
+  time?: string
   /** Reason the socket was disconnected, if applicable. */
-  disconnectReason?: string;
+  disconnectReason?: string
 }
 
-type EventHandler = (...args: unknown[]) => unknown;
+type EventHandler = (...args: unknown[]) => unknown
 
 /**
  * Socket-like API exposed as `ns.socket` for realtime event handlers.
  */
 export class SocketProxy {
   /** Unique socket identifier assigned by the server. */
-  id: string;
+  id: string
   /** Set of room names the socket is currently joined to. */
-  rooms: Set<string>;
+  rooms: Set<string>
   /** Metadata from the initial socket handshake. */
-  handshake: Handshake;
+  handshake: Handshake
   /** `true` while the socket is connected; `false` after disconnection. */
-  connected: boolean;
+  connected: boolean
   /** Arbitrary per-socket data storage for use within event handlers. */
-  data: Record<string, unknown>;
+  data: Record<string, unknown>
   /** Reason the socket disconnected, or `null` if still connected. */
-  disconnectReason: string | null;
+  disconnectReason: string | null
   /** @internal */
-  _namespace: string | null;
+  _namespace: string | null
   /** @internal */
-  _handlers: Record<string, EventHandler>;
+  _handlers: Record<string, EventHandler>
   /** @internal */
-  private _client: RealtimeClient;
+  private _client: RealtimeClient
 
   /** @internal */
-  constructor(
-    client: RealtimeClient,
-    id: string,
-    rooms: string[],
-    handshake: Handshake,
-    namespace: string | null,
-  ) {
-    this._client = client;
-    this.id = id;
-    this.rooms = new Set(rooms);
-    this.handshake = handshake;
-    this.connected = true;
-    this.data = {};
-    this.disconnectReason = null;
-    this._namespace = namespace;
-    this._handlers = {};
+  constructor(client: RealtimeClient, id: string, rooms: string[], handshake: Handshake, namespace: string | null) {
+    this._client = client
+    this.id = id
+    this.rooms = new Set(rooms)
+    this.handshake = handshake
+    this.connected = true
+    this.data = {}
+    this.disconnectReason = null
+    this._namespace = namespace
+    this._handlers = {}
   }
 
   /**
@@ -74,15 +68,15 @@ export class SocketProxy {
     rooms: string[],
     handshake: Handshake,
     namespace: string | null,
-    disconnectReason: string | null,
+    disconnectReason: string | null
   ): this {
-    this.id = id || '';
-    this.rooms = new Set(rooms || []);
-    this.handshake = handshake || { headers: {}, query: {}, auth: {} };
-    this.connected = disconnectReason == null;
-    this.disconnectReason = disconnectReason;
-    this._namespace = namespace || this._namespace || null;
-    return this;
+    this.id = id || ''
+    this.rooms = new Set(rooms || [])
+    this.handshake = handshake || { headers: {}, query: {}, auth: {} }
+    this.connected = disconnectReason == null
+    this.disconnectReason = disconnectReason
+    this._namespace = namespace || this._namespace || null
+    return this
   }
 
   /**
@@ -92,8 +86,8 @@ export class SocketProxy {
    * @returns The socket instance.
    */
   on(event: string, handler: EventHandler): this {
-    this._handlers[event] = handler;
-    return this;
+    this._handlers[event] = handler
+    return this
   }
 
   /**
@@ -103,16 +97,16 @@ export class SocketProxy {
    * @returns The socket instance.
    */
   once(event: string, handler: EventHandler): this {
-    const self = this;
-    let fired = false;
+    const self = this
+    let fired = false
     this._handlers[event] = function (...args: unknown[]) {
       if (!fired) {
-        fired = true;
-        delete self._handlers[event];
-        return handler(...args);
+        fired = true
+        delete self._handlers[event]
+        return handler(...args)
       }
-    };
-    return this;
+    }
+    return this
   }
 
   /**
@@ -127,8 +121,8 @@ export class SocketProxy {
       namespace: this._namespace,
       socketId: this.id,
       event,
-      args,
-    });
+      args
+    })
   }
 
   /**
@@ -141,8 +135,8 @@ export class SocketProxy {
       command: 'join',
       namespace: this._namespace,
       socketId: this.id,
-      roomIds: Array.isArray(room) ? room : [room],
-    });
+      roomIds: Array.isArray(room) ? room : [room]
+    })
   }
 
   /**
@@ -155,8 +149,8 @@ export class SocketProxy {
       command: 'leave',
       namespace: this._namespace,
       socketId: this.id,
-      roomIds: Array.isArray(room) ? room : [room],
-    });
+      roomIds: Array.isArray(room) ? room : [room]
+    })
   }
 
   /**
@@ -165,13 +159,13 @@ export class SocketProxy {
    * @returns A promise that resolves when the command is accepted.
    */
   disconnect(close?: boolean): Promise<void> {
-    this.connected = false;
+    this.connected = false
     return this._client.send({
       command: 'disconnect',
       namespace: this._namespace,
       socketId: this.id,
-      close: close !== false,
-    });
+      close: close !== false
+    })
   }
 
   /**
@@ -180,7 +174,7 @@ export class SocketProxy {
    * @returns A chainable broadcast operator.
    */
   to(room: string): BroadcastOperator {
-    return new BroadcastOperator(this._client, this._namespace, [room], [], this.id);
+    return new BroadcastOperator(this._client, this._namespace, [room], [], this.id)
   }
 
   /**
@@ -189,7 +183,7 @@ export class SocketProxy {
    * @returns A chainable broadcast operator.
    */
   in(room: string): BroadcastOperator {
-    return this.to(room);
+    return this.to(room)
   }
 
   /**
@@ -198,7 +192,7 @@ export class SocketProxy {
    * @returns A chainable broadcast operator.
    */
   except(room: string): BroadcastOperator {
-    return new BroadcastOperator(this._client, this._namespace, [], [room], this.id);
+    return new BroadcastOperator(this._client, this._namespace, [], [room], this.id)
   }
 
   /**
@@ -206,6 +200,6 @@ export class SocketProxy {
    * @returns A chainable broadcast operator.
    */
   get broadcast(): BroadcastOperator {
-    return new BroadcastOperator(this._client, this._namespace, [], [], this.id);
+    return new BroadcastOperator(this._client, this._namespace, [], [], this.id)
   }
 }

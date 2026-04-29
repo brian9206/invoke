@@ -51,20 +51,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     include: [
       {
         model: FunctionModel,
-        attributes: ['id', 'name', 'project_id'],
+        attributes: ['id', 'name', 'project_id']
       },
       {
         model: FunctionVersion,
         as: 'version',
-        attributes: ['id', 'version'],
+        attributes: ['id', 'version']
       },
       {
         model: User,
         as: 'creator',
         attributes: ['username'],
-        required: false,
-      },
-    ],
+        required: false
+      }
+    ]
   })
 
   if (!build) {
@@ -76,7 +76,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   // Access control: non-admins must be a member of the function's project
   if (!req.user?.isAdmin && raw.Function?.project_id) {
     const membership = await ProjectMembership.findOne({
-      where: { user_id: req.user!.id, project_id: raw.Function.project_id },
+      where: { user_id: req.user!.id, project_id: raw.Function.project_id }
     })
     if (!membership) {
       return res.status(403).json(createResponse(false, null, 'Access denied', 403))
@@ -96,16 +96,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     await FunctionBuild.update(
       { status: 'cancelled', error_message: 'Cancelled by user', completed_at: new Date() },
-      { where: { id: buildId } },
+      { where: { id: buildId } }
     )
 
     // Reset version build_status if it was queued/building
-    const versionStatus = raw.version ? (await FunctionVersion.findByPk(raw.version_id, { attributes: ['build_status'] }))?.build_status : null
+    const versionStatus = raw.version
+      ? (await FunctionVersion.findByPk(raw.version_id, { attributes: ['build_status'] }))?.build_status
+      : null
     if (versionStatus === 'queued' || versionStatus === 'building') {
-      await FunctionVersion.update(
-        { build_status: 'none' },
-        { where: { id: raw.version_id } },
-      )
+      await FunctionVersion.update({ build_status: 'none' }, { where: { id: raw.version_id } })
     }
 
     return res.status(200).json(createResponse(true, { id: buildId, status: 'cancelled' }, 'Build cancelled'))
@@ -118,15 +117,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       query: {
         logType: 'build',
         q: `build.id:"${buildId}"`,
-        limit: '500',
-      },
+        limit: '500'
+      }
     })
     if (result.success && result.data?.logs) {
       logs = result.data.logs
         .sort((a: any, b: any) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime())
         .map((l: any) => ({
           message: String(l.payload?.message ?? ''),
-          timestamp: String(l.executed_at ?? ''),
+          timestamp: String(l.executed_at ?? '')
         }))
     }
   } catch {
@@ -151,7 +150,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     created_at: raw.created_at,
     started_at: raw.started_at,
     completed_at: raw.completed_at,
-    logs,
+    logs
   }
 
   return res.status(200).json(createResponse(true, response, 'Build retrieved'))

@@ -21,7 +21,9 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
   const { files } = req.body
 
   if (!functionId || !versionId || !files || !Array.isArray(files)) {
-    return res.status(400).json(createResponse(false, null, 'Function ID, Version ID and files array are required', 400))
+    return res
+      .status(400)
+      .json(createResponse(false, null, 'Function ID, Version ID and files array are required', 400))
   }
 
   try {
@@ -30,15 +32,17 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
     }
 
     const { FunctionVersion, Function: FunctionModel, Project } = database.models
-    const versionRecord = await FunctionVersion.findOne({
+    const versionRecord = (await FunctionVersion.findOne({
       where: { id: versionId, function_id: functionId },
-      include: [{
-        model: FunctionModel,
-        attributes: ['name', 'project_id', 'active_version_id'],
-        required: true,
-        include: [{ model: Project, attributes: ['name'], required: false }],
-      }],
-    }) as any
+      include: [
+        {
+          model: FunctionModel,
+          attributes: ['name', 'project_id', 'active_version_id'],
+          required: true,
+          include: [{ model: Project, attributes: ['name'], required: false }]
+        }
+      ]
+    })) as any
 
     if (!versionRecord) {
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
@@ -52,7 +56,9 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
       if (projectId) {
         const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
         if (!access.allowed) {
-          return res.status(403).json(createResponse(false, null, access.message || 'Access denied to this project', 403))
+          return res
+            .status(403)
+            .json(createResponse(false, null, access.message || 'Access denied to this project', 403))
         }
       }
     }
@@ -61,7 +67,16 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
     const isActive = versionRaw.id === versionRaw.Function?.active_version_id
     const buildStatus = versionRaw.build_status || 'none'
     if (buildStatus !== 'none' || isActive) {
-      return res.status(409).json(createResponse(false, null, 'Cannot overwrite a version that has been built or is active. Save as a new version instead.', 409))
+      return res
+        .status(409)
+        .json(
+          createResponse(
+            false,
+            null,
+            'Cannot overwrite a version that has been built or is active. Save as a new version instead.',
+            409
+          )
+        )
     }
 
     const tempBaseDir = process.env.TEMP_DIR || './.cache'
@@ -86,7 +101,7 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
       await s3Service.fPutObject(bucketName, objectKey, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId as string,
-        'Version': String(versionRaw.version),
+        Version: String(versionRaw.version)
       })
 
       // Update version record
@@ -98,11 +113,17 @@ async function handlePut(req: AuthenticatedRequest, res: any) {
       await fs.remove(tempDir)
       await fs.remove(tgzPath)
 
-      return res.status(200).json(createResponse(true, {
-        versionId,
-        version: versionRaw.version,
-        size: stats.size,
-      }, `Version ${versionRaw.version} updated successfully`))
+      return res.status(200).json(
+        createResponse(
+          true,
+          {
+            versionId,
+            version: versionRaw.version,
+            size: stats.size
+          },
+          `Version ${versionRaw.version} updated successfully`
+        )
+      )
     } catch (error) {
       try {
         await fs.remove(tempDir)
@@ -133,15 +154,17 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
 
     // Get version details
     const { FunctionVersion, Function: FunctionModel, Project } = database.models
-    const versionRecord = await FunctionVersion.findOne({
+    const versionRecord = (await FunctionVersion.findOne({
       where: { id: versionId, function_id: functionId },
-      include: [{
-        model: FunctionModel,
-        attributes: ['name', 'project_id', 'active_version_id'],
-        required: true,
-        include: [{ model: Project, attributes: ['name'], required: false }],
-      }],
-    }) as any
+      include: [
+        {
+          model: FunctionModel,
+          attributes: ['name', 'project_id', 'active_version_id'],
+          required: true,
+          include: [{ model: Project, attributes: ['name'], required: false }]
+        }
+      ]
+    })) as any
 
     if (!versionRecord) {
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
@@ -152,7 +175,7 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
       ...versionRaw,
       function_name: versionRaw.Function?.name ?? null,
       project_id: versionRaw.Function?.project_id ?? null,
-      project_name: versionRaw.Function?.Project?.name ?? null,
+      project_name: versionRaw.Function?.Project?.name ?? null
     }
     delete versionData.Function
     // Verify project membership for non-admins
@@ -162,7 +185,7 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
         return res.status(403).json(createResponse(false, null, access.message || 'Access denied to this project', 403))
       }
     }
-    
+
     // Check if object_key exists, if not use package_path as fallback, or construct it
     let objectKey = versionData.object_key
     if (!objectKey) {
@@ -180,22 +203,22 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
 
     // Download file from MinIO
     const tempFilePath = path.join(tempBaseDir, `${versionId}_download`)
-    
+
     // Ensure clean download by removing any existing partial file
     try {
       await fs.remove(tempFilePath)
     } catch (removeError) {
       // Ignore error if file doesn't exist
     }
-    
+
     try {
       console.log('Attempting to download from S3:', objectKey)
       const bucketName = process.env.S3_BUCKET || 'invoke-packages'
-      
+
       // Use getObjectStream and write to file
       const stream = await s3Service.getObjectStream(bucketName, objectKey)
       const writeStream = fs.createWriteStream(tempFilePath)
-      
+
       await new Promise<void>((resolve, reject) => {
         stream.on('error', reject)
         writeStream.on('error', reject)
@@ -232,33 +255,38 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
 
       // Verify extraction worked
       const extractedItems = await fs.readdir(tempExtractPath)
-      
+
       if (extractedItems.length === 0) {
         throw new Error('No files were extracted from the archive')
       }
 
       // Read all files recursively
       const files = await readDirectoryRecursively(tempExtractPath)
-      
+
       // Clean up temporary files
       await fs.remove(tempFilePath)
       await fs.remove(tempExtractPath)
 
-      return res.status(200).json(createResponse(true, {
-        functionId,
-        versionId,
-        version: versionData.version,
-        functionName: versionData.function_name,
-        project_id: versionData.project_id,
-        project_name: versionData.project_name,
-        build_status: versionData.build_status || 'none',
-        is_active: versionData.id === versionRaw.Function?.active_version_id,
-        files
-      }, 'Source code retrieved successfully'))
-
+      return res.status(200).json(
+        createResponse(
+          true,
+          {
+            functionId,
+            versionId,
+            version: versionData.version,
+            functionName: versionData.function_name,
+            project_id: versionData.project_id,
+            project_name: versionData.project_name,
+            build_status: versionData.build_status || 'none',
+            is_active: versionData.id === versionRaw.Function?.active_version_id,
+            files
+          },
+          'Source code retrieved successfully'
+        )
+      )
     } catch (extractError) {
       console.error('Error extracting files:', extractError)
-      
+
       // Clean up
       try {
         await fs.remove(tempFilePath)
@@ -266,10 +294,9 @@ async function handleGet(req: AuthenticatedRequest, res: any) {
       } catch (cleanupError) {
         console.error('Cleanup error:', cleanupError)
       }
-      
+
       return res.status(500).json(createResponse(false, null, 'Failed to extract function package', 500))
     }
-
   } catch (error) {
     console.error('Error getting source code:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
@@ -295,17 +322,17 @@ async function writeFilesToDirectory(files: any[], baseDir: string): Promise<voi
 
 async function readDirectoryRecursively(dirPath: string, relativePath = ''): Promise<any[]> {
   const files: any[] = []
-  
+
   try {
     const items = await fs.readdir(dirPath)
-    
+
     for (const item of items) {
       const itemPath = path.join(dirPath, item)
       const itemRelativePath = relativePath ? path.join(relativePath, item) : item
-      
+
       try {
         const stats = await fs.stat(itemPath)
-        
+
         if (stats.isDirectory()) {
           const subFiles = await readDirectoryRecursively(itemPath, itemRelativePath)
           files.push({
@@ -333,6 +360,6 @@ async function readDirectoryRecursively(dirPath: string, relativePath = ''): Pro
     console.error(`Error reading directory ${dirPath}:`, error)
     throw error
   }
-  
+
   return files
 }

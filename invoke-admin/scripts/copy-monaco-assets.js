@@ -9,7 +9,7 @@ async function copyMonacoAssets() {
   await fs.copy(sourceDir, targetDir, { overwrite: true })
 }
 
-copyMonacoAssets().catch((error) => {
+copyMonacoAssets().catch(error => {
   console.error('Failed to copy Monaco assets', error)
   process.exitCode = 1
 })

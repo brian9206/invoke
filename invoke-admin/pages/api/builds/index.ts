@@ -11,7 +11,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const limit = parseInt((req.query.limit as string) || '20', 10)
   const offset = (page - 1) * limit
   const projectId = req.query.project_id as string | undefined
-  const search = (req.query.search as string || '').trim()
+  const search = ((req.query.search as string) || '').trim()
   const status = req.query.status as string | undefined
 
   // Build where clause — filter by project via Function association
@@ -30,12 +30,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { ProjectMembership } = database.models as any
     const memberships = await ProjectMembership.findAll({
       where: { user_id: req.user!.id },
-      attributes: ['project_id'],
+      attributes: ['project_id']
     })
     const memberProjectIds = memberships.map((m: any) => m.project_id)
-    functionWhere.project_id = projectId
-      ? memberProjectIds.includes(projectId) ? projectId : null
-      : memberProjectIds
+    functionWhere.project_id = projectId ? (memberProjectIds.includes(projectId) ? projectId : null) : memberProjectIds
   }
 
   const { count, rows } = await FunctionBuild.findAndCountAll({
@@ -45,23 +43,23 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         model: FunctionModel,
         attributes: ['id', 'name', 'project_id'],
         where: Object.keys(functionWhere).length ? functionWhere : undefined,
-        required: true,
+        required: true
       },
       {
         model: FunctionVersion,
         as: 'version',
-        attributes: ['id', 'version'],
+        attributes: ['id', 'version']
       },
       {
         model: User,
         as: 'creator',
         attributes: ['username'],
-        required: false,
-      },
+        required: false
+      }
     ],
     order: [['created_at', 'DESC']],
     limit,
-    offset,
+    offset
   })
 
   const builds = rows.map((b: any) => {
@@ -79,11 +77,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       created_by_name: raw.creator?.username ?? null,
       created_at: raw.created_at,
       started_at: raw.started_at,
-      completed_at: raw.completed_at,
+      completed_at: raw.completed_at
     }
   })
 
-  return res.status(200).json(createResponse(true, { builds, total: count, page, limit }, 'Builds retrieved successfully'))
+  return res
+    .status(200)
+    .json(createResponse(true, { builds, total: count, page, limit }, 'Builds retrieved successfully'))
 }
 
 export default withAuthAndMethods(['GET'])(handler)

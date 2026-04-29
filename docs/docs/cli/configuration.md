@@ -27,6 +27,7 @@ invoke config:set \
 ```
 
 **Default URLs:**
+
 - Admin API: `http://localhost:3000`
 - Execution Service: `http://localhost:3001`
 
@@ -39,6 +40,7 @@ invoke config:show
 ```
 
 **Example output:**
+
 ```
 ⚙️  Configuration:
 

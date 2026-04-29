@@ -3,61 +3,61 @@
 // ============================================================================
 
 /** @internal */
-import type { RequestData } from '../../protocol';
-import { parseCookies, matchMimeType, parseAcceptHeader } from './helpers';
+import type { RequestData } from '../../protocol'
+import { parseCookies, matchMimeType, parseAcceptHeader } from './helpers'
 
 /**
  * Express-compatible request object passed to function handlers.
  */
 export class InvokeRequest {
   /** HTTP method in upper-case (e.g. `"GET"`, `"POST"`). */
-  method: string;
+  method: string
   /** Full request URL including query string. */
-  url: string;
+  url: string
   /** Unmodified original request URL. */
-  originalUrl: string;
+  originalUrl: string
   /** URL pathname without the query string. */
-  path: string;
+  path: string
   /** Request protocol: `"http"` or `"https"`. */
-  protocol: string;
+  protocol: string
   /** Hostname from the `Host` header, without the port. */
-  hostname: string;
+  hostname: string
   /** `true` when the connection uses TLS (`protocol === "https"`). */
-  secure: boolean;
+  secure: boolean
   /** Remote IP address of the client. */
-  ip: string;
+  ip: string
   /** List of IP addresses from the `X-Forwarded-For` header, nearest-first. */
-  ips: string[];
+  ips: string[]
   /** Parsed request body. Value depends on the content type. */
-  body: unknown;
+  body: unknown
   /** Parsed query string parameters. */
-  query: Record<string, string>;
+  query: Record<string, string>
   /** Route parameters extracted by the router (e.g. `req.params.id`). */
-  params: Record<string, string>;
+  params: Record<string, string>
   /** Incoming request headers (all names are lower-cased). */
-  headers: Record<string, string>;
+  headers: Record<string, string>
   /** Parsed cookies from the `Cookie` header. */
-  cookies: Record<string, string>;
+  cookies: Record<string, string>
   /** URL prefix where the router was mounted. */
-  baseUrl: string;
+  baseUrl: string
 
   /** @internal */
   constructor(reqData: RequestData) {
-    this.method = reqData.method;
-    this.url = reqData.url;
-    this.originalUrl = reqData.originalUrl;
-    this.path = reqData.path;
-    this.protocol = reqData.protocol;
-    this.hostname = reqData.hostname;
-    this.secure = reqData.secure;
-    this.ip = reqData.ip;
-    this.ips = reqData.ips;
-    this.body = reqData.body;
-    this.query = reqData.query;
-    this.params = reqData.params;
-    this.headers = reqData.headers;
-    this.cookies = parseCookies(reqData.headers['cookie']);
-    this.baseUrl = '';
+    this.method = reqData.method
+    this.url = reqData.url
+    this.originalUrl = reqData.originalUrl
+    this.path = reqData.path
+    this.protocol = reqData.protocol
+    this.hostname = reqData.hostname
+    this.secure = reqData.secure
+    this.ip = reqData.ip
+    this.ips = reqData.ips
+    this.body = reqData.body
+    this.query = reqData.query
+    this.params = reqData.params
+    this.headers = reqData.headers
+    this.cookies = parseCookies(reqData.headers['cookie'])
+    this.baseUrl = ''
   }
 
   /**
@@ -65,8 +65,8 @@ export class InvokeRequest {
    * @returns `true` when the request originated from XHR.
    */
   get xhr(): boolean {
-    const val = this.headers['x-requested-with'];
-    return val ? val.toLowerCase() === 'xmlhttprequest' : false;
+    const val = this.headers['x-requested-with']
+    return val ? val.toLowerCase() === 'xmlhttprequest' : false
   }
 
   /**
@@ -74,7 +74,7 @@ export class InvokeRequest {
    * @returns A list of subdomains.
    */
   get subdomains(): string[] {
-    return [];
+    return []
   }
 
   /**
@@ -83,7 +83,7 @@ export class InvokeRequest {
    * @returns The header value if present.
    */
   get(headerName: string): string | undefined {
-    return this.headers[headerName.toLowerCase()];
+    return this.headers[headerName.toLowerCase()]
   }
 
   /**
@@ -92,7 +92,7 @@ export class InvokeRequest {
    * @returns The header value if present.
    */
   header(headerName: string): string | undefined {
-    return this.get(headerName);
+    return this.get(headerName)
   }
 
   /**
@@ -101,18 +101,18 @@ export class InvokeRequest {
    * @returns The matched type or `false` when there is no match.
    */
   is(type: string | string[]): string | false {
-    const contentType = this.headers['content-type'];
-    if (!contentType) return false;
+    const contentType = this.headers['content-type']
+    if (!contentType) return false
 
     if (Array.isArray(type)) {
       for (const t of type) {
-        const match = matchMimeType(contentType, t);
-        if (match) return match;
+        const match = matchMimeType(contentType, t)
+        if (match) return match
       }
-      return false;
+      return false
     }
 
-    return matchMimeType(contentType, type);
+    return matchMimeType(contentType, type)
   }
 
   /**
@@ -121,24 +121,24 @@ export class InvokeRequest {
    * @returns The first acceptable provided type, all accepted types, or `false` when no type matches.
    */
   accepts(types?: string | string[]): string | string[] | false {
-    const acceptHeader = this.headers['accept'] || '*/*';
-    const parsed = parseAcceptHeader(acceptHeader);
+    const acceptHeader = this.headers['accept'] || '*/*'
+    const parsed = parseAcceptHeader(acceptHeader)
 
     if (!types) {
-      return parsed.map((p) => p.type);
+      return parsed.map(p => p.type)
     }
 
-    const typeList = typeof types === 'string' ? [types] : types;
+    const typeList = typeof types === 'string' ? [types] : types
 
     for (const acceptType of parsed) {
       for (const providedType of typeList) {
         if (matchMimeType(acceptType.type, providedType)) {
-          return providedType;
+          return providedType
         }
       }
     }
 
-    return false;
+    return false
   }
 
   /**
@@ -148,7 +148,6 @@ export class InvokeRequest {
    * @returns The found parameter value or the provided default value.
    */
   param(name: string, defaultValue?: unknown): unknown {
-    return this.params[name] ?? this.query[name] ?? (this.body as any)?.[name] ?? defaultValue;
+    return this.params[name] ?? this.query[name] ?? (this.body as any)?.[name] ?? defaultValue
   }
 }
-

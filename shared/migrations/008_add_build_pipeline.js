@@ -1,110 +1,114 @@
-'use strict';
+'use strict'
 
 module.exports = {
   async up({ context: { queryInterface } }) {
     // 1. Add build-related columns to function_versions
     await queryInterface.addColumn('function_versions', 'artifact_path', {
       type: 'VARCHAR(500)',
-      allowNull: true,
-    });
+      allowNull: true
+    })
     await queryInterface.addColumn('function_versions', 'artifact_hash', {
       type: 'VARCHAR(64)',
-      allowNull: true,
-    });
+      allowNull: true
+    })
     await queryInterface.addColumn('function_versions', 'build_status', {
       type: 'VARCHAR(20)',
       allowNull: false,
-      defaultValue: 'none',
-    });
+      defaultValue: 'none'
+    })
 
     // 2. Create function_builds table
     await queryInterface.createTable('function_builds', {
       id: {
         type: 'UUID',
         primaryKey: true,
-        defaultValue: queryInterface.sequelize.literal('gen_random_uuid()'),
+        defaultValue: queryInterface.sequelize.literal('gen_random_uuid()')
       },
       function_id: {
         type: 'UUID',
         allowNull: false,
         references: { model: 'functions', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       version_id: {
         type: 'UUID',
         allowNull: false,
         references: { model: 'function_versions', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       status: {
         type: 'VARCHAR(20)',
         allowNull: false,
-        defaultValue: 'queued',
+        defaultValue: 'queued'
       },
       after_build_action: {
         type: 'VARCHAR(20)',
         allowNull: false,
-        defaultValue: 'none',
+        defaultValue: 'none'
       },
       artifact_path: {
         type: 'VARCHAR(500)',
-        allowNull: true,
+        allowNull: true
       },
       artifact_hash: {
         type: 'VARCHAR(64)',
-        allowNull: true,
+        allowNull: true
       },
       build_context: {
         type: 'JSONB',
         allowNull: true,
-        defaultValue: null,
+        defaultValue: null
       },
       error_message: {
         type: 'TEXT',
-        allowNull: true,
+        allowNull: true
       },
       created_by: {
         type: 'INTEGER',
         allowNull: true,
         references: { model: 'users', key: 'id' },
-        onDelete: 'SET NULL',
+        onDelete: 'SET NULL'
       },
       created_at: {
         type: 'TIMESTAMP WITH TIME ZONE',
         allowNull: false,
-        defaultValue: queryInterface.sequelize.literal('NOW()'),
+        defaultValue: queryInterface.sequelize.literal('NOW()')
       },
       started_at: {
         type: 'TIMESTAMP WITH TIME ZONE',
-        allowNull: true,
+        allowNull: true
       },
       completed_at: {
         type: 'TIMESTAMP WITH TIME ZONE',
-        allowNull: true,
-      },
-    });
+        allowNull: true
+      }
+    })
 
-    await queryInterface.addIndex('function_builds', ['function_id']);
-    await queryInterface.addIndex('function_builds', ['version_id']);
-    await queryInterface.addIndex('function_builds', ['status', 'created_at']);
+    await queryInterface.addIndex('function_builds', ['function_id'])
+    await queryInterface.addIndex('function_builds', ['version_id'])
+    await queryInterface.addIndex('function_builds', ['status', 'created_at'])
 
     // 3. Insert global_settings using queryInterface
-    await queryInterface.bulkInsert('global_settings', [
+    await queryInterface.bulkInsert(
+      'global_settings',
+      [
+        {
+          setting_key: 'max_concurrent_builds',
+          setting_value: '2',
+          description: 'Maximum number of concurrent build jobs',
+          updated_at: new Date()
+        },
+        {
+          setting_key: 'build_memory_mb',
+          setting_value: '1024',
+          description: 'Memory limit for build sandbox in MB.',
+          updated_at: new Date()
+        }
+      ],
       {
-        setting_key: 'max_concurrent_builds',
-        setting_value: '2',
-        description: 'Maximum number of concurrent build jobs',
-        updated_at: new Date(),
-      },
-      {
-        setting_key: 'build_memory_mb',
-        setting_value: '1024',
-        description: 'Memory limit for build sandbox in MB.',
-        updated_at: new Date(),
-      },
-    ], {
-      ignoreDuplicates: true,
-    });
+        ignoreDuplicates: true
+      }
+    )
 
     // 4. Add pg-notify trigger on function_builds changes
     await queryInterface.sequelize.query(`
@@ -125,23 +129,27 @@ module.exports = {
         AFTER INSERT OR UPDATE OF status
         ON function_builds
         FOR EACH ROW EXECUTE FUNCTION notify_build_queue_change();
-    `);
+    `)
   },
 
   async down({ context: { queryInterface } }) {
     await queryInterface.sequelize.query(`
       DROP TRIGGER IF EXISTS trig_notify_build_queue ON function_builds;
       DROP FUNCTION IF EXISTS notify_build_queue_change();
-    `);
+    `)
 
-    await queryInterface.dropTable('function_builds');
+    await queryInterface.dropTable('function_builds')
 
-    await queryInterface.removeColumn('function_versions', 'build_status');
-    await queryInterface.removeColumn('function_versions', 'artifact_hash');
-    await queryInterface.removeColumn('function_versions', 'artifact_path');
+    await queryInterface.removeColumn('function_versions', 'build_status')
+    await queryInterface.removeColumn('function_versions', 'artifact_hash')
+    await queryInterface.removeColumn('function_versions', 'artifact_path')
 
-    await queryInterface.bulkDelete('global_settings', {
-      setting_key: ['max_concurrent_builds', 'build_memory_mb'],
-    }, {});
-  },
-};
+    await queryInterface.bulkDelete(
+      'global_settings',
+      {
+        setting_key: ['max_concurrent_builds', 'build_memory_mb']
+      },
+      {}
+    )
+  }
+}

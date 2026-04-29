@@ -16,7 +16,7 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Loader,
+  Loader
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,7 @@ export default function TraceDetail() {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      timeZoneName: 'short',
+      timeZoneName: 'short'
     }).format(new Date(ds))
 
   const formatBytes = (bytes: number | null | undefined) => {
@@ -91,9 +91,8 @@ export default function TraceDetail() {
   }
 
   const consoleLevelClass = (level: string) =>
-    ({ log: 'text-muted-foreground', info: 'text-blue-400', warn: 'text-yellow-400', error: 'text-red-400' }[
-      level
-    ] ?? 'text-muted-foreground')
+    ({ log: 'text-muted-foreground', info: 'text-blue-400', warn: 'text-yellow-400', error: 'text-red-400' })[level] ??
+    'text-muted-foreground'
 
   const formatTimestamp = (ts: string) => {
     try {
@@ -104,12 +103,12 @@ export default function TraceDetail() {
   }
 
   const HeadersTable = ({ headers }: { headers: Record<string, string> }) => (
-    <table className="mt-2 w-full text-xs border border-border rounded overflow-hidden">
+    <table className='mt-2 w-full text-xs border border-border rounded overflow-hidden'>
       <tbody>
         {Object.entries(headers).map(([k, v]) => (
-          <tr key={k} className="border-b border-border/40 last:border-0 hover:bg-muted/30">
-            <td className="py-1.5 px-3 font-mono text-muted-foreground align-top w-[260px] shrink-0">{k}:</td>
-            <td className="py-1.5 px-3 font-mono text-foreground break-all">{v}</td>
+          <tr key={k} className='border-b border-border/40 last:border-0 hover:bg-muted/30'>
+            <td className='py-1.5 px-3 font-mono text-muted-foreground align-top w-[260px] shrink-0'>{k}:</td>
+            <td className='py-1.5 px-3 font-mono text-foreground break-all'>{v}</td>
           </tr>
         ))}
       </tbody>
@@ -119,9 +118,9 @@ export default function TraceDetail() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout title="Trace Details">
-          <div className="flex items-center justify-center h-64">
-            <Loader className="w-8 h-8 text-primary animate-spin" />
+        <Layout title='Trace Details'>
+          <div className='flex items-center justify-center h-64'>
+            <Loader className='w-8 h-8 text-primary animate-spin' />
           </div>
         </Layout>
       </ProtectedRoute>
@@ -131,10 +130,8 @@ export default function TraceDetail() {
   if (error || !data) {
     return (
       <ProtectedRoute>
-        <Layout title="Trace Details">
-          <div className="flex items-center justify-center h-64 text-destructive">
-            {error || 'Trace not found'}
-          </div>
+        <Layout title='Trace Details'>
+          <div className='flex items-center justify-center h-64 text-destructive'>{error || 'Trace not found'}</div>
         </Layout>
       </ProtectedRoute>
     )
@@ -147,32 +144,28 @@ export default function TraceDetail() {
 
   return (
     <ProtectedRoute>
-      <Layout title="Trace Details">
-        <div className="space-y-6">
+      <Layout title='Trace Details'>
+        <div className='space-y-6'>
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-4'>
               <PageHeader
-                title="Trace Details"
-                subtitle={
-                  execution?.function_name
-                    ? `${execution.function_name} · ${trace_id}`
-                    : trace_id
-                }
-                icon={<Activity className="w-8 h-8 text-primary" />}
+                title='Trace Details'
+                subtitle={execution?.function_name ? `${execution.function_name} · ${trace_id}` : trace_id}
+                icon={<Activity className='w-8 h-8 text-primary' />}
               />
             </div>
             {status !== null && (
               <Badge
                 variant={isSuccess ? 'success' : isError ? 'destructive' : 'warning'}
-                className="flex items-center gap-1"
+                className='flex items-center gap-1'
               >
                 {isSuccess ? (
-                  <CheckCircle className="w-4 h-4" />
+                  <CheckCircle className='w-4 h-4' />
                 ) : isError ? (
-                  <XCircle className="w-4 h-4" />
+                  <XCircle className='w-4 h-4' />
                 ) : (
-                  <AlertCircle className="w-4 h-4" />
+                  <AlertCircle className='w-4 h-4' />
                 )}
                 {status}
               </Badge>
@@ -180,37 +173,37 @@ export default function TraceDetail() {
           </div>
 
           {/* Overview cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
             {[
               {
                 label: 'Execution Time',
                 value: execution ? `${execution.execution_time_ms}ms` : '—',
-                icon: Clock,
+                icon: Clock
               },
               {
                 label: 'Request Size',
                 value: formatBytes(execution?.request?.body?.size),
-                icon: Globe,
+                icon: Globe
               },
               {
                 label: 'Response Size',
                 value: formatBytes(execution?.response?.body?.size),
-                icon: Code,
+                icon: Code
               },
               {
                 label: 'Executed At',
                 value: execution ? formatDate(execution.executed_at) : '—',
-                icon: Calendar,
-              },
+                icon: Calendar
+              }
             ].map(({ label, value, icon: Icon }) => (
               <Card key={label}>
-                <CardContent className="pt-5">
-                  <div className="flex items-center justify-between">
+                <CardContent className='pt-5'>
+                  <div className='flex items-center justify-between'>
                     <div>
-                      <p className="text-muted-foreground text-sm">{label}</p>
-                      <p className="text-xl font-bold text-foreground mt-0.5">{value}</p>
+                      <p className='text-muted-foreground text-sm'>{label}</p>
+                      <p className='text-xl font-bold text-foreground mt-0.5'>{value}</p>
                     </div>
-                    <Icon className="w-8 h-8 text-muted-foreground/40" />
+                    <Icon className='w-8 h-8 text-muted-foreground/40' />
                   </div>
                 </CardContent>
               </Card>
@@ -220,58 +213,50 @@ export default function TraceDetail() {
           {/* Request Details */}
           {execution && (
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h2 className="text-base font-bold flex items-center gap-2 text-foreground">
-                  <Globe className="w-5 h-5" />
+              <CardContent className='pt-6 space-y-4'>
+                <h2 className='text-base font-bold flex items-center gap-2 text-foreground'>
+                  <Globe className='w-5 h-5' />
                   Request Details
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
                   <div>
-                    <p className="text-muted-foreground font-medium">Method</p>
-                    <p className="text-foreground font-mono">{execution.request.method}</p>
+                    <p className='text-muted-foreground font-medium'>Method</p>
+                    <p className='text-foreground font-mono'>{execution.request.method}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground font-medium">URL</p>
-                    <p className="text-foreground font-mono break-all">{execution.request.url}</p>
+                    <p className='text-muted-foreground font-medium'>URL</p>
+                    <p className='text-foreground font-mono break-all'>{execution.request.url}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground font-medium">Client IP</p>
-                    <p className="text-foreground font-mono">{execution.request.ip ?? '—'}</p>
+                    <p className='text-muted-foreground font-medium'>Client IP</p>
+                    <p className='text-foreground font-mono'>{execution.request.ip ?? '—'}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground font-medium">User Agent</p>
-                    <p className="text-foreground break-all">
-                      {execution.request.headers?.['user-agent'] ?? '—'}
-                    </p>
+                    <p className='text-muted-foreground font-medium'>User Agent</p>
+                    <p className='text-foreground break-all'>{execution.request.headers?.['user-agent'] ?? '—'}</p>
                   </div>
                 </div>
                 <div>
                   <button
-                    onClick={() => setShowRequestHeaders((v) => !v)}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setShowRequestHeaders(v => !v)}
+                    className='flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors'
                   >
-                    {showRequestHeaders ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showRequestHeaders ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                     Request Headers ({Object.keys(execution.request.headers ?? {}).length})
                   </button>
-                  {showRequestHeaders && (
-                    <HeadersTable headers={execution.request.headers ?? {}} />
-                  )}
+                  {showRequestHeaders && <HeadersTable headers={execution.request.headers ?? {}} />}
                 </div>
                 {execution.request.body.payload && (
                   <div>
                     <button
-                      onClick={() => setShowRequestBody((v) => !v)}
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setShowRequestBody(v => !v)}
+                      className='flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors'
                     >
-                      {showRequestBody ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showRequestBody ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                       Request Body
                     </button>
                     {showRequestBody && (
-                      <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">
+                      <pre className='mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto'>
                         {formatJSON(execution.request.body.payload)}
                       </pre>
                     )}
@@ -284,20 +269,18 @@ export default function TraceDetail() {
           {/* Console Output */}
           {consoleLogs.length > 0 && (
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h2 className="text-base font-bold flex items-center gap-2 text-foreground">
-                  <Terminal className="w-5 h-5" />
+              <CardContent className='pt-6 space-y-4'>
+                <h2 className='text-base font-bold flex items-center gap-2 text-foreground'>
+                  <Terminal className='w-5 h-5' />
                   Console Output
                 </h2>
-                <div className="bg-black rounded-lg p-4 font-mono text-sm space-y-1 max-h-96 overflow-y-auto">
+                <div className='bg-black rounded-lg p-4 font-mono text-sm space-y-1 max-h-96 overflow-y-auto'>
                   {consoleLogs.map((entry, i) => (
                     <div key={i} className={cn('flex gap-3', consoleLevelClass(entry.level))}>
-                      <span className="text-muted-foreground whitespace-nowrap">
+                      <span className='text-muted-foreground whitespace-nowrap'>
                         [{formatTimestamp(entry.timestamp)}]
                       </span>
-                      <span className="flex-1 break-words whitespace-pre-wrap break-all">
-                        {entry.message}
-                      </span>
+                      <span className='flex-1 break-words whitespace-pre-wrap break-all'>{entry.message}</span>
                     </div>
                   ))}
                 </div>
@@ -308,42 +291,32 @@ export default function TraceDetail() {
           {/* Response Details */}
           {execution && (
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h2 className="text-base font-bold flex items-center gap-2 text-foreground">
-                  <Code className="w-5 h-5" />
+              <CardContent className='pt-6 space-y-4'>
+                <h2 className='text-base font-bold flex items-center gap-2 text-foreground'>
+                  <Code className='w-5 h-5' />
                   Response Details
                 </h2>
                 <div>
                   <button
-                    onClick={() => setShowResponseHeaders((v) => !v)}
-                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setShowResponseHeaders(v => !v)}
+                    className='flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors'
                   >
-                    {showResponseHeaders ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
+                    {showResponseHeaders ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                     Response Headers ({Object.keys(execution.response.headers ?? {}).length})
                   </button>
-                  {showResponseHeaders && (
-                    <HeadersTable headers={execution.response.headers ?? {}} />
-                  )}
+                  {showResponseHeaders && <HeadersTable headers={execution.response.headers ?? {}} />}
                 </div>
                 {execution.response.body.payload && (
                   <div>
                     <button
-                      onClick={() => setShowResponseBody((v) => !v)}
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setShowResponseBody(v => !v)}
+                      className='flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors'
                     >
-                      {showResponseBody ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
+                      {showResponseBody ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                       Response Body
                     </button>
                     {showResponseBody && (
-                      <pre className="mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto">
+                      <pre className='mt-2 bg-muted rounded p-3 text-sm text-muted-foreground overflow-x-auto'>
                         {formatJSON(execution.response.body.payload)}
                       </pre>
                     )}

@@ -22,8 +22,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
       functionId: req.query.functionId as string,
       page: req.query.page as string,
       limit: req.query.limit as string,
-      logType: req.query.logType as string,
-    },
+      logType: req.query.logType as string
+    }
   })
 
   res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))

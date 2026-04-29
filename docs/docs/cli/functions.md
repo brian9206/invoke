@@ -32,18 +32,22 @@ invoke function:deploy [path] --name <name> --project <project>
 ```
 
 **Arguments:**
+
 - `[path]` - Path to function directory or zip file (default: `.`)
 
 **Required options:**
+
 - `--name` (required): Function name
 - `--project` (required): Project ID or name
 
 **Options:**
+
 - `--description`: Function description (used on first creation only)
 - `--requires-api-key`: Require API key for invocation (creation only)
 - `--output`: Output format (`table`/`json`)
 
 **Examples:**
+
 ```bash
 # Deploy current directory
 invoke function:deploy --name my-api --project "my-project"
@@ -56,6 +60,7 @@ invoke function:deploy --name secure-api --project "my-project" --requires-api-k
 ```
 
 The CLI will:
+
 1. Check if the function exists; create it if not
 2. Upload the code (auto-zips directories)
 3. Automatically activate the new version
@@ -73,6 +78,7 @@ invoke function:create \
 ```
 
 **Options:**
+
 - `--name` (required): Function name
 - `--description`: Function description
 - `--project`: Project ID (defaults to default project)
@@ -88,6 +94,7 @@ invoke function:list
 ```
 
 **Example output:**
+
 ```
 ⚡ Functions:
 
@@ -101,6 +108,7 @@ invoke function:list
 ```
 
 **With JSON output:**
+
 ```bash
 invoke function:list --output json
 ```
@@ -120,6 +128,7 @@ invoke function:get cd23cc1f-936f-445e-b2ba-dd8306b8dc01
 ```
 
 **Example output:**
+
 ```
 ⚡ Function Details:
 
@@ -148,6 +157,7 @@ invoke function:update my-api \
 ```
 
 **Options:**
+
 - `--name`: New function name
 - `--description`: New description
 - `--active`: Set active status (`true`/`false`)
@@ -178,11 +188,13 @@ invoke function:delete my-api
 ```
 
 You'll be prompted for confirmation:
+
 ```
 ? Are you sure you want to delete function my-api? This cannot be undone. (y/N)
 ```
 
 **Skip confirmation:**
+
 ```bash
 invoke function:delete my-api --force
 ```
@@ -202,6 +214,7 @@ invoke function:key:show my-api
 ```
 
 **Example output:**
+
 ```
 🔑 Function API Key:
 
@@ -217,16 +230,19 @@ invoke function:key:regenerate my-api
 ```
 
 You'll be prompted for confirmation:
+
 ```
 ? Are you sure? This will invalidate the existing API key. (y/N)
 ```
 
 **Skip confirmation:**
+
 ```bash
 invoke function:key:regenerate my-api --force
 ```
 
 **Example output:**
+
 ```
 ✅ API key regenerated successfully
 

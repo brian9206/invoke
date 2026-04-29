@@ -5,64 +5,76 @@ This function comprehensively tests the Node.js crypto module Cipher and Deciphe
 ## Phase 2 APIs Tested
 
 ### Cipher/Decipher Creation
+
 - `crypto.createCipheriv(algorithm, key, iv)` - Create Cipher instances
 - `crypto.createDecipheriv(algorithm, key, iv)` - Create Decipher instances
 
 ### Cipher Methods
+
 - `cipher.update(data, inputEncoding, outputEncoding)` - Encrypt data chunks
 - `cipher.final(outputEncoding)` - Finalize encryption
 - `cipher.setAutoPadding(autoPadding)` - Control PKCS#7 padding
 - `cipher.getAuthTag()` - Get authentication tag for AEAD modes (GCM)
 
 ### Decipher Methods
+
 - `decipher.update(data, inputEncoding, outputEncoding)` - Decrypt data chunks
 - `decipher.final(outputEncoding)` - Finalize decryption
 - `decipher.setAutoPadding(autoPadding)` - Control PKCS#7 padding
 - `decipher.setAuthTag(buffer)` - Set authentication tag for AEAD verification
 
 ### Utility Functions
+
 - `crypto.getCiphers()` - List all supported cipher algorithms
 
 ## Test Coverage
 
 ### AES-256-CBC Tests
+
 - Basic encryption/decryption roundtrip
 - Verifies data integrity
 - Tests Buffer concatenation pattern
 
 ### AES-128-GCM Tests (AEAD)
+
 - Authenticated encryption with auth tags
 - Auth tag verification on decryption
 - Tamper detection (corrupted auth tag throws error)
 - Proper AEAD workflow validation
 
 ### AES-256-CTR Tests
+
 - Counter mode encryption
 - Roundtrip verification
 
 ### Chunked Update Tests
+
 - Multiple `update()` calls on same cipher
 - Verifies streaming encryption pattern
 - Tests `Buffer.concat()` usage
 
 ### Encoding Tests
+
 - **hex** encoding for input/output
 - **base64** encoding for input/output
 - **Buffer** (binary) mode
 - **utf8** text encoding
 
 ### Auto Padding Tests
+
 - Default PKCS#7 padding (auto-padding enabled)
 - No padding mode (requires exact block size)
 - Verifies output is multiple of block size
 
 ### Error Cases
+
 - Invalid algorithm name
 - Invalid key size (AES-256 requires 32 bytes)
 - Invalid IV size (CBC requires 16 bytes)
 - Native error propagation
 
 ### Utility Functions
+
 - `getCiphers()` returns array of supported algorithms
 - Verifies common algorithms are available
 
@@ -130,11 +142,13 @@ curl http://your-invoke-instance/cipher-test-function
 ## Key Concepts
 
 ### Cipher Algorithms
+
 - **AES-128/192/256-CBC**: Block cipher with Cipher Block Chaining mode
 - **AES-128/192/256-GCM**: AEAD cipher (Authenticated Encryption with Associated Data)
 - **AES-128/192/256-CTR**: Counter mode (stream cipher)
 
 ### Key/IV Sizes
+
 - **AES-128**: 16-byte key, 16-byte IV (CBC/CTR), 12-byte IV recommended (GCM)
 - **AES-192**: 24-byte key, 16-byte IV (CBC/CTR), 12-byte IV recommended (GCM)
 - **AES-256**: 32-byte key, 16-byte IV (CBC/CTR), 12-byte IV recommended (GCM)
@@ -142,21 +156,23 @@ curl http://your-invoke-instance/cipher-test-function
 ### AEAD Workflow (GCM Mode)
 
 **Encryption:**
+
 ```javascript
-const cipher = crypto.createCipheriv('aes-128-gcm', key, iv);
-const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
-const authTag = cipher.getAuthTag(); // Get tag AFTER final()
+const cipher = crypto.createCipheriv('aes-128-gcm', key, iv)
+const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()])
+const authTag = cipher.getAuthTag() // Get tag AFTER final()
 // Send: encrypted + authTag
 ```
 
 **Decryption:**
+
 ```javascript
-const decipher = crypto.createDecipheriv('aes-128-gcm', key, iv);
-decipher.setAuthTag(authTag); // Set tag BEFORE update/final
+const decipher = crypto.createDecipheriv('aes-128-gcm', key, iv)
+decipher.setAuthTag(authTag) // Set tag BEFORE update/final
 const decrypted = Buffer.concat([
   decipher.update(encrypted),
   decipher.final() // Throws if auth tag doesn't match
-]).toString('utf8');
+]).toString('utf8')
 ```
 
 ## Notes

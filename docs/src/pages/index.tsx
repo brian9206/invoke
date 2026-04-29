@@ -1,15 +1,15 @@
-import type {ReactNode} from 'react';
-import clsx from 'clsx';
-import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
-import Layout from '@theme/Layout';
-import HomepageFeatures from '@site/src/components/HomepageFeatures';
-import Heading from '@theme/Heading';
+import type { ReactNode } from 'react'
+import clsx from 'clsx'
+import Link from '@docusaurus/Link'
+import useDocusaurusContext from '@docusaurus/useDocusaurusContext'
+import Layout from '@theme/Layout'
+import HomepageFeatures from '@site/src/components/HomepageFeatures'
+import Heading from '@theme/Heading'
 
-import styles from './index.module.css';
+import styles from './index.module.css'
 
 function HomepageHeader() {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext()
   return (
     <header className={styles.heroBanner}>
       <div className={styles.heroBackground}>
@@ -17,39 +17,41 @@ function HomepageHeader() {
         <div className={styles.gradientOrb2}></div>
         <div className={styles.gridPattern}></div>
       </div>
-      
-      <div className="container">
+
+      <div className='container'>
         <div className={styles.heroContent}>
           <div className={styles.badge}>
             <span className={styles.badgeIcon}>⚡</span>
             <span>Self-hosted Serverless Functions</span>
           </div>
-          
-          <Heading as="h1" className={styles.heroTitle}>
+
+          <Heading as='h1' className={styles.heroTitle}>
             Build Powerful Serverless
             <br />
             <span className={styles.gradientText}>Functions with Ease</span>
           </Heading>
-          
+
           <p className={styles.heroSubtitle}>
-            Deploy Node.js functions in a secure sandbox environment. 
-            No servers to manage, just focus on your code with realtime Socket.IO support.
+            Deploy Node.js functions in a secure sandbox environment. No servers to manage, just focus on your code with
+            realtime Socket.IO support.
           </p>
-          
+
           <div className={styles.heroButtons}>
             <Link
               className={clsx('button button--primary button--lg', styles.primaryButton)}
-              to="/docs/getting-started/quick-start">
+              to='/docs/getting-started/quick-start'
+            >
               Get Started
               <span className={styles.buttonArrow}>→</span>
             </Link>
             <Link
               className={clsx('button button--outline button--lg', styles.secondaryButton)}
-              to="/docs/examples/hello-world">
+              to='/docs/examples/hello-world'
+            >
               View Examples
             </Link>
           </div>
-          
+
           <div className={styles.heroStats}>
             <div className={styles.stat}>
               <div className={styles.statValue}>Realtime</div>
@@ -69,13 +71,13 @@ function HomepageHeader() {
         </div>
       </div>
     </header>
-  );
+  )
 }
 
 function CodeExample() {
   return (
     <section className={styles.codeSection}>
-      <div className="container">
+      <div className='container'>
         <div className={styles.codeContainer}>
           <div className={styles.codeHeader}>
             <span className={styles.codeTitle}>Quick Example</span>
@@ -94,20 +96,21 @@ function CodeExample() {
         </div>
       </div>
     </section>
-  );
+  )
 }
 
 export default function Home(): ReactNode {
-  const {siteConfig} = useDocusaurusContext();
+  const { siteConfig } = useDocusaurusContext()
   return (
     <Layout
-      title="Home"
-      description="Build powerful serverless functions with Node.js in a secure sandbox environment. Deploy with confidence using Express.js-compatible APIs and realtime Socket.IO support.">
+      title='Home'
+      description='Build powerful serverless functions with Node.js in a secure sandbox environment. Deploy with confidence using Express.js-compatible APIs and realtime Socket.IO support.'
+    >
       <HomepageHeader />
       <main>
         <HomepageFeatures />
         <CodeExample />
       </main>
     </Layout>
-  );
+  )
 }

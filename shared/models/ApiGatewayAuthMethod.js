@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class ApiGatewayAuthMethod extends Model {}
 
   ApiGatewayAuthMethod.init(
@@ -8,34 +8,34 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       gateway_config_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'api_gateway_configs', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       name: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: false
       },
       // 'middleware' type added in migration 004
       type: {
         type: DataTypes.STRING(20),
         allowNull: false,
-        validate: { isIn: [['basic_auth', 'bearer_jwt', 'api_key', 'middleware']] },
+        validate: { isIn: [['basic_auth', 'bearer_jwt', 'api_key', 'middleware']] }
       },
       config: {
         type: DataTypes.JSONB,
-        defaultValue: {},
+        defaultValue: {}
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -45,25 +45,25 @@ module.exports = (sequelize) => {
       underscored: true,
       freezeTableName: true,
       freezeTableName: true,
-      indexes: [{ unique: true, fields: ['gateway_config_id', 'name'] }],
+      indexes: [{ unique: true, fields: ['gateway_config_id', 'name'] }]
     }
-  );
+  )
 
-  ApiGatewayAuthMethod.associate = (models) => {
-    ApiGatewayAuthMethod.belongsTo(models.ApiGatewayConfig, { foreignKey: 'gateway_config_id' });
+  ApiGatewayAuthMethod.associate = models => {
+    ApiGatewayAuthMethod.belongsTo(models.ApiGatewayConfig, { foreignKey: 'gateway_config_id' })
     ApiGatewayAuthMethod.belongsToMany(models.ApiGatewayRoute, {
       through: models.ApiGatewayRouteAuthMethod,
       foreignKey: 'auth_method_id',
       otherKey: 'route_id',
-      as: 'routes',
-    });
+      as: 'routes'
+    })
     ApiGatewayAuthMethod.belongsToMany(models.RealtimeNamespace, {
       through: models.RealtimeNamespaceAuthMethod,
       foreignKey: 'auth_method_id',
       otherKey: 'realtime_namespace_id',
-      as: 'realtimeNamespaces',
-    });
-  };
+      as: 'realtimeNamespaces'
+    })
+  }
 
-  return ApiGatewayAuthMethod;
-};
+  return ApiGatewayAuthMethod
+}

@@ -6,7 +6,7 @@ Serve HTML, CSS, JavaScript, and other static assets.
 
 ```javascript
 export default function handler(req, res) {
-    const html = `
+  const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -45,9 +45,9 @@ export default function handler(req, res) {
         </div>
     </body>
     </html>
-    `;
-    
-    res.type('html').send(html);
+    `
+
+  res.type('html').send(html)
 }
 ```
 
@@ -55,7 +55,7 @@ export default function handler(req, res) {
 
 ```javascript
 const pages = {
-    '/': `
+  '/': `
         <!DOCTYPE html>
         <html>
         <head>
@@ -73,7 +73,7 @@ const pages = {
         </body>
         </html>
     `,
-    '/about': `
+  '/about': `
         <!DOCTYPE html>
         <html>
         <head>
@@ -91,7 +91,7 @@ const pages = {
         </body>
         </html>
     `,
-    '/contact': `
+  '/contact': `
         <!DOCTYPE html>
         <html>
         <head>
@@ -114,7 +114,7 @@ const pages = {
         </body>
         </html>
     `,
-    '/styles.css': `
+  '/styles.css': `
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -149,24 +149,24 @@ const pages = {
             cursor: pointer;
         }
     `
-};
+}
 
 export default function handler(req, res) {
-    const path = req.path || '/';
-    
-    // Handle form submission
-    if (req.method === 'POST' && path === '/submit') {
-        const { name, email, message } = req.body;
-        console.log('Form submission:', { name, email, message });
-        return res.redirect('/');
-    }
-    
-    // Serve static content
-    if (pages[path]) {
-        const isCSS = path.endsWith('.css');
-        res.type(isCSS ? 'css' : 'html').send(pages[path]);
-    } else {
-        res.status(404).type('html').send(`
+  const path = req.path || '/'
+
+  // Handle form submission
+  if (req.method === 'POST' && path === '/submit') {
+    const { name, email, message } = req.body
+    console.log('Form submission:', { name, email, message })
+    return res.redirect('/')
+  }
+
+  // Serve static content
+  if (pages[path]) {
+    const isCSS = path.endsWith('.css')
+    res.type(isCSS ? 'css' : 'html').send(pages[path])
+  } else {
+    res.status(404).type('html').send(`
             <!DOCTYPE html>
             <html>
             <head><title>404</title></head>
@@ -175,8 +175,8 @@ export default function handler(req, res) {
                 <a href="/">Go Home</a>
             </body>
             </html>
-        `);
-    }
+        `)
+  }
 }
 ```
 
@@ -184,11 +184,11 @@ export default function handler(req, res) {
 
 ```javascript
 export default function handler(req, res) {
-    const path = req.path;
-    
-    // Main HTML page
-    if (path === '/' || path === '') {
-        return res.type('html').send(`
+  const path = req.path
+
+  // Main HTML page
+  if (path === '/' || path === '') {
+    return res.type('html').send(`
             <!DOCTYPE html>
             <html>
             <head>
@@ -221,12 +221,12 @@ export default function handler(req, res) {
                 <script src="/app.js"></script>
             </body>
             </html>
-        `);
-    }
-    
-    // JavaScript file
-    if (path === '/app.js') {
-        return res.type('js').send(`
+        `)
+  }
+
+  // JavaScript file
+  if (path === '/app.js') {
+    return res.type('js').send(`
             async function fetchData() {
                 const result = document.getElementById('result');
                 result.textContent = 'Loading...';
@@ -239,19 +239,19 @@ export default function handler(req, res) {
                     result.textContent = 'Error: ' + error.message;
                 }
             }
-        `);
-    }
-    
-    // API endpoint
-    if (path === '/api/data') {
-        return res.json({
-            message: 'Data loaded successfully',
-            timestamp: new Date().toISOString(),
-            random: Math.random()
-        });
-    }
-    
-    res.status(404).send('Not Found');
+        `)
+  }
+
+  // API endpoint
+  if (path === '/api/data') {
+    return res.json({
+      message: 'Data loaded successfully',
+      timestamp: new Date().toISOString(),
+      random: Math.random()
+    })
+  }
+
+  res.status(404).send('Not Found')
 }
 ```
 
@@ -259,11 +259,11 @@ export default function handler(req, res) {
 
 ```javascript
 export default function handler(req, res) {
-    const path = req.path;
-    
-    // Serve HTML for all routes
-    if (path === '/' || path.startsWith('/page/')) {
-        return res.type('html').send(`
+  const path = req.path
+
+  // Serve HTML for all routes
+  if (path === '/' || path.startsWith('/page/')) {
+    return res.type('html').send(`
             <!DOCTYPE html>
             <html>
             <head>
@@ -307,26 +307,29 @@ export default function handler(req, res) {
                 </script>
             </body>
             </html>
-        `);
-    }
-    
-    res.status(404).send('Not Found');
+        `)
+  }
+
+  res.status(404).send('Not Found')
 }
 ```
 
 ## Best Practices
 
 ### Performance
+
 - Minimize HTML/CSS/JS size
 - Use compression for large responses
 - Cache static assets with proper headers
 
 ### Security
+
 - Sanitize user input
 - Set appropriate Content-Type headers
 - Use HTTPS in production
 
 ### SEO
+
 - Include meta tags
 - Use semantic HTML
 - Provide meaningful titles

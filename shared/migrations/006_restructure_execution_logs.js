@@ -1,10 +1,10 @@
-'use strict';
+'use strict'
 
 /** @type {import('umzug').MigrationFn} */
 module.exports = {
   async up({ context: { queryInterface, Sequelize } }) {
     // ── Drop old execution_logs table (all data is discarded) ────────────────
-    await queryInterface.dropTable('execution_logs');
+    await queryInterface.dropTable('execution_logs')
   },
 
   async down({ context: { queryInterface, Sequelize } }) {
@@ -14,7 +14,7 @@ module.exports = {
       function_id: {
         type: Sequelize.UUID,
         references: { model: 'functions', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       status_code: { type: Sequelize.INTEGER },
       execution_time_ms: { type: Sequelize.INTEGER },
@@ -33,8 +33,8 @@ module.exports = {
       api_key_used: { type: Sequelize.BOOLEAN, defaultValue: false },
       executed_at: {
         type: Sequelize.DATE,
-        defaultValue: Sequelize.literal('NOW()'),
-      },
-    });
-  },
-};
+        defaultValue: Sequelize.literal('NOW()')
+      }
+    })
+  }
+}

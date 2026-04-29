@@ -17,11 +17,7 @@ interface TokenUser {
 }
 
 export function generateAccessToken(user: TokenUser): string {
-  return jwt.sign(
-    { sub: String(user.id) },
-    JWT_SECRET!,
-    { expiresIn: ACCESS_TOKEN_EXPIRY }
-  )
+  return jwt.sign({ sub: String(user.id) }, JWT_SECRET!, { expiresIn: ACCESS_TOKEN_EXPIRY })
 }
 
 export function generateRefreshToken(): string {
@@ -42,7 +38,12 @@ function isHttps(req: NextApiRequest): boolean {
   return false
 }
 
-export function setAuthCookies(req: NextApiRequest, res: NextApiResponse, accessToken: string, refreshToken: string): void {
+export function setAuthCookies(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  accessToken: string,
+  refreshToken: string
+): void {
   const secure = isHttps(req)
 
   const cookies = [
@@ -51,22 +52,22 @@ export function setAuthCookies(req: NextApiRequest, res: NextApiResponse, access
       secure,
       sameSite: 'strict',
       path: '/api',
-      maxAge: ACCESS_TOKEN_MAX_AGE,
+      maxAge: ACCESS_TOKEN_MAX_AGE
     }),
     serialize('access_token', accessToken, {
       httpOnly: true,
       secure,
       sameSite: 'strict',
       path: '/admin',
-      maxAge: ACCESS_TOKEN_MAX_AGE,
+      maxAge: ACCESS_TOKEN_MAX_AGE
     }),
     serialize('refresh_token', refreshToken, {
       httpOnly: true,
       secure,
       sameSite: 'strict',
       path: '/api/auth/refresh',
-      maxAge: REFRESH_TOKEN_EXPIRY_SECONDS,
-    }),
+      maxAge: REFRESH_TOKEN_EXPIRY_SECONDS
+    })
   ]
 
   res.setHeader('Set-Cookie', cookies)
@@ -81,22 +82,22 @@ export function clearAuthCookies(req: NextApiRequest, res: NextApiResponse): voi
       secure,
       sameSite: 'strict',
       path: '/api',
-      maxAge: 0,
+      maxAge: 0
     }),
     serialize('access_token', '', {
       httpOnly: true,
       secure,
       sameSite: 'strict',
       path: '/admin',
-      maxAge: 0,
+      maxAge: 0
     }),
     serialize('refresh_token', '', {
       httpOnly: true,
       secure,
       sameSite: 'strict',
       path: '/api/auth/refresh',
-      maxAge: 0,
-    }),
+      maxAge: 0
+    })
   ]
 
   res.setHeader('Set-Cookie', cookies)

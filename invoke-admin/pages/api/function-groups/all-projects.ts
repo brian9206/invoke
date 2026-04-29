@@ -14,10 +14,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     order: [
       [Project, 'name', 'ASC'],
       ['sort_order', 'ASC'],
-      ['created_at', 'ASC'],
+      ['created_at', 'ASC']
     ],
     raw: true,
-    nest: true,
+    nest: true
   })
 
   // Flatten the nested Project.name into project_name for the frontend
@@ -28,7 +28,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     sort_order: row.sort_order,
     created_at: row.created_at,
     updated_at: row.updated_at,
-    project_name: row.Project?.name ?? null,
+    project_name: row.Project?.name ?? null
   }))
 
   return res.status(200).json(createResponse(true, groups, 'All project groups retrieved'))

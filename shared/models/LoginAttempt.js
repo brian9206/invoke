@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class LoginAttempt extends Model {}
 
   LoginAttempt.init(
@@ -8,27 +8,27 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
+        autoIncrement: true
       },
       // Composite key: "<normalised-ip>:<username-lowercase>"
       key: {
         type: DataTypes.STRING(110),
         allowNull: false,
-        unique: true,
+        unique: true
       },
       attempts: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 1,
+        defaultValue: 1
       },
       last_attempt_at: {
         type: DataTypes.DATE,
-        allowNull: false,
+        allowNull: false
       },
       locked_until: {
         type: DataTypes.DATE,
-        allowNull: true,
-      },
+        allowNull: true
+      }
     },
     {
       sequelize,
@@ -36,11 +36,11 @@ module.exports = (sequelize) => {
       tableName: 'login_attempts',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
   // No associations — this is an independent rate-limiting table.
 
-  return LoginAttempt;
-};
+  return LoginAttempt
+}

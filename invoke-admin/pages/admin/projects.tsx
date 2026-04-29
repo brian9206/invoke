@@ -1,103 +1,103 @@
-import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
-import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import PageHeader from '@/components/PageHeader';
-import { authenticatedFetch } from '@/lib/frontend-utils';
-import { useProject } from '@/contexts/ProjectContext';
-import Modal from '@/components/Modal';
-import { FolderOpen, Loader, Pencil, Trash2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
+import Layout from '@/components/Layout'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import PageHeader from '@/components/PageHeader'
+import { authenticatedFetch } from '@/lib/frontend-utils'
+import { useProject } from '@/contexts/ProjectContext'
+import Modal from '@/components/Modal'
+import { FolderOpen, Loader, Pencil, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface Project {
-  id: string;
-  name: string;
-  description: string;
-  is_active: boolean;
-  kv_storage_limit_bytes: number;
-  created_at: string;
-  created_by: string;
-  member_count: number;
-  function_count: number;
+  id: string
+  name: string
+  description: string
+  is_active: boolean
+  kv_storage_limit_bytes: number
+  created_at: string
+  created_by: string
+  member_count: number
+  function_count: number
 }
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [formData, setFormData] = useState({ name: '', description: '', kvStorageLimit: 1 });
+  const [projects, setProjects] = useState<Project[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [formData, setFormData] = useState({ name: '', description: '', kvStorageLimit: 1 })
   const [dialogState, setDialogState] = useState<{
-    type: 'alert' | 'confirm' | null;
-    title: string;
-    message: string;
-    onConfirm?: () => void;
-  }>({ type: null, title: '', message: '' });
-  const { refreshProjects, lockProject, unlockProject, userProjects } = useProject();
-  const hasLockedProject = useRef(false);
+    type: 'alert' | 'confirm' | null
+    title: string
+    message: string
+    onConfirm?: () => void
+  }>({ type: null, title: '', message: '' })
+  const { refreshProjects, lockProject, unlockProject, userProjects } = useProject()
+  const hasLockedProject = useRef(false)
 
   useEffect(() => {
-    loadProjects();
-  }, []);
+    loadProjects()
+  }, [])
 
   useEffect(() => {
-    const systemProject = userProjects.find((p) => p.id === 'system');
+    const systemProject = userProjects.find(p => p.id === 'system')
     if (systemProject && !hasLockedProject.current) {
-      hasLockedProject.current = true;
-      lockProject(systemProject);
+      hasLockedProject.current = true
+      lockProject(systemProject)
     }
     return () => {
       if (hasLockedProject.current) {
-        hasLockedProject.current = false;
-        unlockProject();
+        hasLockedProject.current = false
+        unlockProject()
       }
-    };
-  }, [userProjects]);
+    }
+  }, [userProjects])
 
   const loadProjects = async () => {
     try {
-      const response = await authenticatedFetch('/api/admin/projects');
+      const response = await authenticatedFetch('/api/admin/projects')
       if (response.ok) {
-        const data = await response.json();
-        setProjects(data.projects || []);
+        const data = await response.json()
+        setProjects(data.projects || [])
       }
     } catch (error) {
-      console.error('Error loading projects:', error);
+      console.error('Error loading projects:', error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleCreateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     try {
       const response = await authenticatedFetch('/api/admin/projects', {
         method: 'POST',
-        body: JSON.stringify(formData),
-      });
+        body: JSON.stringify(formData)
+      })
       if (response.ok) {
-        setShowCreateModal(false);
-        setFormData({ name: '', description: '', kvStorageLimit: 1 });
-        await refreshProjects();
-        loadProjects();
+        setShowCreateModal(false)
+        setFormData({ name: '', description: '', kvStorageLimit: 1 })
+        await refreshProjects()
+        loadProjects()
       } else {
-        const data = await response.json();
-        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to create project' });
+        const data = await response.json()
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to create project' })
       }
     } catch (error) {
-      setDialogState({ type: 'alert', title: 'Error', message: 'Error creating project' });
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error creating project' })
     }
-  };
+  }
 
   const handleUpdateProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingProject) return;
+    e.preventDefault()
+    if (!editingProject) return
     try {
       const response = await authenticatedFetch('/api/admin/projects', {
         method: 'PUT',
@@ -106,22 +106,22 @@ export default function ProjectsPage() {
           name: formData.name,
           description: formData.description,
           is_active: editingProject.is_active,
-          kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024,
-        }),
-      });
+          kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024
+        })
+      })
       if (response.ok) {
-        setEditingProject(null);
-        setFormData({ name: '', description: '', kvStorageLimit: 1 });
-        await refreshProjects();
-        loadProjects();
+        setEditingProject(null)
+        setFormData({ name: '', description: '', kvStorageLimit: 1 })
+        await refreshProjects()
+        loadProjects()
       } else {
-        const data = await response.json();
-        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to update project' });
+        const data = await response.json()
+        setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to update project' })
       }
     } catch (error) {
-      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating project' });
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error updating project' })
     }
-  };
+  }
 
   const handleDeleteProject = async (project: Project) => {
     setDialogState({
@@ -132,107 +132,100 @@ export default function ProjectsPage() {
         try {
           const response = await authenticatedFetch('/api/admin/projects', {
             method: 'DELETE',
-            body: JSON.stringify({ id: project.id }),
-          });
+            body: JSON.stringify({ id: project.id })
+          })
           if (response.ok) {
-            await refreshProjects();
-            loadProjects();
-            setDialogState({ type: null, title: '', message: '' });
+            await refreshProjects()
+            loadProjects()
+            setDialogState({ type: null, title: '', message: '' })
           } else {
-            const data = await response.json();
-            setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to delete project' });
+            const data = await response.json()
+            setDialogState({ type: 'alert', title: 'Error', message: data.error || 'Failed to delete project' })
           }
         } catch (error) {
-          setDialogState({ type: 'alert', title: 'Error', message: 'Error deleting project' });
+          setDialogState({ type: 'alert', title: 'Error', message: 'Error deleting project' })
         }
-      },
-    });
-  };
+      }
+    })
+  }
 
   const openEditModal = (project: Project) => {
-    setEditingProject(project);
+    setEditingProject(project)
     setFormData({
       name: project.name,
       description: project.description || '',
-      kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024),
-    });
-  };
+      kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024)
+    })
+  }
 
   const closeModals = () => {
-    setShowCreateModal(false);
-    setEditingProject(null);
-    setFormData({ name: '', description: '', kvStorageLimit: 1 });
-  };
+    setShowCreateModal(false)
+    setEditingProject(null)
+    setFormData({ name: '', description: '', kvStorageLimit: 1 })
+  }
 
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout title="Projects">
-          <div className="flex items-center justify-center h-64">
-            <Loader className="w-8 h-8 text-primary animate-spin" />
+        <Layout title='Projects'>
+          <div className='flex items-center justify-center h-64'>
+            <Loader className='w-8 h-8 text-primary animate-spin' />
           </div>
         </Layout>
       </ProtectedRoute>
-    );
+    )
   }
 
   return (
     <ProtectedRoute>
-      <Layout title="Projects">
-        <div className="space-y-6">
+      <Layout title='Projects'>
+        <div className='space-y-6'>
           <PageHeader
-            title="Projects"
-            subtitle="Manage projects and assign users"
-            icon={<FolderOpen className="w-8 h-8 text-primary" />}
+            title='Projects'
+            subtitle='Manage projects and assign users'
+            icon={<FolderOpen className='w-8 h-8 text-primary' />}
           >
             <Button onClick={() => setShowCreateModal(true)}>Create Project</Button>
           </PageHeader>
 
           {projects.length === 0 ? (
             <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No projects found.
-              </CardContent>
+              <CardContent className='py-12 text-center text-muted-foreground'>No projects found.</CardContent>
             </Card>
           ) : (
-            <div className="grid gap-4">
-              {projects.map((project) => (
-                <Card key={project.id} className="hover:bg-card/80 transition-colors">
-                  <CardContent className="px-3 py-2">
-                    <div className="flex items-center gap-2">
+            <div className='grid gap-4'>
+              {projects.map(project => (
+                <Card key={project.id} className='hover:bg-card/80 transition-colors'>
+                  <CardContent className='px-3 py-2'>
+                    <div className='flex items-center gap-2'>
                       <div
                         className={`p-1.5 rounded shrink-0 ${
-                          project.is_active
-                            ? 'bg-green-900/30 text-green-400'
-                            : 'bg-muted text-muted-foreground'
+                          project.is_active ? 'bg-green-900/30 text-green-400' : 'bg-muted text-muted-foreground'
                         }`}
                       >
-                        <FolderOpen className="w-4 h-4" />
+                        <FolderOpen className='w-4 h-4' />
                       </div>
-                      <Link href={`/admin/projects/${project.id}`} className="flex-1 min-w-0">
-                        <div className="flex items-center flex-wrap gap-1.5">
-                          <span className="text-sm font-semibold text-foreground truncate">{project.name}</span>
-                          <Badge variant={project.is_active ? 'success' : 'secondary'} className="text-xs px-1.5 py-0">
+                      <Link href={`/admin/projects/${project.id}`} className='flex-1 min-w-0'>
+                        <div className='flex items-center flex-wrap gap-1.5'>
+                          <span className='text-sm font-semibold text-foreground truncate'>{project.name}</span>
+                          <Badge variant={project.is_active ? 'success' : 'secondary'} className='text-xs px-1.5 py-0'>
                             {project.is_active ? 'Active' : 'Inactive'}
                           </Badge>
                         </div>
                         {project.description && (
-                          <p className="text-muted-foreground text-xs mt-0.5 truncate">{project.description}</p>
+                          <p className='text-muted-foreground text-xs mt-0.5 truncate'>{project.description}</p>
                         )}
                       </Link>
-                      <div
-                        className="flex items-center gap-0.5 shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
+                      <div className='flex items-center gap-0.5 shrink-0' onClick={e => e.stopPropagation()}>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-blue-400 hover:bg-blue-900/20"
+                              variant='ghost'
+                              size='icon'
+                              className='h-7 w-7 text-blue-400 hover:bg-blue-900/20'
                               onClick={() => openEditModal(project)}
                             >
-                              <Pencil className="w-3.5 h-3.5" />
+                              <Pencil className='w-3.5 h-3.5' />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Edit Project</TooltipContent>
@@ -240,12 +233,12 @@ export default function ProjectsPage() {
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-red-400 hover:bg-red-900/20"
+                              variant='ghost'
+                              size='icon'
+                              className='h-7 w-7 text-red-400 hover:bg-red-900/20'
                               onClick={() => handleDeleteProject(project)}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Trash2 className='w-3.5 h-3.5' />
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>Delete Project</TooltipContent>
@@ -262,29 +255,29 @@ export default function ProjectsPage() {
           {showCreateModal && (
             <Modal
               isOpen={showCreateModal}
-              title="Create New Project"
+              title='Create New Project'
               onCancel={closeModals}
               onConfirm={() => {
-                const form = document.querySelector('form[data-create-project]') as HTMLFormElement;
-                form?.dispatchEvent(new Event('submit', { bubbles: true }));
+                const form = document.querySelector('form[data-create-project]') as HTMLFormElement
+                form?.dispatchEvent(new Event('submit', { bubbles: true }))
               }}
-              cancelText="Cancel"
-              confirmText="Create Project"
+              cancelText='Cancel'
+              confirmText='Create Project'
             >
-              <form onSubmit={handleCreateProject} data-create-project className="space-y-4">
-                <div className="space-y-1.5">
+              <form onSubmit={handleCreateProject} data-create-project className='space-y-4'>
+                <div className='space-y-1.5'>
                   <Label>Project Name</Label>
                   <Input
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className='space-y-1.5'>
                   <Label>Description (optional)</Label>
                   <Textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
                   />
                 </div>
@@ -300,9 +293,9 @@ export default function ProjectsPage() {
             onCancel={() => setDialogState({ type: null, title: '', message: '' })}
             onConfirm={async () => {
               if (dialogState.onConfirm) {
-                await dialogState.onConfirm();
+                await dialogState.onConfirm()
               } else {
-                setDialogState({ type: null, title: '', message: '' });
+                setDialogState({ type: null, title: '', message: '' })
               }
             }}
             cancelText={dialogState.type === 'alert' ? 'OK' : 'Cancel'}
@@ -314,43 +307,41 @@ export default function ProjectsPage() {
           {editingProject && (
             <Modal
               isOpen={!!editingProject}
-              title="Edit Project"
+              title='Edit Project'
               onCancel={closeModals}
               onConfirm={() => {
-                const form = document.querySelector('form[data-edit-project]') as HTMLFormElement;
-                form?.dispatchEvent(new Event('submit', { bubbles: true }));
+                const form = document.querySelector('form[data-edit-project]') as HTMLFormElement
+                form?.dispatchEvent(new Event('submit', { bubbles: true }))
               }}
-              cancelText="Cancel"
-              confirmText="Update Project"
+              cancelText='Cancel'
+              confirmText='Update Project'
             >
-              <form onSubmit={handleUpdateProject} data-edit-project className="space-y-4">
-                <div className="space-y-1.5">
+              <form onSubmit={handleUpdateProject} data-edit-project className='space-y-4'>
+                <div className='space-y-1.5'>
                   <Label>Project Name</Label>
                   <Input
                     required
                     value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className='space-y-1.5'>
                   <Label>Description (optional)</Label>
                   <Textarea
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
                   />
                 </div>
-                <div className="space-y-1.5">
+                <div className='space-y-1.5'>
                   <Label>KV Storage Limit (GB)</Label>
                   <Input
-                    type="number"
-                    min="0.001"
-                    step="0.1"
+                    type='number'
+                    min='0.001'
+                    step='0.1'
                     required
                     value={formData.kvStorageLimit}
-                    onChange={(e) =>
-                      setFormData({ ...formData, kvStorageLimit: parseFloat(e.target.value) || 0 })
-                    }
+                    onChange={e => setFormData({ ...formData, kvStorageLimit: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </form>
@@ -359,5 +350,5 @@ export default function ProjectsPage() {
         </div>
       </Layout>
     </ProtectedRoute>
-  );
+  )
 }

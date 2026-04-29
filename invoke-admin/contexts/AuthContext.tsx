@@ -10,7 +10,7 @@ interface User {
 }
 
 interface LoginResult {
-  success: boolean,
+  success: boolean
   message: string
 }
 
@@ -53,10 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({ username, password, turnstileToken }),
+        body: JSON.stringify({ username, password, turnstileToken })
       })
 
       const result = await response.json()
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await fetch('/api/auth/logout', {
         method: 'POST',
-        credentials: 'include',
+        credentials: 'include'
       })
     } catch (error) {
       console.error('Logout request failed:', error)
@@ -86,11 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login')
   }
 
-  return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, loading }}>
-      {children}
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={{ user, setUser, login, logout, loading }}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {

@@ -17,11 +17,13 @@ invoke config:set [options]
 ```
 
 **Options:**
+
 - `--api-key <key>` - API key for authentication
 - `--base-url <url>` - Base URL for Invoke API (default: http://localhost:3000)
 - `--execution-url <url>` - Execution service URL (default: http://localhost:3001)
 
 **Examples:**
+
 ```bash
 invoke config:set --api-key inv_abc123
 invoke config:set --base-url https://api.invoke.com
@@ -50,14 +52,17 @@ invoke init <path> [options]
 ```
 
 **Arguments:**
+
 - `<path>` - Directory to create
 
 **Options:**
+
 - `--name <name>` - Function name (required)
 - `--description <text>` - Function description
 - `--project <project>` - Project name used in the generated deploy script (default: `Default Project`)
 
 **Examples:**
+
 ```bash
 # Minimal
 invoke init hello-function --name hello
@@ -67,6 +72,7 @@ invoke init hello-function --name hello --description "My first function" --proj
 ```
 
 **Generated files:**
+
 ```
 hello-function/
 ├── index.js       # Hello World handler using crypto + fetch
@@ -75,10 +81,12 @@ hello-function/
 
 :::tip
 After scaffolding, deploy with:
+
 ```bash
 cd hello-function
 invoke function:deploy --name hello --project "my-project"
 ```
+
 :::
 
 ---
@@ -94,6 +102,7 @@ invoke function:list [options]
 ```
 
 **Options:**
+
 - `--output <format>` - Output format: `table` or `json` (default: table)
 
 ---
@@ -107,9 +116,11 @@ invoke function:get <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID (UUID) or name
 
 **Options:**
+
 - `--output <format>` - Output format: `table` or `json`
 
 ---
@@ -123,9 +134,11 @@ invoke function:create [options] <path>
 ```
 
 **Arguments:**
+
 - `<path>` - Path to function directory or zip file
 
 **Options:**
+
 - `--name <name>` - Function name (required)
 - `--description <text>` - Function description
 - `--project-id <id>` - Project ID
@@ -144,18 +157,22 @@ invoke function:deploy [path] [options]
 ```
 
 **Arguments:**
+
 - `[path]` - Path to function directory or zip file (default: `.`)
 
 **Required Options:**
+
 - `--name <name>` - Function name
 - `--project <id>` - Project ID or name
 
 **Options:**
+
 - `--description <text>` - Function description (used on first creation only)
 - `--requires-api-key` - Require API key for invocation (creation only)
 - `--output <format>` - Output format: `table` or `json` (default: table)
 
 **Examples:**
+
 ```bash
 # Deploy current directory
 invoke function:deploy --name hello --project "my-project"
@@ -170,6 +187,7 @@ invoke function:deploy --name hello --project "my-project"
 ```
 
 The CLI will:
+
 1. Check if the function exists; create it if not
 2. Upload the code (auto-zips directories)
 3. Automatically activate the new version
@@ -185,9 +203,11 @@ invoke function:update <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--name <name>` - New function name
 - `--description <text>` - New description
 - `--active <value>` - Set active status: `true` or `false`
@@ -205,9 +225,11 @@ invoke function:delete <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--force` - Skip confirmation prompt
 
 ---
@@ -221,6 +243,7 @@ invoke function:activate <id>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 ---
@@ -234,6 +257,7 @@ invoke function:deactivate <id>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 ---
@@ -249,9 +273,11 @@ invoke function:versions:list <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--output <format>` - Output format: `table` or `json`
 
 ---
@@ -265,10 +291,12 @@ invoke function:versions:upload <id> <path> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 - `<path>` - Path to function directory or zip file
 
 **Options:**
+
 - `--switch` - Automatically switch to this version after upload
 - `--output <format>` - Output format: `table` or `json`
 
@@ -283,9 +311,11 @@ invoke function:versions:switch <id> --ver <number>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Required Options:**
+
 - `--ver <number>` - Version number to switch to
 
 ---
@@ -299,12 +329,15 @@ invoke function:versions:delete <id> --ver <number> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Required Options:**
+
 - `--ver <number>` - Version number to delete
 
 **Options:**
+
 - `--force` - Skip confirmation prompt
 
 ---
@@ -318,12 +351,15 @@ invoke function:versions:download <id> --ver <number> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Required Options:**
+
 - `--ver <number>` - Version number to download
 
 **Options:**
+
 - `--output <path>` - Output path (ends with .zip to save as zip, otherwise extracts)
 
 ---
@@ -339,9 +375,11 @@ invoke function:env:list <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--output <format>` - Output format: `table` or `json`
 
 ---
@@ -355,6 +393,7 @@ invoke function:env:set <id> <key> <value>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 - `<key>` - Variable key
 - `<value>` - Variable value
@@ -370,10 +409,12 @@ invoke function:env:delete <id> <key> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 - `<key>` - Variable key
 
 **Options:**
+
 - `--force` - Skip confirmation prompt
 
 ---
@@ -389,9 +430,11 @@ invoke function:invoke <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--path <path>` - Path to append to URL (e.g., /users/123)
 - `--method <method>` - HTTP method: GET, POST, PUT, DELETE, or PATCH (default: GET)
 - `--header <header...>` - Custom headers (repeatable)
@@ -402,6 +445,7 @@ invoke function:invoke <id> [options]
 - `--output <format>` - Output format: `table` or `json`
 
 **Examples:**
+
 ```bash
 # GET request
 invoke function:invoke my-api --method GET
@@ -427,9 +471,11 @@ invoke function:test <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--path <path>` - Path to append to URL
 - `--method <method>` - HTTP method (default: POST)
 - `--header <header...>` - Custom headers (repeatable)
@@ -452,15 +498,18 @@ invoke function:logs <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--status <type>` - Filter by status: `all`, `success`, or `error` (default: all)
 - `--limit <n>` - Number of logs to retrieve (default: 50)
 - `--page <n>` - Page number (default: 1)
 - `--output <format>` - Output format: `table` or `json`
 
 **Examples:**
+
 ```bash
 # Get last 10 logs
 invoke function:logs my-api --limit 10
@@ -485,6 +534,7 @@ invoke function:key:show <id>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 ---
@@ -498,9 +548,11 @@ invoke function:key:regenerate <id> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Options:**
+
 - `--force` - Skip confirmation prompt
 
 ---
@@ -516,16 +568,20 @@ invoke function:retention:set <id> --type <type> [options]
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Required Options:**
+
 - `--type <type>` - Retention type: `time`, `count`, or `none`
 
 **Options (based on type):**
+
 - `--days <n>` - Days to retain logs (for time-based retention)
 - `--count <n>` - Number of logs to retain (for count-based retention)
 
 **Examples:**
+
 ```bash
 # Keep logs for 7 days
 invoke function:retention:set my-api --type time --days 7
@@ -550,12 +606,15 @@ invoke function:schedule:set <id> --cron <expression>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 **Required Options:**
+
 - `--cron <expression>` - Cron expression (standard 5-field format)
 
 **Examples:**
+
 ```bash
 # Run every minute
 invoke function:schedule:set my-api --cron "* * * * *"
@@ -578,6 +637,7 @@ invoke function:schedule:disable <id>
 ```
 
 **Arguments:**
+
 - `<id>` - Function ID or name
 
 ---
@@ -593,9 +653,11 @@ invoke run [path]
 ```
 
 **Arguments:**
+
 - `[path]` - Directory containing the function's `index.js` (default: `.`)
 
 **Options:**
+
 - `-m, --method <method>` - HTTP method (default: `GET`)
 - `-p, --path <urlpath>` - Request URL path (default: `/`)
 - `-d, --data <json>` - Request body as a JSON string
@@ -604,6 +666,7 @@ invoke run [path]
 - `--kv-file <file>` - JSON file for persistent KV storage (default: in-memory)
 
 **Examples:**
+
 ```bash
 # Run the function in the current directory
 invoke run
@@ -635,6 +698,7 @@ These options work with most commands:
 - `--version`, `-V` - Display CLI version
 
 **Examples:**
+
 ```bash
 # Get help for a command
 invoke function:invoke --help

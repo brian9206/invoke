@@ -21,52 +21,60 @@ Invoke allows you to write serverless functions using Node.js-compatible JavaScr
 Here's a simple Invoke function:
 
 ```javascript
-import crypto from 'crypto';
+import crypto from 'crypto'
 
 export default async function handler(req, res) {
-    // Access request data
-    const name = req.query.name || 'World';
-    
-    // Use built-in modules
-    const id = crypto.randomUUID();
-    
-    // Store data in KV store
-    await kv.set(`user:${id}`, { name, timestamp: Date.now() });
-    
-    // Send response
-    res.json({ 
-        message: `Hello, ${name}!`,
-        id 
-    });
+  // Access request data
+  const name = req.query.name || 'World'
+
+  // Use built-in modules
+  const id = crypto.randomUUID()
+
+  // Store data in KV store
+  await kv.set(`user:${id}`, { name, timestamp: Date.now() })
+
+  // Send response
+  res.json({
+    message: `Hello, ${name}!`,
+    id
+  })
 }
 ```
 
 ## Key Features
 
 ### 🔒 Secure Execution
+
 Functions run in isolated sandbox environments with controlled access to system resources.
 
-### 🌐 HTTP/HTTPS Support  
+### 🌐 HTTP/HTTPS Support
+
 Make external API calls using `fetch`, `http`, or `https` modules.
 
 ### 💾 Built-in KV Store
+
 Persistent key-value storage with automatic TTL management.
 
 ### 📦 npm Package Support
+
 Include `node_modules` in your function packages for third-party libraries.
 
 ### ⚡ High Performance
+
 Efficient execution with caching and resource pooling.
 
 ### 🛠️ Powerful CLI
+
 Manage functions, versions, environment variables, and more from the command line.
 
 ## Management Options
 
 ### Web Admin Panel
+
 Access the full-featured web interface to manage functions, view logs, and monitor performance.
 
 ### Command Line Interface (CLI)
+
 Use the Invoke CLI for powerful command-line management:
 
 ```bash

@@ -1,11 +1,11 @@
-import chalk from 'chalk';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-import type { Command } from 'commander';
-import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/exchange';
-import { setupEnvironment } from 'invoke-worker/src/environment';
-import { NoOpIpcChannel, type RequestData } from 'invoke-worker/src/protocol';
+import chalk from 'chalk'
+import dotenv from 'dotenv'
+import fs from 'fs'
+import path from 'path'
+import type { Command } from 'commander'
+import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/exchange'
+import { setupEnvironment } from 'invoke-worker/src/environment'
+import { NoOpIpcChannel, type RequestData } from 'invoke-worker/src/protocol'
 
 export function register(program: Command): void {
   program
@@ -14,56 +14,62 @@ export function register(program: Command): void {
     .option('-m, --method <method>', 'HTTP method', 'GET')
     .option('-p, --path <urlpath>', 'Request path', '/')
     .option('-d, --data <json>', 'Request body as a JSON string')
-    .option('-H, --header <key:value>', 'Request header (repeatable)', (val: string, acc: string[]) => { acc.push(val); return acc; }, [] as string[])
+    .option(
+      '-H, --header <key:value>',
+      'Request header (repeatable)',
+      (val: string, acc: string[]) => {
+        acc.push(val)
+        return acc
+      },
+      [] as string[]
+    )
     .option('-e, --env <file>', 'Path to a .env file to load (defaults to <path>/.env)')
     .option('--kv-file <file>', 'JSON file for KV store persistence (default: in-memory)')
     .action(async (fnPath: string | undefined, options: any) => {
-      fnPath = fnPath || '.';
+      fnPath = fnPath || '.'
 
-      const absoluteFnDir = path.resolve(fnPath);
-      const indexPath = path.join(absoluteFnDir, 'index.js');
+      const absoluteFnDir = path.resolve(fnPath)
+      const indexPath = path.join(absoluteFnDir, 'index.js')
 
       if (!fs.existsSync(indexPath)) {
-        console.error(chalk.red(`✗ index.js not found in: ${absoluteFnDir}`));
-        process.exit(1);
+        console.error(chalk.red(`✗ index.js not found in: ${absoluteFnDir}`))
+        process.exit(1)
       }
 
       // Load .env for the function
-      const envFile = options.env || path.join(absoluteFnDir, '.env');
-      const envVars: Record<string, string> = fs.existsSync(envFile)
-        ? (dotenv.parse(fs.readFileSync(envFile)) || {})
-        : {};
+      const envFile = options.env || path.join(absoluteFnDir, '.env')
+      const envVars: Record<string, string> = fs.existsSync(envFile) ? dotenv.parse(fs.readFileSync(envFile)) || {} : {}
 
       // Parse headers
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = {}
       for (const raw of options.header as string[]) {
-        const sep = raw.indexOf(':');
+        const sep = raw.indexOf(':')
         if (sep === -1) {
-          console.warn(chalk.yellow(`Warning: ignoring malformed header "${raw}" (expected key:value)`));
-          continue;
+          console.warn(chalk.yellow(`Warning: ignoring malformed header "${raw}" (expected key:value)`))
+          continue
         }
-        headers[raw.slice(0, sep).trim().toLowerCase()] = raw.slice(sep + 1).trim();
+        headers[raw.slice(0, sep).trim().toLowerCase()] = raw.slice(sep + 1).trim()
       }
 
       // Parse body
-      let body: any = {};
+      let body: any = {}
       if (options.data) {
         try {
-          body = JSON.parse(options.data);
+          body = JSON.parse(options.data)
         } catch {
-          console.error(chalk.red('✗ --data is not valid JSON'));
-          process.exit(1);
+          console.error(chalk.red('✗ --data is not valid JSON'))
+          process.exit(1)
         }
       }
 
-      const reqUrl = (options.path || '/').startsWith('/') ? options.path : '/' + options.path;
+      const reqUrl = (options.path || '/').startsWith('/') ? options.path : '/' + options.path
 
       // Environment setup
-      setupEnvironment(new NoOpIpcChannel());
+      setupEnvironment(new NoOpIpcChannel())
 
       // Inject env vars
       for (const [key, value] of Object.entries(envVars)) {
-        process.env[key] = value;
+        process.env[key] = value
       }
 
       const requestData: RequestData = {
@@ -79,69 +85,74 @@ export function register(program: Command): void {
         body,
         query: {},
         params: {},
-        headers: { 'content-type': 'application/json', ...headers },
-      };
+        headers: { 'content-type': 'application/json', ...headers }
+      }
 
       try {
-        console.log(chalk.cyan(`▶ Running: ${absoluteFnDir}`));
+        console.log(chalk.cyan(`▶ Running: ${absoluteFnDir}`))
         if (options.kvFile) {
-          console.log(chalk.gray(`  KV store: ${path.resolve(options.kvFile)}`));
+          console.log(chalk.gray(`  KV store: ${path.resolve(options.kvFile)}`))
         } else {
-          console.log(chalk.gray('  KV store: in-memory'));
+          console.log(chalk.gray('  KV store: in-memory'))
         }
-        console.log('');
+        console.log('')
 
         // Load user module
-        const userModule = require(indexPath);
-        const handler = typeof userModule === 'function' ? userModule
-          : typeof userModule.default === 'function' ? userModule.default
-          : null;
+        const userModule = require(indexPath)
+        const handler =
+          typeof userModule === 'function'
+            ? userModule
+            : typeof userModule.default === 'function'
+              ? userModule.default
+              : null
 
         if (!handler) {
-          console.error(chalk.red('✗ Module must export a function. Expected: module.exports = function(req, res) {...}'));
-          process.exitCode = 1;
-          return;
+          console.error(
+            chalk.red('✗ Module must export a function. Expected: module.exports = function(req, res) {...}')
+          )
+          process.exitCode = 1
+          return
         }
 
-        const req = createReqObject(requestData);
-        const { res, state } = createResObject(req);
+        const req = createReqObject(requestData)
+        const { res, state } = createResObject(req)
 
-        const result = handler(req, res);
+        const result = handler(req, res)
         if (result && typeof result.then === 'function') {
-          await result;
+          await result
         }
 
-        const responseData = stateToResponseData(state);
+        const responseData = stateToResponseData(state)
 
         if (responseData.statusCode >= 400) {
-          console.log('\n' + chalk.red('=== Response ==='));
+          console.log('\n' + chalk.red('=== Response ==='))
         } else {
-          console.log('\n' + chalk.cyan('=== Response ==='));
+          console.log('\n' + chalk.cyan('=== Response ==='))
         }
 
-        const statusColor = responseData.statusCode >= 400 ? chalk.red : chalk.green;
-        console.log(`Status: ${statusColor(responseData.statusCode)}`);
+        const statusColor = responseData.statusCode >= 400 ? chalk.red : chalk.green
+        console.log(`Status: ${statusColor(responseData.statusCode)}`)
 
         if (Object.keys(responseData.headers).length > 0) {
-          console.log('\n' + chalk.gray('Response Headers:'));
+          console.log('\n' + chalk.gray('Response Headers:'))
           for (const [key, value] of Object.entries(responseData.headers)) {
-            console.log(`${key}: ${Array.isArray(value) ? value.join(', ') : value}`);
+            console.log(`${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
           }
         }
 
-        console.log('\n' + chalk.gray('Response Body:'));
+        console.log('\n' + chalk.gray('Response Body:'))
         if (responseData.body) {
-          const bodyStr = Buffer.from(responseData.body, 'base64').toString('utf8');
+          const bodyStr = Buffer.from(responseData.body, 'base64').toString('utf8')
           try {
-            console.log(JSON.stringify(JSON.parse(bodyStr), null, 2));
+            console.log(JSON.stringify(JSON.parse(bodyStr), null, 2))
           } catch {
-            console.log(bodyStr);
+            console.log(bodyStr)
           }
         }
       } catch (err: any) {
-        console.error(chalk.red('✗ Execution failed:'), err.message);
-        if (err.stack) console.error(chalk.gray(err.stack));
-        process.exitCode = 1;
+        console.error(chalk.red('✗ Execution failed:'), err.message)
+        if (err.stack) console.error(chalk.gray(err.stack))
+        process.exitCode = 1
       }
-    });
+    })
 }

@@ -42,8 +42,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
     const groups = await FunctionGroup.findAll({
       where: { project_id: projectId },
-      order: [['sort_order', 'ASC'], ['created_at', 'ASC']],
-      raw: true,
+      order: [
+        ['sort_order', 'ASC'],
+        ['created_at', 'ASC']
+      ],
+      raw: true
     })
     return res.status(200).json(createResponse(true, groups, 'Groups retrieved successfully'))
   }
@@ -63,7 +66,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const fullPath = parentPath ? `${String(parentPath).trim()}/${inputPath}` : inputPath
 
     // Normalize: trim each segment
-    const normalizedPath = fullPath.split('/').map((s: string) => s.trim()).join('/')
+    const normalizedPath = fullPath
+      .split('/')
+      .map((s: string) => s.trim())
+      .join('/')
 
     const validationError = validateSegments(normalizedPath)
     if (validationError) {
@@ -77,7 +83,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       where: { project_id: projectId },
       order: [['sort_order', 'DESC']],
       attributes: ['sort_order'],
-      raw: true,
+      raw: true
     })
     let nextSortOrder = maxGroup ? (maxGroup as any).sort_order + 1 : 0
 
@@ -93,20 +99,24 @@ async function handler(req: AuthenticatedRequest, res: any) {
             name: pathSlice,
             sort_order: nextSortOrder,
             created_at: new Date(),
-            updated_at: new Date(),
-          },
+            updated_at: new Date()
+          }
         })
         if (created) nextSortOrder++
         lastCreated = grp
       }
     } catch (err: any) {
       if (err.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json(createResponse(false, null, `A group at path "${normalizedPath}" already exists in this project`, 409))
+        return res
+          .status(409)
+          .json(createResponse(false, null, `A group at path "${normalizedPath}" already exists in this project`, 409))
       }
       throw err
     }
 
-    return res.status(201).json(createResponse(true, lastCreated.get({ plain: true }), 'Group created successfully', 201))
+    return res
+      .status(201)
+      .json(createResponse(true, lastCreated.get({ plain: true }), 'Group created successfully', 201))
   }
 }
 

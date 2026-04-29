@@ -24,10 +24,10 @@ export default function PageTransition() {
   return (
     <>
       {isLoading && (
-        <div className="fixed inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center z-[9999] animate-fadeIn pointer-events-none">
-          <div className="flex flex-col items-center gap-3">
-            <Loader className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-muted-foreground text-sm animate-pulse">Loading page...</p>
+        <div className='fixed inset-0 bg-background/40 backdrop-blur-sm flex items-center justify-center z-[9999] animate-fadeIn pointer-events-none'>
+          <div className='flex flex-col items-center gap-3'>
+            <Loader className='w-8 h-8 text-primary animate-spin' />
+            <p className='text-muted-foreground text-sm animate-pulse'>Loading page...</p>
           </div>
         </div>
       )}

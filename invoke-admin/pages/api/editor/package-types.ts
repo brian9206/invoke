@@ -5,30 +5,25 @@ import path from 'path'
 // Whitelisted packages only — never allow arbitrary path traversal.
 const PACKAGE_DIRS: Record<string, string> = {
   node: path.resolve(process.cwd(), 'node_modules/@types/node'),
-  bun: path.resolve(process.cwd(), '../invoke-runtime/types/node_modules/bun-types'),
+  bun: path.resolve(process.cwd(), '../invoke-runtime/types/node_modules/bun-types')
 }
 
 // Subdirectories to skip within a package.
 const SKIP_DIRS: Record<string, string[]> = {
-  bun: ['vendor'],
+  bun: ['vendor']
 }
 
 function collectFiles(
   dir: string,
   relBase: string,
   skipDirs: string[],
-  result: Record<string, string> = {},
+  result: Record<string, string> = {}
 ): Record<string, string> {
   const entries = fs.readdirSync(dir, { withFileTypes: true })
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (skipDirs.includes(entry.name)) continue
-      collectFiles(
-        path.join(dir, entry.name),
-        relBase ? `${relBase}/${entry.name}` : entry.name,
-        skipDirs,
-        result,
-      )
+      collectFiles(path.join(dir, entry.name), relBase ? `${relBase}/${entry.name}` : entry.name, skipDirs, result)
     } else if (entry.name.endsWith('.d.ts')) {
       const relPath = relBase ? `${relBase}/${entry.name}` : entry.name
       result[relPath] = fs.readFileSync(path.join(dir, entry.name), 'utf8')

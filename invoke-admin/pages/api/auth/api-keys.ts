@@ -12,10 +12,16 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       const keys = await ApiKey.findAll({
         where: { created_by: req.user!.id, is_active: true },
         attributes: ['id', 'name', 'created_at', 'last_used', 'usage_count', 'is_active'],
-        order: [['created_at', 'DESC']],
+        order: [['created_at', 'DESC']]
       })
 
-      return res.status(200).json(createResponse(true, keys.map((k: any) => k.get({ plain: true })), 'API keys retrieved'))
+      return res.status(200).json(
+        createResponse(
+          true,
+          keys.map((k: any) => k.get({ plain: true })),
+          'API keys retrieved'
+        )
+      )
     }
 
     if (req.method === 'POST') {
@@ -39,19 +45,24 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         name: name.trim(),
         created_by: req.user!.id,
         is_active: true,
-        usage_count: 0,
+        usage_count: 0
       })
 
       const keyData = { id: newKey.id, name: newKey.name, created_at: newKey.created_at, is_active: newKey.is_active }
 
       // Return the plaintext key ONLY once (never stored)
-      return res.status(201).json(createResponse(true, {
-        ...keyData,
-        api_key: apiKey, // Only returned this one time
-        message: 'IMPORTANT: Save this API key now. You will not be able to see it again.'
-      }, 'API key created successfully'))
+      return res.status(201).json(
+        createResponse(
+          true,
+          {
+            ...keyData,
+            api_key: apiKey, // Only returned this one time
+            message: 'IMPORTANT: Save this API key now. You will not be able to see it again.'
+          },
+          'API key created successfully'
+        )
+      )
     }
-
   } catch (error) {
     console.error('API keys endpoint error:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))

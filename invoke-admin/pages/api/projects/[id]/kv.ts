@@ -1,11 +1,11 @@
-import { NextApiResponse } from 'next';
-import { AuthenticatedRequest, withAuth } from '@/lib/middleware';
-import { checkProjectAccess } from '@/lib/project-access';
-import { createResponse } from '@/lib/utils';
-import database from '@/lib/database';
-const KeyvModule = require('keyv');
-const Keyv = KeyvModule.default || KeyvModule;
-const { KeyvPostgres } = require('@keyv/postgres');
+import { NextApiResponse } from 'next'
+import { AuthenticatedRequest, withAuth } from '@/lib/middleware'
+import { checkProjectAccess } from '@/lib/project-access'
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
+const KeyvModule = require('keyv')
+const Keyv = KeyvModule.default || KeyvModule
+const { KeyvPostgres } = require('@keyv/postgres')
 
 /**
  * KV Store API - CRUD operations for project key-value store
@@ -15,46 +15,48 @@ const { KeyvPostgres } = require('@keyv/postgres');
  */
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
-    const { id: projectId } = req.query;
+    const { id: projectId } = req.query
 
     if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json(createResponse(false, null, 'Project ID is required', 400));
+      return res.status(400).json(createResponse(false, null, 'Project ID is required', 400))
     }
 
     // Prevent system project access
     if (projectId === 'system') {
-      return res.status(403).json(createResponse(false, null, 'KV store not available for system project', 403));
+      return res.status(403).json(createResponse(false, null, 'KV store not available for system project', 403))
     }
 
     // Check project access
-    const hasAccess = await checkProjectAccess(req.user!.id, projectId, req.user!.isAdmin);
+    const hasAccess = await checkProjectAccess(req.user!.id, projectId, req.user!.isAdmin)
     if (!hasAccess.allowed) {
-      return res.status(403).json(createResponse(false, null, hasAccess.message, 403));
+      return res.status(403).json(createResponse(false, null, hasAccess.message, 403))
     }
 
     // Check role for write operations
     if (req.method === 'POST' || req.method === 'DELETE') {
       if (!hasAccess.canWrite) {
-        return res.status(403).json(createResponse(false, null, 'Developer or owner role required for write operations', 403));
+        return res
+          .status(403)
+          .json(createResponse(false, null, 'Developer or owner role required for write operations', 403))
       }
     }
 
     // Create Keyv instance for this project
-    const kvStore = createKVStore(projectId);
+    const kvStore = createKVStore(projectId)
 
     switch (req.method) {
       case 'GET':
-        return await handleGet(req, res, projectId, kvStore);
+        return await handleGet(req, res, projectId, kvStore)
       case 'POST':
-        return await handlePost(req, res, projectId, kvStore);
+        return await handlePost(req, res, projectId, kvStore)
       case 'DELETE':
-        return await handleDelete(req, res, projectId, kvStore);
+        return await handleDelete(req, res, projectId, kvStore)
       default:
-        return res.status(405).json(createResponse(false, null, 'Method not allowed', 405));
+        return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
     }
   } catch (error) {
-    console.error('KV Store API error:', error);
-    return res.status(500).json(createResponse(false, null, 'Internal server error', 500));
+    console.error('KV Store API error:', error)
+    return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
   }
 }
 
@@ -62,8 +64,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  * Create Keyv instance for a project
  */
 function createKVStore(projectId: string) {
-  const config = database.getConnectionConfig();
-  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
+  const config = database.getConnectionConfig()
+  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`
 
   return new Keyv({
     store: new KeyvPostgres({
@@ -71,7 +73,7 @@ function createKVStore(projectId: string) {
       table: 'project_kv_store'
     }),
     namespace: projectId
-  });
+  })
 }
 
 /**
@@ -80,67 +82,73 @@ function createKVStore(projectId: string) {
 async function handleGet(req: AuthenticatedRequest, res: NextApiResponse, projectId: string, kvStore: any) {
   try {
     // Parse pagination params
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const search = (req.query.search as string) || '';
-    const offset = (page - 1) * limit;
+    const page = parseInt(req.query.page as string) || 1
+    const limit = parseInt(req.query.limit as string) || 50
+    const search = (req.query.search as string) || ''
+    const offset = (page - 1) * limit
 
     // Collect all keys (for counting and filtering)
-    let allItems = [];
-    let totalBytes = 0;
+    let allItems = []
+    let totalBytes = 0
 
     for await (const [key, value] of kvStore.iterator()) {
-      const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-      const entrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8');
-      totalBytes += entrySize;
+      const valueStr = typeof value === 'string' ? value : JSON.stringify(value)
+      const entrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8')
+      totalBytes += entrySize
 
       // Apply key filter if search query provided
       if (search && !key.toLowerCase().includes(search.toLowerCase())) {
-        continue;
+        continue
       }
 
-      let parsedValue;
+      let parsedValue
       try {
-        parsedValue = JSON.parse(valueStr);
+        parsedValue = JSON.parse(valueStr)
       } catch {
-        parsedValue = value;
+        parsedValue = value
       }
 
       allItems.push({
         key,
         value: parsedValue,
         size: entrySize
-      });
+      })
     }
 
     // Sort by key and paginate
-    allItems.sort((a, b) => a.key.localeCompare(b.key));
-    const paginatedItems = allItems.slice(offset, offset + limit);
-    const totalFiltered = allItems.length;
+    allItems.sort((a, b) => a.key.localeCompare(b.key))
+    const paginatedItems = allItems.slice(offset, offset + limit)
+    const totalFiltered = allItems.length
 
     // Get storage limit from project
-    const { Project } = database.models;
-    const projData = await Project.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] });
-    const storageLimit = projData ? parseInt(projData.kv_storage_limit_bytes) : 1073741824;
+    const { Project } = database.models
+    const projData = await Project.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] })
+    const storageLimit = projData ? parseInt(projData.kv_storage_limit_bytes) : 1073741824
 
-    return res.status(200).json(createResponse(true, {
-      items: paginatedItems,
-      pagination: {
-        page,
-        limit,
-        total: totalFiltered,
-        totalPages: Math.ceil(totalFiltered / limit)
-      },
-      storage: {
-        bytes: totalBytes,
-        limit: storageLimit,
-        percentage: storageLimit > 0 ? (totalBytes / storageLimit) * 100 : 0
-      }
-    }, 'KV store retrieved successfully', 200));
-
+    return res.status(200).json(
+      createResponse(
+        true,
+        {
+          items: paginatedItems,
+          pagination: {
+            page,
+            limit,
+            total: totalFiltered,
+            totalPages: Math.ceil(totalFiltered / limit)
+          },
+          storage: {
+            bytes: totalBytes,
+            limit: storageLimit,
+            percentage: storageLimit > 0 ? (totalBytes / storageLimit) * 100 : 0
+          }
+        },
+        'KV store retrieved successfully',
+        200
+      )
+    )
   } catch (error) {
-    console.error('Error getting KV store:', error);
-    return res.status(500).json(createResponse(false, null, 'Failed to retrieve KV store', 500));
+    console.error('Error getting KV store:', error)
+    return res.status(500).json(createResponse(false, null, 'Failed to retrieve KV store', 500))
   }
 }
 
@@ -149,55 +157,63 @@ async function handleGet(req: AuthenticatedRequest, res: NextApiResponse, projec
  */
 async function handlePost(req: AuthenticatedRequest, res: NextApiResponse, projectId: string, kvStore: any) {
   try {
-    const { key, value, ttl } = req.body;
+    const { key, value, ttl } = req.body
 
     if (!key || typeof key !== 'string') {
-      return res.status(400).json(createResponse(false, null, 'Key is required and must be a string', 400));
+      return res.status(400).json(createResponse(false, null, 'Key is required and must be a string', 400))
     }
 
     if (value === undefined || value === null) {
-      return res.status(400).json(createResponse(false, null, 'Value is required', 400));
+      return res.status(400).json(createResponse(false, null, 'Value is required', 400))
     }
 
     // Calculate size of new entry
-    const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-    const newEntrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8');
+    const valueStr = typeof value === 'string' ? value : JSON.stringify(value)
+    const newEntrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(valueStr, 'utf8')
 
     // Get current storage usage and limit
-    let currentUsage = 0;
+    let currentUsage = 0
     for await (const [k, v] of kvStore.iterator()) {
-      const vStr = typeof v === 'string' ? v : JSON.stringify(v);
-      currentUsage += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(vStr, 'utf8');
+      const vStr = typeof v === 'string' ? v : JSON.stringify(v)
+      currentUsage += Buffer.byteLength(k, 'utf8') + Buffer.byteLength(vStr, 'utf8')
     }
 
-    const { Project: ProjectModel } = database.models;
-    const projDataPost = await ProjectModel.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] });
-    const limit = projDataPost ? parseInt(projDataPost.kv_storage_limit_bytes) : 1073741824;
+    const { Project: ProjectModel } = database.models
+    const projDataPost = await ProjectModel.findByPk(projectId, { attributes: ['kv_storage_limit_bytes'] })
+    const limit = projDataPost ? parseInt(projDataPost.kv_storage_limit_bytes) : 1073741824
 
     // Check if key already exists
-    const existingValue = await kvStore.get(key);
+    const existingValue = await kvStore.get(key)
     if (existingValue !== undefined) {
-      const existingStr = typeof existingValue === 'string' ? existingValue : JSON.stringify(existingValue);
-      const oldEntrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(existingStr, 'utf8');
-      currentUsage -= oldEntrySize;
+      const existingStr = typeof existingValue === 'string' ? existingValue : JSON.stringify(existingValue)
+      const oldEntrySize = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(existingStr, 'utf8')
+      currentUsage -= oldEntrySize
     }
 
     // Check quota
-    const projectedUsage = currentUsage + newEntrySize;
+    const projectedUsage = currentUsage + newEntrySize
     if (projectedUsage > limit) {
-      const limitMB = (limit / (1024 * 1024)).toFixed(2);
-      const projectedMB = (projectedUsage / (1024 * 1024)).toFixed(2);
-      return res.status(413).json(createResponse(false, null, `Storage quota exceeded. Projected usage: ${projectedMB}MB, Limit: ${limitMB}MB`, 413));
+      const limitMB = (limit / (1024 * 1024)).toFixed(2)
+      const projectedMB = (projectedUsage / (1024 * 1024)).toFixed(2)
+      return res
+        .status(413)
+        .json(
+          createResponse(
+            false,
+            null,
+            `Storage quota exceeded. Projected usage: ${projectedMB}MB, Limit: ${limitMB}MB`,
+            413
+          )
+        )
     }
 
     // Set the value
-    await kvStore.set(key, value, ttl);
+    await kvStore.set(key, value, ttl)
 
-    return res.status(200).json(createResponse(true, { key, value }, 'Key-value pair saved successfully', 200));
-
+    return res.status(200).json(createResponse(true, { key, value }, 'Key-value pair saved successfully', 200))
   } catch (error) {
-    console.error('Error setting KV pair:', error);
-    return res.status(500).json(createResponse(false, null, 'Failed to save key-value pair', 500));
+    console.error('Error setting KV pair:', error)
+    return res.status(500).json(createResponse(false, null, 'Failed to save key-value pair', 500))
   }
 }
 
@@ -206,20 +222,19 @@ async function handlePost(req: AuthenticatedRequest, res: NextApiResponse, proje
  */
 async function handleDelete(req: AuthenticatedRequest, res: NextApiResponse, projectId: string, kvStore: any) {
   try {
-    const { key } = req.query;
+    const { key } = req.query
 
     if (!key || typeof key !== 'string') {
-      return res.status(400).json(createResponse(false, null, 'Key is required', 400));
+      return res.status(400).json(createResponse(false, null, 'Key is required', 400))
     }
 
-    const existed = await kvStore.delete(key);
+    const existed = await kvStore.delete(key)
 
-    return res.status(200).json(createResponse(true, { existed }, 'Key deleted successfully', 200));
-
+    return res.status(200).json(createResponse(true, { existed }, 'Key deleted successfully', 200))
   } catch (error) {
-    console.error('Error deleting KV pair:', error);
-    return res.status(500).json(createResponse(false, null, 'Failed to delete key', 500));
+    console.error('Error deleting KV pair:', error)
+    return res.status(500).json(createResponse(false, null, 'Failed to delete key', 500))
   }
 }
 
-export default withAuth(handler);
+export default withAuth(handler)

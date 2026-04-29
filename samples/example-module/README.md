@@ -24,11 +24,13 @@ This is a demonstration function showing how to use local file imports in the In
 The function accepts both GET and POST requests:
 
 ### GET Request
+
 ```bash
 curl "http://localhost:3001/invoke/FUNCTION_ID?message=Hello&user=John"
 ```
 
 ### POST Request
+
 ```bash
 curl -X POST \
   -H "Content-Type: application/json" \

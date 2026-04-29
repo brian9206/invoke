@@ -10,7 +10,7 @@ import { pipeline } from 'stream/promises'
 const { s3Service } = require('invoke-shared')
 
 export const config = {
-  api: { responseLimit: false },
+  api: { responseLimit: false }
 }
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -20,8 +20,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const build = await FunctionBuild.findByPk(buildId, {
     include: [
       { model: FunctionModel, attributes: ['id', 'name', 'project_id'] },
-      { model: FunctionVersion, as: 'version', attributes: ['version'] },
-    ],
+      { model: FunctionVersion, as: 'version', attributes: ['version'] }
+    ]
   })
 
   if (!build) {
@@ -32,7 +32,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   if (!req.user?.isAdmin && raw.Function?.project_id) {
     const membership = await ProjectMembership.findOne({
-      where: { user_id: req.user!.id, project_id: raw.Function.project_id },
+      where: { user_id: req.user!.id, project_id: raw.Function.project_id }
     })
     if (!membership) {
       return res.status(403).json(createResponse(false, null, 'Access denied', 403))

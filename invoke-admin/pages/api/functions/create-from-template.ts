@@ -1,4 +1,4 @@
-export const runtime = 'nodejs';
+export const runtime = 'nodejs'
 
 import { NextApiRequest, NextApiResponse } from 'next'
 import fs from 'fs-extra'
@@ -43,14 +43,14 @@ export default async function(req, res) {
 function buildPackageJson(name: string, description: string) {
   return {
     name,
-    version: "1.0.0",
+    version: '1.0.0',
     description,
-    license: "UNLICENSED",
+    license: 'UNLICENSED',
     private: true,
-    type: "module",
-    main: "index.js",
+    type: 'module',
+    main: 'index.js',
     scripts: {
-      start: "invoke run",
+      start: 'invoke run',
       deploy: `invoke function:deploy --name ${name} --project "Default Project"`,
       test: `invoke function:test ${name} --path ?name=World`
     }
@@ -72,7 +72,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (!req.user?.isAdmin && projectId) {
       const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
       if (!access.allowed) {
-        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to create functions', 403))
+        return res
+          .status(403)
+          .json(createResponse(false, null, access.message || 'Insufficient permissions to create functions', 403))
       }
     }
 
@@ -84,11 +86,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const functionDescription = description || 'Hello World function'
 
     // Check if function already exists by name
-    const { Function: FunctionModel, FunctionVersion } = database.models;
-    const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] });
+    const { Function: FunctionModel, FunctionVersion } = database.models
+    const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] })
 
     if (existing) {
-      return res.status(409).json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
+      return res
+        .status(409)
+        .json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
     }
 
     const functionId = uuidv4()
@@ -105,8 +109,11 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     try {
       // Create function files
       await fs.writeFile(path.join(tempDir, 'index.js'), helloWorldTemplate)
-      await fs.writeFile(path.join(tempDir, 'package.json'), JSON.stringify(buildPackageJson(functionName, functionDescription), null, 2))
-      
+      await fs.writeFile(
+        path.join(tempDir, 'package.json'),
+        JSON.stringify(buildPackageJson(functionName, functionDescription), null, 2)
+      )
+
       // Create README
       const readmeContent = `# ${functionName}
 
@@ -139,7 +146,7 @@ Returns a JSON object with a greeting message.
       // Get file stats
       const stats = await fs.stat(tgzPath)
       const fileBuffer = await fs.readFile(tgzPath)
-      
+
       // Calculate hash
       const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
@@ -149,7 +156,7 @@ Returns a JSON object with a greeting message.
       await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
-        'Version': version.toString()
+        Version: version.toString()
       })
 
       console.log(`Successfully uploaded to MinIO: ${minioObjectName}`)
@@ -164,7 +171,7 @@ Returns a JSON object with a greeting message.
         api_key: apiKey || null,
         is_active: true,
         project_id: projectId || null
-      });
+      })
 
       // Generate a separate version ID
       const versionId = crypto.randomUUID()
@@ -178,10 +185,10 @@ Returns a JSON object with a greeting message.
         package_hash: hash,
         created_by: userId,
         package_path: minioObjectName
-      });
+      })
 
       // Update function to set active_version_id
-      await FunctionModel.update({ active_version_id: versionId }, { where: { id: functionId } });
+      await FunctionModel.update({ active_version_id: versionId }, { where: { id: functionId } })
 
       // Clean up temporary files
       await fs.remove(tempDir)
@@ -189,13 +196,18 @@ Returns a JSON object with a greeting message.
 
       console.log(`Successfully created Hello World function: ${functionName} (${functionId})`)
 
-      return res.status(201).json(createResponse(true, {
-        id: functionId,
-        name: functionName,
-        version: version,
-        size: stats.size
-      }, 'Hello World function created successfully'))
-
+      return res.status(201).json(
+        createResponse(
+          true,
+          {
+            id: functionId,
+            name: functionName,
+            version: version,
+            size: stats.size
+          },
+          'Hello World function created successfully'
+        )
+      )
     } catch (error) {
       // Clean up on error
       try {
@@ -206,10 +218,9 @@ Returns a JSON object with a greeting message.
       }
       throw error
     }
-
   } catch (error) {
     console.error('Error creating Hello World function:', error)
-    
+
     return res.status(500).json(createResponse(false, null, 'Failed to create function', 500))
   }
 }

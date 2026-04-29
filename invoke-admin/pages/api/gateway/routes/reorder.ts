@@ -27,13 +27,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Verify all routes belong to this project
-  const ids = order.map((o) => o.id)
-  const { ApiGatewayConfig, ApiGatewayRoute } = database.models;
-  const verifyRoutes = await ApiGatewayRoute.findAll({
+  const ids = order.map(o => o.id)
+  const { ApiGatewayConfig, ApiGatewayRoute } = database.models
+  const verifyRoutes = (await ApiGatewayRoute.findAll({
     where: { id: { [Op.in]: ids } },
     include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }],
-    attributes: ['id'],
-  }) as any[]
+    attributes: ['id']
+  })) as any[]
   if (verifyRoutes.length !== ids.length) {
     return res.status(403).json(createResponse(false, null, 'One or more route IDs do not belong to this project', 403))
   }
@@ -44,9 +44,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       await ApiGatewayRoute.update(
         { sort_order: item.sortOrder, updated_at: new Date() },
         { where: { id: item.id }, transaction: t }
-      );
+      )
     }
-  });
+  })
 
   return res.json(createResponse(true, null, 'Route order updated'))
 }

@@ -2,22 +2,22 @@
 // BroadcastOperator — Chainable emitter for room/namespace broadcast targets
 // ============================================================================
 
-import type { RealtimeClient } from './client';
+import type { RealtimeClient } from './client'
 
 /**
  * Chainable realtime broadcaster for namespace and room targeting.
  */
 export class BroadcastOperator {
   /** @internal */
-  private _client: RealtimeClient;
+  private _client: RealtimeClient
   /** @internal */
-  private _namespace: string | null;
+  private _namespace: string | null
   /** @internal */
-  private _rooms: string[];
+  private _rooms: string[]
   /** @internal */
-  private _exceptRooms: string[];
+  private _exceptRooms: string[]
   /** @internal */
-  private _socketId: string | null;
+  private _socketId: string | null
 
   /** @internal */
   constructor(
@@ -25,13 +25,13 @@ export class BroadcastOperator {
     namespace: string | null,
     rooms: string[],
     exceptRooms: string[],
-    socketId: string | null,
+    socketId: string | null
   ) {
-    this._client = client;
-    this._namespace = namespace;
-    this._rooms = rooms.slice();
-    this._exceptRooms = exceptRooms.slice();
-    this._socketId = socketId;
+    this._client = client
+    this._namespace = namespace
+    this._rooms = rooms.slice()
+    this._exceptRooms = exceptRooms.slice()
+    this._socketId = socketId
   }
 
   /**
@@ -45,8 +45,8 @@ export class BroadcastOperator {
       this._namespace,
       this._rooms.concat([room]),
       this._exceptRooms,
-      this._socketId,
-    );
+      this._socketId
+    )
   }
 
   /**
@@ -55,7 +55,7 @@ export class BroadcastOperator {
    * @returns A new broadcast operator with the additional room.
    */
   in(room: string): BroadcastOperator {
-    return this.to(room);
+    return this.to(room)
   }
 
   /**
@@ -69,8 +69,8 @@ export class BroadcastOperator {
       this._namespace,
       this._rooms,
       this._exceptRooms.concat([room]),
-      this._socketId,
-    );
+      this._socketId
+    )
   }
 
   /**
@@ -80,7 +80,7 @@ export class BroadcastOperator {
    * @returns A promise that resolves when the command is accepted.
    */
   emit(event: string, ...args: unknown[]): Promise<void> {
-    let cmd: Record<string, unknown>;
+    let cmd: Record<string, unknown>
 
     if (this._socketId) {
       // Socket-level broadcast — excludes the sender socket
@@ -91,8 +91,8 @@ export class BroadcastOperator {
         roomIds: this._rooms,
         exceptRooms: this._exceptRooms,
         event,
-        args,
-      };
+        args
+      }
     } else {
       // Namespace-level targeted emit
       cmd = {
@@ -101,10 +101,10 @@ export class BroadcastOperator {
         roomIds: this._rooms,
         exceptRooms: this._exceptRooms,
         event,
-        args,
-      };
+        args
+      }
     }
 
-    return this._client.send(cmd);
+    return this._client.send(cmd)
   }
 }

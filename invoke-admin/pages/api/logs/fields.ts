@@ -16,8 +16,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
   const result = await proxyToLogger('/logs/fields', {
     query: {
       q: req.query.q as string,
-      projectId,
-    },
+      projectId
+    }
   })
 
   res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))

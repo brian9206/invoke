@@ -24,16 +24,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Verify function exists
-    const { Function: FunctionModel, FunctionVersion } = database.models;
-    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
+    const { Function: FunctionModel, FunctionVersion } = database.models
+    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] })
 
     if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
     // Get next version number
-    const maxVersion = await (FunctionVersion as any).max('version', { where: { function_id: functionId } });
-    const nextVersion = ((maxVersion as number) || 0) + 1;
+    const maxVersion = await (FunctionVersion as any).max('version', { where: { function_id: functionId } })
+    const nextVersion = ((maxVersion as number) || 0) + 1
     const newVersionId = uuidv4()
 
     // Get temp directory from environment or use default
@@ -70,7 +70,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
-        'Version': nextVersion.toString()
+        Version: nextVersion.toString()
       })
 
       // Create version record
@@ -82,24 +82,29 @@ async function handler(req: AuthenticatedRequest, res: any) {
         package_hash: hash,
         created_by: userId,
         package_path: minioObjectName
-      });
+      })
 
       // If setActive is true, update the function's active version
       if (setActive) {
-        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } });
+        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } })
       }
 
       // Clean up temporary files
       await fs.remove(tempDir)
       await fs.remove(tgzPath)
 
-      return res.status(201).json(createResponse(true, {
-        versionId: newVersionId,
-        version: nextVersion,
-        size: stats.size,
-        isActive: setActive
-      }, `Version ${nextVersion} created${setActive ? ' and activated' : ''} successfully`))
-
+      return res.status(201).json(
+        createResponse(
+          true,
+          {
+            versionId: newVersionId,
+            version: nextVersion,
+            size: stats.size,
+            isActive: setActive
+          },
+          `Version ${nextVersion} created${setActive ? ' and activated' : ''} successfully`
+        )
+      )
     } catch (error) {
       // Clean up on error
       try {
@@ -110,7 +115,6 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
       throw error
     }
-
   } catch (error) {
     console.error('Error saving source code:', error)
     return res.status(500).json(createResponse(false, null, 'Failed to save source code', 500))
@@ -122,7 +126,7 @@ export default withAuthOrApiKeyAndMethods(['POST'])(handler)
 async function writeFilesToDirectory(files: any[], baseDir: string): Promise<void> {
   for (const file of files) {
     const filePath = path.join(baseDir, file.path)
-    
+
     if (file.type === 'directory') {
       await fs.ensureDir(filePath)
       if (file.children && Array.isArray(file.children)) {

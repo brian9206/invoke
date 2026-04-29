@@ -21,7 +21,7 @@ import {
   Package,
   Ban,
   Circle,
-  Download,
+  Download
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Card, CardContent } from '@/components/ui/card'
@@ -32,12 +32,43 @@ import type { BuildDetailResponse, BuildContextData } from '@/pages/api/builds/[
 
 function statusBadge(status: string) {
   switch (status) {
-    case 'queued':   return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="w-3 h-3" />Queued</Badge>
-    case 'running':  return <Badge className="bg-blue-500/20 text-blue-400 border-blue-800/50 flex items-center gap-1"><Loader className="w-3 h-3 animate-spin" />Running</Badge>
-    case 'success':  return <Badge className="bg-green-900/30 text-green-400 border-green-800/50 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" />Success</Badge>
-    case 'failed':   return <Badge variant="destructive" className="flex items-center gap-1"><XCircle className="w-3 h-3" />Failed</Badge>
-    case 'cancelled': return <Badge variant="secondary" className="flex items-center gap-1"><Ban className="w-3 h-3" />Cancelled</Badge>
-    default:         return <Badge variant="outline">{status}</Badge>
+    case 'queued':
+      return (
+        <Badge variant='secondary' className='flex items-center gap-1'>
+          <Clock className='w-3 h-3' />
+          Queued
+        </Badge>
+      )
+    case 'running':
+      return (
+        <Badge className='bg-blue-500/20 text-blue-400 border-blue-800/50 flex items-center gap-1'>
+          <Loader className='w-3 h-3 animate-spin' />
+          Running
+        </Badge>
+      )
+    case 'success':
+      return (
+        <Badge className='bg-green-900/30 text-green-400 border-green-800/50 flex items-center gap-1'>
+          <CheckCircle2 className='w-3 h-3' />
+          Success
+        </Badge>
+      )
+    case 'failed':
+      return (
+        <Badge variant='destructive' className='flex items-center gap-1'>
+          <XCircle className='w-3 h-3' />
+          Failed
+        </Badge>
+      )
+    case 'cancelled':
+      return (
+        <Badge variant='secondary' className='flex items-center gap-1'>
+          <Ban className='w-3 h-3' />
+          Cancelled
+        </Badge>
+      )
+    default:
+      return <Badge variant='outline'>{status}</Badge>
   }
 }
 
@@ -50,14 +81,14 @@ const stageStatusStyles: Record<string, { bg: string; border: string; text: stri
   cancelled: { bg: 'bg-muted/50', border: 'border-muted-foreground/30', text: 'text-muted-foreground', icon: XCircle },
   running: { bg: 'bg-blue-500/10', border: 'border-blue-500', text: 'text-blue-400', icon: Loader },
   success: { bg: 'bg-green-500/10', border: 'border-green-600', text: 'text-green-400', icon: CheckCircle2 },
-  failure: { bg: 'bg-red-500/10', border: 'border-red-600', text: 'text-red-400', icon: XCircle },
+  failure: { bg: 'bg-red-500/10', border: 'border-red-600', text: 'text-red-400', icon: XCircle }
 }
 
 /** Compute topological layers — stages in the same layer have all deps in earlier layers */
 function computeLayers(ctx: BuildContextData): string[][] {
-  const stageMap = new Map(ctx.pipeline.stages.map((s) => [s.name, s]))
-  const inDegree = new Map(ctx.pipeline.stages.map((s) => [s.name, 0]))
-  const dependents = new Map<string, string[]>(ctx.pipeline.stages.map((s) => [s.name, []]))
+  const stageMap = new Map(ctx.pipeline.stages.map(s => [s.name, s]))
+  const inDegree = new Map(ctx.pipeline.stages.map(s => [s.name, 0]))
+  const dependents = new Map<string, string[]>(ctx.pipeline.stages.map(s => [s.name, []]))
 
   for (const stage of ctx.pipeline.stages) {
     for (const dep of stage.dependsOn) {
@@ -67,7 +98,7 @@ function computeLayers(ctx: BuildContextData): string[][] {
   }
 
   const layers: string[][] = []
-  let ready = ctx.pipeline.stages.filter((s) => inDegree.get(s.name) === 0).map((s) => s.name)
+  let ready = ctx.pipeline.stages.filter(s => inDegree.get(s.name) === 0).map(s => s.name)
 
   while (ready.length > 0) {
     layers.push(ready)
@@ -85,7 +116,7 @@ function computeLayers(ctx: BuildContextData): string[][] {
 }
 
 function formatStageName(name: string): string {
-  return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function PipelineGraph({ ctx }: { ctx: BuildContextData }) {
@@ -95,13 +126,13 @@ function PipelineGraph({ ctx }: { ctx: BuildContextData }) {
   layers.forEach((layer, li) => layer.forEach((name, ri) => stagePosition.set(name, { layer: li, row: ri })))
 
   // Build dependency map for quick lookup
-  const depsMap = new Map(ctx.pipeline.stages.map((s) => [s.name, s.dependsOn]))
+  const depsMap = new Map(ctx.pipeline.stages.map(s => [s.name, s.dependsOn]))
 
   return (
-    <div className="flex items-start gap-2 overflow-x-auto py-2">
+    <div className='flex items-start gap-2 overflow-x-auto py-2'>
       {layers.map((layer, li) => (
-        <div key={li} className="flex flex-col gap-2 items-center">
-          {layer.map((stageName) => {
+        <div key={li} className='flex flex-col gap-2 items-center'>
+          {layer.map(stageName => {
             const stageStatus = ctx.stages[stageName]?.status ?? 'pending'
             const stageError = ctx.stages[stageName]?.error
             const style = stageStatusStyles[stageStatus] ?? stageStatusStyles.pending
@@ -113,24 +144,24 @@ function PipelineGraph({ ctx }: { ctx: BuildContextData }) {
                 className={cn(
                   'relative flex items-center gap-2 rounded-lg border-2 px-4 py-3 min-w-[180px] transition-all',
                   style.bg,
-                  style.border,
+                  style.border
                 )}
                 title={stageError ? `Error: ${stageError}` : undefined}
               >
-                <Icon className={cn('w-4 h-4 flex-shrink-0', style.text, stageStatus === 'running' && 'animate-spin')} />
-                <div className="min-w-0">
+                <Icon
+                  className={cn('w-4 h-4 flex-shrink-0', style.text, stageStatus === 'running' && 'animate-spin')}
+                />
+                <div className='min-w-0'>
                   <p className={cn('text-sm font-medium truncate', style.text)} title={stageName}>
                     {formatStageName(stageName)}
                   </p>
-                  <p className="text-xs text-muted-foreground capitalize">{stageStatus}</p>
+                  <p className='text-xs text-muted-foreground capitalize'>{stageStatus}</p>
                 </div>
               </div>
             )
           })}
           {/* Arrow to next layer */}
-          {li < layers.length - 1 && (
-            <div className="absolute" />
-          )}
+          {li < layers.length - 1 && <div className='absolute' />}
         </div>
       ))}
       {/* SVG arrows overlay — rendered separately for clean layering */}
@@ -151,12 +182,12 @@ function PipelineGraphCard({ ctx, buildStatus }: { ctx: BuildContextData; buildS
   layers.forEach((layer, li) => layer.forEach((name, ri) => stagePosition.set(name, { layer: li, row: ri })))
 
   const NODE_W = 196 // min-w-[180px] + px-4*2 + border ≈ 196
-  const NODE_H = 56  // py-3*2 + content ≈ 56
-  const GAP_X = 48   // horizontal gap between layers
-  const GAP_Y = 12   // vertical gap between rows
+  const NODE_H = 56 // py-3*2 + content ≈ 56
+  const GAP_X = 48 // horizontal gap between layers
+  const GAP_Y = 12 // vertical gap between rows
   const LAYER_OFFSET = NODE_W + GAP_X
 
-  const maxRows = Math.max(...layers.map((l) => l.length))
+  const maxRows = Math.max(...layers.map(l => l.length))
   const svgW = layers.length * LAYER_OFFSET - GAP_X
   const svgH = maxRows * (NODE_H + GAP_Y) - GAP_Y
 
@@ -169,7 +200,7 @@ function PipelineGraphCard({ ctx, buildStatus }: { ctx: BuildContextData; buildS
       cy: offsetY + row * (NODE_H + GAP_Y) + NODE_H / 2,
       right: layer * LAYER_OFFSET + NODE_W,
       left: layer * LAYER_OFFSET,
-      top: offsetY + row * (NODE_H + GAP_Y),
+      top: offsetY + row * (NODE_H + GAP_Y)
     }
   }
 
@@ -183,22 +214,22 @@ function PipelineGraphCard({ ctx, buildStatus }: { ctx: BuildContextData; buildS
 
   return (
     <Card>
-      <CardContent className="pt-6 space-y-4">
-        <h2 className="text-base font-bold flex items-center gap-2 text-foreground">
-          <Zap className="w-5 h-5" />
+      <CardContent className='pt-6 space-y-4'>
+        <h2 className='text-base font-bold flex items-center gap-2 text-foreground'>
+          <Zap className='w-5 h-5' />
           Pipeline
-          <Badge variant="secondary" className="ml-1 capitalize">{ctx.pipeline.name}</Badge>
-          <span className="text-muted-foreground font-normal text-sm">
-            {ctx.pipeline.stages.length} stages
-          </span>
+          <Badge variant='secondary' className='ml-1 capitalize'>
+            {ctx.pipeline.name}
+          </Badge>
+          <span className='text-muted-foreground font-normal text-sm'>{ctx.pipeline.stages.length} stages</span>
         </h2>
-        <div className="overflow-x-auto">
-          <div className="relative" style={{ width: svgW, height: svgH, minWidth: svgW }}>
+        <div className='overflow-x-auto'>
+          <div className='relative' style={{ width: svgW, height: svgH, minWidth: svgW }}>
             {/* SVG arrow layer */}
-            <svg className="absolute inset-0 pointer-events-none" width={svgW} height={svgH}>
+            <svg className='absolute inset-0 pointer-events-none' width={svgW} height={svgH}>
               <defs>
-                <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-                  <path d="M0,0 L8,3 L0,6" fill="currentColor" className="text-muted-foreground/40" />
+                <marker id='arrow' markerWidth='8' markerHeight='6' refX='8' refY='3' orient='auto'>
+                  <path d='M0,0 L8,3 L0,6' fill='currentColor' className='text-muted-foreground/40' />
                 </marker>
               </defs>
               {edges.map(({ from, to }) => {
@@ -216,11 +247,11 @@ function PipelineGraphCard({ ctx, buildStatus }: { ctx: BuildContextData; buildS
                   <path
                     key={`${from}-${to}`}
                     d={`M${x1},${y1} C${cpx},${y1} ${cpx},${y2} ${x2},${y2}`}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="text-muted-foreground/40"
-                    markerEnd="url(#arrow)"
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                    className='text-muted-foreground/40'
+                    markerEnd='url(#arrow)'
                   />
                 )
               })}
@@ -240,22 +271,24 @@ function PipelineGraphCard({ ctx, buildStatus }: { ctx: BuildContextData; buildS
                     className={cn(
                       'absolute flex items-center gap-2 rounded-lg border-2 px-4 py-3 transition-all',
                       style.bg,
-                      style.border,
+                      style.border
                     )}
                     style={{
                       left: pos.x,
                       top: pos.top,
                       width: NODE_W,
-                      height: NODE_H,
+                      height: NODE_H
                     }}
                     title={stageError ? `Error: ${stageError}` : undefined}
                   >
-                    <Icon className={cn('w-4 h-4 flex-shrink-0', style.text, stageStatus === 'running' && 'animate-spin')} />
-                    <div className="min-w-0">
+                    <Icon
+                      className={cn('w-4 h-4 flex-shrink-0', style.text, stageStatus === 'running' && 'animate-spin')}
+                    />
+                    <div className='min-w-0'>
                       <p className={cn('text-sm font-medium truncate', style.text)} title={stageName}>
                         {formatStageName(stageName)}
                       </p>
-                      <p className="text-xs text-muted-foreground capitalize">{stageStatus}</p>
+                      <p className='text-xs text-muted-foreground capitalize'>{stageStatus}</p>
                     </div>
                   </div>
                 )
@@ -316,7 +349,7 @@ export default function BuildDetail() {
     try {
       const res = await authenticatedFetch(`/api/functions/${data.function_id}/builds`, {
         method: 'POST',
-        body: JSON.stringify({ versionId: data.version_id }),
+        body: JSON.stringify({ versionId: data.version_id })
       })
       const json = await res.json()
       if (json.success && json.data?.id) {
@@ -344,7 +377,7 @@ export default function BuildDetail() {
       const a = document.createElement('a')
       a.href = url
       const disposition = res.headers.get('content-disposition') ?? ''
-      const match = disposition.match(/filename="([^"]+)"/) 
+      const match = disposition.match(/filename="([^"]+)"/)
       a.download = match?.[1] ?? `artifact-${id}.zip`
       a.click()
       URL.revokeObjectURL(url)
@@ -361,7 +394,7 @@ export default function BuildDetail() {
     try {
       const res = await authenticatedFetch(`/api/builds/${id}`, {
         method: 'POST',
-        body: JSON.stringify({ action: 'cancel' }),
+        body: JSON.stringify({ action: 'cancel' })
       })
       const json = await res.json()
       if (json.success) {
@@ -406,9 +439,9 @@ export default function BuildDetail() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout title="Build Details">
-          <div className="flex items-center justify-center h-64">
-            <Loader className="w-8 h-8 text-primary animate-spin" />
+        <Layout title='Build Details'>
+          <div className='flex items-center justify-center h-64'>
+            <Loader className='w-8 h-8 text-primary animate-spin' />
           </div>
         </Layout>
       </ProtectedRoute>
@@ -418,11 +451,11 @@ export default function BuildDetail() {
   if (error || !data) {
     return (
       <ProtectedRoute>
-        <Layout title="Build Details">
-          <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <p className="text-destructive">{error || 'Build not found'}</p>
-            <Button variant="outline" size="sm" onClick={() => router.push('/admin/builds')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
+        <Layout title='Build Details'>
+          <div className='flex flex-col items-center justify-center h-64 gap-4'>
+            <p className='text-destructive'>{error || 'Build not found'}</p>
+            <Button variant='outline' size='sm' onClick={() => router.push('/admin/builds')}>
+              <ArrowLeft className='w-4 h-4 mr-2' />
               Back to Builds
             </Button>
           </div>
@@ -436,50 +469,52 @@ export default function BuildDetail() {
 
   return (
     <ProtectedRoute>
-      <Layout title="Build Details">
-        <div className="space-y-6">
+      <Layout title='Build Details'>
+        <div className='space-y-6'>
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className='flex items-center justify-between'>
             <PageHeader
-              title="Build Details"
-              subtitle={
-                data.function_name
-                  ? `${data.function_name} v${data.version_number}`
-                  : id
-              }
-              icon={<Hammer className="w-8 h-8 text-primary" />}
+              title='Build Details'
+              subtitle={data.function_name ? `${data.function_name} v${data.version_number}` : id}
+              icon={<Hammer className='w-8 h-8 text-primary' />}
             />
-            <div className="flex items-center gap-2">
-              {statusBadge(data.status)}
-            </div>
+            <div className='flex items-center gap-2'>{statusBadge(data.status)}</div>
           </div>
 
           {/* Action cards */}
-         <Card>
-            <CardContent className="overflow-x-auto">
-              <div className="mt-6">
-                <div className="flex gap-2 whitespace-nowrap [&>*]:shrink-0">
+          <Card>
+            <CardContent className='overflow-x-auto'>
+              <div className='mt-6'>
+                <div className='flex gap-2 whitespace-nowrap [&>*]:shrink-0'>
                   {isActive && (
-                    <Button variant="destructive" size="sm" onClick={handleCancel} disabled={cancelling}>
-                      {cancelling ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <Ban className="w-4 h-4 mr-2" />}
+                    <Button variant='destructive' size='sm' onClick={handleCancel} disabled={cancelling}>
+                      {cancelling ? <Loader className='w-4 h-4 mr-2 animate-spin' /> : <Ban className='w-4 h-4 mr-2' />}
                       Cancel
                     </Button>
                   )}
                   {canRebuild && (
-                    <Button size="sm" onClick={handleRebuild} disabled={rebuilding}>
-                      {rebuilding ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                    <Button size='sm' onClick={handleRebuild} disabled={rebuilding}>
+                      {rebuilding ? (
+                        <Loader className='w-4 h-4 mr-2 animate-spin' />
+                      ) : (
+                        <RefreshCw className='w-4 h-4 mr-2' />
+                      )}
                       Rebuild
                     </Button>
                   )}
                   {data.artifact_path && (
-                    <Button variant="outline" size="sm" onClick={handleDownloadArtifact} disabled={downloading}>
-                      {downloading ? <Loader className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                    <Button variant='outline' size='sm' onClick={handleDownloadArtifact} disabled={downloading}>
+                      {downloading ? (
+                        <Loader className='w-4 h-4 mr-2 animate-spin' />
+                      ) : (
+                        <Download className='w-4 h-4 mr-2' />
+                      )}
                       Download Artifacts
                     </Button>
                   )}
                   {isActive && (
-                    <Button variant="outline" size="sm" onClick={fetchBuild}>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    <Button variant='outline' size='sm' onClick={fetchBuild}>
+                      <RefreshCw className='w-4 h-4 mr-2 animate-spin' />
                       Refreshing…
                     </Button>
                   )}
@@ -489,44 +524,47 @@ export default function BuildDetail() {
           </Card>
 
           {/* Overview cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
             {[
               {
                 label: 'Duration',
                 value: data.status === 'running' ? 'In progress…' : formatDuration(data.started_at, data.completed_at),
-                icon: Clock,
+                icon: Clock
               },
               {
                 label: 'Function',
                 value: `${data.function_name} v${data.version_number}`,
                 icon: Package,
-                link: data.function_id ? `/admin/functions/${data.function_id}` : undefined,
+                link: data.function_id ? `/admin/functions/${data.function_id}` : undefined
               },
               {
                 label: 'Created By',
                 value: data.created_by_name ?? '—',
-                icon: User,
+                icon: User
               },
               {
                 label: 'Created At',
                 value: formatDate(data.created_at),
-                icon: Calendar,
-              },
+                icon: Calendar
+              }
             ].map(({ label, value, icon: Icon, link }) => (
               <Card key={label}>
-                <CardContent className="pt-5">
-                  <div className="flex items-center justify-between">
+                <CardContent className='pt-5'>
+                  <div className='flex items-center justify-between'>
                     <div>
-                      <p className="text-muted-foreground text-sm">{label}</p>
+                      <p className='text-muted-foreground text-sm'>{label}</p>
                       {link ? (
-                        <Link href={link} className="text-xl font-bold text-primary hover:underline mt-0.5 block truncate">
+                        <Link
+                          href={link}
+                          className='text-xl font-bold text-primary hover:underline mt-0.5 block truncate'
+                        >
                           {value}
                         </Link>
                       ) : (
-                        <p className="text-xl font-bold text-foreground mt-0.5 truncate">{value}</p>
+                        <p className='text-xl font-bold text-foreground mt-0.5 truncate'>{value}</p>
                       )}
                     </div>
-                    <Icon className="w-8 h-8 text-muted-foreground/40" />
+                    <Icon className='w-8 h-8 text-muted-foreground/40' />
                   </div>
                 </CardContent>
               </Card>
@@ -535,40 +573,40 @@ export default function BuildDetail() {
 
           {/* Timestamps detail */}
           <Card>
-            <CardContent className="pt-6">
-              <h2 className="text-base font-bold flex items-center gap-2 text-foreground mb-4">
-                <Calendar className="w-5 h-5" />
+            <CardContent className='pt-6'>
+              <h2 className='text-base font-bold flex items-center gap-2 text-foreground mb-4'>
+                <Calendar className='w-5 h-5' />
                 Timeline
               </h2>
-              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+              <dl className='grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm'>
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</dt>
-                  <dd className="text-foreground mt-0.5">{formatDate(data.created_at)}</dd>
+                  <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Created</dt>
+                  <dd className='text-foreground mt-0.5'>{formatDate(data.created_at)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Started</dt>
-                  <dd className="text-foreground mt-0.5">{formatDate(data.started_at)}</dd>
+                  <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Started</dt>
+                  <dd className='text-foreground mt-0.5'>{formatDate(data.started_at)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Completed</dt>
-                  <dd className="text-foreground mt-0.5">{formatDate(data.completed_at)}</dd>
+                  <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Completed</dt>
+                  <dd className='text-foreground mt-0.5'>{formatDate(data.completed_at)}</dd>
                 </div>
               </dl>
             </CardContent>
           </Card>
 
           {/* Pipeline Graph */}
-          {data.build_context && (
-            <PipelineGraphCard ctx={data.build_context} buildStatus={data.status} />
-          )}
+          {data.build_context && <PipelineGraphCard ctx={data.build_context} buildStatus={data.status} />}
 
           {/* After build action */}
           {data.after_build_action === 'switch' && (
-            <Card className="border-blue-800/50">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 text-blue-400 text-sm">
-                  <Zap className="w-5 h-5" />
-                  <span className="font-medium">This build will automatically switch the active version on success.</span>
+            <Card className='border-blue-800/50'>
+              <CardContent className='pt-6'>
+                <div className='flex items-center gap-2 text-blue-400 text-sm'>
+                  <Zap className='w-5 h-5' />
+                  <span className='font-medium'>
+                    This build will automatically switch the active version on success.
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -576,13 +614,13 @@ export default function BuildDetail() {
 
           {/* Error Banner */}
           {data.error_message && (
-            <Card className="border-destructive/50">
-              <CardContent className="pt-6">
-                <h2 className="text-base font-bold flex items-center gap-2 text-destructive mb-3">
-                  <AlertTriangle className="w-5 h-5" />
+            <Card className='border-destructive/50'>
+              <CardContent className='pt-6'>
+                <h2 className='text-base font-bold flex items-center gap-2 text-destructive mb-3'>
+                  <AlertTriangle className='w-5 h-5' />
                   Build Error
                 </h2>
-                <pre className="bg-destructive/10 text-destructive rounded p-3 text-sm font-mono whitespace-pre-wrap break-all">
+                <pre className='bg-destructive/10 text-destructive rounded p-3 text-sm font-mono whitespace-pre-wrap break-all'>
                   {data.error_message}
                 </pre>
               </CardContent>
@@ -591,33 +629,33 @@ export default function BuildDetail() {
 
           {/* Build Log Output */}
           <Card>
-            <CardContent className="pt-6 space-y-4">
-              <h2 className="text-base font-bold flex items-center gap-2 text-foreground">
-                <Terminal className="w-5 h-5" />
+            <CardContent className='pt-6 space-y-4'>
+              <h2 className='text-base font-bold flex items-center gap-2 text-foreground'>
+                <Terminal className='w-5 h-5' />
                 Build Output
               </h2>
               {data.logs.length > 0 ? (
-                <div className="bg-black rounded-lg p-4 font-mono text-sm space-y-1">
+                <div className='bg-black rounded-lg p-4 font-mono text-sm space-y-1'>
                   {data.logs.map((entry, i) => (
-                    <div key={i} className="flex gap-3 text-muted-foreground">
-                      <span className="text-muted-foreground/60 whitespace-nowrap select-none">
+                    <div key={i} className='flex gap-3 text-muted-foreground'>
+                      <span className='text-muted-foreground/60 whitespace-nowrap select-none'>
                         [{formatTimestamp(entry.timestamp)}]
                       </span>
-                      <span className="flex-1 break-words whitespace-pre-wrap break-all text-gray-200">
+                      <span className='flex-1 break-words whitespace-pre-wrap break-all text-gray-200'>
                         {entry.message}
                       </span>
                     </div>
                   ))}
                 </div>
               ) : isActive ? (
-                <div className="bg-black rounded-lg p-8 text-center text-muted-foreground">
-                  <Loader className="w-6 h-6 animate-spin mx-auto mb-2" />
-                  <p className="text-sm">Waiting for build output…</p>
+                <div className='bg-black rounded-lg p-8 text-center text-muted-foreground'>
+                  <Loader className='w-6 h-6 animate-spin mx-auto mb-2' />
+                  <p className='text-sm'>Waiting for build output…</p>
                 </div>
               ) : (
-                <div className="bg-black rounded-lg p-8 text-center text-muted-foreground">
-                  <Terminal className="w-6 h-6 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm">No build output available</p>
+                <div className='bg-black rounded-lg p-8 text-center text-muted-foreground'>
+                  <Terminal className='w-6 h-6 mx-auto mb-2 opacity-40' />
+                  <p className='text-sm'>No build output available</p>
                 </div>
               )}
             </CardContent>

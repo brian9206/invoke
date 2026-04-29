@@ -7,12 +7,12 @@ Invoke provides several global objects and functions that are available in all f
 Structured logging is natively supported via the built-in Pino instance, accessible as `logger`.
 
 ```javascript
-logger.info({ foo: 'bar' });
-logger.error('%s has won %d dollars!', 'Brian', 100000);
-logger.warn(req, 'Request object');
+logger.info({ foo: 'bar' })
+logger.error('%s has won %d dollars!', 'Brian', 100000)
+logger.warn(req, 'Request object')
 
-const child = logger.child({ module: 'auth-service' });
-child.info('hello world');
+const child = logger.child({ module: 'auth-service' })
+child.info('hello world')
 ```
 
 For more details, please refer to [Pino API Logger Instance Reference](https://getpino.io/#/docs/api?id=logger).
@@ -22,16 +22,16 @@ For more details, please refer to [Pino API Logger Instance Reference](https://g
 Express.js-compatible router for handling multiple routes and middleware in a single function:
 
 ```javascript
-const router = new Router();
+const router = new Router()
 
-router.get('/', (req, res) => res.json({ ok: true }));
-router.get('/users/:id', (req, res) => res.json({ id: req.params.id }));
+router.get('/', (req, res) => res.json({ ok: true }))
+router.get('/users/:id', (req, res) => res.json({ id: req.params.id }))
 router.post('/users', async (req, res) => {
-    res.status(201).json(req.body);
-});
-router.use((req, res) => res.status(404).send('Not found'));
+  res.status(201).json(req.body)
+})
+router.use((req, res) => res.status(404).send('Not found'))
 
-export default router;
+export default router
 ```
 
 See the [Router API](/docs/api/router) for full documentation.
@@ -41,22 +41,22 @@ See the [Router API](/docs/api/router) for full documentation.
 Socket.IO-compatible realtime namespace for building event-driven functions with rooms, broadcasting, and authentication:
 
 ```javascript
-const ns = new RealtimeNamespace('/chat');
+const ns = new RealtimeNamespace('/chat')
 
 ns.socket.on('$connect', function () {
-    ns.socket.join('lobby');
-    ns.socket.emit('welcome', { message: 'Hello!' });
-});
+  ns.socket.join('lobby')
+  ns.socket.emit('welcome', { message: 'Hello!' })
+})
 
 ns.socket.on('message', function (data) {
-    ns.socket.to('lobby').emit('message', { from: ns.socket.id, text: data.text });
-});
+  ns.socket.to('lobby').emit('message', { from: ns.socket.id, text: data.text })
+})
 
 ns.socket.on('$disconnect', function (reason) {
-    console.log('Left:', ns.socket.id, reason);
-});
+  console.log('Left:', ns.socket.id, reason)
+})
 
-export default ns;
+export default ns
 ```
 
 See the [Realtime APIs](/docs/api/realtime) for full documentation.
@@ -66,15 +66,15 @@ See the [Realtime APIs](/docs/api/realtime) for full documentation.
 Standard Node.js-compatible modules available in the sandbox:
 
 ```javascript
-import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
-import utils from './lib/utils.js';
-import lodash from 'lodash';
-import config from './config.json';
+import crypto from 'crypto'
+import fs from 'fs'
+import path from 'path'
+import utils from './lib/utils.js'
+import lodash from 'lodash'
+import config from './config.json'
 
 export default function handler(req, res) {
-    res.json({ loaded: true });
+  res.json({ loaded: true })
 }
 ```
 

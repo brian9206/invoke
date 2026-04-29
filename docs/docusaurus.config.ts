@@ -1,6 +1,6 @@
-import {themes as prismThemes} from 'prism-react-renderer';
-import type {Config} from '@docusaurus/types';
-import type * as Preset from '@docusaurus/preset-classic';
+import { themes as prismThemes } from 'prism-react-renderer'
+import type { Config } from '@docusaurus/types'
+import type * as Preset from '@docusaurus/preset-classic'
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -11,7 +11,7 @@ const config: Config = {
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
-    v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    v4: true // Improve compatibility with the upcoming Docusaurus v4
   },
 
   // Set the production url of your site here
@@ -33,7 +33,7 @@ const config: Config = {
   // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
-    locales: ['en'],
+    locales: ['en']
   },
 
   presets: [
@@ -42,14 +42,14 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          routeBasePath: 'docs',
+          routeBasePath: 'docs'
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
-        },
-      } satisfies Preset.Options,
-    ],
+          customCss: './src/css/custom.css'
+        }
+      } satisfies Preset.Options
+    ]
   ],
 
   themeConfig: {
@@ -57,13 +57,13 @@ const config: Config = {
     colorMode: {
       defaultMode: 'dark',
       respectPrefersColorScheme: false,
-      disableSwitch: false,
+      disableSwitch: false
     },
     navbar: {
       title: 'Invoke',
       logo: {
         alt: 'Invoke Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.svg'
       },
       hideOnScroll: true,
       items: [
@@ -71,38 +71,39 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'gettingStartedSidebar',
           position: 'left',
-          label: 'Getting Started',
+          label: 'Getting Started'
         },
         {
           type: 'docSidebar',
           sidebarId: 'cliSidebar',
           position: 'left',
-          label: 'CLI',
+          label: 'CLI'
         },
         {
           type: 'docSidebar',
           sidebarId: 'apiSidebar',
           position: 'left',
-          label: 'API',
+          label: 'API'
         },
         {
           type: 'docSidebar',
           sidebarId: 'guidesSidebar',
           position: 'left',
-          label: 'Guides',
+          label: 'Guides'
         },
         {
           type: 'docSidebar',
           sidebarId: 'examplesSidebar',
           position: 'left',
-          label: 'Examples',
+          label: 'Examples'
         },
         {
           type: 'html',
           position: 'right',
-          value: '<a href="https://github.com/brian9206/invoke" class="navbar__item navbar__link" target="_blank" rel="noopener noreferrer">GitHub</a>',
-        },
-      ],
+          value:
+            '<a href="https://github.com/brian9206/invoke" class="navbar__item navbar__link" target="_blank" rel="noopener noreferrer">GitHub</a>'
+        }
+      ]
     },
     footer: {
       style: 'dark',
@@ -112,86 +113,86 @@ const config: Config = {
           items: [
             {
               label: 'Quick Start',
-              to: '/docs/getting-started/quick-start',
+              to: '/docs/getting-started/quick-start'
             },
             {
               label: 'CLI Reference',
-              to: '/docs/cli/reference',
+              to: '/docs/cli/reference'
             },
             {
               label: 'API Reference',
-              to: '/docs/api/globals',
+              to: '/docs/api/globals'
             },
             {
               label: 'Examples',
-              to: '/docs/examples/hello-world',
-            },
-          ],
+              to: '/docs/examples/hello-world'
+            }
+          ]
         },
         {
           title: 'Guides',
           items: [
             {
               label: 'HTTP Requests',
-              to: '/docs/guides/http-requests',
+              to: '/docs/guides/http-requests'
             },
             {
               label: 'Environment Variables',
-              to: '/docs/guides/environment-vars',
+              to: '/docs/guides/environment-vars'
             },
             {
               label: 'KV Store Usage',
-              to: '/docs/examples/kv-store-usage',
+              to: '/docs/examples/kv-store-usage'
             },
             {
               label: 'Cryptography',
-              to: '/docs/guides/cryptography',
-            },
-          ],
+              to: '/docs/guides/cryptography'
+            }
+          ]
         },
         {
           title: 'More',
           items: [
             {
               label: 'Advanced Topics',
-              to: '/docs/advanced/limitations',
+              to: '/docs/advanced/limitations'
             },
             {
               label: 'Best Practices',
-              to: '/docs/advanced/best-practices',
+              to: '/docs/advanced/best-practices'
             },
             {
               label: 'GitHub',
-              href: 'https://github.com/brian9206/invoke',
-            },
-          ],
-        },
+              href: 'https://github.com/brian9206/invoke'
+            }
+          ]
+        }
       ],
-      copyright: `Built with ⚡ by Brian · © ${new Date().getFullYear()} Invoke Documentation`,
+      copyright: `Built with ⚡ by Brian · © ${new Date().getFullYear()} Invoke Documentation`
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'javascript', 'typescript', 'json', 'docker'],
+      additionalLanguages: ['bash', 'javascript', 'typescript', 'json', 'docker']
     },
     docs: {
       sidebar: {
         hideable: true,
-        autoCollapseCategories: true,
-      },
-    },
+        autoCollapseCategories: true
+      }
+    }
   } satisfies Preset.ThemeConfig,
 
   plugins: [
     [
-      require.resolve("@cmfcmf/docusaurus-search-local"),
+      require.resolve('@cmfcmf/docusaurus-search-local'),
       {
         indexDocs: true,
         indexBlog: false,
-        language: ["en"], // ✅ array of strings
-      },
-    ],
+        language: ['en'] // ✅ array of strings
+      }
+    ]
   ]
-};
+}
 
-export default config;
+export default config

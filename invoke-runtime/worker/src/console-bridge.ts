@@ -2,22 +2,22 @@
 // Console Bridge — Overrides console methods to send logs to the host
 // ============================================================================
 
-import type { IIpcChannel } from './protocol';
+import type { IIpcChannel } from './protocol'
 
-const ORIGINAL_CONSOLE: Record<string, Function> = {};
+const ORIGINAL_CONSOLE: Record<string, Function> = {}
 
-type Middleware = (level: string, args: string[]) => Record<string, unknown> | null;
+type Middleware = (level: string, args: string[]) => Record<string, unknown> | null
 
 function consoleMiddleware(level: string, args: string[]) {
-  return { level, args };
+  return { level, args }
 }
 
-let instrument = false;
+let instrument = false
 
 /** @internal */
 export function enableInstrument() {
-  instrument = true;
-  console.log('[console-bridge] instrument enabled');
+  instrument = true
+  console.log('[console-bridge] instrument enabled')
 }
 
 /**
@@ -28,50 +28,49 @@ export function enableInstrument() {
  * @internal
  */
 export function installConsoleBridge(ipc: IIpcChannel, middleware: Middleware = consoleMiddleware): () => void {
-  const levels = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
+  const levels = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const
 
   for (const level of levels) {
-    const original = (console as any)[level];
-    ORIGINAL_CONSOLE[level] = original;
-
-    (console as any)[level] = (...args: unknown[]) => {
+    const original = (console as any)[level]
+    ORIGINAL_CONSOLE[level] = original
+    ;(console as any)[level] = (...args: unknown[]) => {
       // Fire-and-forget — don't await, don't throw on write failure
       try {
-        const payload = middleware(level, args.map(formatArg));
+        const payload = middleware(level, args.map(formatArg))
         if (payload) {
-          ipc.emit('console', payload);
+          ipc.emit('console', payload)
         }
       } catch {
         // Socket may be closed; fall through to original
       } finally {
         if (instrument) {
-          original(...args);
+          original(...args)
         }
       }
-    };
+    }
   }
 
   // console.clear() is a no-op inside the sandbox
-  console.clear = () => {};
+  console.clear = () => {}
 
   // Return a restore function for cleanup
   return () => {
     for (const level of levels) {
       if (ORIGINAL_CONSOLE[level]) {
-        (console as any)[level] = ORIGINAL_CONSOLE[level];
+        ;(console as any)[level] = ORIGINAL_CONSOLE[level]
       }
     }
-  };
+  }
 }
 
 function formatArg(arg: unknown): string {
-  if (arg === undefined) return 'undefined';
-  if (arg === null) return 'null';
-  if (typeof arg === 'string') return arg;
-  if (arg instanceof Error) return arg.stack ?? arg.message;
+  if (arg === undefined) return 'undefined'
+  if (arg === null) return 'null'
+  if (typeof arg === 'string') return arg
+  if (arg instanceof Error) return arg.stack ?? arg.message
   try {
-    return JSON.stringify(arg);
+    return JSON.stringify(arg)
   } catch {
-    return String(arg);
+    return String(arg)
   }
 }

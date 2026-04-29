@@ -15,9 +15,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
         include: [
           { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
           { model: User, as: 'deployedBy', attributes: ['username'], required: false },
-          { model: Project, attributes: ['name'], required: false },
+          { model: Project, attributes: ['name'], required: false }
         ],
-        order: database.sequelize.literal('"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'),
+        order: database.sequelize.literal(
+          '"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'
+        )
       })
     } else {
       // Regular users or project-specific query
@@ -44,11 +46,17 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
           { model: User, as: 'deployedBy', attributes: ['username'], required: false },
           {
-            model: Project, attributes: ['name'], required: false,
-            include: [{ model: ProjectMembership, attributes: ['role'], where: { user_id: req.user!.id }, required: false }],
-          },
+            model: Project,
+            attributes: ['name'],
+            required: false,
+            include: [
+              { model: ProjectMembership, attributes: ['role'], where: { user_id: req.user!.id }, required: false }
+            ]
+          }
         ],
-        order: database.sequelize.literal('"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'),
+        order: database.sequelize.literal(
+          '"Function"."group_id" ASC NULLS LAST, "Function"."sort_order" ASC, "Function"."created_at" DESC'
+        )
       })
     }
 
@@ -69,7 +77,6 @@ async function handler(req: AuthenticatedRequest, res: any) {
     })
 
     return res.status(200).json(createResponse(true, functions, 'Functions retrieved successfully'))
-
   } else if (req.method === 'POST') {
     // Create function metadata (code uploaded separately via versions endpoint)
     const { name, description, project_id, requires_api_key } = req.body
@@ -82,7 +89,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(400).json(createResponse(false, null, 'Function name must be 100 characters or less', 400))
     }
     if (description !== undefined && typeof description === 'string' && description.length > 255) {
-      return res.status(400).json(createResponse(false, null, 'Function description must be 255 characters or less', 400))
+      return res
+        .status(400)
+        .json(createResponse(false, null, 'Function description must be 255 characters or less', 400))
     }
 
     // Check project access for non-admins
@@ -95,8 +104,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Check if function name already exists
-    const { Function: FunctionModel } = database.models;
-    const existing = await FunctionModel.findOne({ where: { name }, attributes: ['id'] });
+    const { Function: FunctionModel } = database.models
+    const existing = await FunctionModel.findOne({ where: { name }, attributes: ['id'] })
 
     if (existing) {
       return res.status(409).json(createResponse(false, null, `Function with name "${name}" already exists`, 409))
@@ -116,7 +125,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       api_key: apiKey,
       is_active: false,
       project_id
-    });
+    })
 
     return res.status(201).json(createResponse(true, fn.get({ plain: true }), 'Function created successfully', 201))
   }

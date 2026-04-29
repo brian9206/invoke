@@ -20,12 +20,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
       to: req.query.to as string,
       projectId,
       interval: req.query.interval as string,
-      logType: req.query.logType as string,
-    },
+      logType: req.query.logType as string
+    }
   })
 
   res.status(result.status).json(createResponse(result.success, result.data, result.message ?? undefined))
 }
 
 export default withAuthAndMethods(['GET'])(handler)
-

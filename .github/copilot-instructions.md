@@ -26,24 +26,24 @@ Rules:
 
 All database access goes through **Sequelize v6 ORM**. There is **no raw `pg.Pool`** anywhere.
 Do **not** use `database.query()`, `database.pool`, `new Pool()`, or `new Client()`.
-***CRITICAL**: Do **not** use raw SQL in application code — use Sequelize models and query methods.
+**\*CRITICAL**: Do **not** use raw SQL in application code — use Sequelize models and query methods.
 
 ### Shared Factories (in `invoke-shared`)
 
-| Export                  | File                       | Purpose                                                 |
-|-------------------------|----------------------------|---------------------------------------------------------|
-| `createDatabase(opts)`  | `shared/database.js`       | Low-level Sequelize instance factory (reads env vars)   |
-| `createServiceDatabase(opts)` | `shared/service-database.js` | Creates `{ sequelize, models, getConnectionConfig(), close() }` |
-| `initModels(sequelize)` | `shared/models/index.js`   | Registers all 15 models + associations on a Sequelize instance |
-| `createNotifyListener(channel, opts)` | `shared/pg-notify.js` | PostgreSQL LISTEN/NOTIFY subscriber via `pg-listen` |
+| Export                                | File                         | Purpose                                                         |
+| ------------------------------------- | ---------------------------- | --------------------------------------------------------------- |
+| `createDatabase(opts)`                | `shared/database.js`         | Low-level Sequelize instance factory (reads env vars)           |
+| `createServiceDatabase(opts)`         | `shared/service-database.js` | Creates `{ sequelize, models, getConnectionConfig(), close() }` |
+| `initModels(sequelize)`               | `shared/models/index.js`     | Registers all 15 models + associations on a Sequelize instance  |
+| `createNotifyListener(channel, opts)` | `shared/pg-notify.js`        | PostgreSQL LISTEN/NOTIFY subscriber via `pg-listen`             |
 
 ### Per-Service `database.js`
 
 Every service has a one-liner `database.js` that calls the shared factory:
 
 ```js
-const { createServiceDatabase } = require('invoke-shared');
-module.exports = createServiceDatabase({ poolMax: 20 });
+const { createServiceDatabase } = require('invoke-shared')
+module.exports = createServiceDatabase({ poolMax: 20 })
 ```
 
 The returned object exposes:
@@ -57,14 +57,14 @@ Pool sizes: `poolMax: 20`.
 
 ### Environment Variables (database)
 
-| Variable         | Default      | Notes                                    |
-|------------------|--------------|------------------------------------------|
-| `DB_HOST`        | `localhost`  |                                          |
-| `DB_PORT`        | `5432`       |                                          |
-| `DB_NAME`        | `invoke_db`  |                                          |
-| `DB_USER`        | `postgres`   |                                          |
-| `DB_PASSWORD`    | `postgres`   |                                          |
-| `SEQUELIZE_LOG`  | `false`      | Set `true` to log SQL to console         |
+| Variable        | Default     | Notes                            |
+| --------------- | ----------- | -------------------------------- |
+| `DB_HOST`       | `localhost` |                                  |
+| `DB_PORT`       | `5432`      |                                  |
+| `DB_NAME`       | `invoke_db` |                                  |
+| `DB_USER`       | `postgres`  |                                  |
+| `DB_PASSWORD`   | `postgres`  |                                  |
+| `SEQUELIZE_LOG` | `false`     | Set `true` to log SQL to console |
 
 ### Rules for Database Access
 
@@ -88,10 +88,10 @@ The Function model is registered as `Function` in `database.models` (not `Functi
 
 ```js
 // ✅ Correct
-const { Function: FunctionModel } = database.models;
+const { Function: FunctionModel } = database.models
 
 // ❌ Wrong — FunctionModel will be undefined
-const { FunctionModel } = database.models;
+const { FunctionModel } = database.models
 ```
 
 ---
@@ -124,7 +124,7 @@ touch shared/migrations/010_your_description.js
 #### Step 3: Write the migration
 
 ```js
-'use strict';
+'use strict'
 
 module.exports = {
   async up({ context: { queryInterface } }) {
@@ -135,8 +135,8 @@ module.exports = {
 
   async down({ context: { queryInterface } }) {
     // Reverse the up() changes.
-  },
-};
+  }
+}
 ```
 
 > **Important:** This project uses **Umzug v3**. Migration functions receive a single `{ context }` argument — NOT `(queryInterface, Sequelize)`. Always destructure as `{ context: { queryInterface } }`. Using the old v2 signature will silently fail with `Cannot read properties of undefined (reading 'query')`.
@@ -172,6 +172,7 @@ cd invoke-admin && npm run dev
 ```
 
 Examples:
+
 - `001_initial_schema.js`
 - `008_add_audit_logs.js`
 - `009_add_user_email_verified.js`
@@ -194,25 +195,26 @@ The platform uses PostgreSQL's LISTEN/NOTIFY to invalidate in-memory caches inst
 
 ```js
 // In the service's server.js:
-const { createNotifyListener } = require('invoke-shared');
+const { createNotifyListener } = require('invoke-shared')
 
 const listener = createNotifyListener('my_channel', {
-  parsePayload: (raw) => JSON.parse(raw),       // optional
-  getDebounceKey: (payload) => payload.some_id,  // optional, for per-key debouncing
-  debounceMs: 100,                               // default
-});
+  parsePayload: raw => JSON.parse(raw), // optional
+  getDebounceKey: payload => payload.some_id, // optional, for per-key debouncing
+  debounceMs: 100 // default
+})
 
-await listener.connect(async (payload) => {
+await listener.connect(async payload => {
   // Handle cache invalidation
-});
+})
 
 // On shutdown:
-await listener.stop();
+await listener.stop()
 ```
 
 ### Triggers
 
 The PL/pgSQL trigger functions that emit NOTIFY are created in migrations:
+
 - `shared/migrations/003_add_api_gateway.js` — `notify_gateway_change()`
 - `shared/migrations/006_add_execution_notify_triggers.js` — `notify_execution_cache_change()`
 
@@ -242,23 +244,23 @@ If you add a new table that should trigger cache invalidation, create a new migr
 ### Query data with aggregations
 
 ```js
-const { fn, col, literal, Op } = require('sequelize');
+const { fn, col, literal, Op } = require('sequelize')
 
 const result = await database.models.Function.findOne({
   attributes: [
     [fn('COUNT', col('id')), 'total'],
-    [literal(`COUNT(*) FILTER (WHERE is_active = true)`), 'active'],
+    [literal(`COUNT(*) FILTER (WHERE is_active = true)`), 'active']
   ],
   where: { project_id: someId },
-  raw: true,
-});
+  raw: true
+})
 ```
 
 ### Build a connection string (e.g., for Keyv)
 
 ```js
-const config = database.getConnectionConfig();
-const uri = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
+const config = database.getConnectionConfig()
+const uri = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`
 ```
 
 ## Verify changes

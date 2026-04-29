@@ -1,5 +1,5 @@
-import { createServiceDatabase } from 'invoke-shared';
+import { createServiceDatabase } from 'invoke-shared'
 
-const database = createServiceDatabase({ poolMax: 20 });
+const database = createServiceDatabase({ poolMax: 20 })
 
-export default database;
+export default database

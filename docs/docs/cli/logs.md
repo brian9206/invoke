@@ -17,6 +17,7 @@ invoke function:logs my-api
 ```
 
 **Example output:**
+
 ```
 📋 Execution Logs:
 
@@ -92,6 +93,7 @@ invoke function:logs my-api --output json
 ```
 
 **Example JSON output:**
+
 ```json
 {
   "logs": [
@@ -149,6 +151,7 @@ invoke function:logs my-api --status error --limit 20
 ```
 
 **Save errors to file:**
+
 ```bash
 invoke function:logs my-api --status error --output json > errors.json
 ```
@@ -200,6 +203,7 @@ echo "Successes: $successes / $total"
 Configure how long logs are retained:
 
 **Time-based retention:**
+
 ```bash
 # Keep logs for 7 days
 invoke function:retention:set my-api --type time --days 7
@@ -209,6 +213,7 @@ invoke function:retention:set my-api --type time --days 30
 ```
 
 **Count-based retention:**
+
 ```bash
 # Keep last 1000 logs
 invoke function:retention:set my-api --type count --count 1000
@@ -218,6 +223,7 @@ invoke function:retention:set my-api --type count --count 10000
 ```
 
 **No retention (keep all logs):**
+
 ```bash
 invoke function:retention:set my-api --type none
 ```
@@ -329,11 +335,11 @@ errors=$(invoke function:logs $FUNCTION \
 
 if [ $errors -ge $ERROR_THRESHOLD ]; then
   echo "⚠️  ALERT: $errors errors detected in $FUNCTION"
-  
+
   # Send notification (example: email, Slack, etc.)
   # curl -X POST https://hooks.slack.com/... \
   #   -d "{\"text\": \"Function $FUNCTION has $errors errors\"}"
-  
+
   exit 1
 fi
 
@@ -412,11 +418,13 @@ invoke function:logs my-api --limit 1000 --output json | \
 ### No Logs Appearing
 
 1. Check if function has been executed:
+
    ```bash
    invoke function:get my-api | grep "Total Executions"
    ```
 
 2. Verify function is active:
+
    ```bash
    invoke function:get my-api | grep "Active"
    ```

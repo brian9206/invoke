@@ -2,30 +2,30 @@
 // Response — Express-compatible response mock object
 // ============================================================================
 
-import http from 'http';
-import path from 'path';
-import fs from 'fs';
-import mime from 'mime-types';
+import http from 'http'
+import path from 'path'
+import fs from 'fs'
+import mime from 'mime-types'
 
 /** @internal */
-import type { ResponseData } from '../../protocol';
+import type { ResponseData } from '../../protocol'
 
-import { InvokeRequest } from './request';
+import { InvokeRequest } from './request'
 
 /**
  * Options for `res.sendFile()` and `res.download()`.
  */
 export interface SendFileOptions {
   /** Root directory to resolve the file path against. Defaults to `'/'`. */
-  root?: string;
+  root?: string
   /** Cache max-age in milliseconds for the `Cache-Control` header. */
-  maxAge?: number;
+  maxAge?: number
   /** Whether to set the `Cache-Control` header. Defaults to `true`. */
-  cacheControl?: boolean;
+  cacheControl?: boolean
   /** Whether to set the `Last-Modified` header. Defaults to `true`. */
-  lastModified?: boolean;
+  lastModified?: boolean
   /** Additional response headers to include. */
-  headers?: Record<string, string>;
+  headers?: Record<string, string>
 }
 
 /**
@@ -33,29 +33,29 @@ export interface SendFileOptions {
  */
 export interface CookieOptions {
   /** Cookie path. Defaults to `'/'`. */
-  path?: string;
+  path?: string
   /** Cookie domain scope. */
-  domain?: string;
+  domain?: string
   /** Max-age in seconds. */
-  maxAge?: number;
+  maxAge?: number
   /** Explicit expiry date. */
-  expires?: Date | string;
+  expires?: Date | string
   /** Restrict cookie to HTTP(S) only; inaccessible from JavaScript. */
-  httpOnly?: boolean;
+  httpOnly?: boolean
   /** Only transmit the cookie over HTTPS. */
-  secure?: boolean;
+  secure?: boolean
   /** `SameSite` attribute: `'strict'`, `'lax'`, `'none'`, or a boolean. */
-  sameSite?: string | boolean;
+  sameSite?: string | boolean
   /** Custom encoder applied to the cookie value before serialization. */
-  encode?: (val: string) => string;
+  encode?: (val: string) => string
 }
 
 /** @internal */
 export interface ResponseState {
-  statusCode: number;
-  headers: Record<string, string | string[]>;
-  data: Buffer | undefined;
-  finished: boolean;
+  statusCode: number
+  headers: Record<string, string | string[]>
+  data: Buffer | undefined
+  finished: boolean
 }
 
 /**
@@ -63,18 +63,21 @@ export interface ResponseState {
  */
 export class InvokeResponse {
   /** @internal */
-  readonly state: ResponseState;
+  readonly state: ResponseState
   /** `true` once the response headers have been flushed to the client. */
-  headersSent = false;
+  headersSent = false
 
   /** @internal */
-  constructor(private readonly req: InvokeRequest, private _endCallback?: (res: InvokeResponse) => void) {
+  constructor(
+    private readonly req: InvokeRequest,
+    private _endCallback?: (res: InvokeResponse) => void
+  ) {
     this.state = {
       statusCode: 200,
       headers: {},
       data: undefined,
-      finished: false,
-    };
+      finished: false
+    }
   }
 
   /**
@@ -82,7 +85,7 @@ export class InvokeResponse {
    * @returns The current status code.
    */
   get statusCode(): number {
-    return this.state.statusCode;
+    return this.state.statusCode
   }
 
   /**
@@ -91,8 +94,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   status(code: number): InvokeResponse {
-    this.state.statusCode = code;
-    return this;
+    this.state.statusCode = code
+    return this
   }
 
   /**
@@ -101,8 +104,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   sendStatus(code: number): InvokeResponse {
-    const message = http.STATUS_CODES[code] || 'Unknown';
-    return this.status(code).type('txt').send(message);
+    const message = http.STATUS_CODES[code] || 'Unknown'
+    return this.status(code).type('txt').send(message)
   }
 
   /**
@@ -111,8 +114,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   json(data: unknown): InvokeResponse {
-    this.setHeader('content-type', 'application/json; charset=utf-8');
-    return this.end(JSON.stringify(data));
+    this.setHeader('content-type', 'application/json; charset=utf-8')
+    return this.end(JSON.stringify(data))
   }
 
   /**
@@ -122,35 +125,35 @@ export class InvokeResponse {
    */
   send(data?: unknown): InvokeResponse {
     if (data === undefined) {
-      this.removeHeader('Content-Type');
-      return this.status(204).end();
+      this.removeHeader('Content-Type')
+      return this.status(204).end()
     }
 
-    let buf: Buffer;
+    let buf: Buffer
 
     if (data === null) {
-      this.setHeader('content-type', 'text/plain; charset=utf-8');
-      buf = Buffer.from('', 'utf8');
+      this.setHeader('content-type', 'text/plain; charset=utf-8')
+      buf = Buffer.from('', 'utf8')
     } else if (typeof data === 'number' || typeof data === 'boolean') {
-      this.setHeader('content-type', 'text/plain; charset=utf-8');
-      buf = Buffer.from(String(data), 'utf8');
+      this.setHeader('content-type', 'text/plain; charset=utf-8')
+      buf = Buffer.from(String(data), 'utf8')
     } else if (Buffer.isBuffer(data)) {
       if (!this.get('content-type')) {
-        this.setHeader('content-type', 'application/octet-stream');
+        this.setHeader('content-type', 'application/octet-stream')
       }
-      buf = data;
+      buf = data
     } else if (typeof data === 'string') {
       if (!this.get('content-type')) {
-        this.setHeader('content-type', 'text/html; charset=utf-8');
+        this.setHeader('content-type', 'text/html; charset=utf-8')
       }
-      buf = Buffer.from(data, 'utf8');
+      buf = Buffer.from(data, 'utf8')
     } else {
       // Array or object
-      this.setHeader('content-type', 'application/json; charset=utf-8');
-      buf = Buffer.from(JSON.stringify(data), 'utf8');
+      this.setHeader('content-type', 'application/json; charset=utf-8')
+      buf = Buffer.from(JSON.stringify(data), 'utf8')
     }
 
-    return this.end(buf);
+    return this.end(buf)
   }
 
   /**
@@ -160,34 +163,34 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   sendFile(filePath: string, options: SendFileOptions = {}): InvokeResponse {
-    const root = options.root || '/';
-    const resolved = path.resolve(root, filePath);
+    const root = options.root || '/'
+    const resolved = path.resolve(root, filePath)
 
-    let data: Buffer;
+    let data: Buffer
     try {
-      data = fs.readFileSync(resolved);
+      data = fs.readFileSync(resolved)
     } catch (readErr: any) {
-      const code = readErr.code === 'ENOENT' ? 404 : readErr.code === 'EACCES' ? 403 : 500;
-      return this.sendStatus(code);
+      const code = readErr.code === 'ENOENT' ? 404 : readErr.code === 'EACCES' ? 403 : 500
+      return this.sendStatus(code)
     }
 
-    const mimeType = mime.contentType(mime.lookup(resolved) || '');
+    const mimeType = mime.contentType(mime.lookup(resolved) || '')
     if (mimeType) {
-      this.setHeader('Content-Type', mimeType);
+      this.setHeader('Content-Type', mimeType)
     }
 
-    this.setHeader('Content-Length', String(data.length));
+    this.setHeader('Content-Length', String(data.length))
 
     if (options.maxAge !== undefined && options.cacheControl !== false) {
-      const maxAgeSeconds = Math.floor(options.maxAge / 1000);
-      this.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}`);
+      const maxAgeSeconds = Math.floor(options.maxAge / 1000)
+      this.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}`)
     }
 
     if (options.lastModified !== false) {
       try {
-        const stats = fs.statSync(resolved);
+        const stats = fs.statSync(resolved)
         if (stats.mtime) {
-          this.setHeader('Last-Modified', stats.mtime.toUTCString());
+          this.setHeader('Last-Modified', stats.mtime.toUTCString())
         }
       } catch {
         // Skip metadata
@@ -196,11 +199,11 @@ export class InvokeResponse {
 
     if (options.headers) {
       for (const [key, value] of Object.entries(options.headers)) {
-        this.setHeader(key, value);
+        this.setHeader(key, value)
       }
     }
 
-    return this.send(data);
+    return this.send(data)
   }
 
   /**
@@ -211,8 +214,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   download(filePath: string, filename?: string, options?: SendFileOptions): InvokeResponse {
-    this.attachment(filename || path.basename(filePath));
-    return this.sendFile(filePath, options);
+    this.attachment(filename || path.basename(filePath))
+    return this.sendFile(filePath, options)
   }
 
   /**
@@ -222,18 +225,18 @@ export class InvokeResponse {
    */
   attachment(filename?: string): InvokeResponse {
     if (filename) {
-      const needsEncoding = /[^\x20-\x7E]/.test(filename);
+      const needsEncoding = /[^\x20-\x7E]/.test(filename)
       if (needsEncoding) {
-        const encoded = encodeURIComponent(filename);
-        this.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encoded}`);
+        const encoded = encodeURIComponent(filename)
+        this.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encoded}`)
       } else {
-        const escaped = filename.replace(/"/g, '\\"');
-        this.setHeader('Content-Disposition', `attachment; filename="${escaped}"`);
+        const escaped = filename.replace(/"/g, '\\"')
+        this.setHeader('Content-Disposition', `attachment; filename="${escaped}"`)
       }
     } else {
-      this.setHeader('Content-Disposition', 'attachment');
+      this.setHeader('Content-Disposition', 'attachment')
     }
-    return this;
+    return this
   }
 
   /**
@@ -243,32 +246,32 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   redirect(statusOrUrl: number | string, url?: string): InvokeResponse {
-    let statusCode = 302;
-    let location: string;
+    let statusCode = 302
+    let location: string
 
     if (typeof statusOrUrl === 'number') {
-      statusCode = statusOrUrl;
-      location = url!;
+      statusCode = statusOrUrl
+      location = url!
     } else {
-      location = statusOrUrl;
+      location = statusOrUrl
     }
 
     if (location === 'back') {
-      location = this.req.get('Referrer') || this.req.get('Referer') || '/';
+      location = this.req.get('Referrer') || this.req.get('Referer') || '/'
     }
 
-    this.setHeader('Location', location);
-    this.status(statusCode);
-    this.type('html');
+    this.setHeader('Location', location)
+    this.status(statusCode)
+    this.type('html')
 
     const escapedUrl = location
       .replace(/&/g, '&amp;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;')
       .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+      .replace(/>/g, '&gt;')
 
-    return this.end(`<p>Found. Redirecting to <a href="${escapedUrl}">${escapedUrl}</a></p>`);
+    return this.end(`<p>Found. Redirecting to <a href="${escapedUrl}">${escapedUrl}</a></p>`)
   }
 
   /**
@@ -277,8 +280,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   location(url: string): InvokeResponse {
-    this.setHeader('Location', url);
-    return this;
+    this.setHeader('Location', url)
+    return this
   }
 
   /**
@@ -287,11 +290,11 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   type(type: string): InvokeResponse {
-    const mimeType = mime.contentType(type);
+    const mimeType = mime.contentType(type)
     if (mimeType) {
-      this.setHeader('Content-Type', mimeType as string);
+      this.setHeader('Content-Type', mimeType as string)
     }
-    return this;
+    return this
   }
 
   /**
@@ -300,7 +303,7 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   contentType(type: string): InvokeResponse {
-    return this.type(type);
+    return this.type(type)
   }
 
   /**
@@ -311,42 +314,41 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   cookie(name: string, value: unknown, options: CookieOptions = {}): InvokeResponse {
-    const encoder = options.encode || encodeURIComponent;
-    let cookieValue: string;
+    const encoder = options.encode || encodeURIComponent
+    let cookieValue: string
 
     if (typeof value === 'object' && value !== null) {
-      cookieValue = 'j:' + encoder(JSON.stringify(value));
+      cookieValue = 'j:' + encoder(JSON.stringify(value))
     } else {
-      cookieValue = encoder(String(value));
+      cookieValue = encoder(String(value))
     }
 
-    let cookie = `${name}=${cookieValue}`;
-    cookie += `; Path=${options.path || '/'}`;
+    let cookie = `${name}=${cookieValue}`
+    cookie += `; Path=${options.path || '/'}`
 
-    if (options.domain) cookie += `; Domain=${options.domain}`;
+    if (options.domain) cookie += `; Domain=${options.domain}`
 
     if (options.maxAge !== undefined) {
-      const maxAgeSeconds = Math.floor(options.maxAge / 1000);
-      cookie += `; Max-Age=${maxAgeSeconds}`;
-      const expires = new Date(Date.now() + options.maxAge);
-      cookie += `; Expires=${expires.toUTCString()}`;
+      const maxAgeSeconds = Math.floor(options.maxAge / 1000)
+      cookie += `; Max-Age=${maxAgeSeconds}`
+      const expires = new Date(Date.now() + options.maxAge)
+      cookie += `; Expires=${expires.toUTCString()}`
     } else if (options.expires) {
-      const expDate = options.expires instanceof Date ? options.expires : new Date(options.expires);
-      cookie += `; Expires=${expDate.toUTCString()}`;
+      const expDate = options.expires instanceof Date ? options.expires : new Date(options.expires)
+      cookie += `; Expires=${expDate.toUTCString()}`
     }
 
-    if (options.httpOnly) cookie += '; HttpOnly';
-    if (options.secure) cookie += '; Secure';
+    if (options.httpOnly) cookie += '; HttpOnly'
+    if (options.secure) cookie += '; Secure'
 
     if (options.sameSite) {
-      const sameSite = typeof options.sameSite === 'string'
-        ? options.sameSite
-        : (options.sameSite === true ? 'Strict' : '');
-      if (sameSite) cookie += `; SameSite=${sameSite}`;
+      const sameSite =
+        typeof options.sameSite === 'string' ? options.sameSite : options.sameSite === true ? 'Strict' : ''
+      if (sameSite) cookie += `; SameSite=${sameSite}`
     }
 
-    this.append('Set-Cookie', cookie);
-    return this;
+    this.append('Set-Cookie', cookie)
+    return this
   }
 
   /**
@@ -356,7 +358,7 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   clearCookie(name: string, options: CookieOptions = {}): InvokeResponse {
-    return this.cookie(name, '', { ...options, expires: new Date(1), maxAge: 0 });
+    return this.cookie(name, '', { ...options, expires: new Date(1), maxAge: 0 })
   }
 
   /**
@@ -366,8 +368,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   setHeader(name: string, value: string): InvokeResponse {
-    this.state.headers[name.toLowerCase()] = value;
-    return this;
+    this.state.headers[name.toLowerCase()] = value
+    return this
   }
 
   /**
@@ -377,7 +379,7 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   set(name: string, value: string): InvokeResponse {
-    return this.setHeader(name, value);
+    return this.setHeader(name, value)
   }
 
   /**
@@ -386,7 +388,7 @@ export class InvokeResponse {
    * @returns The header value, or `undefined`.
    */
   get(name: string): string | string[] | undefined {
-    return this.state.headers[name.toLowerCase()];
+    return this.state.headers[name.toLowerCase()]
   }
 
   /**
@@ -396,23 +398,23 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   append(field: string, value: string): InvokeResponse {
-    const lowerName = field.toLowerCase();
-    const existing = this.state.headers[lowerName];
+    const lowerName = field.toLowerCase()
+    const existing = this.state.headers[lowerName]
 
     if (existing) {
       if (lowerName === 'set-cookie') {
         if (Array.isArray(existing)) {
-          existing.push(value);
+          existing.push(value)
         } else {
-          this.state.headers[lowerName] = [existing, value];
+          this.state.headers[lowerName] = [existing, value]
         }
       } else {
-        this.state.headers[lowerName] = `${existing}, ${value}`;
+        this.state.headers[lowerName] = `${existing}, ${value}`
       }
     } else {
-      this.state.headers[lowerName] = value;
+      this.state.headers[lowerName] = value
     }
-    return this;
+    return this
   }
 
   /**
@@ -421,8 +423,8 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   removeHeader(name: string): InvokeResponse {
-    delete this.state.headers[name.toLowerCase()];
-    return this;
+    delete this.state.headers[name.toLowerCase()]
+    return this
   }
 
   /**
@@ -432,30 +434,34 @@ export class InvokeResponse {
    * @param headers Optional headers object.
    * @returns The response instance.
    */
-  writeHead(statusCode: number, statusMessage?: string | Record<string, string | string[]>, headers?: Record<string, string | string[]>): InvokeResponse {
+  writeHead(
+    statusCode: number,
+    statusMessage?: string | Record<string, string | string[]>,
+    headers?: Record<string, string | string[]>
+  ): InvokeResponse {
     if (typeof statusMessage === 'object' && statusMessage !== null) {
-      headers = statusMessage;
+      headers = statusMessage
     }
 
     if (typeof statusCode !== 'number' || statusCode < 100 || statusCode > 999) {
-      throw new Error('Invalid status code: ' + statusCode);
+      throw new Error('Invalid status code: ' + statusCode)
     }
 
-    this.status(statusCode);
+    this.status(statusCode)
 
     if (headers && typeof headers === 'object') {
       for (const [name, value] of Object.entries(headers)) {
         if (Array.isArray(value)) {
           for (const val of value) {
-            this.append(name, val);
+            this.append(name, val)
           }
         } else {
-          this.setHeader(name, value);
+          this.setHeader(name, value)
         }
       }
     }
 
-    return this;
+    return this
   }
 
   /**
@@ -464,23 +470,23 @@ export class InvokeResponse {
    * @returns The response instance.
    */
   end(data?: unknown): InvokeResponse {
-    this.headersSent = true;
-    this.state.finished = true;
+    this.headersSent = true
+    this.state.finished = true
 
     if (data !== undefined) {
       if (Buffer.isBuffer(data)) {
-        this.state.data = data;
+        this.state.data = data
       } else {
-        this.state.data = Buffer.from(String(data), 'utf8');
+        this.state.data = Buffer.from(String(data), 'utf8')
       }
     }
 
     if (this._endCallback) {
-        this._endCallback(this);
-        this._endCallback = undefined; // Ensure callback is only called once
+      this._endCallback(this)
+      this._endCallback = undefined // Ensure callback is only called once
     }
 
-    return this;
+    return this
   }
 
   /**
@@ -489,17 +495,17 @@ export class InvokeResponse {
    * @returns A promise that resolves after the response is copied.
    */
   async pipeFrom(fetchResponse: Response): Promise<void> {
-    const blacklistedHeaders = ['transfer-encoding', 'content-length', 'connection', 'content-encoding'];
+    const blacklistedHeaders = ['transfer-encoding', 'content-length', 'connection', 'content-encoding']
 
     fetchResponse.headers.forEach((value: string, key: string) => {
-      if (blacklistedHeaders.includes(key.toLowerCase())) return;
-      this.setHeader(key, value);
-    });
+      if (blacklistedHeaders.includes(key.toLowerCase())) return
+      this.setHeader(key, value)
+    })
 
-    this.status(fetchResponse.status);
+    this.status(fetchResponse.status)
 
-    const body = await fetchResponse.arrayBuffer();
-    this.end(Buffer.from(body));
+    const body = await fetchResponse.arrayBuffer()
+    this.end(Buffer.from(body))
   }
 }
 
@@ -511,6 +517,6 @@ export function stateToResponseData(state: ResponseState): ResponseData {
   return {
     statusCode: state.statusCode,
     headers: state.headers,
-    body: state.data ? state.data.toString('base64') : null,
-  };
+    body: state.data ? state.data.toString('base64') : null
+  }
 }

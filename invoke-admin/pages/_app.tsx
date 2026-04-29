@@ -20,7 +20,7 @@ export default function App({ Component, pageProps, featureFlags }: AppPropsWith
           <div className={`${inter.variable} font-sans`}>
             <PageTransition />
             <Component {...pageProps} />
-            <Toaster position="bottom-right" />
+            <Toaster position='bottom-right' />
           </div>
         </ProjectProvider>
       </AuthProvider>
@@ -38,7 +38,7 @@ App.getInitialProps = async (appContext: AppContext): Promise<AppInitialProps & 
     try {
       const { default: database } = await import('@/lib/database')
       const setting = await database.models.GlobalSetting.findOne({
-        where: { setting_key: 'api_gateway_domain' },
+        where: { setting_key: 'api_gateway_domain' }
       })
       const value: string = setting?.setting_value || ''
       gatewayEnabled = value.trim() !== ''

@@ -22,25 +22,13 @@ import {
   EyeOff,
   Zap,
   Copy,
-  Check,
+  Check
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
 import { toast } from 'sonner'
-import {
-  DndContext,
-  closestCenter,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-  arrayMove,
-} from '@dnd-kit/sortable'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core'
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import { Button } from '@/components/ui/button'
@@ -51,19 +39,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/cn'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -151,7 +128,7 @@ const defaultCors = (): CorsSettings => ({
   allowedHeaders: [],
   exposeHeaders: [],
   maxAge: 86400,
-  allowCredentials: false,
+  allowCredentials: false
 })
 
 const parseUrlField = (value: string): { protocol: 'http' | 'https'; host: string } => {
@@ -168,17 +145,23 @@ const JWT_MODE_LABELS: Record<string, string> = {
   github: 'GitHub',
   jwks_endpoint: 'Custom (JWKS Endpoint)',
   oidc_discovery: 'Custom (OIDC Discovery)',
-  fixed_secret: 'Custom (Fixed Secret)',
+  fixed_secret: 'Custom (Fixed Secret)'
 }
 
 function jwtModeShortLabel(mode?: string): string | null {
   switch (mode) {
-    case 'microsoft': return 'MS'
-    case 'google': return 'Google'
-    case 'github': return 'GitHub'
-    case 'jwks_endpoint': return 'JWKS'
-    case 'oidc_discovery': return 'OIDC'
-    default: return null
+    case 'microsoft':
+      return 'MS'
+    case 'google':
+      return 'Google'
+    case 'github':
+      return 'GitHub'
+    case 'jwks_endpoint':
+      return 'JWKS'
+    case 'oidc_discovery':
+      return 'OIDC'
+    default:
+      return null
   }
 }
 
@@ -205,7 +188,7 @@ function TagInput({
   value,
   onChange,
   placeholder,
-  disabled,
+  disabled
 }: {
   value: string[]
   onChange: (v: string[]) => void
@@ -224,17 +207,17 @@ function TagInput({
 
   return (
     <div
-      className={cn(
-        'flex flex-wrap gap-1 p-2 bg-background border border-input rounded-md',
-        disabled && 'opacity-50'
-      )}
+      className={cn('flex flex-wrap gap-1 p-2 bg-background border border-input rounded-md', disabled && 'opacity-50')}
     >
-      {value.map((tag) => (
-        <span key={tag} className="flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded">
+      {value.map(tag => (
+        <span key={tag} className='flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded'>
           {tag}
           {!disabled && (
-            <button onClick={() => onChange(value.filter((t) => t !== tag))} className="text-muted-foreground hover:text-red-400">
-              <X className="w-3 h-3" />
+            <button
+              onClick={() => onChange(value.filter(t => t !== tag))}
+              className='text-muted-foreground hover:text-red-400'
+            >
+              <X className='w-3 h-3' />
             </button>
           )}
         </span>
@@ -242,8 +225,8 @@ function TagInput({
       {!disabled && (
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => {
             if (e.key === 'Enter' || e.key === ',') {
               e.preventDefault()
               add()
@@ -251,7 +234,7 @@ function TagInput({
           }}
           onBlur={add}
           placeholder={value.length === 0 ? placeholder : 'Add...'}
-          className="flex-1 min-w-[80px] bg-transparent text-sm text-foreground outline-none placeholder-muted-foreground"
+          className='flex-1 min-w-[80px] bg-transparent text-sm text-foreground outline-none placeholder-muted-foreground'
         />
       )}
     </div>
@@ -266,7 +249,7 @@ function SortableRouteRow({
   onDelete,
   gatewayDomain,
   projectSlug,
-  customDomain,
+  customDomain
 }: {
   route: GatewayRoute
   onEdit: (route: GatewayRoute) => void
@@ -276,56 +259,71 @@ function SortableRouteRow({
   customDomain?: string | null
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: route.id,
+    id: route.id
   })
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
+    zIndex: isDragging ? 10 : undefined
   }
 
   return (
     <TableRow ref={setNodeRef} style={style}>
-      <TableCell className="w-8 px-3">
+      <TableCell className='w-8 px-3'>
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+          className='cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none'
         >
-          <GripVertical className="w-4 h-4" />
+          <GripVertical className='w-4 h-4' />
         </button>
       </TableCell>
       <TableCell>
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           {customDomain ? (
-            <a href={`${customDomain}${route.routePath}`} target="_blank" rel="noopener noreferrer"
-              className="text-sm text-primary font-mono hover:underline">
+            <a
+              href={`${customDomain}${route.routePath}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-sm text-primary font-mono hover:underline'
+            >
               {route.routePath}
             </a>
           ) : gatewayDomain && projectSlug ? (
-            <a href={`${gatewayDomain}/${projectSlug}${route.routePath}`} target="_blank" rel="noopener noreferrer"
-              className="text-sm text-primary font-mono hover:underline">
+            <a
+              href={`${gatewayDomain}/${projectSlug}${route.routePath}`}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-sm text-primary font-mono hover:underline'
+            >
               {route.routePath}
             </a>
           ) : (
-            <code className="text-sm text-primary font-mono">{route.routePath}</code>
+            <code className='text-sm text-primary font-mono'>{route.routePath}</code>
           )}
-          {!route.isActive && <Badge variant="secondary" className="text-xs">disabled</Badge>}
+          {!route.isActive && (
+            <Badge variant='secondary' className='text-xs'>
+              disabled
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
         {route.functionName ? (
-          <code className="text-xs bg-muted px-2 py-0.5 rounded">{route.functionName}</code>
+          <code className='text-xs bg-muted px-2 py-0.5 rounded'>{route.functionName}</code>
         ) : (
-          <span className="text-muted-foreground italic text-xs">not configured</span>
+          <span className='text-muted-foreground italic text-xs'>not configured</span>
         )}
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {route.allowedMethods.map((m) => (
-            <span key={m} className="text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-1.5 py-0.5 rounded font-mono">
+        <div className='flex flex-wrap gap-1'>
+          {route.allowedMethods.map(m => (
+            <span
+              key={m}
+              className='text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-1.5 py-0.5 rounded font-mono'
+            >
               {m}
             </span>
           ))}
@@ -333,16 +331,19 @@ function SortableRouteRow({
       </TableCell>
       <TableCell>
         {!route.authMethodNames || route.authMethodNames.length === 0 ? (
-          <span className="text-muted-foreground">—</span>
+          <span className='text-muted-foreground'>—</span>
         ) : (
-          <div className="flex flex-wrap items-center gap-1">
-            {route.authMethodNames.map((name) => (
-              <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
+          <div className='flex flex-wrap items-center gap-1'>
+            {route.authMethodNames.map(name => (
+              <span
+                key={name}
+                className='text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded'
+              >
                 {name}
               </span>
             ))}
             {route.authMethodNames.length > 1 && (
-              <span className="text-xs text-muted-foreground ml-1">
+              <span className='text-xs text-muted-foreground ml-1'>
                 ({route.authLogic === 'and' ? 'All match' : 'Any match'})
               </span>
             )}
@@ -351,18 +352,28 @@ function SortableRouteRow({
       </TableCell>
       <TableCell>
         {route.corsSettings.enabled ? (
-          <span className="text-green-400 text-sm">Enabled</span>
+          <span className='text-green-400 text-sm'>Enabled</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className='text-muted-foreground'>—</span>
         )}
       </TableCell>
       <TableCell>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => onEdit(route)} className="h-8 w-8 text-muted-foreground hover:text-primary">
-            <Edit2 className="w-4 h-4" />
+        <div className='flex gap-2'>
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={() => onEdit(route)}
+            className='h-8 w-8 text-muted-foreground hover:text-primary'
+          >
+            <Edit2 className='w-4 h-4' />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => onDelete(route.id)} className="h-8 w-8 text-muted-foreground hover:text-red-400">
-            <Trash2 className="w-4 h-4" />
+          <Button
+            variant='ghost'
+            size='icon'
+            onClick={() => onDelete(route.id)}
+            className='h-8 w-8 text-muted-foreground hover:text-red-400'
+          >
+            <Trash2 className='w-4 h-4' />
           </Button>
         </div>
       </TableCell>
@@ -375,14 +386,14 @@ function SortableRouteRow({
 function SortableAuthMethodItem({
   method,
   showHandle,
-  onRemove,
+  onRemove
 }: {
   method: AuthMethod
   showHandle: boolean
   onRemove: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: method.id,
+    id: method.id
   })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
 
@@ -390,26 +401,26 @@ function SortableAuthMethodItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 rounded px-2 py-1.5 bg-muted/60 border border-border"
+      className='flex items-center gap-2 rounded px-2 py-1.5 bg-muted/60 border border-border'
     >
       {showHandle ? (
         <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+          type='button'
+          className='text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing flex-shrink-0 touch-none'
           {...attributes}
           {...listeners}
         >
-          <GripVertical className="w-3.5 h-3.5" />
+          <GripVertical className='w-3.5 h-3.5' />
         </button>
       ) : (
-        <span className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className='w-3.5 h-3.5 flex-shrink-0' />
       )}
-      <span className="flex-1 text-sm text-foreground">{method.name}</span>
+      <span className='flex-1 text-sm text-foreground'>{method.name}</span>
       <span className={cn('text-xs px-1.5 py-0.5 rounded font-mono', authTypeBadgeClass(method.type))}>
         {authTypeLabel(method)}
       </span>
-      <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-red-400 flex-shrink-0 ml-1">
-        <X className="w-3.5 h-3.5" />
+      <button type='button' onClick={onRemove} className='text-muted-foreground hover:text-red-400 flex-shrink-0 ml-1'>
+        <X className='w-3.5 h-3.5' />
       </button>
     </div>
   )
@@ -426,7 +437,7 @@ function RouteEditorModal({
   projectSlug,
   customDomain,
   onSave,
-  onClose,
+  onClose
 }: {
   isOpen: boolean
   route: Partial<GatewayRoute> | null
@@ -455,7 +466,7 @@ function RouteEditorModal({
     if (isOpen && route) {
       setRoutePath(route.routePath || '')
       const routeFunctionId = route.functionId || ''
-      const functionExists = !!routeFunctionId && functions.some((f) => f.id === routeFunctionId)
+      const functionExists = !!routeFunctionId && functions.some(f => f.id === routeFunctionId)
       setFunctionId(functionExists ? routeFunctionId : '')
       setAllowedMethods(route.allowedMethods || ['GET', 'POST'])
       setIsActive(route.isActive !== undefined ? route.isActive : true)
@@ -467,15 +478,22 @@ function RouteEditorModal({
   }, [functions, isOpen, route])
 
   const toggleMethod = (method: string) => {
-    setAllowedMethods((prev) =>
-      prev.includes(method) ? prev.filter((m) => m !== method) : [...prev, method]
-    )
+    setAllowedMethods(prev => (prev.includes(method) ? prev.filter(m => m !== method) : [...prev, method]))
   }
 
   const handleSave = async () => {
-    if (!routePath.trim()) { toast.error('Route path is required'); return }
-    if (!routePath.startsWith('/')) { toast.error('Route path must start with /'); return }
-    if (allowedMethods.length === 0) { toast.error('At least one HTTP method must be allowed'); return }
+    if (!routePath.trim()) {
+      toast.error('Route path is required')
+      return
+    }
+    if (!routePath.startsWith('/')) {
+      toast.error('Route path must start with /')
+      return
+    }
+    if (allowedMethods.length === 0) {
+      toast.error('At least one HTTP method must be allowed')
+      return
+    }
 
     setSaving(true)
     try {
@@ -486,7 +504,7 @@ function RouteEditorModal({
         isActive,
         corsSettings: cors,
         authMethodIds: selectedAuthMethodIds,
-        authLogic,
+        authLogic
       })
       onClose()
     } finally {
@@ -500,40 +518,50 @@ function RouteEditorModal({
       title={route?.id ? 'Edit Route' : 'Add Route'}
       onConfirm={handleSave}
       onCancel={onClose}
-      confirmText="Save Route"
-      cancelText="Cancel"
+      confirmText='Save Route'
+      cancelText='Cancel'
       loading={saving}
-      size="lg"
+      size='lg'
     >
-      <div className="overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1">
+      <div className='overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1'>
         {/* Route Path */}
-        <div className="space-y-1.5">
-          <Label>Route Path <span className="text-red-400">*</span></Label>
+        <div className='space-y-1.5'>
+          <Label>
+            Route Path <span className='text-red-400'>*</span>
+          </Label>
           <Input
             value={routePath}
-            onChange={(e) => setRoutePath(e.target.value)}
-            placeholder="e.g. /users/:userId/books/:bookId"
-            className="font-mono"
+            onChange={e => setRoutePath(e.target.value)}
+            placeholder='e.g. /users/:userId/books/:bookId'
+            className='font-mono'
           />
-          <p className="text-xs text-muted-foreground">
-            Use <code className="bg-muted px-1 rounded">:paramName</code> for dynamic segments.
+          <p className='text-xs text-muted-foreground'>
+            Use <code className='bg-muted px-1 rounded'>:paramName</code> for dynamic segments.
           </p>
           {(gatewayDomain || customDomain) && routePath && (
-            <div className="mt-2 space-y-1">
+            <div className='mt-2 space-y-1'>
               {gatewayDomain && projectSlug && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-muted-foreground shrink-0">Default:</span>
-                  <a href={`${gatewayDomain}/${projectSlug}${routePath}`} target="_blank" rel="noopener noreferrer"
-                    className="font-mono text-primary hover:underline truncate">
+                <div className='flex items-center gap-1.5 text-xs'>
+                  <span className='text-muted-foreground shrink-0'>Default:</span>
+                  <a
+                    href={`${gatewayDomain}/${projectSlug}${routePath}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='font-mono text-primary hover:underline truncate'
+                  >
                     {`${gatewayDomain}/${projectSlug}${routePath}`}
                   </a>
                 </div>
               )}
               {customDomain && (
-                <div className="flex items-center gap-1.5 text-xs">
-                  <span className="text-muted-foreground shrink-0">Custom:</span>
-                  <a href={`${customDomain}${routePath}`} target="_blank" rel="noopener noreferrer"
-                    className="font-mono text-primary hover:underline truncate">
+                <div className='flex items-center gap-1.5 text-xs'>
+                  <span className='text-muted-foreground shrink-0'>Custom:</span>
+                  <a
+                    href={`${customDomain}${routePath}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className='font-mono text-primary hover:underline truncate'
+                  >
                     {`${customDomain}${routePath}`}
                   </a>
                 </div>
@@ -543,32 +571,34 @@ function RouteEditorModal({
         </div>
 
         {/* Upstream Function */}
-        <div className="space-y-1.5">
+        <div className='space-y-1.5'>
           <Label>Upstream Function</Label>
           <Select
             value={functionId || NO_FUNCTION_VALUE}
-            onValueChange={(value) => setFunctionId(value === NO_FUNCTION_VALUE ? '' : value)}
+            onValueChange={value => setFunctionId(value === NO_FUNCTION_VALUE ? '' : value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="— Select function —" />
+              <SelectValue placeholder='— Select function —' />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NO_FUNCTION_VALUE}>— Select function —</SelectItem>
-              {functions.map((f) => (
-                <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+              {functions.map(f => (
+                <SelectItem key={f.id} value={f.id}>
+                  {f.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         {/* HTTP Methods */}
-        <div className="space-y-2">
+        <div className='space-y-2'>
           <Label>Allowed HTTP Methods</Label>
-          <div className="flex flex-wrap gap-2">
-            {HTTP_METHODS.map((method) => (
+          <div className='flex flex-wrap gap-2'>
+            {HTTP_METHODS.map(method => (
               <button
                 key={method}
-                type="button"
+                type='button'
                 onClick={() => toggleMethod(method)}
                 className={cn(
                   'text-xs font-mono px-2.5 py-1 rounded border transition-colors',
@@ -584,68 +614,86 @@ function RouteEditorModal({
         </div>
 
         {/* Active Toggle */}
-        <div className="flex items-center gap-2">
-          <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
-          <Label htmlFor="isActive" className="cursor-pointer">Route is active</Label>
+        <div className='flex items-center gap-2'>
+          <Switch id='isActive' checked={isActive} onCheckedChange={setIsActive} />
+          <Label htmlFor='isActive' className='cursor-pointer'>
+            Route is active
+          </Label>
         </div>
 
         {/* CORS Settings */}
         <Collapsible open={corsOpen} onOpenChange={setCorsOpen}>
-          <div className="border border-border rounded-lg overflow-hidden">
-            <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 text-sm font-medium text-foreground">
-              <span className="flex items-center gap-2">
-                {corsOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          <div className='border border-border rounded-lg overflow-hidden'>
+            <CollapsibleTrigger className='w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 text-sm font-medium text-foreground'>
+              <span className='flex items-center gap-2'>
+                {corsOpen ? <ChevronDown className='w-4 h-4' /> : <ChevronRight className='w-4 h-4' />}
                 CORS Settings
               </span>
-              {cors.enabled && <span className="text-xs text-green-400">Enabled</span>}
+              {cors.enabled && <span className='text-xs text-green-400'>Enabled</span>}
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="px-4 py-4 space-y-4 border-t border-border">
-                <div className="flex items-center gap-2">
+              <div className='px-4 py-4 space-y-4 border-t border-border'>
+                <div className='flex items-center gap-2'>
                   <Switch
-                    id="corsEnabled"
+                    id='corsEnabled'
                     checked={cors.enabled}
-                    onCheckedChange={(v) => setCors((c) => ({ ...c, enabled: v }))}
+                    onCheckedChange={v => setCors(c => ({ ...c, enabled: v }))}
                   />
-                  <Label htmlFor="corsEnabled" className="cursor-pointer">Enable CORS</Label>
+                  <Label htmlFor='corsEnabled' className='cursor-pointer'>
+                    Enable CORS
+                  </Label>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Allowed Origins (press Enter to add)</Label>
-                  <TagInput value={cors.allowedOrigins} onChange={(v) => setCors((c) => ({ ...c, allowedOrigins: v }))}
-                    placeholder="https://example.com or *" disabled={!cors.enabled} />
+                <div className='space-y-1.5'>
+                  <Label className='text-xs text-muted-foreground'>Allowed Origins (press Enter to add)</Label>
+                  <TagInput
+                    value={cors.allowedOrigins}
+                    onChange={v => setCors(c => ({ ...c, allowedOrigins: v }))}
+                    placeholder='https://example.com or *'
+                    disabled={!cors.enabled}
+                  />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Allowed Headers</Label>
-                  <TagInput value={cors.allowedHeaders} onChange={(v) => setCors((c) => ({ ...c, allowedHeaders: v }))}
-                    placeholder="Content-Type, Authorization" disabled={!cors.enabled} />
+                <div className='space-y-1.5'>
+                  <Label className='text-xs text-muted-foreground'>Allowed Headers</Label>
+                  <TagInput
+                    value={cors.allowedHeaders}
+                    onChange={v => setCors(c => ({ ...c, allowedHeaders: v }))}
+                    placeholder='Content-Type, Authorization'
+                    disabled={!cors.enabled}
+                  />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Expose Headers</Label>
-                  <TagInput value={cors.exposeHeaders} onChange={(v) => setCors((c) => ({ ...c, exposeHeaders: v }))}
-                    placeholder="X-Request-Id" disabled={!cors.enabled} />
+                <div className='space-y-1.5'>
+                  <Label className='text-xs text-muted-foreground'>Expose Headers</Label>
+                  <TagInput
+                    value={cors.exposeHeaders}
+                    onChange={v => setCors(c => ({ ...c, exposeHeaders: v }))}
+                    placeholder='X-Request-Id'
+                    disabled={!cors.enabled}
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground">Max Age (seconds)</Label>
+                <div className='grid grid-cols-2 gap-4'>
+                  <div className='space-y-1.5'>
+                    <Label className='text-xs text-muted-foreground'>Max Age (seconds)</Label>
                     <Input
-                      type="number"
+                      type='number'
                       value={cors.maxAge}
-                      onChange={(e) => setCors((c) => ({ ...c, maxAge: parseInt(e.target.value) || 86400 }))}
+                      onChange={e => setCors(c => ({ ...c, maxAge: parseInt(e.target.value) || 86400 }))}
                       disabled={!cors.enabled}
                     />
                   </div>
-                  <div className="flex items-center gap-2 mt-6">
+                  <div className='flex items-center gap-2 mt-6'>
                     <Switch
-                      id="allowCredentials"
+                      id='allowCredentials'
                       checked={cors.allowCredentials}
-                      onCheckedChange={(v) => setCors((c) => ({ ...c, allowCredentials: v }))}
+                      onCheckedChange={v => setCors(c => ({ ...c, allowCredentials: v }))}
                       disabled={!cors.enabled}
                     />
-                    <Label htmlFor="allowCredentials" className="cursor-pointer text-sm">Allow Credentials</Label>
+                    <Label htmlFor='allowCredentials' className='cursor-pointer text-sm'>
+                      Allow Credentials
+                    </Label>
                   </div>
                 </div>
               </div>
@@ -654,22 +702,24 @@ function RouteEditorModal({
         </Collapsible>
 
         {/* Auth Methods */}
-        <div className="space-y-2">
+        <div className='space-y-2'>
           <Label>Authentication</Label>
           {authMethods.length === 0 ? (
-            <div className="rounded-md border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-              No authentication methods configured. Add methods in the <span className="text-primary">Authentication</span> tab.
+            <div className='rounded-md border border-border bg-muted/30 px-4 py-3 text-xs text-muted-foreground'>
+              No authentication methods configured. Add methods in the{' '}
+              <span className='text-primary'>Authentication</span> tab.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className='space-y-2'>
               {selectedAuthMethodIds.length === 0 ? (
-                <div className="rounded-md border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground text-center">
-                  No auth <span className="text-foreground font-medium">(public)</span> — add a method below to require authentication
+                <div className='rounded-md border border-dashed border-border bg-muted/20 px-4 py-3 text-xs text-muted-foreground text-center'>
+                  No auth <span className='text-foreground font-medium'>(public)</span> — add a method below to require
+                  authentication
                 </div>
               ) : (
-                <div className="rounded-md border border-border bg-muted/30 p-3 space-y-1.5">
+                <div className='rounded-md border border-border bg-muted/30 p-3 space-y-1.5'>
                   {selectedAuthMethodIds.length > 1 && (
-                    <p className="text-xs text-muted-foreground pb-1">Drag to set execution order</p>
+                    <p className='text-xs text-muted-foreground pb-1'>Drag to set execution order</p>
                   )}
                   <DndContext
                     sensors={authDndSensors}
@@ -678,7 +728,7 @@ function RouteEditorModal({
                     onDragEnd={(event: DragEndEvent) => {
                       const { active, over } = event
                       if (over && active.id !== over.id) {
-                        setSelectedAuthMethodIds((prev) => {
+                        setSelectedAuthMethodIds(prev => {
                           const oldIdx = prev.indexOf(active.id as string)
                           const newIdx = prev.indexOf(over.id as string)
                           return arrayMove(prev, oldIdx, newIdx)
@@ -687,15 +737,15 @@ function RouteEditorModal({
                     }}
                   >
                     <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
-                      {selectedAuthMethodIds.map((id) => {
-                        const m = authMethods.find((x) => x.id === id)
+                      {selectedAuthMethodIds.map(id => {
+                        const m = authMethods.find(x => x.id === id)
                         if (!m) return null
                         return (
                           <SortableAuthMethodItem
                             key={m.id}
                             method={m}
                             showHandle={selectedAuthMethodIds.length > 1}
-                            onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((x) => x !== id))}
+                            onRemove={() => setSelectedAuthMethodIds(prev => prev.filter(x => x !== id))}
                           />
                         )
                       })}
@@ -704,20 +754,20 @@ function RouteEditorModal({
                 </div>
               )}
 
-              {authMethods.some((m) => !selectedAuthMethodIds.includes(m.id)) && (
-                <div className="rounded-md border border-border bg-muted/20 p-3 space-y-1">
-                  <p className="text-xs text-muted-foreground pb-0.5">Add method</p>
+              {authMethods.some(m => !selectedAuthMethodIds.includes(m.id)) && (
+                <div className='rounded-md border border-border bg-muted/20 p-3 space-y-1'>
+                  <p className='text-xs text-muted-foreground pb-0.5'>Add method</p>
                   {authMethods
-                    .filter((m) => !selectedAuthMethodIds.includes(m.id))
-                    .map((m) => (
+                    .filter(m => !selectedAuthMethodIds.includes(m.id))
+                    .map(m => (
                       <button
                         key={m.id}
-                        type="button"
-                        onClick={() => setSelectedAuthMethodIds((prev) => [...prev, m.id])}
-                        className="w-full flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50 text-left"
+                        type='button'
+                        onClick={() => setSelectedAuthMethodIds(prev => [...prev, m.id])}
+                        className='w-full flex items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/50 text-left'
                       >
-                        <Plus className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="flex-1 text-sm text-foreground">{m.name}</span>
+                        <Plus className='w-3.5 h-3.5 text-muted-foreground flex-shrink-0' />
+                        <span className='flex-1 text-sm text-foreground'>{m.name}</span>
                         <span className={cn('text-xs px-1.5 py-0.5 rounded font-mono', authTypeBadgeClass(m.type))}>
                           {authTypeLabel(m)}
                         </span>
@@ -728,21 +778,35 @@ function RouteEditorModal({
             </div>
           )}
           {selectedAuthMethodIds.length > 1 && (
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs text-muted-foreground">Logic:</span>
-              <div className="flex rounded-md overflow-hidden border border-border text-xs">
+            <div className='flex items-center gap-2 mt-2'>
+              <span className='text-xs text-muted-foreground'>Logic:</span>
+              <div className='flex rounded-md overflow-hidden border border-border text-xs'>
                 <button
-                  type="button"
+                  type='button'
                   onClick={() => setAuthLogic('or')}
-                  className={cn('px-3 py-1 transition-colors', authLogic === 'or' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground')}
-                >Any match</button>
+                  className={cn(
+                    'px-3 py-1 transition-colors',
+                    authLogic === 'or'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Any match
+                </button>
                 <button
-                  type="button"
+                  type='button'
                   onClick={() => setAuthLogic('and')}
-                  className={cn('px-3 py-1 transition-colors border-l border-border', authLogic === 'and' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground')}
-                >All match</button>
+                  className={cn(
+                    'px-3 py-1 transition-colors border-l border-border',
+                    authLogic === 'and'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  All match
+                </button>
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className='text-xs text-muted-foreground'>
                 {authLogic === 'or' ? 'Access granted if any method passes' : 'All methods must pass'}
               </span>
             </div>
@@ -761,7 +825,7 @@ function RealtimeNamespaceRow({
   onDelete,
   gatewayDomain,
   projectSlug,
-  customDomain,
+  customDomain
 }: {
   namespace: RealtimeNamespace
   onEdit: (ns: RealtimeNamespace) => void
@@ -789,29 +853,33 @@ function RealtimeNamespaceRow({
   return (
     <TableRow>
       <TableCell>
-        <div className="flex items-center gap-2">
+        <div className='flex items-center gap-2'>
           <button
             onClick={copyToClipboard}
-            className="flex items-center gap-2 text-sm text-primary font-mono hover:underline cursor-pointer"
-            title="Click to copy full URL"
+            className='flex items-center gap-2 text-sm text-primary font-mono hover:underline cursor-pointer'
+            title='Click to copy full URL'
           >
             {namespace.namespacePath}
             {copied ? (
-              <Check className="w-4 h-4 text-green-400" />
+              <Check className='w-4 h-4 text-green-400' />
             ) : (
-              <Copy className="w-4 h-4 opacity-60 transition-opacity group-hover:opacity-100" />
+              <Copy className='w-4 h-4 opacity-60 transition-opacity group-hover:opacity-100' />
             )}
           </button>
-          {!namespace.isActive && <Badge variant="secondary" className="text-xs">disabled</Badge>}
+          {!namespace.isActive && (
+            <Badge variant='secondary' className='text-xs'>
+              disabled
+            </Badge>
+          )}
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1">
+        <div className='flex flex-wrap gap-1'>
           {namespace.eventHandlers.length === 0 ? (
-            <span className="text-muted-foreground text-xs">—</span>
+            <span className='text-muted-foreground text-xs'>—</span>
           ) : (
             namespace.eventHandlers.map((eh, i) => (
-              <span key={i} className="text-xs bg-muted px-2 py-0.5 rounded font-mono">
+              <span key={i} className='text-xs bg-muted px-2 py-0.5 rounded font-mono'>
                 {eh.eventName}
               </span>
             ))
@@ -820,16 +888,19 @@ function RealtimeNamespaceRow({
       </TableCell>
       <TableCell>
         {!namespace.authMethodNames || namespace.authMethodNames.length === 0 ? (
-          <span className="text-muted-foreground">—</span>
+          <span className='text-muted-foreground'>—</span>
         ) : (
-          <div className="flex flex-wrap items-center gap-1">
-            {namespace.authMethodNames.map((name) => (
-              <span key={name} className="text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded">
+          <div className='flex flex-wrap items-center gap-1'>
+            {namespace.authMethodNames.map(name => (
+              <span
+                key={name}
+                className='text-xs bg-yellow-900/40 text-yellow-300 border border-yellow-700 px-1.5 py-0.5 rounded'
+              >
                 {name}
               </span>
             ))}
             {namespace.authMethodNames.length > 1 && (
-              <span className="text-xs text-muted-foreground ml-1">
+              <span className='text-xs text-muted-foreground ml-1'>
                 ({namespace.authLogic === 'and' ? 'All match' : 'Any match'})
               </span>
             )}
@@ -837,22 +908,22 @@ function RealtimeNamespaceRow({
         )}
       </TableCell>
       <TableCell>
-        <div className="flex gap-2">
+        <div className='flex gap-2'>
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-primary"
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8 text-muted-foreground hover:text-primary'
             onClick={() => onEdit(namespace)}
           >
-            <Edit2 className="w-4 h-4" />
+            <Edit2 className='w-4 h-4' />
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8 text-muted-foreground hover:text-red-400'
             onClick={() => onDelete(namespace.id)}
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className='w-4 h-4' />
           </Button>
         </div>
       </TableCell>
@@ -871,7 +942,7 @@ function NamespaceEditorModal({
   onClose,
   projectSlug,
   customDomain,
-  gatewayDomain,
+  gatewayDomain
 }: {
   isOpen: boolean
   namespace: Partial<RealtimeNamespace> | null
@@ -903,28 +974,34 @@ function NamespaceEditorModal({
   }, [isOpen, namespace])
 
   const addEventHandler = () => {
-    setEventHandlers((prev) => [...prev, { eventName: '', functionId: null }])
+    setEventHandlers(prev => [...prev, { eventName: '', functionId: null }])
   }
 
   const removeEventHandler = (index: number) => {
-    setEventHandlers((prev) => prev.filter((_, i) => i !== index))
+    setEventHandlers(prev => prev.filter((_, i) => i !== index))
   }
 
   const updateEventHandler = (index: number, field: keyof EventHandlerEntry, value: string | null) => {
-    setEventHandlers((prev) => prev.map((eh, i) => i === index ? { ...eh, [field]: value } : eh))
+    setEventHandlers(prev => prev.map((eh, i) => (i === index ? { ...eh, [field]: value } : eh)))
   }
 
   const handleSave = async () => {
-    if (!namespacePath.trim()) { toast.error('Namespace path is required'); return }
-    if (!namespacePath.startsWith('/')) { toast.error('Namespace path must start with /'); return }
+    if (!namespacePath.trim()) {
+      toast.error('Namespace path is required')
+      return
+    }
+    if (!namespacePath.startsWith('/')) {
+      toast.error('Namespace path must start with /')
+      return
+    }
     setSaving(true)
     try {
       await onSave({
         namespacePath: namespacePath.trim(),
         isActive,
         authLogic,
-        eventHandlers: eventHandlers.filter((eh) => eh.eventName.trim()),
-        authMethodIds: selectedAuthMethodIds,
+        eventHandlers: eventHandlers.filter(eh => eh.eventName.trim()),
+        authMethodIds: selectedAuthMethodIds
       })
       onClose()
     } finally {
@@ -933,7 +1010,7 @@ function NamespaceEditorModal({
   }
 
   const selectedAuthMethods = selectedAuthMethodIds
-    .map((id) => authMethods.find((m) => m.id === id))
+    .map(id => authMethods.find(m => m.id === id))
     .filter((m): m is AuthMethod => !!m)
 
   return (
@@ -942,107 +1019,140 @@ function NamespaceEditorModal({
       title={namespace?.id ? 'Edit Namespace' : 'Add Namespace'}
       onConfirm={handleSave}
       onCancel={onClose}
-      confirmText="Save Namespace"
-      cancelText="Cancel"
+      confirmText='Save Namespace'
+      cancelText='Cancel'
       loading={saving}
-      size="lg"
+      size='lg'
     >
-      <div className="overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1">
+      <div className='overflow-y-auto max-h-[65vh] space-y-5 -mx-6 px-6 py-1'>
         {/* Namespace Path */}
-        <div className="space-y-1.5">
-          <Label>Namespace Path <span className="text-red-400">*</span></Label>
+        <div className='space-y-1.5'>
+          <Label>
+            Namespace Path <span className='text-red-400'>*</span>
+          </Label>
           <Input
             value={namespacePath}
-            onChange={(e) => setNamespacePath(e.target.value)}
-            placeholder="e.g. /chat"
-            className="font-mono"
+            onChange={e => setNamespacePath(e.target.value)}
+            placeholder='e.g. /chat'
+            className='font-mono'
           />
-          <p className="text-xs text-muted-foreground">
+          <p className='text-xs text-muted-foreground'>
             {customDomain ? (
               <>
-                Clients connect to <code className="bg-muted px-1 rounded">{customDomain}{namespacePath || '/chat'}</code> on the gateway domain.
+                Clients connect to{' '}
+                <code className='bg-muted px-1 rounded'>
+                  {customDomain}
+                  {namespacePath || '/chat'}
+                </code>{' '}
+                on the gateway domain.
               </>
             ) : gatewayDomain && projectSlug ? (
               <>
-                Clients connect to <code className="bg-muted px-1 rounded">{gatewayDomain}/{projectSlug}{namespacePath || '/chat'}</code> on the gateway domain.
+                Clients connect to{' '}
+                <code className='bg-muted px-1 rounded'>
+                  {gatewayDomain}/{projectSlug}
+                  {namespacePath || '/chat'}
+                </code>{' '}
+                on the gateway domain.
               </>
             ) : (
               <>
-                Clients connect to <code className="bg-muted px-1 rounded">/{'<'}project-slug{'>'}{namespacePath || '/chat'}</code> on the gateway domain.
+                Clients connect to{' '}
+                <code className='bg-muted px-1 rounded'>
+                  /{'<'}project-slug{'>'}
+                  {namespacePath || '/chat'}
+                </code>{' '}
+                on the gateway domain.
               </>
             )}
           </p>
         </div>
 
         {/* Active Toggle */}
-        <div className="flex items-center gap-2">
-          <Switch id="nsIsActive" checked={isActive} onCheckedChange={setIsActive} />
-          <Label htmlFor="nsIsActive" className="cursor-pointer">Namespace is active</Label>
+        <div className='flex items-center gap-2'>
+          <Switch id='nsIsActive' checked={isActive} onCheckedChange={setIsActive} />
+          <Label htmlFor='nsIsActive' className='cursor-pointer'>
+            Namespace is active
+          </Label>
         </div>
 
         {/* Event Handlers */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
+        <div className='space-y-2'>
+          <div className='flex items-center justify-between'>
             <Label>Event Handlers</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addEventHandler}>
-              <Plus className="w-3.5 h-3.5 mr-1" /> Add Handler
+            <Button type='button' variant='outline' size='sm' onClick={addEventHandler}>
+              <Plus className='w-3.5 h-3.5 mr-1' /> Add Handler
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Use <code className="bg-muted px-1 rounded">$connect</code>, <code className="bg-muted px-1 rounded">$disconnect</code>, or a custom event name.
+          <p className='text-xs text-muted-foreground'>
+            Use <code className='bg-muted px-1 rounded'>$connect</code>,{' '}
+            <code className='bg-muted px-1 rounded'>$disconnect</code>, or a custom event name.
           </p>
-          <div className="space-y-2">
+          <div className='space-y-2'>
             {eventHandlers.map((eh, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={i} className='flex items-center gap-2'>
                 <Input
                   value={eh.eventName}
-                  onChange={(e) => updateEventHandler(i, 'eventName', e.target.value)}
-                  placeholder="Event name (e.g. message)"
-                  className="font-mono flex-1"
+                  onChange={e => updateEventHandler(i, 'eventName', e.target.value)}
+                  placeholder='Event name (e.g. message)'
+                  className='font-mono flex-1'
                 />
                 <Select
                   value={eh.functionId || NO_FUNCTION_VALUE}
-                  onValueChange={(v) => updateEventHandler(i, 'functionId', v === NO_FUNCTION_VALUE ? null : v)}
+                  onValueChange={v => updateEventHandler(i, 'functionId', v === NO_FUNCTION_VALUE ? null : v)}
                 >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue placeholder="— Select function —" />
+                  <SelectTrigger className='flex-1'>
+                    <SelectValue placeholder='— Select function —' />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_FUNCTION_VALUE}>— Select function —</SelectItem>
-                    {functions.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    {functions.map(f => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-red-400 shrink-0"
-                  onClick={() => removeEventHandler(i)}>
-                  <Trash2 className="w-4 h-4" />
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='h-9 w-9 text-muted-foreground hover:text-red-400 shrink-0'
+                  onClick={() => removeEventHandler(i)}
+                >
+                  <Trash2 className='w-4 h-4' />
                 </Button>
               </div>
             ))}
             {eventHandlers.length === 0 && (
-              <p className="text-xs text-muted-foreground italic">No event handlers configured.</p>
+              <p className='text-xs text-muted-foreground italic'>No event handlers configured.</p>
             )}
           </div>
         </div>
 
         {/* Auth Methods */}
-        <div className="space-y-2">
+        <div className='space-y-2'>
           <Label>Authentication Methods</Label>
-          <Select onValueChange={(id) => { if (!selectedAuthMethodIds.includes(id)) setSelectedAuthMethodIds((prev) => [...prev, id]) }}>
+          <Select
+            onValueChange={id => {
+              if (!selectedAuthMethodIds.includes(id)) setSelectedAuthMethodIds(prev => [...prev, id])
+            }}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="— Add auth method —" />
+              <SelectValue placeholder='— Add auth method —' />
             </SelectTrigger>
             <SelectContent>
               {authMethods
-                .filter((m) => !selectedAuthMethodIds.includes(m.id))
-                .map((m) => (
-                  <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                .filter(m => !selectedAuthMethodIds.includes(m.id))
+                .map(m => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.name}
+                  </SelectItem>
                 ))}
             </SelectContent>
           </Select>
           {selectedAuthMethods.length > 0 && (
-            <div className="space-y-1.5 mt-2">
+            <div className='space-y-1.5 mt-2'>
               <DndContext
                 sensors={authDndSensors}
                 collisionDetection={closestCenter}
@@ -1057,12 +1167,12 @@ function NamespaceEditorModal({
                 }}
               >
                 <SortableContext items={selectedAuthMethodIds} strategy={verticalListSortingStrategy}>
-                  {selectedAuthMethods.map((m) => (
+                  {selectedAuthMethods.map(m => (
                     <SortableAuthMethodItem
                       key={m.id}
                       method={m}
                       showHandle={selectedAuthMethods.length > 1}
-                      onRemove={() => setSelectedAuthMethodIds((prev) => prev.filter((id) => id !== m.id))}
+                      onRemove={() => setSelectedAuthMethodIds(prev => prev.filter(id => id !== m.id))}
                     />
                   ))}
                 </SortableContext>
@@ -1070,15 +1180,15 @@ function NamespaceEditorModal({
             </div>
           )}
           {selectedAuthMethods.length > 1 && (
-            <div className="mt-2 space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Auth Logic</Label>
+            <div className='mt-2 space-y-1.5'>
+              <Label className='text-xs text-muted-foreground'>Auth Logic</Label>
               <Select value={authLogic} onValueChange={(v: 'or' | 'and') => setAuthLogic(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="or">Any match (OR)</SelectItem>
-                  <SelectItem value="and">All match (AND)</SelectItem>
+                  <SelectItem value='or'>Any match (OR)</SelectItem>
+                  <SelectItem value='and'>All match (AND)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1096,7 +1206,7 @@ function AuthMethodModal({
   method,
   functions,
   onSave,
-  onClose,
+  onClose
 }: {
   isOpen: boolean
   method: Partial<AuthMethod> | null
@@ -1132,7 +1242,7 @@ function AuthMethodModal({
       setAudience(method.config?.audience || '')
       setIssuer(method.config?.issuer || '')
       setApiKeys(method.config?.apiKeys ? [...method.config.apiKeys] : [])
-      setCredentials(method.config?.credentials ? method.config.credentials.map((c) => ({ ...c })) : [])
+      setCredentials(method.config?.credentials ? method.config.credentials.map(c => ({ ...c })) : [])
       setRealm(method.config?.realm || '')
       setMiddlewareFunctionId(method.config?.functionId || '')
       setShowSecret(false)
@@ -1157,18 +1267,40 @@ function AuthMethodModal({
   }
 
   const handleSave = async () => {
-    if (!name.trim()) { toast.error('Name is required'); return }
+    if (!name.trim()) {
+      toast.error('Name is required')
+      return
+    }
     if (type === 'bearer_jwt') {
-      if (jwtMode === 'fixed_secret' && !jwtSecret.trim()) { toast.error('JWT secret is required'); return }
-      if (jwtMode === 'microsoft' && !tenantId.trim()) { toast.error('Tenant ID is required'); return }
-      if (jwtMode === 'jwks_endpoint' && !jwksUrl.trim()) { toast.error('JWKS URL is required'); return }
-      if (jwtMode === 'oidc_discovery' && !oidcUrl.trim()) { toast.error('OIDC Discovery URL is required'); return }
+      if (jwtMode === 'fixed_secret' && !jwtSecret.trim()) {
+        toast.error('JWT secret is required')
+        return
+      }
+      if (jwtMode === 'microsoft' && !tenantId.trim()) {
+        toast.error('Tenant ID is required')
+        return
+      }
+      if (jwtMode === 'jwks_endpoint' && !jwksUrl.trim()) {
+        toast.error('JWKS URL is required')
+        return
+      }
+      if (jwtMode === 'oidc_discovery' && !oidcUrl.trim()) {
+        toast.error('OIDC Discovery URL is required')
+        return
+      }
     }
-    if (type === 'basic_auth' && credentials.length === 0) { toast.error('At least one credential is required'); return }
-    if (type === 'basic_auth' && credentials.some((c) => !c.username.trim() || !c.password.trim())) {
-      toast.error('All credentials must have a username and password'); return
+    if (type === 'basic_auth' && credentials.length === 0) {
+      toast.error('At least one credential is required')
+      return
     }
-    if (type === 'middleware' && !middlewareFunctionId) { toast.error('A function must be selected'); return }
+    if (type === 'basic_auth' && credentials.some(c => !c.username.trim() || !c.password.trim())) {
+      toast.error('All credentials must have a username and password')
+      return
+    }
+    if (type === 'middleware' && !middlewareFunctionId) {
+      toast.error('A function must be selected')
+      return
+    }
     setSaving(true)
     try {
       await onSave({ name: name.trim(), type, config: buildConfig() })
@@ -1184,37 +1316,39 @@ function AuthMethodModal({
       title={method?.id ? 'Edit Auth Method' : 'Add Auth Method'}
       onConfirm={handleSave}
       onCancel={onClose}
-      confirmText="Save"
-      cancelText="Cancel"
+      confirmText='Save'
+      cancelText='Cancel'
       loading={saving}
-      size="md"
+      size='md'
     >
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label>Name <span className="text-red-400">*</span></Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Admin JWT, Public API Key" />
+      <div className='space-y-4'>
+        <div className='space-y-1.5'>
+          <Label>
+            Name <span className='text-red-400'>*</span>
+          </Label>
+          <Input value={name} onChange={e => setName(e.target.value)} placeholder='e.g. Admin JWT, Public API Key' />
         </div>
 
-        <div className="space-y-1.5">
+        <div className='space-y-1.5'>
           <Label>Type</Label>
-          <Select value={type} onValueChange={(v) => setType(v as any)} disabled={!!method?.id}>
+          <Select value={type} onValueChange={v => setType(v as any)} disabled={!!method?.id}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="bearer_jwt">Bearer JWT</SelectItem>
-              <SelectItem value="api_key">API Key</SelectItem>
-              <SelectItem value="basic_auth">Basic Auth</SelectItem>
-              <SelectItem value="middleware">Middleware</SelectItem>
+              <SelectItem value='bearer_jwt'>Bearer JWT</SelectItem>
+              <SelectItem value='api_key'>API Key</SelectItem>
+              <SelectItem value='basic_auth'>Basic Auth</SelectItem>
+              <SelectItem value='middleware'>Middleware</SelectItem>
             </SelectContent>
           </Select>
-          {method?.id && <p className="text-xs text-muted-foreground">Type cannot be changed after creation.</p>}
+          {method?.id && <p className='text-xs text-muted-foreground'>Type cannot be changed after creation.</p>}
         </div>
 
         {/* Bearer JWT config */}
         {type === 'bearer_jwt' && (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
+          <div className='space-y-4'>
+            <div className='space-y-1.5'>
               <Label>JWT Mode</Label>
               <Select value={jwtMode} onValueChange={setJwtMode}>
                 <SelectTrigger>
@@ -1222,82 +1356,124 @@ function AuthMethodModal({
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(JWT_MODE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             {jwtMode === 'microsoft' && (
-              <div className="space-y-1.5">
-                <Label>Tenant ID <span className="text-red-400">*</span></Label>
-                <Input value={tenantId} onChange={(e) => setTenantId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="font-mono" />
-                <p className="text-xs text-muted-foreground">Found in Azure Portal → App registrations → Directory (tenant) ID.</p>
+              <div className='space-y-1.5'>
+                <Label>
+                  Tenant ID <span className='text-red-400'>*</span>
+                </Label>
+                <Input
+                  value={tenantId}
+                  onChange={e => setTenantId(e.target.value)}
+                  placeholder='xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+                  className='font-mono'
+                />
+                <p className='text-xs text-muted-foreground'>
+                  Found in Azure Portal → App registrations → Directory (tenant) ID.
+                </p>
               </div>
             )}
 
             {jwtMode === 'google' && (
-              <p className="text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2">
+              <p className='text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2'>
                 Validates tokens signed by Google&apos;s public keys. No additional configuration required.
               </p>
             )}
 
             {jwtMode === 'github' && (
-              <p className="text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2">
+              <p className='text-xs text-muted-foreground rounded-md bg-muted border border-border px-3 py-2'>
                 Validates GitHub Actions OIDC tokens issued by{' '}
-                <code className="bg-background px-1 rounded">token.actions.githubusercontent.com</code>.
-                No additional configuration required.
+                <code className='bg-background px-1 rounded'>token.actions.githubusercontent.com</code>. No additional
+                configuration required.
               </p>
             )}
 
             {jwtMode === 'jwks_endpoint' && (
-              <div className="space-y-1.5">
-                <Label>JWKS URL <span className="text-red-400">*</span></Label>
-                <Input type="url" value={jwksUrl} onChange={(e) => setJwksUrl(e.target.value)} placeholder="https://example.com/.well-known/jwks.json" className="font-mono" />
+              <div className='space-y-1.5'>
+                <Label>
+                  JWKS URL <span className='text-red-400'>*</span>
+                </Label>
+                <Input
+                  type='url'
+                  value={jwksUrl}
+                  onChange={e => setJwksUrl(e.target.value)}
+                  placeholder='https://example.com/.well-known/jwks.json'
+                  className='font-mono'
+                />
               </div>
             )}
 
             {jwtMode === 'oidc_discovery' && (
-              <div className="space-y-1.5">
-                <Label>OIDC Discovery URL <span className="text-red-400">*</span></Label>
-                <Input type="url" value={oidcUrl} onChange={(e) => setOidcUrl(e.target.value)} placeholder="https://example.com/.well-known/openid-configuration" className="font-mono" />
+              <div className='space-y-1.5'>
+                <Label>
+                  OIDC Discovery URL <span className='text-red-400'>*</span>
+                </Label>
+                <Input
+                  type='url'
+                  value={oidcUrl}
+                  onChange={e => setOidcUrl(e.target.value)}
+                  placeholder='https://example.com/.well-known/openid-configuration'
+                  className='font-mono'
+                />
               </div>
             )}
 
             {jwtMode === 'fixed_secret' && (
-              <div className="space-y-1.5">
-                <Label>JWT Secret <span className="text-red-400">*</span></Label>
-                <div className="relative">
+              <div className='space-y-1.5'>
+                <Label>
+                  JWT Secret <span className='text-red-400'>*</span>
+                </Label>
+                <div className='relative'>
                   <Input
                     type={showSecret ? 'text' : 'password'}
                     value={jwtSecret}
-                    onChange={(e) => setJwtSecret(e.target.value)}
-                    placeholder="Enter HMAC signing secret"
-                    className="pr-10 font-mono"
+                    onChange={e => setJwtSecret(e.target.value)}
+                    placeholder='Enter HMAC signing secret'
+                    className='pr-10 font-mono'
                   />
                   <button
-                    type="button"
-                    onClick={() => setShowSecret((s) => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    type='button'
+                    onClick={() => setShowSecret(s => !s)}
+                    className='absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
                   >
-                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showSecret ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                   </button>
                 </div>
               </div>
             )}
 
-            <div className="space-y-3 pt-1 border-t border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">
-                Claim Validation <span className="font-normal normal-case">(optional)</span>
+            <div className='space-y-3 pt-1 border-t border-border'>
+              <p className='text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1'>
+                Claim Validation <span className='font-normal normal-case'>(optional)</span>
               </p>
-              <div className="space-y-1.5">
+              <div className='space-y-1.5'>
                 <Label>Audience (aud)</Label>
-                <Input value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="https://api.myapp.com" />
+                <Input
+                  value={audience}
+                  onChange={e => setAudience(e.target.value)}
+                  placeholder='https://api.myapp.com'
+                />
               </div>
-              <div className="space-y-1.5">
+              <div className='space-y-1.5'>
                 <Label>Issuer (iss)</Label>
-                <Input value={issuer} onChange={(e) => setIssuer(e.target.value)}
-                  placeholder={jwtMode === 'microsoft' ? 'https://login.microsoftonline.com/{tenantId}/v2.0' : jwtMode === 'google' ? 'https://accounts.google.com' : 'https://issuer.example.com'} />
+                <Input
+                  value={issuer}
+                  onChange={e => setIssuer(e.target.value)}
+                  placeholder={
+                    jwtMode === 'microsoft'
+                      ? 'https://login.microsoftonline.com/{tenantId}/v2.0'
+                      : jwtMode === 'google'
+                        ? 'https://accounts.google.com'
+                        : 'https://issuer.example.com'
+                  }
+                />
               </div>
             </div>
           </div>
@@ -1305,64 +1481,86 @@ function AuthMethodModal({
 
         {/* API Key config */}
         {type === 'api_key' && (
-          <div className="space-y-1.5">
-            <Label>API Keys <span className="text-muted-foreground font-normal">(press Enter to add)</span></Label>
-            <TagInput value={apiKeys} onChange={setApiKeys} placeholder="Paste or type key" />
+          <div className='space-y-1.5'>
+            <Label>
+              API Keys <span className='text-muted-foreground font-normal'>(press Enter to add)</span>
+            </Label>
+            <TagInput value={apiKeys} onChange={setApiKeys} placeholder='Paste or type key' />
           </div>
         )}
 
         {/* Basic Auth config */}
         {type === 'basic_auth' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between'>
               <Label>Credentials</Label>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCredentials((c) => [...c, { username: '', password: '' }])}>
-                <Plus className="w-3 h-3 mr-1" /> Add
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={() => setCredentials(c => [...c, { username: '', password: '' }])}
+              >
+                <Plus className='w-3 h-3 mr-1' /> Add
               </Button>
             </div>
-            {credentials.length === 0 && <p className="text-xs text-muted-foreground">No credentials added yet.</p>}
-            <div className="space-y-2">
+            {credentials.length === 0 && <p className='text-xs text-muted-foreground'>No credentials added yet.</p>}
+            <div className='space-y-2'>
               {credentials.map((cred, i) => (
-                <div key={i} className="flex gap-2 items-center">
+                <div key={i} className='flex gap-2 items-center'>
                   <Input
                     value={cred.username}
-                    onChange={(e) => setCredentials((c) => c.map((cr, idx) => idx === i ? { ...cr, username: e.target.value } : cr))}
-                    placeholder="Username"
+                    onChange={e =>
+                      setCredentials(c => c.map((cr, idx) => (idx === i ? { ...cr, username: e.target.value } : cr)))
+                    }
+                    placeholder='Username'
                   />
                   <Input
-                    type="password"
+                    type='password'
                     value={cred.password}
-                    onChange={(e) => setCredentials((c) => c.map((cr, idx) => idx === i ? { ...cr, password: e.target.value } : cr))}
-                    placeholder="Password"
+                    onChange={e =>
+                      setCredentials(c => c.map((cr, idx) => (idx === i ? { ...cr, password: e.target.value } : cr)))
+                    }
+                    placeholder='Password'
                   />
-                  <Button type="button" variant="ghost" size="icon" onClick={() => setCredentials((c) => c.filter((_, idx) => idx !== i))}
-                    className="text-muted-foreground hover:text-red-400 flex-shrink-0">
-                    <X className="w-4 h-4" />
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    onClick={() => setCredentials(c => c.filter((_, idx) => idx !== i))}
+                    className='text-muted-foreground hover:text-red-400 flex-shrink-0'
+                  >
+                    <X className='w-4 h-4' />
                   </Button>
                 </div>
               ))}
             </div>
-            <div className="space-y-1.5">
-              <Label>Realm <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <Input value={realm} onChange={(e) => setRealm(e.target.value)} placeholder="e.g. Admin Area" />
+            <div className='space-y-1.5'>
+              <Label>
+                Realm <span className='text-muted-foreground font-normal'>(optional)</span>
+              </Label>
+              <Input value={realm} onChange={e => setRealm(e.target.value)} placeholder='e.g. Admin Area' />
             </div>
           </div>
         )}
 
         {/* Middleware config */}
         {type === 'middleware' && (
-          <div className="space-y-1.5">
-            <Label>Function <span className="text-red-400">*</span></Label>
+          <div className='space-y-1.5'>
+            <Label>
+              Function <span className='text-red-400'>*</span>
+            </Label>
             {functions.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No functions deployed in this project.</p>
+              <p className='text-xs text-muted-foreground'>No functions deployed in this project.</p>
             ) : (
               <Select value={middlewareFunctionId} onValueChange={setMiddlewareFunctionId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a function…" />
+                  <SelectValue placeholder='Select a function…' />
                 </SelectTrigger>
                 <SelectContent>
-                  {functions.map((f) => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                  {functions.map(f => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1415,7 +1613,9 @@ export default function ApiGatewayPage() {
       setProjectIsActive(null)
       authenticatedFetch(`/api/admin/projects/${activeProject.id}`)
         .then(r => r.json())
-        .then(d => { if (d.success) setProjectIsActive(d.data.is_active) })
+        .then(d => {
+          if (d.success) setProjectIsActive(d.data.is_active)
+        })
         .catch(() => {})
     } else {
       setProjectIsActive(null)
@@ -1433,7 +1633,7 @@ export default function ApiGatewayPage() {
         authenticatedFetch(`/api/functions?projectId=${activeProject.id}`),
         authenticatedFetch('/api/admin/global-settings'),
         authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`),
-        authenticatedFetch(`/api/gateway/realtime-namespaces?projectId=${activeProject.id}`),
+        authenticatedFetch(`/api/gateway/realtime-namespaces?projectId=${activeProject.id}`)
       ])
       if (cfgRes.ok) {
         const d = await cfgRes.json()
@@ -1442,11 +1642,27 @@ export default function ApiGatewayPage() {
         setCustomDomainProtocol(protocol)
         setCustomDomainInput(host)
       }
-      if (routesRes.ok) { const d = await routesRes.json(); setRoutes(d.data || []); setOrderDirty(false) }
-      if (funcsRes.ok) { const d = await funcsRes.json(); setFunctions((d.data || []).map((f: any) => ({ id: f.id, name: f.name }))) }
-      if (gsRes.ok) { const d = await gsRes.json(); setGatewayDomain(d.data?.api_gateway_domain?.value || '') }
-      if (authRes.ok) { const d = await authRes.json(); setAuthMethods(d.data || []) }
-      if (nsRes.ok) { const d = await nsRes.json(); setRealtimeNamespaces(d.data || []) }
+      if (routesRes.ok) {
+        const d = await routesRes.json()
+        setRoutes(d.data || [])
+        setOrderDirty(false)
+      }
+      if (funcsRes.ok) {
+        const d = await funcsRes.json()
+        setFunctions((d.data || []).map((f: any) => ({ id: f.id, name: f.name })))
+      }
+      if (gsRes.ok) {
+        const d = await gsRes.json()
+        setGatewayDomain(d.data?.api_gateway_domain?.value || '')
+      }
+      if (authRes.ok) {
+        const d = await authRes.json()
+        setAuthMethods(d.data || [])
+      }
+      if (nsRes.ok) {
+        const d = await nsRes.json()
+        setRealtimeNamespaces(d.data || [])
+      }
     } catch {
       toast.error('Failed to load gateway settings')
     } finally {
@@ -1463,8 +1679,8 @@ export default function ApiGatewayPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           enabled: config.enabled,
-          customDomain: customDomainInput ? `${customDomainProtocol}://${customDomainInput}` : null,
-        }),
+          customDomain: customDomainInput ? `${customDomainProtocol}://${customDomainInput}` : null
+        })
       })
       const data = await res.json()
       if (res.ok) {
@@ -1484,16 +1700,28 @@ export default function ApiGatewayPage() {
   const handleSaveRoute = async (data: any) => {
     if (!activeProject?.id) return
     if (editingRoute?.id) {
-      const res = await authenticatedFetch(`/api/gateway/routes/${editingRoute.id}?projectId=${activeProject.id}`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authenticatedFetch(`/api/gateway/routes/${editingRoute.id}?projectId=${activeProject.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to update route'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to update route')
+        throw new Error(body.message)
+      }
       toast.success('Route updated')
     } else {
-      const res = await authenticatedFetch(`/api/gateway/routes?projectId=${activeProject.id}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authenticatedFetch(`/api/gateway/routes?projectId=${activeProject.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to create route'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to create route')
+        throw new Error(body.message)
+      }
       toast.success('Route created')
     }
     await loadAll()
@@ -1501,10 +1729,12 @@ export default function ApiGatewayPage() {
 
   const handleDeleteRoute = async (id: string) => {
     if (!activeProject?.id) return
-    const res = await authenticatedFetch(`/api/gateway/routes/${id}?projectId=${activeProject.id}`, { method: 'DELETE' })
+    const res = await authenticatedFetch(`/api/gateway/routes/${id}?projectId=${activeProject.id}`, {
+      method: 'DELETE'
+    })
     if (res.ok) {
       toast.success('Route deleted')
-      setRoutes((prev) => prev.filter((r) => r.id !== id))
+      setRoutes(prev => prev.filter(r => r.id !== id))
     } else {
       toast.error('Failed to delete route')
     }
@@ -1518,37 +1748,56 @@ export default function ApiGatewayPage() {
       const res = await authenticatedFetch(`/api/gateway/routes/reorder?projectId=${activeProject.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: routes.map((r) => ({ id: r.id, sortOrder: r.sortOrder })) }),
+        body: JSON.stringify({ order: routes.map(r => ({ id: r.id, sortOrder: r.sortOrder })) })
       })
-      if (res.ok) { toast.success('Route order saved'); setOrderDirty(false) }
-      else toast.error('Failed to save route order')
-    } catch { toast.error('Failed to save route order') }
-    finally { setSavingOrder(false) }
+      if (res.ok) {
+        toast.success('Route order saved')
+        setOrderDirty(false)
+      } else toast.error('Failed to save route order')
+    } catch {
+      toast.error('Failed to save route order')
+    } finally {
+      setSavingOrder(false)
+    }
   }
 
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const oldIndex = routes.findIndex((r) => r.id === active.id)
-    const newIndex = routes.findIndex((r) => r.id === over.id)
-    const reordered = arrayMove(routes, oldIndex, newIndex)
-    setRoutes(reordered.map((r, i) => ({ ...r, sortOrder: i })))
-    setOrderDirty(true)
-  }, [routes])
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      const oldIndex = routes.findIndex(r => r.id === active.id)
+      const newIndex = routes.findIndex(r => r.id === over.id)
+      const reordered = arrayMove(routes, oldIndex, newIndex)
+      setRoutes(reordered.map((r, i) => ({ ...r, sortOrder: i })))
+      setOrderDirty(true)
+    },
+    [routes]
+  )
 
   const handleSaveAuthMethod = async (data: { name: string; type: string; config: any }) => {
     if (!activeProject?.id) return
     if (editingAuthMethod?.id) {
-      const res = await authenticatedFetch(`/api/gateway/auth-methods/${editingAuthMethod.id}?projectId=${activeProject.id}`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authenticatedFetch(
+        `/api/gateway/auth-methods/${editingAuthMethod.id}?projectId=${activeProject.id}`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+      )
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to update auth method'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to update auth method')
+        throw new Error(body.message)
+      }
       toast.success('Auth method updated')
     } else {
-      const res = await authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authenticatedFetch(`/api/gateway/auth-methods?projectId=${activeProject.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to create auth method'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to create auth method')
+        throw new Error(body.message)
+      }
       toast.success('Auth method created')
     }
     await loadAll()
@@ -1556,9 +1805,13 @@ export default function ApiGatewayPage() {
 
   const handleDeleteAuthMethod = async (id: string) => {
     if (!activeProject?.id) return
-    const res = await authenticatedFetch(`/api/gateway/auth-methods/${id}?projectId=${activeProject.id}`, { method: 'DELETE' })
-    if (res.ok) { toast.success('Auth method deleted'); setAuthMethods((prev) => prev.filter((m) => m.id !== id)) }
-    else toast.error('Failed to delete auth method')
+    const res = await authenticatedFetch(`/api/gateway/auth-methods/${id}?projectId=${activeProject.id}`, {
+      method: 'DELETE'
+    })
+    if (res.ok) {
+      toast.success('Auth method deleted')
+      setAuthMethods(prev => prev.filter(m => m.id !== id))
+    } else toast.error('Failed to delete auth method')
     setDeleteAuthMethodId(null)
   }
 
@@ -1576,15 +1829,22 @@ export default function ApiGatewayPage() {
         { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
       )
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to update namespace'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to update namespace')
+        throw new Error(body.message)
+      }
       toast.success('Namespace updated')
     } else {
-      const res = await authenticatedFetch(
-        `/api/gateway/realtime-namespaces?projectId=${activeProject.id}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
-      )
+      const res = await authenticatedFetch(`/api/gateway/realtime-namespaces?projectId=${activeProject.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
       const body = await res.json()
-      if (!res.ok) { toast.error(body.message || 'Failed to create namespace'); throw new Error(body.message) }
+      if (!res.ok) {
+        toast.error(body.message || 'Failed to create namespace')
+        throw new Error(body.message)
+      }
       toast.success('Namespace created')
     }
     await loadAll()
@@ -1592,90 +1852,105 @@ export default function ApiGatewayPage() {
 
   const handleDeleteNamespace = async (id: string) => {
     if (!activeProject?.id) return
-    const res = await authenticatedFetch(
-      `/api/gateway/realtime-namespaces/${id}?projectId=${activeProject.id}`,
-      { method: 'DELETE' }
-    )
-    if (res.ok) { toast.success('Namespace deleted'); setRealtimeNamespaces((prev) => prev.filter((ns) => ns.id !== id)) }
-    else toast.error('Failed to delete namespace')
+    const res = await authenticatedFetch(`/api/gateway/realtime-namespaces/${id}?projectId=${activeProject.id}`, {
+      method: 'DELETE'
+    })
+    if (res.ok) {
+      toast.success('Namespace deleted')
+      setRealtimeNamespaces(prev => prev.filter(ns => ns.id !== id))
+    } else toast.error('Failed to delete namespace')
     setDeleteNamespaceId(null)
   }
 
   const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
-  const gatewayFull = gatewayDomain ? (gatewayDomain.startsWith('http') ? gatewayDomain : `https://${gatewayDomain}`) : ''
+  const gatewayFull = gatewayDomain
+    ? gatewayDomain.startsWith('http')
+      ? gatewayDomain
+      : `https://${gatewayDomain}`
+    : ''
   const customFull = customDomainInput
     ? `${customDomainProtocol}://${customDomainInput}`
-    : config.customDomain?.startsWith('http') ? config.customDomain : null
-  const defaultUrl = gatewayFull && projectSlug && activeProject?.id !== 'system' ? `${gatewayFull}/${projectSlug}/<route>` : null
+    : config.customDomain?.startsWith('http')
+      ? config.customDomain
+      : null
+  const defaultUrl =
+    gatewayFull && projectSlug && activeProject?.id !== 'system' ? `${gatewayFull}/${projectSlug}/<route>` : null
   const customUrl = customFull ? `${customFull}/<route>` : null
 
   return (
     <ProtectedRoute>
-      <Layout title="API Gateway">
-        <div className="space-y-6">
+      <Layout title='API Gateway'>
+        <div className='space-y-6'>
           {projectIsActive === false && (
-            <div className="flex items-center gap-3 rounded-lg border border-yellow-600/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>The project <strong>{activeProject?.name}</strong> is currently inactive. Gateway routes will not accept traffic until the project is reactivated.</span>
+            <div className='flex items-center gap-3 rounded-lg border border-yellow-600/50 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400'>
+              <AlertCircle className='w-4 h-4 shrink-0' />
+              <span>
+                The project <strong>{activeProject?.name}</strong> is currently inactive. Gateway routes will not accept
+                traffic until the project is reactivated.
+              </span>
             </div>
           )}
-          <div className="flex items-start justify-between gap-4">
+          <div className='flex items-start justify-between gap-4'>
             <PageHeader
-              title="API Gateway"
-              subtitle="Configure per-project HTTP routing to invoke functions via custom or default domains"
-              icon={<Globe className="w-8 h-8 text-primary" />}
+              title='API Gateway'
+              subtitle='Configure per-project HTTP routing to invoke functions via custom or default domains'
+              icon={<Globe className='w-8 h-8 text-primary' />}
             />
             {activeProject && activeProject.id !== 'system' && !loadingConfig && (
-              <Button variant="outline" onClick={() => setConfigModalOpen(true)} className="shrink-0 mt-1">
-                <Settings className="w-4 h-4 mr-2" />
+              <Button variant='outline' onClick={() => setConfigModalOpen(true)} className='shrink-0 mt-1'>
+                <Settings className='w-4 h-4 mr-2' />
                 Configure
               </Button>
             )}
           </div>
 
           {loadingConfig ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader className="w-5 h-5 text-primary animate-spin" />
-                <span className="animate-pulse">Loading...</span>
+            <div className='flex items-center justify-center h-64'>
+              <div className='flex items-center gap-2 text-muted-foreground'>
+                <Loader className='w-5 h-5 text-primary animate-spin' />
+                <span className='animate-pulse'>Loading...</span>
               </div>
             </div>
           ) : !activeProject ? (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <Globe className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-foreground mb-2">Please Select a Project</h2>
-                <p className="text-muted-foreground">Select a project to manage its API Gateway settings.</p>
+            <div className='flex items-center justify-center min-h-[400px]'>
+              <div className='text-center'>
+                <Globe className='w-16 h-16 text-muted-foreground mx-auto mb-4' />
+                <h2 className='text-xl font-semibold text-foreground mb-2'>Please Select a Project</h2>
+                <p className='text-muted-foreground'>Select a project to manage its API Gateway settings.</p>
               </div>
             </div>
           ) : activeProject.id === 'system' ? (
-            <div className="flex items-center justify-center min-h-[400px]">
-              <div className="text-center">
-                <Globe className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-foreground mb-2">Not Available for System Project</h2>
-                <p className="text-muted-foreground">API Gateway settings are configured per project. Select a project to manage its gateway.</p>
+            <div className='flex items-center justify-center min-h-[400px]'>
+              <div className='text-center'>
+                <Globe className='w-16 h-16 text-muted-foreground mx-auto mb-4' />
+                <h2 className='text-xl font-semibold text-foreground mb-2'>Not Available for System Project</h2>
+                <p className='text-muted-foreground'>
+                  API Gateway settings are configured per project. Select a project to manage its gateway.
+                </p>
               </div>
             </div>
           ) : (
             <>
-              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+              <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)}>
                 <TabsList>
-                  <TabsTrigger value="routes">Routes</TabsTrigger>
-                  <TabsTrigger value="realtime">Realtime</TabsTrigger>
-                  <TabsTrigger value="authentication">Authentication</TabsTrigger>
+                  <TabsTrigger value='routes'>Routes</TabsTrigger>
+                  <TabsTrigger value='realtime'>Realtime</TabsTrigger>
+                  <TabsTrigger value='authentication'>Authentication</TabsTrigger>
                 </TabsList>
 
                 {/* Routes Tab */}
-                <TabsContent value="routes" className="space-y-4 mt-4">
+                <TabsContent value='routes' className='space-y-4 mt-4'>
                   {!config.enabled && (
                     <Card>
-                      <CardContent className="py-4 flex items-center gap-4">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground">API Gateway is disabled</p>
-                          <p className="text-xs text-muted-foreground mt-0.5">Enable it via Configure to start routing requests to your functions.</p>
+                      <CardContent className='py-4 flex items-center gap-4'>
+                        <div className='flex-1'>
+                          <p className='text-sm font-medium text-foreground'>API Gateway is disabled</p>
+                          <p className='text-xs text-muted-foreground mt-0.5'>
+                            Enable it via Configure to start routing requests to your functions.
+                          </p>
                         </div>
-                        <Button variant="outline" size="sm" onClick={() => setConfigModalOpen(true)}>
-                          <Settings className="w-4 h-4 mr-2" />
+                        <Button variant='outline' size='sm' onClick={() => setConfigModalOpen(true)}>
+                          <Settings className='w-4 h-4 mr-2' />
                           Configure
                         </Button>
                       </CardContent>
@@ -1684,40 +1959,52 @@ export default function ApiGatewayPage() {
 
                   {config.enabled && (
                     <Card>
-                      <CardContent className="pt-6 space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                            <Globe className="w-5 h-5 text-primary" />
+                      <CardContent className='pt-6 space-y-4'>
+                        <div className='flex items-center justify-between'>
+                          <h2 className='text-base font-semibold text-foreground flex items-center gap-2'>
+                            <Globe className='w-5 h-5 text-primary' />
                             Routes
-                            <span className="text-sm font-normal text-muted-foreground">({routes.length})</span>
+                            <span className='text-sm font-normal text-muted-foreground'>({routes.length})</span>
                           </h2>
-                          <div className="flex items-center gap-2">
+                          <div className='flex items-center gap-2'>
                             {orderDirty ? (
                               <>
-                                <Button variant="outline" size="sm" onClick={() => loadAll()} disabled={savingOrder}>
-                                  <X className="w-4 h-4 mr-1" /> Discard
+                                <Button variant='outline' size='sm' onClick={() => loadAll()} disabled={savingOrder}>
+                                  <X className='w-4 h-4 mr-1' /> Discard
                                 </Button>
-                                <Button size="sm" onClick={handleSaveOrder} disabled={savingOrder}>
-                                  {savingOrder ? <Loader className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
+                                <Button size='sm' onClick={handleSaveOrder} disabled={savingOrder}>
+                                  {savingOrder ? (
+                                    <Loader className='w-4 h-4 animate-spin mr-1' />
+                                  ) : (
+                                    <Save className='w-4 h-4 mr-1' />
+                                  )}
                                   Save Order
                                 </Button>
                               </>
                             ) : (
-                              <Button size="sm" onClick={() => { setEditingRoute({}); setModalOpen(true) }}>
-                                <Plus className="w-4 h-4 mr-1" /> Add Route
+                              <Button
+                                size='sm'
+                                onClick={() => {
+                                  setEditingRoute({})
+                                  setModalOpen(true)
+                                }}
+                              >
+                                <Plus className='w-4 h-4 mr-1' /> Add Route
                               </Button>
                             )}
                           </div>
                         </div>
 
                         {routes.length === 0 ? (
-                          <div className="text-center py-12 text-muted-foreground">
-                            <Globe className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                            <p className="text-sm">No routes configured yet.</p>
-                            <p className="text-xs mt-1">Add a route to start routing external requests to your functions.</p>
+                          <div className='text-center py-12 text-muted-foreground'>
+                            <Globe className='w-10 h-10 mx-auto mb-3 opacity-40' />
+                            <p className='text-sm'>No routes configured yet.</p>
+                            <p className='text-xs mt-1'>
+                              Add a route to start routing external requests to your functions.
+                            </p>
                           </div>
                         ) : (
-                          <div className="overflow-x-auto rounded-lg border border-border">
+                          <div className='overflow-x-auto rounded-lg border border-border'>
                             <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
@@ -1727,7 +2014,7 @@ export default function ApiGatewayPage() {
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead className="w-8" />
+                                    <TableHead className='w-8' />
                                     <TableHead>Route Path</TableHead>
                                     <TableHead>Upstream Function</TableHead>
                                     <TableHead>Methods</TableHead>
@@ -1737,13 +2024,16 @@ export default function ApiGatewayPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  <SortableContext items={routes.map((r) => r.id)} strategy={verticalListSortingStrategy}>
-                                    {routes.map((route) => (
+                                  <SortableContext items={routes.map(r => r.id)} strategy={verticalListSortingStrategy}>
+                                    {routes.map(route => (
                                       <SortableRouteRow
                                         key={route.id}
                                         route={route}
-                                        onEdit={(r) => { setEditingRoute(r); setModalOpen(true) }}
-                                        onDelete={(id) => setDeleteConfirmId(id)}
+                                        onEdit={r => {
+                                          setEditingRoute(r)
+                                          setModalOpen(true)
+                                        }}
+                                        onDelete={id => setDeleteConfirmId(id)}
                                         gatewayDomain={gatewayFull}
                                         projectSlug={projectSlug}
                                         customDomain={customFull}
@@ -1756,8 +2046,9 @@ export default function ApiGatewayPage() {
                           </div>
                         )}
 
-                        <p className="text-xs text-muted-foreground">
-                          Drag rows to reorder, then click <strong className="text-foreground">Save Order</strong> to apply. Routes are matched from top to bottom — first match wins.
+                        <p className='text-xs text-muted-foreground'>
+                          Drag rows to reorder, then click <strong className='text-foreground'>Save Order</strong> to
+                          apply. Routes are matched from top to bottom — first match wins.
                         </p>
                       </CardContent>
                     </Card>
@@ -1765,28 +2056,38 @@ export default function ApiGatewayPage() {
                 </TabsContent>
 
                 {/* Realtime Tab */}
-                <TabsContent value="realtime" className="mt-4">
+                <TabsContent value='realtime' className='mt-4'>
                   <Card>
-                    <CardContent className="pt-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                          <Zap className="w-5 h-5 text-primary" />
+                    <CardContent className='pt-6 space-y-4'>
+                      <div className='flex items-center justify-between'>
+                        <h2 className='text-base font-semibold text-foreground flex items-center gap-2'>
+                          <Zap className='w-5 h-5 text-primary' />
                           Realtime Namespaces
-                          <span className="text-sm font-normal text-muted-foreground">({realtimeNamespaces.length})</span>
+                          <span className='text-sm font-normal text-muted-foreground'>
+                            ({realtimeNamespaces.length})
+                          </span>
                         </h2>
-                        <Button size="sm" onClick={() => { setEditingNamespace({}); setNamespaceModalOpen(true) }}>
-                          <Plus className="w-4 h-4 mr-1" /> Add Namespace
+                        <Button
+                          size='sm'
+                          onClick={() => {
+                            setEditingNamespace({})
+                            setNamespaceModalOpen(true)
+                          }}
+                        >
+                          <Plus className='w-4 h-4 mr-1' /> Add Namespace
                         </Button>
                       </div>
 
                       {realtimeNamespaces.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <Zap className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                          <p className="text-sm">No realtime namespaces configured yet.</p>
-                          <p className="text-xs mt-1">Add a namespace to enable Socket.IO connections for this project.</p>
+                        <div className='text-center py-12 text-muted-foreground'>
+                          <Zap className='w-10 h-10 mx-auto mb-3 opacity-40' />
+                          <p className='text-sm'>No realtime namespaces configured yet.</p>
+                          <p className='text-xs mt-1'>
+                            Add a namespace to enable Socket.IO connections for this project.
+                          </p>
                         </div>
                       ) : (
-                        <div className="overflow-x-auto rounded-lg border border-border">
+                        <div className='overflow-x-auto rounded-lg border border-border'>
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -1797,11 +2098,14 @@ export default function ApiGatewayPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {realtimeNamespaces.map((ns) => (
+                              {realtimeNamespaces.map(ns => (
                                 <RealtimeNamespaceRow
                                   key={ns.id}
                                   namespace={ns}
-                                  onEdit={(ns) => { setEditingNamespace(ns); setNamespaceModalOpen(true) }}
+                                  onEdit={ns => {
+                                    setEditingNamespace(ns)
+                                    setNamespaceModalOpen(true)
+                                  }}
                                   onDelete={setDeleteNamespaceId}
                                   gatewayDomain={gatewayFull}
                                   projectSlug={projectSlug}
@@ -1817,52 +2121,90 @@ export default function ApiGatewayPage() {
                 </TabsContent>
 
                 {/* Authentication Tab */}
-                <TabsContent value="authentication" className="mt-4">
+                <TabsContent value='authentication' className='mt-4'>
                   <Card>
-                    <CardContent className="pt-6 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-                          <KeyRound className="w-5 h-5 text-primary" />
+                    <CardContent className='pt-6 space-y-4'>
+                      <div className='flex items-center justify-between'>
+                        <h2 className='text-base font-semibold text-foreground flex items-center gap-2'>
+                          <KeyRound className='w-5 h-5 text-primary' />
                           Authentication Methods
-                          <span className="text-sm font-normal text-muted-foreground">({authMethods.length})</span>
+                          <span className='text-sm font-normal text-muted-foreground'>({authMethods.length})</span>
                         </h2>
-                        <Button size="sm" onClick={() => { setEditingAuthMethod({}); setAuthMethodModalOpen(true) }}>
-                          <Plus className="w-4 h-4 mr-1" /> Add Method
+                        <Button
+                          size='sm'
+                          onClick={() => {
+                            setEditingAuthMethod({})
+                            setAuthMethodModalOpen(true)
+                          }}
+                        >
+                          <Plus className='w-4 h-4 mr-1' /> Add Method
                         </Button>
                       </div>
 
                       {authMethods.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground">
-                          <KeyRound className="w-10 h-10 mx-auto mb-3 opacity-40" />
-                          <p className="text-sm">No authentication methods configured.</p>
-                          <p className="text-xs mt-1">Add a method and assign it to routes to secure your gateway endpoints.</p>
+                        <div className='text-center py-12 text-muted-foreground'>
+                          <KeyRound className='w-10 h-10 mx-auto mb-3 opacity-40' />
+                          <p className='text-sm'>No authentication methods configured.</p>
+                          <p className='text-xs mt-1'>
+                            Add a method and assign it to routes to secure your gateway endpoints.
+                          </p>
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          {authMethods.map((m) => (
-                            <div key={m.id} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <span className={cn('shrink-0 text-xs px-2 py-1 rounded font-mono', authTypeBadgeClass(m.type))}>
-                                  {m.type === 'basic_auth' ? 'Basic Auth' : m.type === 'bearer_jwt' ? 'Bearer JWT' : m.type === 'middleware' ? 'Middleware' : 'API Key'}
+                        <div className='space-y-3'>
+                          {authMethods.map(m => (
+                            <div
+                              key={m.id}
+                              className='flex items-start justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3'
+                            >
+                              <div className='flex items-center gap-3 min-w-0'>
+                                <span
+                                  className={cn(
+                                    'shrink-0 text-xs px-2 py-1 rounded font-mono',
+                                    authTypeBadgeClass(m.type)
+                                  )}
+                                >
+                                  {m.type === 'basic_auth'
+                                    ? 'Basic Auth'
+                                    : m.type === 'bearer_jwt'
+                                      ? 'Bearer JWT'
+                                      : m.type === 'middleware'
+                                        ? 'Middleware'
+                                        : 'API Key'}
                                 </span>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium text-foreground truncate">{m.name}</p>
-                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                <div className='min-w-0'>
+                                  <p className='text-sm font-medium text-foreground truncate'>{m.name}</p>
+                                  <p className='text-xs text-muted-foreground mt-0.5'>
                                     {m.type === 'basic_auth' && `${m.config.credentials?.length ?? 0} credential(s)`}
-                                    {m.type === 'bearer_jwt' && (m.config.jwtMode ? JWT_MODE_LABELS[m.config.jwtMode] ?? 'Bearer JWT' : 'Fixed secret')}
+                                    {m.type === 'bearer_jwt' &&
+                                      (m.config.jwtMode
+                                        ? (JWT_MODE_LABELS[m.config.jwtMode] ?? 'Bearer JWT')
+                                        : 'Fixed secret')}
                                     {m.type === 'api_key' && `${m.config.apiKeys?.length ?? 0} key(s)`}
-                                    {m.type === 'middleware' && (functions.find((f) => f.id === m.config.functionId)?.name || 'Function configured')}
+                                    {m.type === 'middleware' &&
+                                      (functions.find(f => f.id === m.config.functionId)?.name ||
+                                        'Function configured')}
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex gap-1 shrink-0">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                  onClick={() => { setEditingAuthMethod(m); setAuthMethodModalOpen(true) }}>
-                                  <Edit2 className="w-4 h-4" />
+                              <div className='flex gap-1 shrink-0'>
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8 text-muted-foreground hover:text-primary'
+                                  onClick={() => {
+                                    setEditingAuthMethod(m)
+                                    setAuthMethodModalOpen(true)
+                                  }}
+                                >
+                                  <Edit2 className='w-4 h-4' />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                                  onClick={() => setDeleteAuthMethodId(m.id)}>
-                                  <Trash2 className="w-4 h-4" />
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8 text-muted-foreground hover:text-red-400'
+                                  onClick={() => setDeleteAuthMethodId(m.id)}
+                                >
+                                  <Trash2 className='w-4 h-4' />
                                 </Button>
                               </div>
                             </div>
@@ -1870,9 +2212,12 @@ export default function ApiGatewayPage() {
                         </div>
                       )}
 
-                      <p className="text-xs text-muted-foreground">
+                      <p className='text-xs text-muted-foreground'>
                         Auth methods are reusable. Assign them to routes in the{' '}
-                        <button onClick={() => setActiveTab('routes')} className="text-primary hover:underline">Routes</button> tab.
+                        <button onClick={() => setActiveTab('routes')} className='text-primary hover:underline'>
+                          Routes
+                        </button>{' '}
+                        tab.
                       </p>
                     </CardContent>
                   </Card>
@@ -1885,75 +2230,81 @@ export default function ApiGatewayPage() {
         {/* Gateway Configuration Modal */}
         <Modal
           isOpen={configModalOpen}
-          title="Gateway Configuration"
+          title='Gateway Configuration'
           onConfirm={handleSaveConfig}
           onCancel={() => setConfigModalOpen(false)}
-          confirmText="Save Configuration"
-          cancelText="Cancel"
+          confirmText='Save Configuration'
+          cancelText='Cancel'
           loading={savingConfig}
-          size="md"
+          size='md'
         >
-          <div className="space-y-5">
-            <div className="flex items-center justify-between">
+          <div className='space-y-5'>
+            <div className='flex items-center justify-between'>
               <div>
-                <p className="text-sm font-medium text-foreground">Enable API Gateway</p>
-                <p className="text-xs text-muted-foreground mt-0.5">When enabled, external requests are routed to your functions.</p>
+                <p className='text-sm font-medium text-foreground'>Enable API Gateway</p>
+                <p className='text-xs text-muted-foreground mt-0.5'>
+                  When enabled, external requests are routed to your functions.
+                </p>
               </div>
-              <Switch checked={config.enabled} onCheckedChange={(v) => setConfig((c) => ({ ...c, enabled: v }))} />
+              <Switch checked={config.enabled} onCheckedChange={v => setConfig(c => ({ ...c, enabled: v }))} />
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Custom Domain <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <div className="flex rounded-md overflow-hidden border border-input focus-within:border-primary">
-                <Select value={customDomainProtocol} onValueChange={(v) => setCustomDomainProtocol(v as any)}>
-                  <SelectTrigger className="w-28 rounded-none border-0 border-r border-input bg-muted">
+            <div className='space-y-1.5'>
+              <Label>
+                Custom Domain <span className='text-muted-foreground font-normal'>(optional)</span>
+              </Label>
+              <div className='flex rounded-md overflow-hidden border border-input focus-within:border-primary'>
+                <Select value={customDomainProtocol} onValueChange={v => setCustomDomainProtocol(v as any)}>
+                  <SelectTrigger className='w-28 rounded-none border-0 border-r border-input bg-muted'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="https">https://</SelectItem>
-                    <SelectItem value="http">http://</SelectItem>
+                    <SelectItem value='https'>https://</SelectItem>
+                    <SelectItem value='http'>http://</SelectItem>
                   </SelectContent>
                 </Select>
                 <input
-                  type="text"
+                  type='text'
                   value={customDomainInput}
-                  onChange={(e) => setCustomDomainInput(e.target.value)}
-                  placeholder="api.mycompany.com"
-                  className="flex-1 bg-transparent text-foreground text-sm px-3 py-2 focus:outline-none"
+                  onChange={e => setCustomDomainInput(e.target.value)}
+                  placeholder='api.mycompany.com'
+                  className='flex-1 bg-transparent text-foreground text-sm px-3 py-2 focus:outline-none'
                 />
               </div>
             </div>
 
-            <div className="bg-muted/40 rounded-lg p-4 space-y-2 border border-border">
-              <p className="text-xs font-medium text-muted-foreground mb-2">URL Preview</p>
+            <div className='bg-muted/40 rounded-lg p-4 space-y-2 border border-border'>
+              <p className='text-xs font-medium text-muted-foreground mb-2'>URL Preview</p>
               {customUrl ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-400 mt-0.5 shrink-0" />
+                <div className='flex items-start gap-2'>
+                  <CheckCircle2 className='w-4 h-4 text-green-400 mt-0.5 shrink-0' />
                   <div>
-                    <p className="text-xs text-muted-foreground">Custom domain</p>
-                    <code className="text-xs text-green-300 font-mono">{customUrl}</code>
+                    <p className='text-xs text-muted-foreground'>Custom domain</p>
+                    <code className='text-xs text-green-300 font-mono'>{customUrl}</code>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground">No custom domain configured</p>
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='w-4 h-4 text-muted-foreground mt-0.5 shrink-0' />
+                  <p className='text-xs text-muted-foreground'>No custom domain configured</p>
                 </div>
               )}
               {defaultUrl ? (
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                <div className='flex items-start gap-2'>
+                  <CheckCircle2 className='w-4 h-4 text-blue-400 mt-0.5 shrink-0' />
                   <div>
-                    <p className="text-xs text-muted-foreground">Default gateway domain</p>
-                    <code className="text-xs text-blue-300 font-mono">{defaultUrl}</code>
+                    <p className='text-xs text-muted-foreground'>Default gateway domain</p>
+                    <code className='text-xs text-blue-300 font-mono'>{defaultUrl}</code>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <p className="text-xs text-muted-foreground">
+                <div className='flex items-start gap-2'>
+                  <AlertCircle className='w-4 h-4 text-muted-foreground mt-0.5 shrink-0' />
+                  <p className='text-xs text-muted-foreground'>
                     Configure a default gateway domain in{' '}
-                    <a href="/admin/global-settings" className="text-primary hover:underline">Global Settings</a>{' '}
+                    <a href='/admin/global-settings' className='text-primary hover:underline'>
+                      Global Settings
+                    </a>{' '}
                     to enable the default URL pattern.
                   </p>
                 </div>
@@ -1971,18 +2322,23 @@ export default function ApiGatewayPage() {
           projectSlug={projectSlug}
           customDomain={customFull}
           onSave={handleSaveRoute}
-          onClose={() => { setModalOpen(false); setEditingRoute(null) }}
+          onClose={() => {
+            setModalOpen(false)
+            setEditingRoute(null)
+          }}
         />
 
         <Modal
           isOpen={!!deleteConfirmId}
-          title="Delete Route"
-          description="Are you sure you want to delete this route? This action cannot be undone."
-          onConfirm={() => { if (deleteConfirmId) handleDeleteRoute(deleteConfirmId) }}
+          title='Delete Route'
+          description='Are you sure you want to delete this route? This action cannot be undone.'
+          onConfirm={() => {
+            if (deleteConfirmId) handleDeleteRoute(deleteConfirmId)
+          }}
           onCancel={() => setDeleteConfirmId(null)}
-          confirmText="Delete"
-          cancelText="Cancel"
-          confirmVariant="danger"
+          confirmText='Delete'
+          cancelText='Cancel'
+          confirmVariant='danger'
         />
 
         <AuthMethodModal
@@ -1990,18 +2346,23 @@ export default function ApiGatewayPage() {
           method={editingAuthMethod}
           functions={functions}
           onSave={handleSaveAuthMethod}
-          onClose={() => { setAuthMethodModalOpen(false); setEditingAuthMethod(null) }}
+          onClose={() => {
+            setAuthMethodModalOpen(false)
+            setEditingAuthMethod(null)
+          }}
         />
 
         <Modal
           isOpen={!!deleteAuthMethodId}
-          title="Delete Auth Method"
-          description="Are you sure you want to delete this authentication method? Routes using it will become public."
-          onConfirm={() => { if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId) }}
+          title='Delete Auth Method'
+          description='Are you sure you want to delete this authentication method? Routes using it will become public.'
+          onConfirm={() => {
+            if (deleteAuthMethodId) handleDeleteAuthMethod(deleteAuthMethodId)
+          }}
           onCancel={() => setDeleteAuthMethodId(null)}
-          confirmText="Delete"
-          cancelText="Cancel"
-          confirmVariant="danger"
+          confirmText='Delete'
+          cancelText='Cancel'
+          confirmVariant='danger'
         />
 
         <NamespaceEditorModal
@@ -2010,7 +2371,10 @@ export default function ApiGatewayPage() {
           functions={functions}
           authMethods={authMethods}
           onSave={handleSaveNamespace}
-          onClose={() => { setNamespaceModalOpen(false); setEditingNamespace(null) }}
+          onClose={() => {
+            setNamespaceModalOpen(false)
+            setEditingNamespace(null)
+          }}
           projectSlug={projectSlug}
           customDomain={customFull}
           gatewayDomain={gatewayFull}
@@ -2018,13 +2382,15 @@ export default function ApiGatewayPage() {
 
         <Modal
           isOpen={!!deleteNamespaceId}
-          title="Delete Namespace"
-          description="Are you sure you want to delete this namespace? All event handlers will also be removed."
-          onConfirm={() => { if (deleteNamespaceId) handleDeleteNamespace(deleteNamespaceId) }}
+          title='Delete Namespace'
+          description='Are you sure you want to delete this namespace? All event handlers will also be removed.'
+          onConfirm={() => {
+            if (deleteNamespaceId) handleDeleteNamespace(deleteNamespaceId)
+          }}
           onCancel={() => setDeleteNamespaceId(null)}
-          confirmText="Delete"
-          cancelText="Cancel"
-          confirmVariant="danger"
+          confirmText='Delete'
+          cancelText='Cancel'
+          confirmVariant='danger'
         />
       </Layout>
     </ProtectedRoute>

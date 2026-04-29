@@ -1,19 +1,19 @@
-import { PipelineRunner } from "./runner";
-import { Pipeline } from "./types";
+import { PipelineRunner } from './runner'
+import { Pipeline } from './types'
 
-export { PipelineRunner } from "./runner";
+export { PipelineRunner } from './runner'
 
 const pipelines: { [key: string]: () => Promise<Pipeline> } = {
   // register pipeline
-  'bun': () => import('./pipelines/bun').then((mod) => mod.default),
-};
+  bun: () => import('./pipelines/bun').then(mod => mod.default)
+}
 
 export async function createPipelineRunner(name: string): Promise<PipelineRunner> {
-  const pipelineLoader = pipelines[name];
+  const pipelineLoader = pipelines[name]
 
   if (!pipelineLoader) {
-    throw new Error(`Unknown pipeline "${name}"`);
+    throw new Error(`Unknown pipeline "${name}"`)
   }
 
-  return new PipelineRunner(await pipelineLoader());
+  return new PipelineRunner(await pipelineLoader())
 }

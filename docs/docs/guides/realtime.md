@@ -34,26 +34,26 @@ Clients will connect to `/<project-slug><namespace-path>` on your gateway domain
 A minimal function that handles connections, messages, and disconnections:
 
 ```javascript
-const ns = new RealtimeNamespace();
+const ns = new RealtimeNamespace()
 
 ns.socket.on('$connect', function () {
-    console.log('Connected:', ns.socket.id);
-    ns.socket.emit('welcome', { message: 'Hello!' });
-});
+  console.log('Connected:', ns.socket.id)
+  ns.socket.emit('welcome', { message: 'Hello!' })
+})
 
 ns.socket.on('message', function (data) {
-    // Broadcast to all other sockets in the namespace
-    ns.socket.broadcast.emit('message', {
-        from: ns.socket.id,
-        text: data.text,
-    });
-});
+  // Broadcast to all other sockets in the namespace
+  ns.socket.broadcast.emit('message', {
+    from: ns.socket.id,
+    text: data.text
+  })
+})
 
 ns.socket.on('$disconnect', function (reason) {
-    console.log('Disconnected:', ns.socket.id, reason);
-});
+  console.log('Disconnected:', ns.socket.id, reason)
+})
 
-export default ns;
+export default ns
 ```
 
 **Note:** `RealtimeNamespace` is a global — no `require()` needed.
@@ -66,43 +66,43 @@ Rooms let you group sockets for targeted broadcasting. A socket can be in multip
 
 ```javascript
 ns.socket.on('joinRoom', function (data) {
-    ns.socket.join(data.room);
-    ns.socket.emit('joined', { room: data.room });
+  ns.socket.join(data.room)
+  ns.socket.emit('joined', { room: data.room })
 
-    // Tell others in the room
-    ns.socket.to(data.room).emit('userJoined', {
-        socketId: ns.socket.id,
-    });
-});
+  // Tell others in the room
+  ns.socket.to(data.room).emit('userJoined', {
+    socketId: ns.socket.id
+  })
+})
 
 ns.socket.on('leaveRoom', function (data) {
-    ns.socket.to(data.room).emit('userLeft', {
-        socketId: ns.socket.id,
-    });
-    ns.socket.leave(data.room);
-});
+  ns.socket.to(data.room).emit('userLeft', {
+    socketId: ns.socket.id
+  })
+  ns.socket.leave(data.room)
+})
 ```
 
 ### Broadcasting to a Room
 
 ```javascript
 ns.socket.on('message', function (data) {
-    // Send to everyone in the room except the sender
-    ns.socket.to(data.room).emit('message', {
-        from: ns.socket.id,
-        text: data.text,
-    });
-});
+  // Send to everyone in the room except the sender
+  ns.socket.to(data.room).emit('message', {
+    from: ns.socket.id,
+    text: data.text
+  })
+})
 ```
 
 ### Multi-Room Targeting
 
 ```javascript
 // Send to sockets in room1 OR room2
-ns.socket.to('room1').to('room2').emit('announcement', { text: 'Hello both rooms!' });
+ns.socket.to('room1').to('room2').emit('announcement', { text: 'Hello both rooms!' })
 
 // Send to room1 but exclude room2
-ns.socket.to('room1').except('room2').emit('exclusive', { text: 'Only room1' });
+ns.socket.to('room1').except('room2').emit('exclusive', { text: 'Only room1' })
 ```
 
 ## Authentication
@@ -110,6 +110,7 @@ ns.socket.to('room1').except('room2').emit('exclusive', { text: 'Only room1' });
 Namespaces can require authentication. Configure auth methods in the admin UI when creating or editing a namespace — the same methods available for HTTP routes (API key, JWT, OAuth, etc.) work for realtime namespaces.
 
 When multiple auth methods are configured, choose the logic:
+
 - **Any match (OR)** — the client passes if any one method succeeds
 - **All match (AND)** — every method must succeed
 
@@ -118,20 +119,20 @@ Clients provide credentials via the Socket.IO `auth` option:
 ```javascript
 // Client-side (browser)
 const socket = io('https://gateway.example.com/myapp/chat', {
-    auth: {
-        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    },
-});
+  auth: {
+    token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  }
+})
 ```
 
 In your function, access the auth payload through the handshake:
 
 ```javascript
 ns.socket.on('$connect', function () {
-    const token = ns.socket.handshake.auth.token;
-    const userId = ns.socket.handshake.query.userId;
-    console.log('Authenticated with token:', token);
-});
+  const token = ns.socket.handshake.auth.token
+  const userId = ns.socket.handshake.query.userId
+  console.log('Authenticated with token:', token)
+})
 ```
 
 If authentication fails, the gateway disconnects the client before the `$connect` handler runs.
@@ -141,37 +142,37 @@ If authentication fails, the gateway disconnects the client before the `$connect
 ### To a specific socket
 
 ```javascript
-ns.socket.emit('directMessage', { text: 'Just for you' });
+ns.socket.emit('directMessage', { text: 'Just for you' })
 ```
 
 ### To a room (excluding sender)
 
 ```javascript
-ns.socket.to('general').emit('chat', { text: 'Hello room' });
+ns.socket.to('general').emit('chat', { text: 'Hello room' })
 ```
 
 ### To all (excluding sender)
 
 ```javascript
-ns.socket.broadcast.emit('announcement', { text: 'News flash' });
+ns.socket.broadcast.emit('announcement', { text: 'News flash' })
 ```
 
 ### To entire namespace (including sender)
 
 ```javascript
-ns.emit('serverNotice', { text: 'Server restart in 5 minutes' });
+ns.emit('serverNotice', { text: 'Server restart in 5 minutes' })
 ```
 
 ### To multiple rooms
 
 ```javascript
-ns.socket.to('admins').to('moderators').emit('alert', { level: 'high' });
+ns.socket.to('admins').to('moderators').emit('alert', { level: 'high' })
 ```
 
 ### To a room, excluding another room
 
 ```javascript
-ns.to('premium').except('banned').emit('offer', { discount: 20 });
+ns.to('premium').except('banned').emit('offer', { discount: 20 })
 ```
 
 ## Client Connection
@@ -181,46 +182,46 @@ Connect from a browser using the [socket.io-client](https://www.npmjs.com/packag
 ```html
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <script>
-    const socket = io('https://gateway.example.com/myapp/chat', {
-        auth: { token: 'your-auth-token' },
-    });
+  const socket = io('https://gateway.example.com/myapp/chat', {
+    auth: { token: 'your-auth-token' }
+  })
 
-    socket.on('connect', () => {
-        console.log('Connected:', socket.id);
-    });
+  socket.on('connect', () => {
+    console.log('Connected:', socket.id)
+  })
 
-    socket.on('welcome', (data) => {
-        console.log(data.message);
-    });
+  socket.on('welcome', data => {
+    console.log(data.message)
+  })
 
-    socket.on('message', (data) => {
-        console.log(`${data.from}: ${data.text}`);
-    });
+  socket.on('message', data => {
+    console.log(`${data.from}: ${data.text}`)
+  })
 
-    // Send a message
-    socket.emit('message', { text: 'Hello everyone!' });
+  // Send a message
+  socket.emit('message', { text: 'Hello everyone!' })
 
-    // Join a room
-    socket.emit('joinRoom', { room: 'general' });
+  // Join a room
+  socket.emit('joinRoom', { room: 'general' })
 
-    socket.on('disconnect', (reason) => {
-        console.log('Disconnected:', reason);
-    });
+  socket.on('disconnect', reason => {
+    console.log('Disconnected:', reason)
+  })
 </script>
 ```
 
 Or with a bundler (npm):
 
 ```javascript
-import { io } from 'socket.io-client';
+import { io } from 'socket.io-client'
 
 const socket = io('https://gateway.example.com/myapp/chat', {
-    auth: { token: localStorage.getItem('authToken') },
-});
+  auth: { token: localStorage.getItem('authToken') }
+})
 
-socket.on('connect', () => console.log('Connected'));
-socket.on('message', (data) => console.log(data));
-socket.emit('message', { text: 'Hello!' });
+socket.on('connect', () => console.log('Connected'))
+socket.on('message', data => console.log(data))
+socket.emit('message', { text: 'Hello!' })
 ```
 
 **Connection URL format:** `https://<gateway-domain>/<project-slug><namespace-path>`
@@ -232,74 +233,74 @@ For custom domains, omit the project slug: `https://api.mysite.com/chat`
 ### Chat Room
 
 ```javascript
-const ns = new RealtimeNamespace();
+const ns = new RealtimeNamespace()
 
 ns.socket.on('$connect', function () {
-    ns.socket.data.username = ns.socket.handshake.auth.username || 'Anonymous';
-    ns.socket.join('lobby');
-    ns.socket.to('lobby').emit('userJoined', { username: ns.socket.data.username });
-});
+  ns.socket.data.username = ns.socket.handshake.auth.username || 'Anonymous'
+  ns.socket.join('lobby')
+  ns.socket.to('lobby').emit('userJoined', { username: ns.socket.data.username })
+})
 
 ns.socket.on('message', function (data) {
-    ns.socket.to(data.room || 'lobby').emit('message', {
-        from: ns.socket.data.username,
-        text: data.text,
-        timestamp: Date.now(),
-    });
-});
+  ns.socket.to(data.room || 'lobby').emit('message', {
+    from: ns.socket.data.username,
+    text: data.text,
+    timestamp: Date.now()
+  })
+})
 
 ns.socket.on('$disconnect', function () {
-    ns.emit('userLeft', { username: ns.socket.data.username });
-});
+  ns.emit('userLeft', { username: ns.socket.data.username })
+})
 
-export default ns;
+export default ns
 ```
 
 ### Live Notifications
 
 ```javascript
-const ns = new RealtimeNamespace('/notifications');
+const ns = new RealtimeNamespace('/notifications')
 
 ns.socket.on('$connect', function () {
-    const userId = ns.socket.handshake.auth.userId;
-    ns.socket.join(`user:${userId}`);
-});
+  const userId = ns.socket.handshake.auth.userId
+  ns.socket.join(`user:${userId}`)
+})
 
 ns.socket.on('subscribe', function (data) {
-    ns.socket.join(`topic:${data.topic}`);
-});
+  ns.socket.join(`topic:${data.topic}`)
+})
 
 ns.socket.on('notify', function (data) {
-    if (data.userId) {
-        ns.to(`user:${data.userId}`).emit('notification', data.payload);
-    } else if (data.topic) {
-        ns.to(`topic:${data.topic}`).emit('notification', data.payload);
-    }
-});
+  if (data.userId) {
+    ns.to(`user:${data.userId}`).emit('notification', data.payload)
+  } else if (data.topic) {
+    ns.to(`topic:${data.topic}`).emit('notification', data.payload)
+  }
+})
 
-export default ns;
+export default ns
 ```
 
 ### Presence (Online/Offline)
 
 ```javascript
-const ns = new RealtimeNamespace('/presence');
+const ns = new RealtimeNamespace('/presence')
 
 ns.socket.on('$connect', function () {
-    const userId = ns.socket.handshake.auth.userId;
-    ns.socket.data.userId = userId;
-    ns.socket.join('online');
-    ns.socket.to('online').emit('status', { userId, status: 'online' });
-});
+  const userId = ns.socket.handshake.auth.userId
+  ns.socket.data.userId = userId
+  ns.socket.join('online')
+  ns.socket.to('online').emit('status', { userId, status: 'online' })
+})
 
 ns.socket.on('$disconnect', function () {
-    ns.to('online').emit('status', {
-        userId: ns.socket.data.userId,
-        status: 'offline',
-    });
-});
+  ns.to('online').emit('status', {
+    userId: ns.socket.data.userId,
+    status: 'offline'
+  })
+})
 
-export default ns;
+export default ns
 ```
 
 ## Best Practices
@@ -316,11 +317,11 @@ export default ns;
 
 ```javascript
 ns.socket.on('message', function (data) {
-    if (!data || typeof data.text !== 'string' || data.text.length > 1000) {
-        return; // Ignore invalid messages
-    }
-    ns.socket.to('general').emit('message', { text: data.text });
-});
+  if (!data || typeof data.text !== 'string' || data.text.length > 1000) {
+    return // Ignore invalid messages
+  }
+  ns.socket.to('general').emit('message', { text: data.text })
+})
 ```
 
 6. **Handle disconnects gracefully** — use the `$disconnect` handler to clean up rooms and notify other clients.

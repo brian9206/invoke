@@ -8,7 +8,7 @@ import {
   isAccountLocked,
   getRemainingLockoutTime,
   getLockoutConfig,
-  getClientIp,
+  getClientIp
 } from '@/lib/rate-limiter'
 import { getUserProjects } from '@/lib/middleware'
 import {
@@ -16,7 +16,7 @@ import {
   generateRefreshToken,
   hashRefreshToken,
   getRefreshTokenExpiresAt,
-  setAuthCookies,
+  setAuthCookies
 } from '@/lib/token-utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -43,8 +43,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         body: JSON.stringify({
           secret: process.env.TURNSTILE_SECRET_KEY,
           response: turnstileToken,
-          remoteip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-        }),
+          remoteip: req.headers['x-forwarded-for'] || req.socket.remoteAddress
+        })
       })
       const turnstileResult = await turnstileVerification.json()
       if (!turnstileResult.success) {
@@ -61,16 +61,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (await isAccountLocked(username, clientIp)) {
       const remainingTime = await getRemainingLockoutTime(username, clientIp)
       const config = getLockoutConfig()
-      return res.status(429).json(createResponse(false, null,
-        `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds. (Max ${config.maxAttempts} attempts per ${config.attemptWindowMinutes} minutes)`,
-        429
-      ))
+      return res
+        .status(429)
+        .json(
+          createResponse(
+            false,
+            null,
+            `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds. (Max ${config.maxAttempts} attempts per ${config.attemptWindowMinutes} minutes)`,
+            429
+          )
+        )
     }
 
     // Find user in database
     const { User } = database.models
     const user = await User.findOne({
-      where: { [Op.or]: [{ username }, { email: username }] },
+      where: { [Op.or]: [{ username }, { email: username }] }
     })
 
     if (!user) {
@@ -86,10 +92,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (await isAccountLocked(username, clientIp)) {
         const remainingTime = await getRemainingLockoutTime(username, clientIp)
-        return res.status(429).json(createResponse(false, null,
-          `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds.`,
-          429
-        ))
+        return res
+          .status(429)
+          .json(
+            createResponse(
+              false,
+              null,
+              `Account temporarily locked due to too many failed login attempts. Try again in ${remainingTime} seconds.`,
+              429
+            )
+          )
       }
 
       return res.status(401).json(createResponse(false, null, 'Invalid credentials', 401))
@@ -99,7 +111,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!user.is_admin) {
       const userProjects = await getUserProjects(user.id)
       if (!userProjects || userProjects.length === 0) {
-        return res.status(403).json(createResponse(false, null, 'Access denied: You are not a member of any project. Please contact your system administrator.', 403))
+        return res
+          .status(403)
+          .json(
+            createResponse(
+              false,
+              null,
+              'Access denied: You are not a member of any project. Please contact your system administrator.',
+              403
+            )
+          )
       }
     }
 
@@ -121,16 +142,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user_id: user.id,
       token_hash: refreshTokenHash,
       expires_at: getRefreshTokenExpiresAt(),
-      created_at: new Date(),
+      created_at: new Date()
     })
 
     // Set HttpOnly cookies
     setAuthCookies(req, res, accessToken, refreshTokenRaw)
 
-    res.status(200).json(createResponse(true, {
-      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin },
-    }, 'Login successful'))
-
+    res.status(200).json(
+      createResponse(
+        true,
+        {
+          user: { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin }
+        },
+        'Login successful'
+      )
+    )
   } catch (error) {
     console.error('Login error:', error)
     res.status(500).json(createResponse(false, null, 'Internal server error', 500))

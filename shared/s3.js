@@ -9,7 +9,7 @@ const {
   DeleteObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
-  ListBucketsCommand,
+  ListBucketsCommand
 } = require('@aws-sdk/client-s3')
 const crypto = require('crypto')
 const fs = require('fs')
@@ -52,10 +52,10 @@ class S3Service {
       region: process.env.S3_REGION || 'us-east-1',
       credentials: {
         accessKeyId: accessKey,
-        secretAccessKey: secretKey,
+        secretAccessKey: secretKey
       },
       // Required for path-style addressing used by MinIO
-      forcePathStyle: true,
+      forcePathStyle: true
     }
 
     if (process.env.S3_ENDPOINT) {
@@ -122,15 +122,15 @@ class S3Service {
     const { 'Content-Type': contentType = 'application/octet-stream', ...rest } = metadata
 
     const fileStream = fs.createReadStream(filePath)
-    await client.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: fileStream,
-      ContentType: contentType,
-      Metadata: Object.fromEntries(
-        Object.entries(rest).map(([k, v]) => [k.toLowerCase(), String(v)])
-      ),
-    }))
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: fileStream,
+        ContentType: contentType,
+        Metadata: Object.fromEntries(Object.entries(rest).map(([k, v]) => [k.toLowerCase(), String(v)]))
+      })
+    )
   }
 
   /**
@@ -189,7 +189,7 @@ class S3Service {
     return new Promise((resolve, reject) => {
       const hash = crypto.createHash('sha256')
       const stream = fs.createReadStream(filePath)
-      stream.on('data', (chunk) => hash.update(chunk))
+      stream.on('data', chunk => hash.update(chunk))
       stream.on('end', () => resolve(hash.digest('hex')))
       stream.on('error', reject)
     })
@@ -215,7 +215,7 @@ class S3Service {
       'x-function-id': functionId,
       'x-package-version': String(version),
       'x-package-hash': hash,
-      'upload-time': new Date().toISOString(),
+      'upload-time': new Date().toISOString()
     })
 
     console.log(`✅ Uploaded package: ${objectName}`)
@@ -224,7 +224,7 @@ class S3Service {
       objectName,
       size: fileStats.size,
       hash,
-      url: `${this.bucketName}/${objectName}`,
+      url: `${this.bucketName}/${objectName}`
     }
   }
 
@@ -295,7 +295,7 @@ class S3Service {
     await this.initialize()
 
     const packages = await this.listFunctionPackages(functionId)
-    await Promise.all(packages.map((pkg) => this.removeObject(this.bucketName, pkg.name)))
+    await Promise.all(packages.map(pkg => this.removeObject(this.bucketName, pkg.name)))
     console.log(`✅ Deleted ${packages.length} packages for function ${functionId}`)
     return packages.length
   }
@@ -315,11 +315,13 @@ class S3Service {
     let continuationToken
 
     do {
-      const response = await client.send(new ListObjectsV2Command({
-        Bucket: this.bucketName,
-        Prefix: prefix,
-        ContinuationToken: continuationToken,
-      }))
+      const response = await client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          Prefix: prefix,
+          ContinuationToken: continuationToken
+        })
+      )
 
       for (const obj of response.Contents || []) {
         artifacts.push({
@@ -327,7 +329,7 @@ class S3Service {
           name: obj.Key,
           size: obj.Size,
           lastModified: obj.LastModified,
-          etag: obj.ETag,
+          etag: obj.ETag
         })
       }
 
@@ -347,7 +349,7 @@ class S3Service {
     await this.initialize()
 
     const artifacts = await this.listFunctionArtifacts(functionId)
-    await Promise.all(artifacts.map((a) => this.removeObject(this.bucketName, a.name)))
+    await Promise.all(artifacts.map(a => this.removeObject(this.bucketName, a.name)))
     console.log(`✅ Deleted ${artifacts.length} artifacts for function ${functionId}`)
     return artifacts.length
   }
@@ -371,7 +373,7 @@ class S3Service {
       'Content-Type': 'application/gzip',
       'x-function-id': functionId,
       'x-artifact-version': String(version),
-      'x-artifact-hash': hash,
+      'x-artifact-hash': hash
     })
 
     console.log(`✅ Uploaded artifact: ${objectName}`)
@@ -407,11 +409,13 @@ class S3Service {
     let continuationToken
 
     do {
-      const response = await client.send(new ListObjectsV2Command({
-        Bucket: this.bucketName,
-        Prefix: prefix,
-        ContinuationToken: continuationToken,
-      }))
+      const response = await client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucketName,
+          Prefix: prefix,
+          ContinuationToken: continuationToken
+        })
+      )
 
       for (const obj of response.Contents || []) {
         packages.push({
@@ -419,7 +423,7 @@ class S3Service {
           name: obj.Key,
           size: obj.Size,
           lastModified: obj.LastModified,
-          etag: obj.ETag,
+          etag: obj.ETag
         })
       }
 

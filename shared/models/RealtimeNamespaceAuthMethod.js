@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class RealtimeNamespaceAuthMethod extends Model {}
 
   RealtimeNamespaceAuthMethod.init(
@@ -9,19 +9,19 @@ module.exports = (sequelize) => {
         type: DataTypes.UUID,
         primaryKey: true,
         references: { model: 'realtime_namespaces', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       auth_method_id: {
         type: DataTypes.UUID,
         primaryKey: true,
         references: { model: 'api_gateway_auth_methods', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       sort_order: {
         type: DataTypes.INTEGER,
         allowNull: false,
-        defaultValue: 0,
-      },
+        defaultValue: 0
+      }
     },
     {
       sequelize,
@@ -29,9 +29,9 @@ module.exports = (sequelize) => {
       tableName: 'realtime_namespace_auth_methods',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
-    },
-  );
+      freezeTableName: true
+    }
+  )
 
-  return RealtimeNamespaceAuthMethod;
-};
+  return RealtimeNamespaceAuthMethod
+}

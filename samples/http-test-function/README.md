@@ -5,6 +5,7 @@ Comprehensive test suite for HTTP, HTTPS, and WebSocket functionality in the VM 
 ## Features Tested
 
 ### HTTP Client
+
 - ✅ HTTP GET requests
 - ✅ HTTP POST requests with JSON data
 - ✅ Header processing (headers, headersDistinct, rawHeaders)
@@ -12,12 +13,14 @@ Comprehensive test suite for HTTP, HTTPS, and WebSocket functionality in the VM 
 - ✅ Error handling and status codes
 - ✅ Request/response streaming
 
-### HTTPS Client  
+### HTTPS Client
+
 - ✅ HTTPS GET requests with TLS
 - ✅ Certificate validation
 - ✅ Secure connections
 
 ### WebSocket Client
+
 - ✅ WebSocket connection establishment
 - ✅ Text and binary message sending/receiving
 - ✅ Ping/pong frame handling
@@ -25,6 +28,7 @@ Comprehensive test suite for HTTP, HTTPS, and WebSocket functionality in the VM 
 - ✅ RFC 6455 compliance
 
 ### Server Stubs
+
 - ✅ HTTP/HTTPS/WebSocket server stubs throw ENOTSUP errors
 - ✅ Proper error codes and messages
 
@@ -33,12 +37,13 @@ Comprehensive test suite for HTTP, HTTPS, and WebSocket functionality in the VM 
 This function tests the complete HTTP/WebSocket implementation:
 
 ```javascript
-const testResult = await require('./index.js')(req, res);
+const testResult = await require('./index.js')(req, res)
 ```
 
 ## Test Results
 
 Returns comprehensive test results with:
+
 - Individual test status (passed/failed)
 - Error messages and stack traces for failures
 - Summary of total tests passed/failed
@@ -47,6 +52,7 @@ Returns comprehensive test results with:
 ## Node.js Compatibility
 
 Tests exact Node.js behavior including:
+
 - IncomingMessage properties (statusCode, headers, rawHeaders)
 - ClientRequest methods (write, end, setTimeout)
 - Agent socket pooling and reuse
@@ -57,6 +63,7 @@ Tests exact Node.js behavior including:
 ## Network Requirements
 
 Tests require internet access to:
+
 - httpbin.org (HTTP/HTTPS testing)
 - echo.websocket.org (WebSocket testing)
 

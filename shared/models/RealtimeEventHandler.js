@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class RealtimeEventHandler extends Model {}
 
   RealtimeEventHandler.init(
@@ -8,30 +8,30 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       realtime_namespace_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'realtime_namespaces', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       event_name: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: false
       },
       function_id: {
         type: DataTypes.UUID,
         allowNull: true,
         references: { model: 'functions', key: 'id' },
-        onDelete: 'SET NULL',
+        onDelete: 'SET NULL'
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -39,16 +39,16 @@ module.exports = (sequelize) => {
       tableName: 'realtime_event_handlers',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
-    },
-  );
+      freezeTableName: true
+    }
+  )
 
-  RealtimeEventHandler.associate = (models) => {
+  RealtimeEventHandler.associate = models => {
     RealtimeEventHandler.belongsTo(models.RealtimeNamespace, {
-      foreignKey: 'realtime_namespace_id',
-    });
-    RealtimeEventHandler.belongsTo(models.Function, { foreignKey: 'function_id' });
-  };
+      foreignKey: 'realtime_namespace_id'
+    })
+    RealtimeEventHandler.belongsTo(models.Function, { foreignKey: 'function_id' })
+  }
 
-  return RealtimeEventHandler;
-};
+  return RealtimeEventHandler
+}

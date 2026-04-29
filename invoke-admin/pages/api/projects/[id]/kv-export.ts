@@ -1,11 +1,11 @@
-import { NextApiResponse } from 'next';
-import { AuthenticatedRequest, withAuth } from '@/lib/middleware';
-import { checkProjectAccess } from '@/lib/project-access';
-import { createResponse } from '@/lib/utils';
-import database from '@/lib/database';
-const KeyvModule = require('keyv');
-const Keyv = KeyvModule.default || KeyvModule;
-const { KeyvPostgres } = require('@keyv/postgres');
+import { NextApiResponse } from 'next'
+import { AuthenticatedRequest, withAuth } from '@/lib/middleware'
+import { checkProjectAccess } from '@/lib/project-access'
+import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
+const KeyvModule = require('keyv')
+const Keyv = KeyvModule.default || KeyvModule
+const { KeyvPostgres } = require('@keyv/postgres')
 
 /**
  * KV Export API - Export all key-value pairs as JSON
@@ -13,50 +13,49 @@ const { KeyvPostgres } = require('@keyv/postgres');
  */
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
-    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405));
+    return res.status(405).json(createResponse(false, null, 'Method not allowed', 405))
   }
 
   try {
-    const { id: projectId } = req.query;
+    const { id: projectId } = req.query
 
     if (!projectId || typeof projectId !== 'string') {
-      return res.status(400).json(createResponse(false, null, 'Project ID is required', 400));
+      return res.status(400).json(createResponse(false, null, 'Project ID is required', 400))
     }
 
     // Prevent system project access
     if (projectId === 'system') {
-      return res.status(403).json(createResponse(false, null, 'KV store not available for system project', 403));
+      return res.status(403).json(createResponse(false, null, 'KV store not available for system project', 403))
     }
 
     // Check project access (developer role is sufficient for export)
-    const hasAccess = await checkProjectAccess(req.user!.id, projectId, req.user!.isAdmin);
+    const hasAccess = await checkProjectAccess(req.user!.id, projectId, req.user!.isAdmin)
     if (!hasAccess.allowed) {
-      return res.status(403).json(createResponse(false, null, hasAccess.message, 403));
+      return res.status(403).json(createResponse(false, null, hasAccess.message, 403))
     }
 
     // Create Keyv instance for this project
-    const kvStore = createKVStore(projectId);
+    const kvStore = createKVStore(projectId)
 
     // Get all keys from Keyv using iterator
-    const exportData: Record<string, any> = {};
+    const exportData: Record<string, any> = {}
     for await (const [key, value] of kvStore.iterator()) {
       // Parse value as JSON
       try {
-        exportData[key] = JSON.parse(typeof value === 'string' ? value : JSON.stringify(value));
+        exportData[key] = JSON.parse(typeof value === 'string' ? value : JSON.stringify(value))
       } catch {
-        exportData[key] = value;
+        exportData[key] = value
       }
     }
 
     // Set headers for file download
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename="kv-export-${projectId}-${Date.now()}.json"`);
-    
-    return res.status(200).send(JSON.stringify(exportData, null, 2));
+    res.setHeader('Content-Type', 'application/json')
+    res.setHeader('Content-Disposition', `attachment; filename="kv-export-${projectId}-${Date.now()}.json"`)
 
+    return res.status(200).send(JSON.stringify(exportData, null, 2))
   } catch (error) {
-    console.error('KV Export API error:', error);
-    return res.status(500).json(createResponse(false, null, 'Failed to export KV store', 500));
+    console.error('KV Export API error:', error)
+    return res.status(500).json(createResponse(false, null, 'Failed to export KV store', 500))
   }
 }
 
@@ -64,8 +63,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
  * Create Keyv instance for a project
  */
 function createKVStore(projectId: string) {
-  const config = database.getConnectionConfig();
-  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`;
+  const config = database.getConnectionConfig()
+  const connectionString = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`
 
   return new Keyv({
     store: new KeyvPostgres({
@@ -73,7 +72,7 @@ function createKVStore(projectId: string) {
       table: 'project_kv_store'
     }),
     namespace: projectId
-  });
+  })
 }
 
-export default withAuth(handler);
+export default withAuth(handler)

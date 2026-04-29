@@ -5,6 +5,7 @@ Comprehensive test suite for validating Express.js req/res API compatibility in 
 ## Features Tested
 
 ### Request Object (`req`)
+
 - ✅ `req.cookies` - Cookie parsing from Cookie header
 - ✅ `req.is(type)` - Content-Type matching with wildcards
 - ✅ `req.accepts(types)` - Accept header negotiation with q-values
@@ -14,6 +15,7 @@ Comprehensive test suite for validating Express.js req/res API compatibility in 
 - ✅ `req.subdomains` - Subdomain extraction from hostname
 
 ### Response Object (`res`)
+
 - ✅ `res.send(data)` - Smart sending (undefined, null, number, boolean, string, Buffer, array, object)
 - ✅ `res.sendStatus(code)` - Quick status responses with message
 - ✅ `res.json(data)` - JSON responses with charset
@@ -30,18 +32,23 @@ Comprehensive test suite for validating Express.js req/res API compatibility in 
 ## Usage
 
 ### Deploy the Function
+
 Upload this function to your Invoke platform.
 
 ### Access the Test Menu
+
 Navigate to the function's URL to see an interactive test menu:
+
 ```
 GET /
 ```
 
 ### Run Individual Tests
+
 Each test route demonstrates a specific feature:
 
 **Request Tests:**
+
 ```bash
 # Cookie parsing
 curl -H "Cookie: session=abc123; user=john" http://your-function/req/cookies
@@ -63,6 +70,7 @@ curl http://your-function/req/info
 ```
 
 **Response Tests:**
+
 ```bash
 # Different data types
 curl http://your-function/res/send-types?type=number
@@ -104,6 +112,7 @@ curl http://your-function/res/render
 ## Test Results
 
 Each test endpoint returns a JSON response with:
+
 - `test` - Name of the test
 - `success` - Whether the test passed
 - `note` - Additional information about the test
@@ -128,6 +137,7 @@ Each test endpoint returns a JSON response with:
 ## Implementation
 
 This test function demonstrates real-world Express.js patterns:
+
 - Cookie-based authentication flows
 - Content negotiation for APIs
 - File downloads and serving static files
@@ -135,6 +145,7 @@ This test function demonstrates real-world Express.js patterns:
 - Error handling with proper status codes
 
 All features match Express.js behavior including:
+
 - Argument overloading
 - Error callbacks
 - Header manipulation

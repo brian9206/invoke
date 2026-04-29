@@ -1,11 +1,11 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
 /**
  * NOTE: The class is named FunctionModel to avoid shadowing the JS built-in
  * Function object, but the Sequelize modelName is 'Function' and consumers
  * access it as models.Function.
  */
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class FunctionModel extends Model {}
 
   FunctionModel.init(
@@ -13,100 +13,100 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       name: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: false
       },
       description: {
-        type: DataTypes.TEXT,
+        type: DataTypes.TEXT
       },
       project_id: {
         type: DataTypes.UUID,
         references: { model: 'projects', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       deployed_by: {
         type: DataTypes.INTEGER,
-        references: { model: 'users', key: 'id' },
+        references: { model: 'users', key: 'id' }
       },
       requires_api_key: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       api_key: {
-        type: DataTypes.STRING(255),
+        type: DataTypes.STRING(255)
       },
       is_active: {
         type: DataTypes.BOOLEAN,
-        defaultValue: true,
+        defaultValue: true
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       last_executed: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       execution_count: {
         type: DataTypes.INTEGER,
-        defaultValue: 0,
+        defaultValue: 0
       },
       // FK back to function_versions — set up after both tables exist
       active_version_id: {
         type: DataTypes.UUID,
-        references: { model: 'function_versions', key: 'id' },
+        references: { model: 'function_versions', key: 'id' }
       },
       retention_type: {
         type: DataTypes.STRING(10),
-        validate: { isIn: [['time', 'count', 'none']] },
+        validate: { isIn: [['time', 'count', 'none']] }
       },
       retention_value: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.INTEGER
       },
       retention_enabled: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       schedule_enabled: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       schedule_cron: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(100)
       },
       next_execution: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       last_scheduled_execution: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       group_id: {
         type: DataTypes.UUID,
         references: { model: 'function_groups', key: 'id' },
-        onDelete: 'SET NULL',
+        onDelete: 'SET NULL'
       },
       sort_order: {
         type: DataTypes.INTEGER,
-        defaultValue: 0,
+        defaultValue: 0
       },
       custom_timeout_enabled: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       custom_timeout_seconds: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.INTEGER
       },
       custom_memory_enabled: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       custom_memory_mb: {
-        type: DataTypes.INTEGER,
-      },
+        type: DataTypes.INTEGER
+      }
     },
     {
       sequelize,
@@ -114,23 +114,23 @@ module.exports = (sequelize) => {
       tableName: 'functions',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
-  FunctionModel.associate = (models) => {
-    FunctionModel.belongsTo(models.Project, { foreignKey: 'project_id' });
-    FunctionModel.belongsTo(models.User, { foreignKey: 'deployed_by', as: 'deployedBy' });
-    FunctionModel.belongsTo(models.FunctionGroup, { foreignKey: 'group_id', as: 'group', constraints: false });
-    FunctionModel.hasMany(models.FunctionVersion, { foreignKey: 'function_id' });
+  FunctionModel.associate = models => {
+    FunctionModel.belongsTo(models.Project, { foreignKey: 'project_id' })
+    FunctionModel.belongsTo(models.User, { foreignKey: 'deployed_by', as: 'deployedBy' })
+    FunctionModel.belongsTo(models.FunctionGroup, { foreignKey: 'group_id', as: 'group', constraints: false })
+    FunctionModel.hasMany(models.FunctionVersion, { foreignKey: 'function_id' })
     // Circular FK — FunctionVersion must already be initialised
     FunctionModel.belongsTo(models.FunctionVersion, {
       foreignKey: 'active_version_id',
       as: 'activeVersion',
-      constraints: false, // constraint already exists at DB level
-    });
-    FunctionModel.hasMany(models.FunctionEnvironmentVariable, { foreignKey: 'function_id' });
-  };
+      constraints: false // constraint already exists at DB level
+    })
+    FunctionModel.hasMany(models.FunctionEnvironmentVariable, { foreignKey: 'function_id' })
+  }
 
-  return FunctionModel;
-};
+  return FunctionModel
+}

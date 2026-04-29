@@ -1,81 +1,83 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware';
-import database from '@/lib/database';
-const ipaddr = require('ipaddr.js');
-const minimatch = require('minimatch');
-const dns = require('dns').promises;
+import { NextApiRequest, NextApiResponse } from 'next'
+import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import database from '@/lib/database'
+const ipaddr = require('ipaddr.js')
+const minimatch = require('minimatch')
+const dns = require('dns').promises
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { host } = req.body;
+  const { host } = req.body
 
   if (!host || typeof host !== 'string') {
-    return res.status(400).json({ error: 'Host is required' });
+    return res.status(400).json({ error: 'Host is required' })
   }
 
   try {
     // Fetch global policies from database
-    const { NetworkPolicy } = database.models;
-    const rules = (await NetworkPolicy.findAll({
-      attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
-      order: [['priority', 'ASC']]
-    })).map((r: any) => r.get({ plain: true }));
+    const { NetworkPolicy } = database.models
+    const rules = (
+      await NetworkPolicy.findAll({
+        attributes: ['id', 'action', 'target_type', 'target_value', 'description', 'priority'],
+        order: [['priority', 'ASC']]
+      })
+    ).map((r: any) => r.get({ plain: true }))
 
     // Evaluate against rules from database
-    const combinedRules = [...rules];
+    const combinedRules = [...rules]
 
-    const result = await evaluatePolicy(host, combinedRules);
-    res.json(result);
+    const result = await evaluatePolicy(host, combinedRules)
+    res.json(result)
   } catch (error) {
-    console.error('Error testing connection:', error);
-    res.status(500).json({ 
-      allowed: false, 
-      reason: 'Test failed: ' + (error instanceof Error ? error.message : String(error)) 
-    });
+    console.error('Error testing connection:', error)
+    res.status(500).json({
+      allowed: false,
+      reason: 'Test failed: ' + (error instanceof Error ? error.message : String(error))
+    })
   }
 }
 
 // Simplified policy evaluation (mirrors the NetworkPolicy class logic)
 async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: boolean; reason: string }> {
-  const isIP = ipaddr.isValid(host);
-  let ipsToCheck: string[] = [];
+  const isIP = ipaddr.isValid(host)
+  let ipsToCheck: string[] = []
 
   if (isIP) {
-    ipsToCheck = [host];
+    ipsToCheck = [host]
   } else {
     // Resolve domain to IPs
     try {
-      const ipv4Addresses = await dns.resolve4(host).catch(() => []);
-      ipsToCheck = [...ipv4Addresses];
+      const ipv4Addresses = await dns.resolve4(host).catch(() => [])
+      ipsToCheck = [...ipv4Addresses]
 
       if (ipsToCheck.length === 0) {
-        return { allowed: true, reason: 'DNS resolution pending' };
+        return { allowed: true, reason: 'DNS resolution pending' }
       }
     } catch (err) {
-      return { allowed: true, reason: 'DNS resolution error' };
+      return { allowed: true, reason: 'DNS resolution error' }
     }
   }
 
   // Evaluate rules in priority order
   for (const rule of rules) {
-    let matched = false;
+    let matched = false
 
     if (rule.target_type === 'domain') {
       if (!isIP && matchesDomain(host, rule.target_value)) {
-        matched = true;
+        matched = true
       }
     } else if (rule.target_type === 'ip') {
       if (ipsToCheck.includes(rule.target_value)) {
-        matched = true;
+        matched = true
       }
     } else if (rule.target_type === 'cidr') {
       for (const ip of ipsToCheck) {
         if (matchesCIDR(ip, rule.target_value)) {
-          matched = true;
-          break;
+          matched = true
+          break
         }
       }
     }
@@ -85,12 +87,12 @@ async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: bo
         return {
           allowed: false,
           reason: `Denied by rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
-        };
+        }
       } else {
         return {
           allowed: true,
           reason: `Allowed by rule #${rule.priority}${rule.description ? ': ' + rule.description : ''}`
-        };
+        }
       }
     }
   }
@@ -99,24 +101,24 @@ async function evaluatePolicy(host: string, rules: any[]): Promise<{ allowed: bo
   return {
     allowed: false,
     reason: 'No matching policy rule - default deny'
-  };
+  }
 }
 
 function matchesCIDR(ip: string, cidr: string): boolean {
   try {
-    const addr = ipaddr.process(ip);
-    const range = ipaddr.parseCIDR(cidr);
-    return addr.match(range);
+    const addr = ipaddr.process(ip)
+    const range = ipaddr.parseCIDR(cidr)
+    return addr.match(range)
   } catch (err) {
-    return false;
+    return false
   }
 }
 
 function matchesDomain(host: string, pattern: string): boolean {
-  const lowerHost = host.toLowerCase();
-  const lowerPattern = pattern.toLowerCase();
-  return minimatch(lowerHost, lowerPattern);
+  const lowerHost = host.toLowerCase()
+  const lowerPattern = pattern.toLowerCase()
+  return minimatch(lowerHost, lowerPattern)
 }
 
 // Admin-only access
-export default withAuthAndMethods(['POST'], { adminRequired: true })(handler);
+export default withAuthAndMethods(['POST'], { adminRequired: true })(handler)

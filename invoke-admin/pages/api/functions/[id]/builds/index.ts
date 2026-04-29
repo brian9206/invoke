@@ -38,11 +38,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       where: { function_id: functionId, ...(versionIdFilter ? { version_id: versionIdFilter } : {}) },
       include: [
         { model: FunctionVersion, as: 'version', attributes: ['id', 'version'] },
-        { model: User, as: 'creator', attributes: ['username'], required: false },
+        { model: User, as: 'creator', attributes: ['username'], required: false }
       ],
       order: [['created_at', 'DESC']],
       limit,
-      offset,
+      offset
     })
 
     const builds = rows.map((b: any) => {
@@ -59,7 +59,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         created_by_name: raw.creator?.username ?? null,
         created_at: raw.created_at,
         started_at: raw.started_at,
-        completed_at: raw.completed_at,
+        completed_at: raw.completed_at
       }
     })
 
@@ -75,7 +75,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     const versionRecord = await FunctionVersion.findOne({
       where: { id: versionId, function_id: functionId },
-      attributes: ['id', 'version', 'build_status'],
+      attributes: ['id', 'version', 'build_status']
     })
     if (!versionRecord) {
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
@@ -87,14 +87,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       version_id: versionId,
       status: 'queued',
       after_build_action: afterBuildAction,
-      created_by: req.user.id,
+      created_by: req.user.id
     })
 
     // Update version build_status
-    await FunctionVersion.update(
-      { build_status: 'queued' },
-      { where: { id: versionId } },
-    )
+    await FunctionVersion.update({ build_status: 'queued' }, { where: { id: versionId } })
 
     return res.status(201).json(createResponse(true, build.toJSON(), 'Build queued'))
   }

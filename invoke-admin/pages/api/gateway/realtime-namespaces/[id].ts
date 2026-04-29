@@ -27,14 +27,14 @@ async function handler(req: AuthenticatedRequest, res: any) {
   // Verify namespace belongs to this project
   const ownerCheck = await RealtimeNamespace.findOne({
     where: { id },
-    include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }],
+    include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }]
   })
   if (!ownerCheck) {
     return res.status(404).json(createResponse(false, null, 'Namespace not found', 404))
   }
 
   if (req.method === 'GET') {
-    const ns = await RealtimeNamespace.findOne({
+    const ns = (await RealtimeNamespace.findOne({
       where: { id },
       include: [
         { model: RealtimeEventHandler, as: 'eventHandlers', required: false },
@@ -42,10 +42,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
           model: ApiGatewayAuthMethod,
           as: 'authMethods',
           through: { attributes: ['sort_order'] },
-          required: false,
-        },
-      ],
-    }) as any
+          required: false
+        }
+      ]
+    })) as any
 
     if (!ns) {
       return res.status(404).json(createResponse(false, null, 'Namespace not found', 404))
@@ -58,21 +58,27 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return sortA - sortB
     })
 
-    return res.json(createResponse(true, {
-      id: raw.id,
-      namespacePath: raw.namespace_path,
-      isActive: raw.is_active,
-      authLogic: raw.auth_logic || 'or',
-      createdAt: raw.created_at,
-      updatedAt: raw.updated_at,
-      eventHandlers: (raw.eventHandlers || []).map((eh: any) => ({
-        id: eh.id,
-        eventName: eh.event_name,
-        functionId: eh.function_id,
-      })),
-      authMethodIds: authMethods.map((m: any) => m.id),
-      authMethodNames: authMethods.map((m: any) => m.name),
-    }, 'Namespace retrieved'))
+    return res.json(
+      createResponse(
+        true,
+        {
+          id: raw.id,
+          namespacePath: raw.namespace_path,
+          isActive: raw.is_active,
+          authLogic: raw.auth_logic || 'or',
+          createdAt: raw.created_at,
+          updatedAt: raw.updated_at,
+          eventHandlers: (raw.eventHandlers || []).map((eh: any) => ({
+            id: eh.id,
+            eventName: eh.event_name,
+            functionId: eh.function_id
+          })),
+          authMethodIds: authMethods.map((m: any) => m.id),
+          authMethodNames: authMethods.map((m: any) => m.name)
+        },
+        'Namespace retrieved'
+      )
+    )
   }
 
   if (req.method === 'PUT') {
@@ -99,11 +105,14 @@ async function handler(req: AuthenticatedRequest, res: any) {
         const handlers: any[] = Array.isArray(eventHandlers) ? eventHandlers : []
         for (const eh of handlers) {
           if (!eh.eventName || typeof eh.eventName !== 'string') continue
-          await RealtimeEventHandler.create({
-            realtime_namespace_id: id,
-            event_name: eh.eventName.trim(),
-            function_id: eh.functionId || null,
-          }, { transaction: t })
+          await RealtimeEventHandler.create(
+            {
+              realtime_namespace_id: id,
+              event_name: eh.eventName.trim(),
+              function_id: eh.functionId || null
+            },
+            { transaction: t }
+          )
         }
       }
 

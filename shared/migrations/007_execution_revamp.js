@@ -1,13 +1,13 @@
-'use strict';
+'use strict'
 
 // Consolidated replacement for the former 007-009 execution-related migrations.
 
 module.exports = {
   async up({ context: { queryInterface } }) {
-    const { Op } = queryInterface.sequelize.constructor;
+    const { Op } = queryInterface.sequelize.constructor
     await queryInterface.bulkDelete('global_network_policies', {
-      target_value: { [Op.like]: '%:%' },
-    });
+      target_value: { [Op.like]: '%:%' }
+    })
 
     await queryInterface.sequelize.query(`
       DROP FUNCTION IF EXISTS notify_project_network_policy_change();
@@ -47,9 +47,9 @@ module.exports = {
       CREATE TRIGGER trig_notify_exec_function_versions
         AFTER INSERT OR UPDATE OR DELETE ON function_versions
         FOR EACH ROW EXECUTE FUNCTION notify_execution_cache_change();
-    `);
+    `)
 
-    await queryInterface.dropTable('project_network_policies');
+    await queryInterface.dropTable('project_network_policies')
   },
 
   async down({ context: { queryInterface, Sequelize } }) {
@@ -72,7 +72,7 @@ module.exports = {
         RETURN COALESCE(NEW, OLD);
       END;
       $$ LANGUAGE plpgsql;
-    `);
+    `)
 
     await queryInterface.createTable('project_network_policies', {
       id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
@@ -80,37 +80,37 @@ module.exports = {
         type: Sequelize.UUID,
         allowNull: false,
         references: { model: 'projects', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       action: { type: Sequelize.STRING(10), allowNull: false },
       target_type: { type: Sequelize.STRING(10), allowNull: false },
       target_value: { type: Sequelize.STRING(255), allowNull: false },
       description: { type: Sequelize.STRING(255) },
       priority: { type: Sequelize.INTEGER, allowNull: false },
-      created_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') },
-    });
+      created_at: { type: Sequelize.DATE, defaultValue: Sequelize.literal('NOW()') }
+    })
 
     await queryInterface.addConstraint('project_network_policies', {
       fields: ['action'],
       type: 'check',
       where: { action: ['allow', 'deny'] },
-      name: 'chk_project_network_policies_action',
-    });
+      name: 'chk_project_network_policies_action'
+    })
 
     await queryInterface.addConstraint('project_network_policies', {
       fields: ['target_type'],
       type: 'check',
       where: { target_type: ['ip', 'cidr', 'domain'] },
-      name: 'chk_project_network_policies_target_type',
-    });
+      name: 'chk_project_network_policies_target_type'
+    })
 
     await queryInterface.addIndex('project_network_policies', ['project_id'], {
-      name: 'idx_project_network_policies_project_id',
-    });
+      name: 'idx_project_network_policies_project_id'
+    })
 
     await queryInterface.addIndex('project_network_policies', ['project_id', 'priority'], {
-      name: 'idx_project_network_policies_priority',
-    });
+      name: 'idx_project_network_policies_priority'
+    })
 
     await queryInterface.sequelize.query(`
       CREATE OR REPLACE FUNCTION notify_project_network_policy_change()
@@ -136,6 +136,6 @@ module.exports = {
       CREATE TRIGGER trig_notify_exec_project_policies
         AFTER INSERT OR UPDATE OR DELETE ON project_network_policies
         FOR EACH ROW EXECUTE FUNCTION notify_execution_cache_change();
-    `);
-  },
-};
+    `)
+  }
+}

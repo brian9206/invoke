@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class GlobalSetting extends Model {}
 
   GlobalSetting.init(
@@ -8,23 +8,23 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
+        autoIncrement: true
       },
       setting_key: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        unique: true,
+        unique: true
       },
       setting_value: {
         type: DataTypes.TEXT,
-        allowNull: false,
+        allowNull: false
       },
       description: {
-        type: DataTypes.TEXT,
+        type: DataTypes.TEXT
       },
       updated_at: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -32,11 +32,11 @@ module.exports = (sequelize) => {
       tableName: 'global_settings',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
   // No associations — global settings are standalone configuration rows.
 
-  return GlobalSetting;
-};
+  return GlobalSetting
+}
