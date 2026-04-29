@@ -5,8 +5,13 @@
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
-    "start": "invoke run"
+    "start": "invoke run",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "invoke-types": "^1.0.0",
+    "typescript": "^6.0.3"
   }
 }
