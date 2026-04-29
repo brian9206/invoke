@@ -17,10 +17,28 @@
   "scripts": {
     "setup:env": "node scripts/setup-env.js",
     "start": "pm2 start ecosystem.config.js --attach --no-daemon",
-    "stop": "pm2 stop ecosystem.config.js"
+    "stop": "pm2 stop ecosystem.config.js",
+    "prepare": "husky"
   },
-  "dependencies": {
-    "plain": "^0.0.0",
-    "pm2": "^6.0.14"
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "pm2": "^6.0.14",
+    "prettier": "^3.8.3"
+  },
+  "overrides": {
+    "debug": "^4.3.1"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "none",
+    "bracketSpacing": true,
+    "jsxSingleQuote": true,
+    "arrowParens": "avoid",
+    "printWidth": 120
+  },
+  "lint-staged": {
+    "**/*.{js,ts,jsx,tsx,json,css,md}": "prettier --write --ignore-unknown"
   }
 }

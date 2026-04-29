@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Package manager lockfiles
+package-lock.json
+bun.lock
+
+# Build output
+.next/
+.docusaurus/
+out/
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+.parcel-cache/
+.npm/
+.yarn/
+.eslintcache
+*.tsbuildinfo
+
+# Logs and temp files
+*.log
+tmp/
+temp/
+
+# Environment files
+.env
+.env.*
+
+# Generated or vendored assets
+invoke-admin/public/monaco/
+invoke-logger/src/kql/grammar.js
+invoke-runtime/types/dist/
+samples/**/*.zip
+
+# VCS/IDE
+.git/
+.vscode/
+.idea/
