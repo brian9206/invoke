@@ -1,0 +1,9 @@
+{
+  "languages": {
+    "javascript": "JavaScript",
+    "typescript": "TypeScript"
+  },
+  "runtimes": {
+    "bun": "Bun"
+  }
+}

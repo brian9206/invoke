@@ -17,15 +17,14 @@
   ],
   "scripts": {
     "setup:env": "node scripts/setup-env.js",
-    "start": "pm2 start ecosystem.config.js --attach --no-daemon",
-    "stop": "pm2 stop ecosystem.config.js --no-daemon",
+    "start": "node start.js",
     "prepare": "husky",
     "format:all": "prettier --write ."
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
-    "pm2": "^6.0.14",
     "prettier": "^3.8.3"
   },
   "overrides": {

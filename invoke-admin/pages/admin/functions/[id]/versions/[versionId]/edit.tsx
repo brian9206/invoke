@@ -2285,6 +2285,7 @@ export default function FunctionCodeEditor() {
               {selectedFile ? (
                 <MonacoEditor
                   height='100%'
+                  path={selectedFile.path}
                   language={getLanguage(selectedFile.name)}
                   theme='vs-dark'
                   value={editorContent}

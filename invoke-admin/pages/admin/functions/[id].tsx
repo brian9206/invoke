@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import displayNames from '@/config/function-display-names.json'
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -87,6 +88,8 @@ interface FunctionItem {
   custom_timeout_seconds: number | null
   custom_memory_enabled: boolean
   custom_memory_mb: number | null
+  language?: string
+  runtime?: string
 }
 
 interface FunctionVersion {
@@ -1219,6 +1222,24 @@ export default function FunctionDetails() {
                       <div className='flex flex-col gap-0.5'>
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Project</dt>
                         <dd>{functionData.project_name}</dd>
+                      </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Language</dt>
+                        <dd>
+                          {functionData.language
+                            ? ((displayNames.languages as Record<string, string>)[functionData.language] ??
+                              functionData.language)
+                            : '—'}
+                        </dd>
+                      </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Runtime</dt>
+                        <dd>
+                          {functionData.runtime
+                            ? ((displayNames.runtimes as Record<string, string>)[functionData.runtime] ??
+                              functionData.runtime)
+                            : '—'}
+                        </dd>
                       </div>
                     </dl>
                   </CardContent>

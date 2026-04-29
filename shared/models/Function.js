@@ -106,6 +106,18 @@ module.exports = sequelize => {
       },
       custom_memory_mb: {
         type: DataTypes.INTEGER
+      },
+      language: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'javascript',
+        validate: { isIn: [['javascript', 'typescript']] }
+      },
+      runtime: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'bun',
+        validate: { isIn: [['bun']] }
       }
     },
     {
