@@ -12,12 +12,13 @@
     "invoke-gateway",
     "invoke-logger",
     "invoke-scheduler",
-    "invoke-runtime/worker"
+    "invoke-runtime/worker",
+    "invoke-runtime/types"
   ],
   "scripts": {
     "setup:env": "node scripts/setup-env.js",
     "start": "pm2 start ecosystem.config.js --attach --no-daemon",
-    "stop": "pm2 stop ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js --no-daemon",
     "prepare": "husky",
     "format:all": "prettier --write ."
   },

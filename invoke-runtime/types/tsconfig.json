@@ -4,7 +4,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "stripInternal": true,
-    "declarationDir": "./dist"
+    "declarationDir": "./dist/tsc"
   },
   "include": ["../worker/src/public-api/**/*"],
   "exclude": ["node_modules", "dist"]
