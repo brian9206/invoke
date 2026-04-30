@@ -1,5 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
-import displayNames from '@/config/function-display-names.json'
+import stack from '@/config/stack.json'
+const languageDisplayNames: Record<string, string> = Object.fromEntries(
+  (stack.languages as Array<{ name: string; displayName: string }>).map(l => [l.name, l.displayName])
+)
+const runtimeDisplayNames: Record<string, string> = Object.fromEntries(
+  (stack.runtimes as Array<{ name: string; displayName: string }>).map(r => [r.name, r.displayName])
+)
 import { useRouter } from 'next/router'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -1227,8 +1233,7 @@ export default function FunctionDetails() {
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Language</dt>
                         <dd>
                           {functionData.language
-                            ? ((displayNames.languages as Record<string, string>)[functionData.language] ??
-                              functionData.language)
+                            ? (languageDisplayNames[functionData.language] ?? functionData.language)
                             : '—'}
                         </dd>
                       </div>
@@ -1236,8 +1241,7 @@ export default function FunctionDetails() {
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Runtime</dt>
                         <dd>
                           {functionData.runtime
-                            ? ((displayNames.runtimes as Record<string, string>)[functionData.runtime] ??
-                              functionData.runtime)
+                            ? (runtimeDisplayNames[functionData.runtime] ?? functionData.runtime)
                             : '—'}
                         </dd>
                       </div>

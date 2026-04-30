@@ -232,7 +232,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     ILOG("[sandbox_setup_fs] mounting tmpfs at %s with options %s\n", actual_rw_dir.c_str(), tmpfs_opts.c_str());
     auto tmpfs_start = std::chrono::high_resolution_clock::now();
     if (::mount("tmpfs", actual_rw_dir.c_str(), "tmpfs",
-                MS_NOSUID | MS_NOEXEC, tmpfs_opts.c_str()) < 0) {
+                MS_NOSUID, tmpfs_opts.c_str()) < 0) {
         g_last_setup_error = "mount tmpfs failed at " + actual_rw_dir + " (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
@@ -411,7 +411,7 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
     static const char* const base_vars[] = {
         "HOME=/tmp",
         "TMPDIR=/tmp",
-        "PATH=/usr/local/bin:/usr/bin:/bin",
+        "PATH=/app/node_modules/.bin:/usr/local/bin:/usr/bin:/bin",
         "TZ=UTC",
         "BUN_JSC_maxPerThreadStackUsage=524288",    // --smol
     };

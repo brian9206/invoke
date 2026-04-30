@@ -2,22 +2,37 @@
 
 module.exports = {
   async up({ context: { queryInterface } }) {
-    // 1. Add build-related columns to function_versions
+    // 1. Add language and runtime columns to functions table
+    await queryInterface.addColumn('functions', 'language', {
+      type: 'VARCHAR(50)',
+      allowNull: false,
+      defaultValue: 'javascript'
+    })
+
+    await queryInterface.addColumn('functions', 'runtime', {
+      type: 'VARCHAR(50)',
+      allowNull: false,
+      defaultValue: 'bun'
+    })
+
+    // 2. Add build-related columns to function_versions
     await queryInterface.addColumn('function_versions', 'artifact_path', {
       type: 'VARCHAR(500)',
       allowNull: true
     })
+
     await queryInterface.addColumn('function_versions', 'artifact_hash', {
       type: 'VARCHAR(64)',
       allowNull: true
     })
+
     await queryInterface.addColumn('function_versions', 'build_status', {
       type: 'VARCHAR(20)',
       allowNull: false,
       defaultValue: 'none'
     })
 
-    // 2. Create function_builds table
+    // 3. Create function_builds table
     await queryInterface.createTable('function_builds', {
       id: {
         type: 'UUID',
@@ -40,6 +55,11 @@ module.exports = {
         type: 'VARCHAR(20)',
         allowNull: false,
         defaultValue: 'queued'
+      },
+      pipeline: {
+        type: 'VARCHAR(50)',
+        allowNull: false,
+        defaultValue: 'bun-javascript'
       },
       after_build_action: {
         type: 'VARCHAR(20)',
@@ -88,7 +108,7 @@ module.exports = {
     await queryInterface.addIndex('function_builds', ['version_id'])
     await queryInterface.addIndex('function_builds', ['status', 'created_at'])
 
-    // 3. Insert global_settings using queryInterface
+    // 4. Insert global_settings using queryInterface
     await queryInterface.bulkInsert(
       'global_settings',
       [
@@ -110,7 +130,7 @@ module.exports = {
       }
     )
 
-    // 4. Add pg-notify trigger on function_builds changes
+    // 5. Add pg-notify trigger on function_builds changes (raw SQL required for PL/pgSQL)
     await queryInterface.sequelize.query(`
       CREATE OR REPLACE FUNCTION notify_build_queue_change()
       RETURNS TRIGGER AS $$
@@ -133,16 +153,11 @@ module.exports = {
   },
 
   async down({ context: { queryInterface } }) {
+    // Reverse order of operations in up()
     await queryInterface.sequelize.query(`
       DROP TRIGGER IF EXISTS trig_notify_build_queue ON function_builds;
       DROP FUNCTION IF EXISTS notify_build_queue_change();
     `)
-
-    await queryInterface.dropTable('function_builds')
-
-    await queryInterface.removeColumn('function_versions', 'build_status')
-    await queryInterface.removeColumn('function_versions', 'artifact_hash')
-    await queryInterface.removeColumn('function_versions', 'artifact_path')
 
     await queryInterface.bulkDelete(
       'global_settings',
@@ -151,5 +166,14 @@ module.exports = {
       },
       {}
     )
+
+    await queryInterface.dropTable('function_builds')
+
+    await queryInterface.removeColumn('function_versions', 'build_status')
+    await queryInterface.removeColumn('function_versions', 'artifact_hash')
+    await queryInterface.removeColumn('function_versions', 'artifact_path')
+
+    await queryInterface.removeColumn('functions', 'runtime')
+    await queryInterface.removeColumn('functions', 'language')
   }
 }

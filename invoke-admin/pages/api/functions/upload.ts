@@ -15,6 +15,7 @@ import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 import runMiddleware from '@/lib/multer'
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 // Configure multer for file uploads
 const upload = multer({
@@ -65,6 +66,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const requiresApiKey = req.body.requiresApiKey === 'true'
     const apiKey = requiresApiKey ? req.body.apiKey : null
     const projectId = req.body.projectId || null
+    const language: string = (req.body.language || 'javascript').trim().toLowerCase()
+    const rt: string = (req.body.runtime || 'bun').trim().toLowerCase()
 
     // Check project access for non-admins (developer role required)
     if (!req.user?.isAdmin && projectId) {
@@ -139,7 +142,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       requires_api_key: requiresApiKey,
       api_key: apiKey,
       is_active: true,
-      project_id: projectId
+      project_id: projectId,
+      language,
+      runtime: rt
     })
 
     // Create first version record
@@ -160,11 +165,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // Enqueue build with after_build_action='switch' (deploy = upload + build + switch)
     const { FunctionBuild } = database.models as any
+    const pipeline = resolveBuildPipeline(language, rt)
     await FunctionBuild.create({
       function_id: functionId,
       version_id: firstVersion.id,
       status: 'queued',
       after_build_action: 'switch',
+      pipeline,
       created_by: req.user!.id
     })
     await FunctionVersion.update({ build_status: 'queued' }, { where: { id: firstVersion.id } })

@@ -4,12 +4,40 @@ import { copyRecursive, exec } from '../utils'
 import { Pipeline } from '../types'
 
 const pipeline: Pipeline = {
-  name: 'bun',
+  name: 'bun-typescript',
   stages: [
     // Stage: Install dev dependencies (including build tools)
     {
       name: 'install_dev_dependencies',
       run: async () => {
+        // check typescript and invoke-types installed
+        const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+        const dependencies = Object.keys(packageJson.dependencies || {}).concat(
+          Object.keys(packageJson.devDependencies || {})
+        )
+        const missingDeps = []
+        const requiredDeps = ['typescript', 'invoke-types']
+
+        for (const dep of requiredDeps) {
+          if (!dependencies.includes(dep)) {
+            missingDeps.push(dep)
+          }
+        }
+
+        if (missingDeps.length > 0) {
+          console.warn(
+            `Warning: Missing dev dependencies: ${missingDeps.join(', ')}. Adding them to package.json. Please make sure to add them to your project dependencies to avoid this warning in the future.`
+          )
+
+          packageJson.devDependencies = packageJson.devDependencies || {}
+
+          for (const dep of missingDeps) {
+            packageJson.devDependencies[dep] = '*'
+          }
+
+          await fs.writeFile('/app/package.json', JSON.stringify(packageJson, null, 2), { encoding: 'utf-8' })
+        }
+
         await exec(['bun', 'install', '--frozen-lockfile'])
       }
     },
@@ -30,11 +58,13 @@ const pipeline: Pipeline = {
         }
 
         if (!hasBuildScript) {
-          console.log('No build script detected in package.json')
+          console.warn('No build script detected in package.json')
+          await exec(['bun', 'x', 'tsc', '--noEmit'])
           return
         }
 
         await exec(['bun', 'run', 'build'])
+        await exec(['bun', 'x', 'tsc', '--noEmit'])
       }
     },
 
@@ -44,7 +74,7 @@ const pipeline: Pipeline = {
       dependsOn: ['build'],
       run: async () => {
         // Detect entrypoint
-        const entrypoints = ['/app/index.js', '/app/index.ts', '/app/main.js', '/app/main.ts']
+        const entrypoints = ['/app/index.ts', '/app/main.ts']
 
         let entrypoint = ''
 
@@ -71,9 +101,7 @@ const pipeline: Pipeline = {
         }
 
         if (!entrypoint) {
-          throw new Error(
-            'No entry point found. Expected "main" field in package.json or one of index.js, index.ts, main.js, main.ts'
-          )
+          throw new Error('No entry point found. Expected "main" field in package.json or one of index.ts, main.ts')
         }
 
         await exec([
@@ -97,9 +125,6 @@ const pipeline: Pipeline = {
         // Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
         console.log('Copying project files to output artifacts...')
         await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] })
-
-        // Install production dependencies in output directory
-        await exec(['bun', 'install', '--production'], { cwd: '/output/artifacts' })
       }
     },
 
@@ -120,7 +145,7 @@ const pipeline: Pipeline = {
       name: 'install_dependencies',
       dependsOn: ['copy_files'],
       run: async () => {
-        await exec(['bun', 'install', '--production'], { cwd: '/output/artifacts' })
+        await exec(['bun', 'install', '--production', '--frozen-lockfile'], { cwd: '/output/artifacts' })
       }
     }
   ]

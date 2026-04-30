@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import database from '@/lib/database'
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
@@ -60,12 +61,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // If the version has not been built yet, enqueue a build with after_build_action=switch
     if (!versionRecord.artifact_path) {
-      const { FunctionBuild } = database.models as any
+      const { FunctionBuild, Function: FunctionModel } = database.models as any
+      const fnRecord = await FunctionModel.findByPk(functionId, { attributes: ['language', 'runtime'] })
+      const pipeline = resolveBuildPipeline(fnRecord?.language ?? 'javascript', fnRecord?.runtime ?? 'bun')
       const build = await FunctionBuild.create({
         function_id: functionId,
         version_id: versionRecord.id,
         status: 'queued',
         after_build_action: 'switch',
+        pipeline,
         created_by: req.user!.id
       })
       await FunctionVersion.update({ build_status: 'queued' }, { where: { id: versionRecord.id } })

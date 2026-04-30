@@ -46,6 +46,11 @@ module.exports = sequelize => {
         type: DataTypes.TEXT,
         allowNull: true
       },
+      pipeline: {
+        type: DataTypes.STRING(50),
+        allowNull: false,
+        defaultValue: 'bun-javascript'
+      },
       build_context: {
         type: DataTypes.JSONB,
         allowNull: true,

@@ -58,6 +58,7 @@ export class BuildService {
         where: { status: 'queued' },
         order: [['created_at', 'ASC']],
         limit: available,
+        attributes: ['id', 'function_id', 'version_id', 'after_build_action', 'pipeline'],
         include: [
           {
             model: database.models.FunctionVersion as any,
@@ -219,11 +220,12 @@ export class BuildService {
         })
 
         // Set bootstrap payload for worker (type: 'build')
-        sandbox.setPendingBootstrapPayload({ type: 'build', buildId })
+        sandbox.setPendingBootstrapPayload({ type: 'build', buildId, pipeline: build.pipeline || 'bun-javascript' })
 
         // Send build event to supervisor
         sandbox.emit('build', {
           buildId,
+          pipeline: build.pipeline || 'bun-javascript',
           memoryMb: buildMemoryMb,
           env: {}
         })

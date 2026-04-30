@@ -1,0 +1,66 @@
+{
+  "languages": [
+    {
+      "name": "javascript",
+      "displayName": "JavaScript",
+      "runtimes": ["bun"],
+      "templates": [
+        {
+          "path": "bun-javascript-function",
+          "displayName": "Simple Function",
+          "description": "A simple Hello World function."
+        },
+        {
+          "path": "bun-javascript-app",
+          "displayName": "Multi-Route App",
+          "description": "A multi-route app sample."
+        },
+        {
+          "path": "bun-javascript-realtime",
+          "displayName": "Realtime Handler",
+          "description": "A realtime namespace event handler sample."
+        }
+      ]
+    },
+    {
+      "name": "typescript",
+      "displayName": "TypeScript",
+      "runtimes": ["bun"],
+      "templates": [
+        {
+          "path": "bun-typescript-function",
+          "displayName": "Simple Function",
+          "description": "A simple Hello World function."
+        },
+        {
+          "path": "bun-typescript-app",
+          "displayName": "Multi-Route App",
+          "description": "A multi-route app sample."
+        },
+        {
+          "path": "bun-typescript-realtime",
+          "displayName": "Realtime Handler",
+          "description": "A realtime namespace event handler sample."
+        }
+      ]
+    }
+  ],
+  "runtimes": [
+    {
+      "name": "bun",
+      "displayName": "Bun"
+    }
+  ],
+  "pipelines": [
+    {
+      "language": "javascript",
+      "runtime": "bun",
+      "pipeline": "bun-javascript"
+    },
+    {
+      "language": "typescript",
+      "runtime": "bun",
+      "pipeline": "bun-typescript"
+    }
+  ]
+}

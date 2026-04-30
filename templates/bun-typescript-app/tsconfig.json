@@ -9,7 +9,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "sourceMap": true,
-    "listEmittedFiles": true,
+    "noEmit": true,
     "types": ["invoke-types"],
     "outDir": "dist"
   }

@@ -3,6 +3,7 @@ import { authenticate, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (!['GET', 'POST'].includes(req.method || '')) {
@@ -53,6 +54,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         version_id: raw.version_id,
         version_number: raw.version?.version ?? null,
         status: raw.status,
+        pipeline: raw.pipeline,
         after_build_action: raw.after_build_action,
         error_message: raw.error_message,
         created_by: raw.created_by,
@@ -81,12 +83,23 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       return res.status(404).json(createResponse(false, null, 'Version not found', 404))
     }
 
+    // Resolve pipeline from function language/runtime
+    const fnRecord = await FunctionModel.findByPk(functionId, { attributes: ['language', 'runtime'] })
+    if (!fnRecord) return res.status(404).json(createResponse(false, null, 'Function not found', 404))
+    let pipeline: string
+    try {
+      pipeline = resolveBuildPipeline((fnRecord as any).language ?? 'javascript', (fnRecord as any).runtime ?? 'bun')
+    } catch (err: any) {
+      return res.status(400).json(createResponse(false, null, err.message, 400))
+    }
+
     // Create build record
     const build = await FunctionBuild.create({
       function_id: functionId,
       version_id: versionId,
       status: 'queued',
       after_build_action: afterBuildAction,
+      pipeline,
       created_by: req.user.id
     })
 

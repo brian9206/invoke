@@ -11,6 +11,7 @@ import AdmZip from 'adm-zip'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 // Configure multer for file uploads
 const upload = multer({
@@ -202,7 +203,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
         // Check if function exists
         const { Function: FnModel, FunctionVersion: FnVersion } = database.models
-        const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name'] })
+        const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name', 'language', 'runtime'] })
 
         if (!fn) {
           return res.status(404).json({
@@ -279,11 +280,13 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
         // Enqueue build for the new version
         const { FunctionBuild } = database.models as any
+        const pipeline = resolveBuildPipeline((fn as any).language ?? 'javascript', (fn as any).runtime ?? 'bun')
         await FunctionBuild.create({
           function_id: functionId,
           version_id: newVersion.id,
           status: 'queued',
           after_build_action: 'none',
+          pipeline,
           created_by: userId
         })
         await FnVersion.update({ build_status: 'queued' }, { where: { id: newVersion.id } })

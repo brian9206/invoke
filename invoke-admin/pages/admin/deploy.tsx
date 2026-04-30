@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import PageHeader from '@/components/PageHeader'
-import { Upload, FileText, AlertCircle, Loader, ChevronDown, Code } from 'lucide-react'
+import { Upload, FileText, AlertCircle, Loader, ChevronDown } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
@@ -12,14 +12,26 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Checkbox } from '@/components/ui/checkbox'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/cn'
-import runtimeMap from '@/config/function-runtime-map.json'
-import displayNames from '@/config/function-display-names.json'
+import stack from '@/config/stack.json'
 
-const languages = Object.keys(runtimeMap) as Array<keyof typeof runtimeMap>
+const stackLanguages = stack.languages as Array<{
+  name: string
+  displayName: string
+  runtimes: string[]
+  templates: Array<{ path: string; displayName: string; description: string }>
+}>
+const stackRuntimes = stack.runtimes as Array<{ name: string; displayName: string }>
+const languages = stackLanguages.map(l => l.name)
+const languageDisplayNames: Record<string, string> = Object.fromEntries(
+  stackLanguages.map(l => [l.name, l.displayName])
+)
+const runtimeDisplayNames: Record<string, string> = Object.fromEntries(stackRuntimes.map(r => [r.name, r.displayName]))
+const runtimeMap: Record<string, string[]> = Object.fromEntries(stackLanguages.map(l => [l.name, l.runtimes]))
 
 function Section({
   title,
@@ -70,10 +82,9 @@ export default function DeployFunction() {
 
   // Code fields
   const [language, setLanguage] = useState<string>(languages[0])
-  const [selectedRuntime, setSelectedRuntime] = useState<string>(
-    (runtimeMap as Record<string, string[]>)[languages[0]][0]
-  )
-  const [manualUpload, setManualUpload] = useState(false)
+  const [selectedRuntime, setSelectedRuntime] = useState<string>(runtimeMap[languages[0]][0])
+  const [deployMode, setDeployMode] = useState<'template' | 'upload'>('template')
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(stackLanguages[0]?.templates?.[0]?.path ?? '')
   const [file, setFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -83,12 +94,21 @@ export default function DeployFunction() {
 
   const selectableProjects = useMemo(() => userProjects.filter(p => p.id !== 'system'), [userProjects])
 
-  const availableRuntimes = useMemo(() => (runtimeMap as Record<string, string[]>)[language] ?? [], [language])
+  const availableRuntimes = useMemo(() => runtimeMap[language] ?? [], [language])
+
+  const availableTemplates = useMemo(() => stackLanguages.find(l => l.name === language)?.templates ?? [], [language])
+
+  const selectedTemplateInfo = useMemo(
+    () => availableTemplates.find(t => t.path === selectedTemplate) ?? null,
+    [availableTemplates, selectedTemplate]
+  )
 
   const handleLanguageChange = (lang: string) => {
     setLanguage(lang)
-    const rts = (runtimeMap as Record<string, string[]>)[lang] ?? []
+    const rts = runtimeMap[lang] ?? []
     setSelectedRuntime(rts[0] ?? '')
+    const templates = stackLanguages.find(l => l.name === lang)?.templates ?? []
+    setSelectedTemplate(templates[0]?.path ?? '')
   }
 
   const handleProjectChange = (projectId: string) => {
@@ -114,7 +134,11 @@ export default function DeployFunction() {
     }
   }
 
-  const canSubmit = !!name.trim() && !!selectedProjectId && !!selectedRuntime && (!manualUpload || !!file)
+  const canSubmit =
+    !!name.trim() &&
+    !!selectedProjectId &&
+    !!selectedRuntime &&
+    (deployMode === 'template' ? !!selectedTemplate : !!file)
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -127,8 +151,12 @@ export default function DeployFunction() {
     formData.append('projectId', selectedProjectId)
     formData.append('language', language)
     formData.append('runtime', selectedRuntime)
-    formData.append('mode', manualUpload && file ? 'upload' : 'template')
-    if (manualUpload && file) formData.append('file', file)
+    formData.append('mode', deployMode === 'upload' ? 'upload' : 'template')
+    if (deployMode === 'template') {
+      formData.append('templatePath', selectedTemplate)
+    } else if (file) {
+      formData.append('file', file)
+    }
 
     try {
       const response = await authenticatedFetch('/api/functions/deploy', { method: 'POST', body: formData })
@@ -146,9 +174,6 @@ export default function DeployFunction() {
     }
   }
 
-  const selectClass =
-    'flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
-
   return (
     <ProtectedRoute>
       <Layout title='Deploy Function'>
@@ -164,19 +189,18 @@ export default function DeployFunction() {
             <Section title='Basic Information' open={basicOpen} onToggle={() => setBasicOpen(v => !v)}>
               <div className='space-y-1.5'>
                 <Label htmlFor='project'>Project</Label>
-                <select
-                  id='project'
-                  value={selectedProjectId}
-                  onChange={e => handleProjectChange(e.target.value)}
-                  className={selectClass}
-                >
-                  <option value=''>Select a project...</option>
-                  {selectableProjects.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <Select value={selectedProjectId} onValueChange={handleProjectChange}>
+                  <SelectTrigger id='project' className='h-9'>
+                    <SelectValue placeholder='Select a project...' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectableProjects.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {!selectedProjectId && (
                   <p className='text-xs text-yellow-500 flex items-center gap-1'>
                     <AlertCircle className='w-3 h-3' />
@@ -214,65 +238,102 @@ export default function DeployFunction() {
               <div className='grid grid-cols-2 gap-4'>
                 <div className='space-y-1.5'>
                   <Label htmlFor='language'>Language</Label>
-                  <select
-                    id='language'
-                    value={language}
-                    onChange={e => handleLanguageChange(e.target.value)}
-                    className={selectClass}
-                  >
-                    {languages.map(lang => (
-                      <option key={lang} value={lang}>
-                        {(displayNames.languages as Record<string, string>)[lang] ?? lang}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={language} onValueChange={handleLanguageChange}>
+                    <SelectTrigger id='language' className='h-9'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map(lang => (
+                        <SelectItem key={lang} value={lang}>
+                          {languageDisplayNames[lang] ?? lang}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className='space-y-1.5'>
                   <Label htmlFor='runtime'>Runtime</Label>
-                  <select
-                    id='runtime'
-                    value={selectedRuntime}
-                    onChange={e => setSelectedRuntime(e.target.value)}
-                    className={selectClass}
-                  >
-                    {availableRuntimes.map(rt => (
-                      <option key={rt} value={rt}>
-                        {(displayNames.runtimes as Record<string, string>)[rt] ?? rt}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={selectedRuntime} onValueChange={setSelectedRuntime}>
+                    <SelectTrigger id='runtime' className='h-9'>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRuntimes.map(rt => (
+                        <SelectItem key={rt} value={rt}>
+                          {runtimeDisplayNames[rt] ?? rt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className='flex items-center gap-3'>
-                <Checkbox
-                  id='manualUpload'
-                  checked={manualUpload}
-                  onCheckedChange={checked => {
-                    setManualUpload(checked === true)
-                    if (!checked) setFile(null)
-                  }}
-                />
-                <Label htmlFor='manualUpload' className='cursor-pointer'>
-                  Upload package manually
-                </Label>
+              {/* ── Deploy mode radio buttons ──────────────────── */}
+              <div className='rounded-lg border border-border overflow-hidden'>
+                <label
+                  htmlFor='mode-upload'
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-border',
+                    deployMode === 'upload' ? 'bg-muted/60' : 'hover:bg-muted/30'
+                  )}
+                >
+                  <RadioGroupItem
+                    id='mode-upload'
+                    name='deployMode'
+                    value='upload'
+                    checked={deployMode === 'upload'}
+                    onChange={() => {
+                      setDeployMode('upload')
+                    }}
+                  />
+                  <span className='text-sm'>Upload package manually</span>
+                </label>
+                <label
+                  htmlFor='mode-template'
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors',
+                    deployMode === 'template' ? 'bg-muted/60' : 'hover:bg-muted/30'
+                  )}
+                >
+                  <RadioGroupItem
+                    id='mode-template'
+                    name='deployMode'
+                    value='template'
+                    checked={deployMode === 'template'}
+                    onChange={() => {
+                      setDeployMode('template')
+                      setFile(null)
+                    }}
+                  />
+                  <span className='text-sm'>Deploy from template</span>
+                </label>
               </div>
 
-              {!manualUpload && (
-                <div className='flex items-center gap-3 p-3 bg-muted/40 border border-border rounded-lg'>
-                  <Code className='w-4 h-4 text-primary flex-shrink-0' />
-                  <p className='text-sm text-muted-foreground'>
-                    The{' '}
-                    <span className='text-foreground font-medium'>
-                      {(displayNames.languages as Record<string, string>)[language] ?? language}
-                    </span>{' '}
-                    starter template will be used automatically.
-                  </p>
+              {/* ── Template selector ─────────────────────────────── */}
+              {deployMode === 'template' && (
+                <div className='space-y-2'>
+                  <Label htmlFor='template'>Template</Label>
+                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <SelectTrigger id='template' className='h-9'>
+                      <SelectValue placeholder='Select a template...' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTemplates.map(t => (
+                        <SelectItem key={t.path} value={t.path}>
+                          {t.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedTemplateInfo?.description && (
+                    <p className='text-xs text-muted-foreground'>{selectedTemplateInfo.description}</p>
+                  )}
                 </div>
               )}
 
-              {manualUpload && (
+              {/* ── File drop zone ────────────────────────────────── */}
+              {deployMode === 'upload' && (
                 <div
                   className={cn(
                     'border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer',

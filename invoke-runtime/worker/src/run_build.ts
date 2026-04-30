@@ -15,7 +15,7 @@ export async function runBuild(bootstrapPayload: any, log: (...args: unknown[]) 
   const buildData: BuildData = bootstrapPayload.request
 
   const restoreConsole = installConsoleBridge(ipc)
-  const pipeline = 'bun'
+  const pipeline: string = bootstrapPayload.pipeline || 'bun-javascript'
 
   let error = false
   try {

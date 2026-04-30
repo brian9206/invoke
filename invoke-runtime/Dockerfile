@@ -55,6 +55,8 @@ RUN chmod 755 /usr/local/bin/invoke-supervisor
 
 # Bun binary
 COPY --from=bun-base /usr/local/bin/bun /opt/rootfs/usr/local/bin/bun
+COPY --from=bun-base /bin/sh /opt/rootfs/bin/sh
+COPY --from=bun-base /usr/bin/env /opt/rootfs/usr/bin/env
 
 # musl dynamic linker / libc (arch-specific, e.g. ld-musl-x86_64.so.1)
 COPY --from=bun-base /lib/ld-musl-*.so.1 /opt/rootfs/lib/

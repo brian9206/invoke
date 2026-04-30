@@ -14,7 +14,8 @@ import AdmZip from 'adm-zip'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 import runMiddleware from '@/lib/multer'
-import runtimeMap from '@/config/function-runtime-map.json'
+import stack from '@/config/stack.json'
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 const { s3Service } = require('invoke-shared')
 
@@ -34,11 +35,12 @@ export const config = { api: { bodyParser: false } }
 
 /** Validate that the language + runtime combination is allowed by the config map. */
 function isValidCombination(language: string, rt: string): boolean {
-  const allowed = (runtimeMap as Record<string, string[]>)[language]
-  return Array.isArray(allowed) && allowed.includes(rt)
+  const lang = (stack.languages as Array<{ name: string; runtimes: string[] }>).find(l => l.name === language)
+  return lang !== undefined && lang.runtimes.includes(rt)
 }
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
+  console.log('Guarded handler started, req.body:', req.body)
   const userId = req.user!.id
   let uploadedFile: any = (req as any).file ?? null
   let tempDir: string | null = null
@@ -46,13 +48,16 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   try {
     // ── Parse form fields ──────────────────────────────────────────────
     const mode: string = req.body.mode // 'template' | 'upload'
+    console.log('Mode:', mode)
     const functionName: string = (req.body.name || '').trim()
     const description: string = (req.body.description || '').trim()
     const projectId: string | null = req.body.projectId || null
     const language: string = (req.body.language || '').trim().toLowerCase()
     const rt: string = (req.body.runtime || '').trim().toLowerCase()
+    const templatePath: string = (req.body.templatePath || '').trim()
 
     // ── Validate required fields ───────────────────────────────────────
+    console.log('Validating fields...')
     if (!functionName) {
       return res.status(400).json(createResponse(false, null, 'Function name is required', 400))
     }
@@ -70,25 +75,54 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (!projectId) {
       return res.status(400).json(createResponse(false, null, 'projectId is required', 400))
     }
+    if (mode === 'template') {
+      if (!templatePath) {
+        return res.status(400).json(createResponse(false, null, 'templatePath is required for template mode', 400))
+      }
+      const langEntry = (stack.languages as Array<{ name: string; templates: Array<{ path: string }> }>).find(
+        l => l.name === language
+      )
+      const validTemplate = langEntry?.templates.some(t => t.path === templatePath)
+      if (!validTemplate) {
+        return res
+          .status(400)
+          .json(createResponse(false, null, `Invalid template "${templatePath}" for language "${language}"`, 400))
+      }
+    }
+    console.log('Validation passed. User auth check...')
 
     // ── Auth check ─────────────────────────────────────────────────────
     if (!req.user?.isAdmin) {
+      console.log('Checking project developer access...')
       const access = await checkProjectDeveloperAccess(req.user!.id, projectId, false)
+      console.log('Access check result:', access)
       if (!access.allowed) {
         return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions', 403))
       }
     }
 
+    console.log('Duplicate check...')
     // ── Duplicate check ────────────────────────────────────────────────
-    const { Function: FunctionModel, FunctionVersion } = database.models
-    const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id'] })
-    if (existing) {
-      return res
-        .status(409)
-        .json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
+    let FunctionModel, FunctionVersion
+    try {
+      FunctionModel = database.models.Function
+      FunctionVersion = database.models.FunctionVersion
+
+      console.log('About to call findOne...')
+      const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id'] })
+      console.log('findOne finished, existing:', existing)
+      if (existing) {
+        return res
+          .status(409)
+          .json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
+      }
+    } catch (dbError) {
+      console.error('Error during duplicate check:', dbError)
+      throw dbError
     }
 
     // ── Prepare S3 service ─────────────────────────────────────────────
+    console.log('Checking s3Service...')
     if (!s3Service.initialized) {
       await s3Service.initialize()
     }
@@ -102,9 +136,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     if (mode === 'template') {
       // ── Template mode ──────────────────────────────────────────────
-      const templateDir = path.resolve(process.cwd(), '..', 'templates', `${rt}-${language}`)
+      const templateDir = path.resolve(process.cwd(), '..', 'templates', templatePath)
       if (!(await fs.pathExists(templateDir))) {
-        return res.status(400).json(createResponse(false, null, `No template found for ${rt}-${language}`, 400))
+        return res.status(400).json(createResponse(false, null, `Template not found: ${templatePath}`, 400))
       }
 
       tempDir = path.join(tempBaseDir, `deploy-${functionId}`)
@@ -124,7 +158,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
       // Create .tgz
       const tgzPath = path.join(tempBaseDir, `${functionId}.tgz`)
-      await tar.create({ gzip: true, file: tgzPath, cwd: tempDir }, ['.'])
+      const filesToTar = await fs.readdir(tempDir)
+      await tar.create({ gzip: true, file: tgzPath, cwd: tempDir }, filesToTar)
       packagePath = tgzPath
     } else {
       // ── Upload mode ────────────────────────────────────────────────
@@ -180,11 +215,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
     // Enqueue build
     const { FunctionBuild } = database.models as any
+    const pipeline = resolveBuildPipeline(language, rt)
     await FunctionBuild.create({
       function_id: functionId,
       version_id: firstVersion.id,
       status: 'queued',
       after_build_action: 'switch',
+      pipeline,
       created_by: userId
     })
     await FunctionVersion.update({ build_status: 'queued' }, { where: { id: firstVersion.id } })
@@ -227,11 +264,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 const guarded = withAuthOrApiKeyAndMethods(['POST'])(handler as any)
 
 export default async function adapter(req: NextApiRequest, res: NextApiResponse) {
+  console.log('Adapter started, headers:', req.headers)
   try {
+    console.log('Running multer middleware...')
     await runMiddleware(upload.single('file'))(req, res)
+    console.log('Multer middleware finished successfully. body mode:', req.body?.mode)
   } catch (err: any) {
     console.error('Multer parse error:', err)
     return res.status(400).json(createResponse(false, null, 'Failed to parse form data', 400))
   }
-  return guarded(req as any, res as any)
+  console.log('Running guarded handler...')
+  return await guarded(req as any, res as any)
 }
