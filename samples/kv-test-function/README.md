@@ -14,6 +14,7 @@ A demonstration function showcasing the **Key-Value Store** feature in Invoke. T
 ## API Endpoints
 
 ### Get Value
+
 ```bash
 GET /get/:key
 ```
@@ -21,11 +22,13 @@ GET /get/:key
 Retrieve a value by key.
 
 **Example:**
+
 ```bash
 curl https://your-domain/invoke/<function-id>/get/mykey
 ```
 
 **Response:**
+
 ```json
 {
   "key": "mykey",
@@ -34,6 +37,7 @@ curl https://your-domain/invoke/<function-id>/get/mykey
 ```
 
 ### Set Value
+
 ```bash
 POST /set
 Content-Type: application/json
@@ -48,6 +52,7 @@ Content-Type: application/json
 Store a key-value pair with optional TTL.
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain/invoke/<function-id>/set \
   -H "Content-Type: application/json" \
@@ -55,6 +60,7 @@ curl -X POST https://your-domain/invoke/<function-id>/set \
 ```
 
 **With TTL (1 hour):**
+
 ```bash
 curl -X POST https://your-domain/invoke/<function-id>/set \
   -H "Content-Type: application/json" \
@@ -62,6 +68,7 @@ curl -X POST https://your-domain/invoke/<function-id>/set \
 ```
 
 ### Delete Key
+
 ```bash
 DELETE /delete/:key
 ```
@@ -69,11 +76,13 @@ DELETE /delete/:key
 Remove a key from storage.
 
 **Example:**
+
 ```bash
 curl -X DELETE https://your-domain/invoke/<function-id>/delete/mykey
 ```
 
 ### Check Key Existence
+
 ```bash
 GET /has/:key
 ```
@@ -81,11 +90,13 @@ GET /has/:key
 Check if a key exists without retrieving its value.
 
 **Example:**
+
 ```bash
 curl https://your-domain/invoke/<function-id>/has/mykey
 ```
 
 **Response:**
+
 ```json
 {
   "key": "mykey",
@@ -94,6 +105,7 @@ curl https://your-domain/invoke/<function-id>/has/mykey
 ```
 
 ### Clear All Keys
+
 ```bash
 POST /clear
 ```
@@ -101,6 +113,7 @@ POST /clear
 ⚠️ **Warning:** Deletes all keys in your project's namespace.
 
 **Example:**
+
 ```bash
 curl -X POST https://your-domain/invoke/<function-id>/clear
 ```
@@ -111,35 +124,35 @@ curl -X POST https://your-domain/invoke/<function-id>/clear
 
 ```javascript
 // Store a string
-await kv.set('username', 'john_doe');
+await kv.set('username', 'john_doe')
 
 // Store an object (automatically serialized)
-await kv.set('user', { 
-  name: 'John', 
-  age: 30, 
-  role: 'admin' 
-});
+await kv.set('user', {
+  name: 'John',
+  age: 30,
+  role: 'admin'
+})
 
 // Store with TTL (expires after 1 hour)
-await kv.set('session', 'token123', 3600000);
+await kv.set('session', 'token123', 3600000)
 
 // Store an array
-await kv.set('tags', ['javascript', 'nodejs', 'serverless']);
+await kv.set('tags', ['javascript', 'nodejs', 'serverless'])
 ```
 
 ### Retrieve Data
 
 ```javascript
 // Get a value
-const username = await kv.get('username');
+const username = await kv.get('username')
 // Returns: "john_doe"
 
 // Get an object (automatically parsed)
-const user = await kv.get('user');
+const user = await kv.get('user')
 // Returns: { name: 'John', age: 30, role: 'admin' }
 
 // Key doesn't exist
-const missing = await kv.get('nonexistent');
+const missing = await kv.get('nonexistent')
 // Returns: undefined
 ```
 
@@ -147,9 +160,9 @@ const missing = await kv.get('nonexistent');
 
 ```javascript
 if (await kv.has('session')) {
-  console.log('Session is active');
+  console.log('Session is active')
 } else {
-  console.log('Session expired or not found');
+  console.log('Session expired or not found')
 }
 ```
 
@@ -157,7 +170,7 @@ if (await kv.has('session')) {
 
 ```javascript
 // Delete a key
-const deleted = await kv.delete('session');
+const deleted = await kv.delete('session')
 // Returns: true if key existed, false otherwise
 ```
 
@@ -165,7 +178,7 @@ const deleted = await kv.delete('session');
 
 ```javascript
 // Clear all keys in your project (use with caution!)
-await kv.clear();
+await kv.clear()
 ```
 
 ## Error Handling
@@ -176,16 +189,16 @@ When storage quota is exceeded, `kv.set()` throws an error:
 
 ```javascript
 try {
-  await kv.set('large-data', someLargeValue);
+  await kv.set('large-data', someLargeValue)
 } catch (error) {
   if (error.message.includes('quota exceeded')) {
-    console.error('Storage quota exceeded!');
-    res.status(413).send({ 
+    console.error('Storage quota exceeded!')
+    res.status(413).send({
       error: 'Storage quota exceeded',
-      message: error.message 
-    });
+      message: error.message
+    })
   } else {
-    throw error;
+    throw error
   }
 }
 ```
@@ -194,35 +207,38 @@ try {
 
 ```javascript
 try {
-  const value = await kv.get('mykey');
-  res.send({ value });
+  const value = await kv.get('mykey')
+  res.send({ value })
 } catch (error) {
-  console.error('KV operation failed:', error);
-  res.status(500).send({ 
-    error: 'Failed to access KV store' 
-  });
+  console.error('KV operation failed:', error)
+  res.status(500).send({
+    error: 'Failed to access KV store'
+  })
 }
 ```
 
 ## Best Practices
 
 1. **Use Descriptive Keys**: Choose clear, meaningful key names
+
    ```javascript
    // Good
-   await kv.set('user:123:profile', userData);
-   
+   await kv.set('user:123:profile', userData)
+
    // Avoid
-   await kv.set('u123', userData);
+   await kv.set('u123', userData)
    ```
 
 2. **Set TTL for Temporary Data**: Use TTL for sessions, caches, and temporary tokens
+
    ```javascript
-   await kv.set('cache:api-response', data, 300000); // 5 minutes
+   await kv.set('cache:api-response', data, 300000) // 5 minutes
    ```
 
 3. **Handle Missing Keys**: Always check for `undefined` when getting values
+
    ```javascript
-   const value = await kv.get('mykey');
+   const value = await kv.get('mykey')
    if (value === undefined) {
      // Key doesn't exist, handle appropriately
    }
@@ -232,9 +248,9 @@ try {
 
 5. **Namespace Your Keys**: Use prefixes to organize related data
    ```javascript
-   await kv.set('user:settings', settings);
-   await kv.set('user:preferences', preferences);
-   await kv.set('cache:product:123', product);
+   await kv.set('user:settings', settings)
+   await kv.set('user:preferences', preferences)
+   await kv.set('cache:product:123', product)
    ```
 
 ## Managing KV Store
@@ -242,6 +258,7 @@ try {
 ### Admin Panel
 
 Access the **KV Store** page in the admin panel to:
+
 - View all keys and values in your project
 - Search and filter keys
 - Edit or delete individual keys
@@ -259,39 +276,46 @@ Access the **KV Store** page in the admin panel to:
 ## Common Use Cases
 
 ### Session Management
+
 ```javascript
 // Store session
-await kv.set(`session:${userId}`, {
-  token: 'abc123',
-  expiresAt: Date.now() + 3600000
-}, 3600000); // 1 hour TTL
+await kv.set(
+  `session:${userId}`,
+  {
+    token: 'abc123',
+    expiresAt: Date.now() + 3600000
+  },
+  3600000
+) // 1 hour TTL
 
 // Check session
-const session = await kv.get(`session:${userId}`);
+const session = await kv.get(`session:${userId}`)
 if (session) {
   // Session is valid
 }
 ```
 
 ### API Response Caching
+
 ```javascript
-const cacheKey = `cache:${req.url}`;
-let data = await kv.get(cacheKey);
+const cacheKey = `cache:${req.url}`
+let data = await kv.get(cacheKey)
 
 if (!data) {
   // Fetch from API
-  data = await fetchFromAPI();
-  
+  data = await fetchFromAPI()
+
   // Cache for 5 minutes
-  await kv.set(cacheKey, data, 300000);
+  await kv.set(cacheKey, data, 300000)
 }
 
-res.send(data);
+res.send(data)
 ```
 
 ### Feature Flags
+
 ```javascript
-const featureEnabled = await kv.get('feature:new-ui');
+const featureEnabled = await kv.get('feature:new-ui')
 
 if (featureEnabled) {
   // Show new UI
@@ -301,15 +325,16 @@ if (featureEnabled) {
 ```
 
 ### Rate Limiting
+
 ```javascript
-const key = `ratelimit:${clientIp}`;
-const count = (await kv.get(key)) || 0;
+const key = `ratelimit:${clientIp}`
+const count = (await kv.get(key)) || 0
 
 if (count >= 100) {
-  return res.status(429).send({ error: 'Too many requests' });
+  return res.status(429).send({ error: 'Too many requests' })
 }
 
-await kv.set(key, count + 1, 60000); // Reset after 1 minute
+await kv.set(key, count + 1, 60000) // Reset after 1 minute
 ```
 
 ## Deployment

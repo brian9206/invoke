@@ -3,13 +3,13 @@
  * Shared functions for checking project membership and permissions
  */
 
-import database from '@/lib/database';
+import database from '@/lib/database'
 
 export interface ProjectAccessResult {
-  allowed: boolean;
-  canWrite: boolean;
-  message?: string;
-  role?: string;
+  allowed: boolean
+  canWrite: boolean
+  message?: string
+  role?: string
 }
 
 /**
@@ -24,35 +24,35 @@ export async function checkProjectAccess(
   projectId: string,
   isAdmin: boolean
 ): Promise<ProjectAccessResult> {
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   if (!UUID_RE.test(projectId)) {
-    return { allowed: false, canWrite: false, message: 'Invalid project ID' };
+    return { allowed: false, canWrite: false, message: 'Invalid project ID' }
   }
 
   if (isAdmin) {
-    return { allowed: true, canWrite: true };
+    return { allowed: true, canWrite: true }
   }
 
   try {
-    const { ProjectMembership } = database.models;
+    const { ProjectMembership } = database.models
     const membership = await ProjectMembership.findOne({
       where: { user_id: userId, project_id: projectId },
-      attributes: ['role'],
-    });
+      attributes: ['role']
+    })
 
     if (!membership) {
-      return { allowed: false, canWrite: false, message: 'Access denied: not a member of this project' };
+      return { allowed: false, canWrite: false, message: 'Access denied: not a member of this project' }
     }
 
-    const role = membership.role;
+    const role = membership.role
     return {
       allowed: true,
       canWrite: role === 'owner' || role === 'developer',
-      role,
-    };
+      role
+    }
   } catch (error) {
-    console.error('Error checking project access:', error);
-    return { allowed: false, canWrite: false, message: 'Error checking access' };
+    console.error('Error checking project access:', error)
+    return { allowed: false, canWrite: false, message: 'Error checking access' }
   }
 }
 
@@ -70,24 +70,24 @@ export async function checkProjectOwnerAccess(
   isAdmin: boolean
 ): Promise<{ allowed: boolean; message?: string }> {
   if (isAdmin) {
-    return { allowed: true };
+    return { allowed: true }
   }
 
   try {
-    const { ProjectMembership } = database.models;
+    const { ProjectMembership } = database.models
     const membership = await ProjectMembership.findOne({
       where: { user_id: userId, project_id: projectId, role: 'owner' },
-      attributes: ['id'],
-    });
+      attributes: ['id']
+    })
 
     if (!membership) {
-      return { allowed: false, message: 'Only project owners can perform this action' };
+      return { allowed: false, message: 'Only project owners can perform this action' }
     }
 
-    return { allowed: true };
+    return { allowed: true }
   } catch (error) {
-    console.error('Error checking project owner access:', error);
-    return { allowed: false, message: 'Error checking access' };
+    console.error('Error checking project owner access:', error)
+    return { allowed: false, message: 'Error checking access' }
   }
 }
 
@@ -104,28 +104,28 @@ export async function checkProjectDeveloperAccess(
   isAdmin: boolean
 ): Promise<{ allowed: boolean; message?: string }> {
   if (isAdmin) {
-    return { allowed: true };
+    return { allowed: true }
   }
 
   try {
-    const { ProjectMembership } = database.models;
+    const { ProjectMembership } = database.models
     const membership = await ProjectMembership.findOne({
       where: { user_id: userId, project_id: projectId },
-      attributes: ['role'],
-    });
+      attributes: ['role']
+    })
 
     if (!membership) {
-      return { allowed: false, message: 'Access denied: not a member of this project' };
+      return { allowed: false, message: 'Access denied: not a member of this project' }
     }
 
-    const role = membership.role;
+    const role = membership.role
     if (role !== 'owner' && role !== 'developer') {
-      return { allowed: false, message: 'Developer or owner role required' };
+      return { allowed: false, message: 'Developer or owner role required' }
     }
 
-    return { allowed: true };
+    return { allowed: true }
   } catch (error) {
-    console.error('Error checking project developer access:', error);
-    return { allowed: false, message: 'Error checking access' };
+    console.error('Error checking project developer access:', error)
+    return { allowed: false, message: 'Error checking access' }
   }
 }

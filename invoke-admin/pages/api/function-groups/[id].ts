@@ -51,9 +51,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
         const descendants = await FunctionGroup.findAll({
           where: {
             project_id: projectId,
-            name: { [Op.like]: `${oldFullPath}/%` },
+            name: { [Op.like]: `${oldFullPath}/%` }
           },
-          transaction: t,
+          transaction: t
         })
         for (const desc of descendants) {
           const newDescName = newFullPath + (desc.name as string).slice(oldFullPath.length)
@@ -64,7 +64,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(200).json(createResponse(true, group.get({ plain: true }), 'Group updated successfully'))
     } catch (err: any) {
       if (err.name === 'SequelizeUniqueConstraintError') {
-        return res.status(409).json(createResponse(false, null, `A group named "${newFullPath}" already exists in this project`, 409))
+        return res
+          .status(409)
+          .json(createResponse(false, null, `A group named "${newFullPath}" already exists in this project`, 409))
       }
       throw err
     }
@@ -79,20 +81,17 @@ async function handler(req: AuthenticatedRequest, res: any) {
       const descendants = await FunctionGroup.findAll({
         where: {
           project_id: projectId,
-          name: { [Op.like]: `${fullPath}/%` },
+          name: { [Op.like]: `${fullPath}/%` }
         },
         attributes: ['id'],
-        transaction: t,
+        transaction: t
       })
       const descendantIds = descendants.map((d: any) => d.id)
       const allIds = [...descendantIds, group.id]
 
       // Nullify group_id on functions belonging to any of these groups
       const { Function: FunctionModel } = database.models
-      await FunctionModel.update(
-        { group_id: null },
-        { where: { group_id: allIds }, transaction: t }
-      )
+      await FunctionModel.update({ group_id: null }, { where: { group_id: allIds }, transaction: t })
 
       // Delete descendants then the group itself
       if (descendantIds.length > 0) {

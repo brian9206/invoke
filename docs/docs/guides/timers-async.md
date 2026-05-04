@@ -8,13 +8,13 @@ Execute code after a delay:
 
 ```javascript
 export default function handler(req, res) {
-    console.log('Start');
-    
-    setTimeout(() => {
-        console.log('Executed after 2 seconds');
-    }, 2000);
-    
-    res.send('Timer set');
+  console.log('Start')
+
+  setTimeout(() => {
+    console.log('Executed after 2 seconds')
+  }, 2000)
+
+  res.send('Timer set')
 }
 ```
 
@@ -22,15 +22,15 @@ export default function handler(req, res) {
 
 ```javascript
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 export default async function handler(req, res) {
-    console.log('Start');
-    await delay(2000);
-    console.log('After 2 seconds');
-    
-    res.send('Done');
+  console.log('Start')
+  await delay(2000)
+  console.log('After 2 seconds')
+
+  res.send('Done')
 }
 ```
 
@@ -40,17 +40,17 @@ Execute code repeatedly at intervals:
 
 ```javascript
 export default function handler(req, res) {
-    let count = 0;
-    
-    const interval = setInterval(() => {
-        count++;
-        console.log('Count:', count);
-        
-        if (count >= 5) {
-            clearInterval(interval);
-            res.send('Completed 5 iterations');
-        }
-    }, 1000);
+  let count = 0
+
+  const interval = setInterval(() => {
+    count++
+    console.log('Count:', count)
+
+    if (count >= 5) {
+      clearInterval(interval)
+      res.send('Completed 5 iterations')
+    }
+  }, 1000)
 }
 ```
 
@@ -60,16 +60,16 @@ Execute on next event loop tick:
 
 ```javascript
 export default function handler(req, res) {
-    console.log('1');
-    
-    setImmediate(() => {
-        console.log('3 - Immediate');
-    });
-    
-    console.log('2');
-    
-    // Output: 1, 2, 3 - Immediate
-    res.send('Done');
+  console.log('1')
+
+  setImmediate(() => {
+    console.log('3 - Immediate')
+  })
+
+  console.log('2')
+
+  // Output: 1, 2, 3 - Immediate
+  res.send('Done')
 }
 ```
 
@@ -79,18 +79,18 @@ Promise-based sleep function:
 
 ```javascript
 export default async function handler(req, res) {
-    console.log('Start:', new Date().toISOString());
-    
-    await sleep(1000);
-    console.log('After 1 second');
-    
-    await sleep(2000);
-    console.log('After 3 seconds total');
-    
-    res.json({
-        message: 'Completed',
-        timestamp: new Date().toISOString()
-    });
+  console.log('Start:', new Date().toISOString())
+
+  await sleep(1000)
+  console.log('After 1 second')
+
+  await sleep(2000)
+  console.log('After 3 seconds total')
+
+  res.json({
+    message: 'Completed',
+    timestamp: new Date().toISOString()
+  })
 }
 ```
 
@@ -99,39 +99,39 @@ export default async function handler(req, res) {
 Modern promise-based timers:
 
 ```javascript
-import { setTimeout, setInterval } from 'timers/promises';
+import { setTimeout, setInterval } from 'timers/promises'
 
 export default async function handler(req, res) {
-    // Promise-based setTimeout
-    await setTimeout(1000);
-    console.log('After 1 second');
-    
-    // With value
-    const result = await setTimeout(1000, 'delayed value');
-    console.log(result); // 'delayed value'
-    
-    res.send('Done');
+  // Promise-based setTimeout
+  await setTimeout(1000)
+  console.log('After 1 second')
+
+  // With value
+  const result = await setTimeout(1000, 'delayed value')
+  console.log(result) // 'delayed value'
+
+  res.send('Done')
 }
 ```
 
 ### Async Interval
 
 ```javascript
-import { setInterval } from 'timers/promises';
+import { setInterval } from 'timers/promises'
 
 export default async function handler(req, res) {
-    const messages = [];
-    let count = 0;
-    
-    for await (const startTime of setInterval(1000, Date.now())) {
-        messages.push(`Tick ${++count} at ${new Date().toISOString()}`);
-        
-        if (count >= 5) {
-            break;
-        }
+  const messages = []
+  let count = 0
+
+  for await (const startTime of setInterval(1000, Date.now())) {
+    messages.push(`Tick ${++count} at ${new Date().toISOString()}`)
+
+    if (count >= 5) {
+      break
     }
-    
-    res.json({ messages });
+  }
+
+  res.json({ messages })
 }
 ```
 
@@ -140,26 +140,26 @@ export default async function handler(req, res) {
 Cancel timers using AbortController:
 
 ```javascript
-import { setTimeout } from 'timers/promises';
+import { setTimeout } from 'timers/promises'
 
 export default async function handler(req, res) {
-    const controller = new AbortController();
-    
-    // Cancel after 3 seconds
-    setTimeout(3000).then(() => controller.abort());
-    
-    try {
-        await setTimeout(10000, 'completed', {
-            signal: controller.signal
-        });
-        res.send('Completed 10 seconds');
-    } catch (error) {
-        if (error.name === 'AbortError') {
-            res.send('Cancelled after 3 seconds');
-        } else {
-            throw error;
-        }
+  const controller = new AbortController()
+
+  // Cancel after 3 seconds
+  setTimeout(3000).then(() => controller.abort())
+
+  try {
+    await setTimeout(10000, 'completed', {
+      signal: controller.signal
+    })
+    res.send('Completed 10 seconds')
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      res.send('Cancelled after 3 seconds')
+    } else {
+      throw error
     }
+  }
 }
 ```
 
@@ -169,26 +169,26 @@ export default async function handler(req, res) {
 
 ```javascript
 async function fetchWithRetry(url, maxRetries = 3) {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            const response = await fetch(url);
-            if (response.ok) return await response.json();
-            
-            if (i < maxRetries - 1) {
-                const delay = Math.pow(2, i) * 1000;
-                console.log(`Retry ${i + 1} after ${delay}ms`);
-                await sleep(delay);
-            }
-        } catch (error) {
-            if (i === maxRetries - 1) throw error;
-            await sleep(Math.pow(2, i) * 1000);
-        }
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return await response.json()
+
+      if (i < maxRetries - 1) {
+        const delay = Math.pow(2, i) * 1000
+        console.log(`Retry ${i + 1} after ${delay}ms`)
+        await sleep(delay)
+      }
+    } catch (error) {
+      if (i === maxRetries - 1) throw error
+      await sleep(Math.pow(2, i) * 1000)
     }
+  }
 }
 
 export default async function handler(req, res) {
-    const data = await fetchWithRetry('https://api.example.com/data');
-    res.json(data);
+  const data = await fetchWithRetry('https://api.example.com/data')
+  res.json(data)
 }
 ```
 
@@ -196,29 +196,29 @@ export default async function handler(req, res) {
 
 ```javascript
 async function withTimeout(promise, ms) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), ms);
-    
-    try {
-        const result = await promise;
-        clearTimeout(timeout);
-        return result;
-    } catch (error) {
-        clearTimeout(timeout);
-        throw error;
-    }
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), ms)
+
+  try {
+    const result = await promise
+    clearTimeout(timeout)
+    return result
+  } catch (error) {
+    clearTimeout(timeout)
+    throw error
+  }
 }
 
 export default async function handler(req, res) {
-    try {
-        const data = await withTimeout(
-            fetch('https://api.example.com/slow').then(r => r.json()),
-            5000
-        );
-        res.json(data);
-    } catch (error) {
-        res.status(408).json({ error: 'Request timeout' });
-    }
+  try {
+    const data = await withTimeout(
+      fetch('https://api.example.com/slow').then(r => r.json()),
+      5000
+    )
+    res.json(data)
+  } catch (error) {
+    res.status(408).json({ error: 'Request timeout' })
+  }
 }
 ```
 
@@ -226,22 +226,22 @@ export default async function handler(req, res) {
 
 ```javascript
 function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
+  let timeout
+  return function (...args) {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func.apply(this, args), wait)
+  }
 }
 
 export default async function handler(req, res) {
-    const processRequest = debounce(async (data) => {
-        console.log('Processing:', data);
-        await kv.set('last:request', data);
-    }, 1000);
-    
-    processRequest(req.body);
-    
-    res.send('Request queued');
+  const processRequest = debounce(async data => {
+    console.log('Processing:', data)
+    await kv.set('last:request', data)
+  }, 1000)
+
+  processRequest(req.body)
+
+  res.send('Request queued')
 }
 ```
 
@@ -249,24 +249,24 @@ export default async function handler(req, res) {
 
 ```javascript
 function throttle(func, limit) {
-    let inThrottle;
-    return function(...args) {
-        if (!inThrottle) {
-            func.apply(this, args);
-            inThrottle = true;
-            setTimeout(() => inThrottle = false, limit);
-        }
-    };
+  let inThrottle
+  return function (...args) {
+    if (!inThrottle) {
+      func.apply(this, args)
+      inThrottle = true
+      setTimeout(() => (inThrottle = false), limit)
+    }
+  }
 }
 
 export default function handler(req, res) {
-    const logRequest = throttle(() => {
-        console.log('Request logged at', new Date().toISOString());
-    }, 5000);
-    
-    logRequest();
-    
-    res.send('OK');
+  const logRequest = throttle(() => {
+    console.log('Request logged at', new Date().toISOString())
+  }, 5000)
+
+  logRequest()
+
+  res.send('OK')
 }
 ```
 
@@ -274,29 +274,29 @@ export default function handler(req, res) {
 
 ```javascript
 async function poll(fn, validate, interval = 1000, maxAttempts = 30) {
-    for (let i = 0; i < maxAttempts; i++) {
-        const result = await fn();
-        if (validate(result)) {
-            return result;
-        }
-        await sleep(interval);
+  for (let i = 0; i < maxAttempts; i++) {
+    const result = await fn()
+    if (validate(result)) {
+      return result
     }
-    throw new Error('Max polling attempts exceeded');
+    await sleep(interval)
+  }
+  throw new Error('Max polling attempts exceeded')
 }
 
 export default async function handler(req, res) {
-    try {
-        const result = await poll(
-            () => fetch('https://api.example.com/job/123').then(r => r.json()),
-            (data) => data.status === 'completed',
-            2000, // Check every 2 seconds
-            15    // Max 30 seconds
-        );
-        
-        res.json(result);
-    } catch (error) {
-        res.status(408).json({ error: 'Job did not complete in time' });
-    }
+  try {
+    const result = await poll(
+      () => fetch('https://api.example.com/job/123').then(r => r.json()),
+      data => data.status === 'completed',
+      2000, // Check every 2 seconds
+      15 // Max 30 seconds
+    )
+
+    res.json(result)
+  } catch (error) {
+    res.status(408).json({ error: 'Job did not complete in time' })
+  }
 }
 ```
 
@@ -304,31 +304,31 @@ export default async function handler(req, res) {
 
 ```javascript
 export default async function handler(req, res) {
-    const clientId = req.headers['x-client-id'] || 'anonymous';
-    const key = `ratelimit:${clientId}`;
-    
-    const requests = await kv.get(key) || [];
-    const now = Date.now();
-    const oneMinuteAgo = now - 60000;
-    
-    // Remove old requests
-    const recentRequests = requests.filter(time => time > oneMinuteAgo);
-    
-    if (recentRequests.length >= 10) {
-        const oldestRequest = recentRequests[0];
-        const resetTime = new Date(oldestRequest + 60000).toISOString();
-        
-        return res.status(429).json({
-            error: 'Rate limit exceeded',
-            resetAt: resetTime
-        });
-    }
-    
-    // Add current request
-    recentRequests.push(now);
-    await kv.set(key, recentRequests, 60000);
-    
-    res.json({ success: true });
+  const clientId = req.headers['x-client-id'] || 'anonymous'
+  const key = `ratelimit:${clientId}`
+
+  const requests = (await kv.get(key)) || []
+  const now = Date.now()
+  const oneMinuteAgo = now - 60000
+
+  // Remove old requests
+  const recentRequests = requests.filter(time => time > oneMinuteAgo)
+
+  if (recentRequests.length >= 10) {
+    const oldestRequest = recentRequests[0]
+    const resetTime = new Date(oldestRequest + 60000).toISOString()
+
+    return res.status(429).json({
+      error: 'Rate limit exceeded',
+      resetAt: resetTime
+    })
+  }
+
+  // Add current request
+  recentRequests.push(now)
+  await kv.set(key, recentRequests, 60000)
+
+  res.json({ success: true })
 }
 ```
 
@@ -338,43 +338,45 @@ export default async function handler(req, res) {
 
 ```javascript
 // ✅ Always clear timers
-const timeout = setTimeout(() => {}, 5000);
-clearTimeout(timeout);
+const timeout = setTimeout(() => {}, 5000)
+clearTimeout(timeout)
 
-const interval = setInterval(() => {}, 1000);
-clearInterval(interval);
+const interval = setInterval(() => {}, 1000)
+clearInterval(interval)
 ```
 
 ### 2. Use sleep() for Simple Delays
 
 ```javascript
 // ❌ Verbose
-await new Promise(resolve => setTimeout(resolve, 1000));
+await new Promise(resolve => setTimeout(resolve, 1000))
 
 // ✅ Simple
-await sleep(1000);
+await sleep(1000)
 ```
 
 ### 3. Handle Long-Running Operations
 
 ```javascript
 // Set reasonable timeouts
-const controller = new AbortController();
-setTimeout(() => controller.abort(), 30000);
+const controller = new AbortController()
+setTimeout(() => controller.abort(), 30000)
 
-await fetch(url, { signal: controller.signal });
+await fetch(url, { signal: controller.signal })
 ```
 
 ### 4. Avoid Blocking
 
 ```javascript
 // ❌ Blocking (if possible)
-for (let i = 0; i < 1000000; i++) { /* heavy work */ }
+for (let i = 0; i < 1000000; i++) {
+  /* heavy work */
+}
 
 // ✅ Non-blocking
 for (let i = 0; i < 1000; i++) {
-    // Do work in chunks
-    if (i % 100 === 0) await sleep(0); // Yield to event loop
+  // Do work in chunks
+  if (i % 100 === 0) await sleep(0) // Yield to event loop
 }
 ```
 

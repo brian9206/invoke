@@ -12,31 +12,33 @@
   --ifm-color-primary-light: #38bdf8;
   --ifm-color-primary-lighter: #7dd3fc;
   --ifm-color-primary-lightest: #bae6fd;
-  
+
   /* Background Colors */
   --ifm-background-color: #ffffff;
   --ifm-background-surface-color: #f8fafc;
-  
+
   /* Code */
   --ifm-code-font-size: 95%;
   --docusaurus-highlighted-code-line-bg: rgba(14, 165, 233, 0.1);
-  
+
   /* Navbar */
   --ifm-navbar-background-color: rgba(255, 255, 255, 0.95);
   --ifm-navbar-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-  
+
   /* Footer */
   --ifm-footer-background-color: #1e293b;
   --ifm-footer-color: #cbd5e1;
   --ifm-footer-link-color: #94a3b8;
   --ifm-footer-link-hover-color: #e0f2fe;
   --ifm-footer-title-color: #f1f5f9;
-  
+
   /* Typography */
-  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --ifm-font-family-base:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+    'Helvetica Neue', sans-serif;
   --ifm-heading-font-weight: 700;
   --ifm-font-weight-semibold: 600;
-  
+
   /* Shadows */
   --ifm-global-shadow-lw: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --ifm-global-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -52,49 +54,49 @@
   --ifm-color-primary-light: #7dd3fc;
   --ifm-color-primary-lighter: #bae6fd;
   --ifm-color-primary-lightest: #e0f2fe;
-  
+
   /* Dark backgrounds matching admin panel - slate theme */
   --ifm-background-color: #0f172a;
   --ifm-background-surface-color: #1e293b;
-  
+
   /* Text colors for better readability on dark */
   --ifm-font-color-base: #e2e8f0;
   --ifm-color-content: #cbd5e1;
   --ifm-color-content-secondary: #94a3b8;
   --ifm-heading-color: #f1f5f9;
-  
+
   /* Code blocks */
   --ifm-code-background: #1e293b;
   --docusaurus-highlighted-code-line-bg: rgba(56, 189, 248, 0.15);
-  
+
   /* Navbar - deep dark */
   --ifm-navbar-background-color: #0f172a;
   --ifm-navbar-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.5);
-  
+
   /* Sidebar */
   --ifm-menu-color: #cbd5e1;
   --ifm-menu-color-background-hover: rgba(56, 189, 248, 0.1);
   --ifm-menu-color-background-active: rgba(56, 189, 248, 0.15);
-  
+
   /* Footer */
   --ifm-footer-background-color: #0f172a;
   --ifm-footer-color: #cbd5e1;
   --ifm-footer-link-color: #94a3b8;
   --ifm-footer-link-hover-color: #38bdf8;
-  
+
   /* Cards and surfaces */
   --ifm-card-background-color: #1e293b;
   --ifm-toc-border-color: rgba(148, 163, 184, 0.2);
-  
+
   /* Shadows for depth */
   --ifm-global-shadow-lw: 0 1px 3px 0 rgb(0 0 0 / 0.5);
   --ifm-global-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
   --ifm-global-shadow-tl: 0 10px 15px -3px rgb(0 0 0 / 0.5);
-  
+
   /* Borders */
   --ifm-color-emphasis-300: rgba(148, 163, 184, 0.2);
   --ifm-hr-border-color: rgba(148, 163, 184, 0.2);
-  
+
   /* Dropdown and hover states */
   --ifm-dropdown-background-color: #1e293b;
   --ifm-dropdown-hover-background-color: #334155;
@@ -313,6 +315,7 @@ a {
 }
 
 /* Mobile navbar sidebar backdrop fix */
-.navbar-sidebar__backdrop, .navbar-sidebar {
+.navbar-sidebar__backdrop,
+.navbar-sidebar {
   height: 100vh !important;
 }

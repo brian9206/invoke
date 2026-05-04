@@ -1,4 +1,4 @@
-const crypto = require('crypto'); // Built-in module still works
+const crypto = require('crypto') // Built-in module still works
 
 /**
  * Process input data by adding metadata and hash
@@ -6,18 +6,18 @@ const crypto = require('crypto'); // Built-in module still works
  * @returns {Object} Processed data with additional metadata
  */
 function processData(data) {
-    console.log('Processing data in utils module');
-    
-    const processedData = {
-        ...data,
-        processed_at: Date.now(),
-        hash: crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex'),
-        type: typeof data,
-        size: JSON.stringify(data).length
-    };
-    
-    console.log('Data processing completed, hash generated');
-    return processedData;
+  console.log('Processing data in utils module')
+
+  const processedData = {
+    ...data,
+    processed_at: Date.now(),
+    hash: crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex'),
+    type: typeof data,
+    size: JSON.stringify(data).length
+  }
+
+  console.log('Data processing completed, hash generated')
+  return processedData
 }
 
 /**
@@ -26,7 +26,7 @@ function processData(data) {
  * @returns {boolean} True if valid
  */
 function validateData(data) {
-    return data !== null && data !== undefined;
+  return data !== null && data !== undefined
 }
 
 /**
@@ -35,20 +35,20 @@ function validateData(data) {
  * @returns {Object} Cleaned data
  */
 function cleanSensitiveData(data) {
-    const cleaned = { ...data };
-    const sensitiveKeys = ['password', 'token', 'secret', 'key'];
-    
-    sensitiveKeys.forEach(key => {
-        if (cleaned[key]) {
-            cleaned[key] = '[REDACTED]';
-        }
-    });
-    
-    return cleaned;
+  const cleaned = { ...data }
+  const sensitiveKeys = ['password', 'token', 'secret', 'key']
+
+  sensitiveKeys.forEach(key => {
+    if (cleaned[key]) {
+      cleaned[key] = '[REDACTED]'
+    }
+  })
+
+  return cleaned
 }
 
-module.exports = { 
-    processData, 
-    validateData, 
-    cleanSensitiveData 
-};
+module.exports = {
+  processData,
+  validateData,
+  cleanSensitiveData
+}

@@ -1,7 +1,7 @@
-import chalk from 'chalk';
-import type { Command } from 'commander';
-import { put } from '../services/api-client';
-import { resolveFunctionId } from '../services/helpers';
+import chalk from 'chalk'
+import type { Command } from 'commander'
+import { put } from '../services/api-client'
+import { resolveFunctionId } from '../services/helpers'
 
 export function register(program: Command): void {
   program
@@ -15,34 +15,34 @@ export function register(program: Command): void {
     .option('--output <format>', 'Output format (table|json)', 'table')
     .action(async (id: string, options: any) => {
       try {
-        id = await resolveFunctionId(id);
-        const updates: Record<string, any> = {};
+        id = await resolveFunctionId(id)
+        const updates: Record<string, any> = {}
 
-        if (options.name) updates.name = options.name;
-        if (options.description !== undefined) updates.description = options.description;
-        if (options.active !== undefined) updates.is_active = options.active === 'true';
-        if (options.requiresApiKey !== undefined) updates.requires_api_key = options.requiresApiKey === 'true';
+        if (options.name) updates.name = options.name
+        if (options.description !== undefined) updates.description = options.description
+        if (options.active !== undefined) updates.is_active = options.active === 'true'
+        if (options.requiresApiKey !== undefined) updates.requires_api_key = options.requiresApiKey === 'true'
 
         if (Object.keys(updates).length === 0) {
-          console.log(chalk.red('❌ Please provide at least one update option'));
-          process.exit(1);
+          console.log(chalk.red('❌ Please provide at least one update option'))
+          process.exit(1)
         }
 
-        const data = await put(`/api/functions/${id}`, updates);
+        const data = await put(`/api/functions/${id}`, updates)
 
         if (!data.success) {
-          console.log(chalk.red('❌ ' + data.message));
-          process.exit(1);
+          console.log(chalk.red('❌ ' + data.message))
+          process.exit(1)
         }
 
         if (options.output === 'json') {
-          console.log(JSON.stringify(data.data, null, 2));
+          console.log(JSON.stringify(data.data, null, 2))
         } else {
-          console.log(chalk.green('✅ Function updated successfully'));
+          console.log(chalk.green('✅ Function updated successfully'))
         }
       } catch (error: any) {
-        console.log(chalk.red('❌ Failed to update function:'), error.message);
-        process.exit(1);
+        console.log(chalk.red('❌ Failed to update function:'), error.message)
+        process.exit(1)
       }
-    });
+    })
 }

@@ -5,16 +5,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { useProject } from '@/contexts/ProjectContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Activity,
-  Package,
-  Zap,
-  Clock,
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle,
-  Loader
-} from 'lucide-react'
+import { Activity, Package, Zap, Clock, TrendingUp, AlertTriangle, CheckCircle, Loader } from 'lucide-react'
 
 interface Stats {
   totalFunctions: number
@@ -79,31 +70,67 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { name: 'Total Functions', value: stats.totalFunctions, icon: Package, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
-    { name: 'Active Functions', value: stats.activeFunctions, icon: CheckCircle, color: 'text-green-400', bgColor: 'bg-green-500/10' },
-    { name: 'Total Executions', value: stats.totalExecutions, icon: Zap, color: 'text-purple-400', bgColor: 'bg-purple-500/10' },
-    { name: 'Avg Response Time', value: `${stats.avgResponseTime}ms`, icon: Clock, color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
-    { name: 'Success Rate', value: `${stats.successRate}%`, icon: TrendingUp, color: 'text-green-400', bgColor: 'bg-green-500/10' },
-    { name: 'Recent Errors', value: stats.recentErrors, icon: AlertTriangle, color: 'text-red-400', bgColor: 'bg-red-500/10' }
+    {
+      name: 'Total Functions',
+      value: stats.totalFunctions,
+      icon: Package,
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-500/10'
+    },
+    {
+      name: 'Active Functions',
+      value: stats.activeFunctions,
+      icon: CheckCircle,
+      color: 'text-green-400',
+      bgColor: 'bg-green-500/10'
+    },
+    {
+      name: 'Total Executions',
+      value: stats.totalExecutions,
+      icon: Zap,
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-500/10'
+    },
+    {
+      name: 'Avg Response Time',
+      value: `${stats.avgResponseTime}ms`,
+      icon: Clock,
+      color: 'text-yellow-400',
+      bgColor: 'bg-yellow-500/10'
+    },
+    {
+      name: 'Success Rate',
+      value: `${stats.successRate}%`,
+      icon: TrendingUp,
+      color: 'text-green-400',
+      bgColor: 'bg-green-500/10'
+    },
+    {
+      name: 'Recent Errors',
+      value: stats.recentErrors,
+      icon: AlertTriangle,
+      color: 'text-red-400',
+      bgColor: 'bg-red-500/10'
+    }
   ]
 
   if (projectLoading || loading || !activeProject) {
     return (
       <ProtectedRoute>
-        <Layout title="Dashboard">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-muted-foreground">
+        <Layout title='Dashboard'>
+          <div className='flex items-center justify-center h-64'>
+            <div className='text-muted-foreground'>
               {projectLoading ? (
-                <div className="flex items-center gap-2">
-                  <Loader className="w-5 h-5 text-primary animate-spin" />
-                  <span className="animate-pulse">Loading projects...</span>
+                <div className='flex items-center gap-2'>
+                  <Loader className='w-5 h-5 text-primary animate-spin' />
+                  <span className='animate-pulse'>Loading projects...</span>
                 </div>
               ) : !activeProject ? (
                 'No project selected'
               ) : (
-                <div className="flex items-center gap-2">
-                  <Loader className="w-5 h-5 text-primary animate-spin" />
-                  <span className="animate-pulse">Loading dashboard...</span>
+                <div className='flex items-center gap-2'>
+                  <Loader className='w-5 h-5 text-primary animate-spin' />
+                  <span className='animate-pulse'>Loading dashboard...</span>
                 </div>
               )}
             </div>
@@ -115,17 +142,17 @@ export default function Dashboard() {
 
   return (
     <ProtectedRoute>
-      <Layout title="Dashboard">
-        <div className="space-y-8">
+      <Layout title='Dashboard'>
+        <div className='space-y-8'>
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {statCards.map((card) => (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+            {statCards.map(card => (
               <Card key={card.name}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className='p-6'>
+                  <div className='flex items-center justify-between'>
                     <div>
-                      <p className="text-muted-foreground text-sm font-medium">{card.name}</p>
-                      <p className="text-2xl font-bold text-foreground mt-1">{card.value}</p>
+                      <p className='text-muted-foreground text-sm font-medium'>{card.name}</p>
+                      <p className='text-2xl font-bold text-foreground mt-1'>{card.value}</p>
                     </div>
                     <div className={`${card.bgColor} p-3 rounded-xl`}>
                       <card.icon className={`w-6 h-6 ${card.color}`} />
@@ -138,49 +165,53 @@ export default function Dashboard() {
 
           {/* Recent Activity */}
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-foreground flex items-center">
-                  <Activity className="w-5 h-5 mr-2" />
+            <CardContent className='p-6'>
+              <div className='flex items-center justify-between mb-6'>
+                <h3 className='text-lg font-semibold text-foreground flex items-center'>
+                  <Activity className='w-5 h-5 mr-2' />
                   Recent Activity
                 </h3>
               </div>
 
               {recentActivity.length > 0 ? (
-                <div className="space-y-3">
-                  {recentActivity.map((activity) => (
+                <div className='space-y-3'>
+                  {recentActivity.map(activity => (
                     <Link
                       key={activity.id}
                       href={`/admin/functions/${activity.functionId}`}
-                      className="block p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                      className='block p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors'
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-2.5 h-2.5 rounded-full ${
-                            activity.status === 'success' ? 'bg-green-400' : 'bg-red-400'
-                          }`} />
+                      <div className='flex items-center justify-between'>
+                        <div className='flex items-center space-x-3'>
+                          <div
+                            className={`w-2.5 h-2.5 rounded-full ${
+                              activity.status === 'success' ? 'bg-green-400' : 'bg-red-400'
+                            }`}
+                          />
                           <div>
-                            <p className="text-foreground font-medium">{activity.functionName}</p>
-                            <p className="text-muted-foreground text-sm">
+                            <p className='text-foreground font-medium'>{activity.functionName}</p>
+                            <p className='text-muted-foreground text-sm'>
                               Executed {new Date(activity.executedAt).toLocaleTimeString()}
                             </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-medium ${
-                            activity.status === 'success' ? 'text-green-400' : 'text-red-400'
-                          }`}>
+                        <div className='text-right'>
+                          <p
+                            className={`text-sm font-medium ${
+                              activity.status === 'success' ? 'text-green-400' : 'text-red-400'
+                            }`}
+                          >
                             {activity.status === 'success' ? 'Success' : 'Error'}
                           </p>
-                          <p className="text-muted-foreground text-sm">{activity.executionTime}ms</p>
+                          <p className='text-muted-foreground text-sm'>{activity.executionTime}ms</p>
                         </div>
                       </div>
                     </Link>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <div className='text-center py-8 text-muted-foreground'>
+                  <Activity className='w-12 h-12 mx-auto mb-4 opacity-50' />
                   <p>No recent activity</p>
                 </div>
               )}

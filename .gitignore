@@ -125,13 +125,5 @@ minio-data/
 /invoke-admin/public/monaco/
 /invoke-logger/src/kql/grammar.js
 
-# VM bundles (will be built with npm run build:vm-modules)
-/invoke-execution/bundles/vm-modules/events.js
-/invoke-execution/bundles/vm-modules/buffer.js
-/invoke-execution/bundles/vm-modules/stream.js
-/invoke-execution/bundles/vm-modules/punycode.js
-/invoke-execution/bundles/vm-modules/node-fetch.js
-/invoke-execution/bundles/vm-modules/assert.js
-/invoke-execution/bundles/vm-modules/string_decoder.js
-/invoke-execution/bundles/vm-modules/_router.js
-/invoke-execution/bundles/vm-modules/_realtime.js
+# Type declaration output
+/invoke-runtime/types/dist/

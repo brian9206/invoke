@@ -1,4 +1,4 @@
-import type {SidebarsConfig} from '@docusaurus/plugin-content-docs';
+import type { SidebarsConfig } from '@docusaurus/plugin-content-docs'
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -18,14 +18,10 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Getting Started',
-      items: [
-        'getting-started/quick-start',
-        'getting-started/function-anatomy',
-        'getting-started/deploying',
-      ],
-    },
+      items: ['getting-started/quick-start', 'getting-started/function-anatomy', 'getting-started/deploying']
+    }
   ],
-  
+
   cliSidebar: [
     {
       type: 'category',
@@ -39,26 +35,19 @@ const sidebars: SidebarsConfig = {
         'cli/execution',
         'cli/local-run',
         'cli/logs',
-        'cli/reference',
-      ],
-    },
+        'cli/reference'
+      ]
+    }
   ],
-  
+
   apiSidebar: [
     {
       type: 'category',
       label: 'Core APIs',
-      items: [
-        'api/globals',
-        'api/request',
-        'api/response',
-        'api/router',
-        'api/kv-store',
-        'api/realtime',
-      ],
+      items: ['api/globals', 'api/request', 'api/response', 'api/router', 'api/kv-store', 'api/realtime']
     }
   ],
-  
+
   guidesSidebar: [
     {
       type: 'category',
@@ -70,11 +59,11 @@ const sidebars: SidebarsConfig = {
         'guides/environment-vars',
         'guides/realtime',
         'guides/compression',
-        'guides/timers-async',
-      ],
-    },
+        'guides/timers-async'
+      ]
+    }
   ],
-  
+
   examplesSidebar: [
     {
       type: 'category',
@@ -86,19 +75,15 @@ const sidebars: SidebarsConfig = {
         'examples/crypto-hashing',
         'examples/kv-store-usage',
         'examples/webhook-handler',
-        'examples/realtime-chat',
-      ],
+        'examples/realtime-chat'
+      ]
     },
     {
       type: 'category',
       label: 'Advanced',
-      items: [
-        'advanced/limitations',
-        'advanced/best-practices',
-        'advanced/debugging',
-      ],
-    },
-  ],
-};
+      items: ['advanced/limitations', 'advanced/best-practices', 'advanced/debugging']
+    }
+  ]
+}
 
-export default sidebars;
+export default sidebars

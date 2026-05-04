@@ -8,15 +8,15 @@
  * document to extract the jwks_uri, with a configurable TTL.
  */
 
-import JwksClient from 'jwks-rsa';
-import https from 'https';
+import JwksClient from 'jwks-rsa'
+import https from 'https'
 
 // ─── JWKS client pool ─────────────────────────────────────────────────────────
 
-const clientPool = new Map<string, ReturnType<typeof JwksClient>>();
+const clientPool = new Map<string, ReturnType<typeof JwksClient>>()
 
 function getOrCreateClient(jwksUri: string): ReturnType<typeof JwksClient> {
-  if (clientPool.has(jwksUri)) return clientPool.get(jwksUri)!;
+  if (clientPool.has(jwksUri)) return clientPool.get(jwksUri)!
   const client = JwksClient({
     jwksUri,
     cache: true,
@@ -24,10 +24,10 @@ function getOrCreateClient(jwksUri: string): ReturnType<typeof JwksClient> {
     cacheMaxAge: 600_000, // 10 minutes
     rateLimit: true,
     jwksRequestsPerMinute: 10,
-    requestHeaders: { 'User-Agent': 'invoke-gateway/1.0' },
-  });
-  clientPool.set(jwksUri, client);
-  return client;
+    requestHeaders: { 'User-Agent': 'invoke-gateway/1.0' }
+  })
+  clientPool.set(jwksUri, client)
+  return client
 }
 
 /**
@@ -35,45 +35,42 @@ function getOrCreateClient(jwksUri: string): ReturnType<typeof JwksClient> {
  * Returns the public key as a PEM string.
  */
 async function getSigningKey(jwksUri: string, kid: string | null | undefined): Promise<string> {
-  const client = getOrCreateClient(jwksUri);
-  const key = await client.getSigningKey(kid ?? undefined);
-  return key.getPublicKey();
+  const client = getOrCreateClient(jwksUri)
+  const key = await client.getSigningKey(kid ?? undefined)
+  return key.getPublicKey()
 }
 
 // ─── OIDC Discovery cache ─────────────────────────────────────────────────────
 
-const OIDC_CACHE_TTL = 3_600_000; // 1 hour
+const OIDC_CACHE_TTL = 3_600_000 // 1 hour
 
-const oidcDiscoveryCache = new Map<string, { jwksUri: string; expiresAt: number }>();
+const oidcDiscoveryCache = new Map<string, { jwksUri: string; expiresAt: number }>()
 
 /**
  * Fetch and cache a well-known OIDC configuration document.
  * Returns the jwks_uri from the document.
  */
 async function resolveOidcDiscovery(oidcUrl: string): Promise<string> {
-  const cached = oidcDiscoveryCache.get(oidcUrl);
-  if (cached && Date.now() < cached.expiresAt) return cached.jwksUri;
+  const cached = oidcDiscoveryCache.get(oidcUrl)
+  if (cached && Date.now() < cached.expiresAt) return cached.jwksUri
 
-  const doc = (await fetchJson(oidcUrl)) as Record<string, unknown>;
+  const doc = (await fetchJson(oidcUrl)) as Record<string, unknown>
   if (!doc.jwks_uri) {
-    throw new Error(
-      `OIDC discovery document at ${oidcUrl} does not contain jwks_uri`,
-    );
+    throw new Error(`OIDC discovery document at ${oidcUrl} does not contain jwks_uri`)
   }
   oidcDiscoveryCache.set(oidcUrl, {
     jwksUri: doc.jwks_uri as string,
-    expiresAt: Date.now() + OIDC_CACHE_TTL,
-  });
-  return doc.jwks_uri as string;
+    expiresAt: Date.now() + OIDC_CACHE_TTL
+  })
+  return doc.jwks_uri as string
 }
 
 // ─── Well-known provider JWKS URIs ────────────────────────────────────────────
 
-const GITHUB_OIDC_URL =
-  'https://token.actions.githubusercontent.com/.well-known/openid-configuration';
+const GITHUB_OIDC_URL = 'https://token.actions.githubusercontent.com/.well-known/openid-configuration'
 
 async function getGitHubJwksUri(): Promise<string> {
-  return resolveOidcDiscovery(GITHUB_OIDC_URL);
+  return resolveOidcDiscovery(GITHUB_OIDC_URL)
 }
 
 // ─── Main resolver ────────────────────────────────────────────────────────────
@@ -82,29 +79,29 @@ async function getGitHubJwksUri(): Promise<string> {
  * Resolve the JWKS URI for a bearer_jwt config object.
  */
 async function resolveJwksUri(config: Record<string, any>): Promise<string> {
-  const mode = config.jwtMode as string;
+  const mode = config.jwtMode as string
   switch (mode) {
     case 'microsoft': {
-      const tenantId = config.tenantId as string | undefined;
-      if (!tenantId) throw new Error('Microsoft JWT mode requires tenantId in config');
-      return `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
+      const tenantId = config.tenantId as string | undefined
+      if (!tenantId) throw new Error('Microsoft JWT mode requires tenantId in config')
+      return `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`
     }
     case 'google':
-      return 'https://www.googleapis.com/oauth2/v3/certs';
+      return 'https://www.googleapis.com/oauth2/v3/certs'
     case 'github':
-      return getGitHubJwksUri();
+      return getGitHubJwksUri()
     case 'jwks_endpoint': {
-      const url = config.jwksUrl as string | undefined;
-      if (!url) throw new Error('jwks_endpoint mode requires jwksUrl in config');
-      return url;
+      const url = config.jwksUrl as string | undefined
+      if (!url) throw new Error('jwks_endpoint mode requires jwksUrl in config')
+      return url
     }
     case 'oidc_discovery': {
-      const url = config.oidcUrl as string | undefined;
-      if (!url) throw new Error('oidc_discovery mode requires oidcUrl in config');
-      return resolveOidcDiscovery(url);
+      const url = config.oidcUrl as string | undefined
+      if (!url) throw new Error('oidc_discovery mode requires oidcUrl in config')
+      return resolveOidcDiscovery(url)
     }
     default:
-      throw new Error(`Cannot resolve JWKS URI for jwtMode: ${mode}`);
+      throw new Error(`Cannot resolve JWKS URI for jwtMode: ${mode}`)
   }
 }
 
@@ -114,26 +111,26 @@ async function resolveJwksUri(config: Record<string, any>): Promise<string> {
 function fetchJson(url: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { 'User-Agent': 'invoke-gateway/1.0' } }, (res) => {
+      .get(url, { headers: { 'User-Agent': 'invoke-gateway/1.0' } }, res => {
         if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode} fetching ${url}`));
-          res.resume();
-          return;
+          reject(new Error(`HTTP ${res.statusCode} fetching ${url}`))
+          res.resume()
+          return
         }
-        let data = '';
+        let data = ''
         res.on('data', (chunk: string) => {
-          data += chunk;
-        });
+          data += chunk
+        })
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data));
+            resolve(JSON.parse(data))
           } catch (e) {
-            reject(e);
+            reject(e)
           }
-        });
+        })
       })
-      .on('error', reject);
-  });
+      .on('error', reject)
+  })
 }
 
-export { resolveJwksUri, getSigningKey };
+export { resolveJwksUri, getSigningKey }

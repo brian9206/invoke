@@ -24,10 +24,10 @@ RUN ARCH=$(uname -m) && \
 FROM bun-base AS worker-builder
 
 WORKDIR /opt/shim
-COPY invoke-runtime/worker/package.json ./
+COPY tsconfig.base.json /
+COPY invoke-runtime/worker/ ./
 # Install devDependencies too for the build step if needed, or just install all
 RUN bun install
-COPY invoke-runtime/worker/src/ ./src/
 RUN bun run build
 
 # ============ STAGE 2: C++ supervisor builder ============
@@ -55,6 +55,8 @@ RUN chmod 755 /usr/local/bin/invoke-supervisor
 
 # Bun binary
 COPY --from=bun-base /usr/local/bin/bun /opt/rootfs/usr/local/bin/bun
+COPY --from=bun-base /bin/sh /opt/rootfs/bin/sh
+COPY --from=bun-base /usr/bin/env /opt/rootfs/usr/bin/env
 
 # musl dynamic linker / libc (arch-specific, e.g. ld-musl-x86_64.so.1)
 COPY --from=bun-base /lib/ld-musl-*.so.1 /opt/rootfs/lib/

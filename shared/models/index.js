@@ -10,32 +10,33 @@
  */
 function initModels(sequelize) {
   // ── Core domain ──────────────────────────────────────────────────────────
-  const User                       = require('./User')(sequelize);
-  const Project                    = require('./Project')(sequelize);
-  const ProjectMembership          = require('./ProjectMembership')(sequelize);
-  const FunctionGroup              = require('./FunctionGroup')(sequelize);
-  const FunctionModel              = require('./Function')(sequelize);
-  const FunctionVersion            = require('./FunctionVersion')(sequelize);
-  const ApiKey                     = require('./ApiKey')(sequelize);
-  const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize);
-  const GlobalSetting              = require('./GlobalSetting')(sequelize);
+  const User = require('./User')(sequelize)
+  const Project = require('./Project')(sequelize)
+  const ProjectMembership = require('./ProjectMembership')(sequelize)
+  const FunctionGroup = require('./FunctionGroup')(sequelize)
+  const FunctionModel = require('./Function')(sequelize)
+  const FunctionVersion = require('./FunctionVersion')(sequelize)
+  const FunctionBuild = require('./FunctionBuild')(sequelize)
+  const ApiKey = require('./ApiKey')(sequelize)
+  const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize)
+  const GlobalSetting = require('./GlobalSetting')(sequelize)
 
   // ── Network policies ─────────────────────────────────────────────────────
-  const NetworkPolicy = require('./NetworkPolicy')(sequelize);
+  const NetworkPolicy = require('./NetworkPolicy')(sequelize)
 
   // ── API Gateway ───────────────────────────────────────────────────────────
-  const ApiGatewayConfig          = require('./ApiGatewayConfig')(sequelize);
-  const ApiGatewayRoute           = require('./ApiGatewayRoute')(sequelize);
-  const ApiGatewayRouteSettings   = require('./ApiGatewayRouteSettings')(sequelize);
-  const ApiGatewayAuthMethod      = require('./ApiGatewayAuthMethod')(sequelize);
-  const ApiGatewayRouteAuthMethod = require('./ApiGatewayRouteAuthMethod')(sequelize);
-  const LoginAttempt               = require('./LoginAttempt')(sequelize);
-  const RefreshToken               = require('./RefreshToken')(sequelize);
+  const ApiGatewayConfig = require('./ApiGatewayConfig')(sequelize)
+  const ApiGatewayRoute = require('./ApiGatewayRoute')(sequelize)
+  const ApiGatewayRouteSettings = require('./ApiGatewayRouteSettings')(sequelize)
+  const ApiGatewayAuthMethod = require('./ApiGatewayAuthMethod')(sequelize)
+  const ApiGatewayRouteAuthMethod = require('./ApiGatewayRouteAuthMethod')(sequelize)
+  const LoginAttempt = require('./LoginAttempt')(sequelize)
+  const RefreshToken = require('./RefreshToken')(sequelize)
 
   // ── Realtime ──────────────────────────────────────────────────────────────
-  const RealtimeNamespace           = require('./RealtimeNamespace')(sequelize);
-  const RealtimeEventHandler        = require('./RealtimeEventHandler')(sequelize);
-  const RealtimeNamespaceAuthMethod = require('./RealtimeNamespaceAuthMethod')(sequelize);
+  const RealtimeNamespace = require('./RealtimeNamespace')(sequelize)
+  const RealtimeEventHandler = require('./RealtimeEventHandler')(sequelize)
+  const RealtimeNamespaceAuthMethod = require('./RealtimeNamespaceAuthMethod')(sequelize)
 
   const models = {
     User,
@@ -45,6 +46,7 @@ function initModels(sequelize) {
     // Exposed as 'Function' so callers write models.Function
     Function: FunctionModel,
     FunctionVersion,
+    FunctionBuild,
     ApiKey,
     FunctionEnvironmentVariable,
     GlobalSetting,
@@ -58,17 +60,17 @@ function initModels(sequelize) {
     RefreshToken,
     RealtimeNamespace,
     RealtimeEventHandler,
-    RealtimeNamespaceAuthMethod,
-  };
+    RealtimeNamespaceAuthMethod
+  }
 
   // Wire up associations once all models exist
-  Object.values(models).forEach((model) => {
+  Object.values(models).forEach(model => {
     if (typeof model.associate === 'function') {
-      model.associate(models);
+      model.associate(models)
     }
-  });
+  })
 
-  return models;
+  return models
 }
 
-module.exports = { initModels };
+module.exports = { initModels }

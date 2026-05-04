@@ -5,11 +5,13 @@ This function tests the comprehensive TLS module implementation for the Invoke V
 ## Features Tested
 
 ### Module Loading
+
 - TLS module availability and core functions
 - Constants and properties
 - Class constructors
 
 ### Certificate Store
+
 - CA certificate loading from bundled store
 - System certificate store access
 - Extra certificates from `NODE_EXTRA_CA_CERTS`
@@ -17,6 +19,7 @@ This function tests the comprehensive TLS module implementation for the Invoke V
 - Malformed certificate handling
 
 ### TLS Socket
+
 - Socket creation and basic functionality
 - Event handling and method chaining
 - TLS-specific properties (`authorized`, `encrypted`)
@@ -24,17 +27,20 @@ This function tests the comprehensive TLS module implementation for the Invoke V
 - Session management
 
 ### Secure Context
+
 - Context creation and configuration
 - Certificate and key management
 - CA certificate handling
 - Cipher configuration
 
 ### Server Stubs
+
 - Proper "not supported" errors for server functionality
 - Correct error codes and messages
 - API signature compatibility
 
 ### Node.js Compatibility
+
 - Method overloads and parameter handling
 - Event timing and behavior
 - Error types and messages
@@ -45,6 +51,7 @@ This function tests the comprehensive TLS module implementation for the Invoke V
 Deploy this function and call it to get a comprehensive report of TLS functionality:
 
 The response includes detailed test results showing:
+
 - Module loading status
 - Certificate store functionality
 - TLS socket capabilities

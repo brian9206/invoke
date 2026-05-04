@@ -59,7 +59,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       for (const g of groups) {
         const grp = await FunctionGroup.findOne({
           where: { id: g.id, project_id: projectId },
-          transaction: t,
+          transaction: t
         })
         if (!grp) continue
 
@@ -78,15 +78,18 @@ async function handler(req: AuthenticatedRequest, res: any) {
             const descendants = await FunctionGroup.findAll({
               where: {
                 project_id: projectId,
-                name: { [Op.like]: `${oldFullPath}/%` },
+                name: { [Op.like]: `${oldFullPath}/%` }
               },
-              transaction: t,
+              transaction: t
             })
             for (const desc of descendants) {
               const newDescName = newFullPath + (desc.name as string).slice(oldFullPath.length)
               await desc.update({ name: newDescName, updated_at: new Date() }, { transaction: t })
             }
-            await grp.update({ name: newFullPath, sort_order: g.sort_order, updated_at: new Date() }, { transaction: t })
+            await grp.update(
+              { name: newFullPath, sort_order: g.sort_order, updated_at: new Date() },
+              { transaction: t }
+            )
             continue
           }
         }
@@ -100,7 +103,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     if (funcs && funcs.length > 0) {
       await Promise.all(
-        funcs.map((f) =>
+        funcs.map(f =>
           FunctionModel.update(
             { group_id: f.group_id ?? null, sort_order: f.sort_order },
             { where: { id: f.id, project_id: projectId }, transaction: t }

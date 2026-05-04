@@ -1,75 +1,75 @@
-module.exports = async function(req, res) {
-  const path = req.path || '/';
-  
+module.exports = async function (req, res) {
+  const path = req.path || '/'
+
   try {
     // Route: GET /get/:key - Get a value by key
     if (req.method === 'GET' && path.startsWith('/get/')) {
-      const key = path.substring(5);
+      const key = path.substring(5)
       if (!key) {
-        return res.status(400).send({ error: 'Key is required' });
+        return res.status(400).send({ error: 'Key is required' })
       }
-      
-      const value = await kv.get(key);
-      
+
+      const value = await kv.get(key)
+
       if (value === undefined) {
-        return res.status(404).send({ error: 'Key not found', key });
+        return res.status(404).send({ error: 'Key not found', key })
       }
-      
-      return res.send({ key, value });
+
+      return res.send({ key, value })
     }
-    
+
     // Route: POST /set - Set a key-value pair
     if (req.method === 'POST' && path === '/set') {
-      const { key, value, ttl } = req.body;
-      
+      const { key, value, ttl } = req.body
+
       if (!key) {
-        return res.status(400).send({ error: 'Key is required' });
+        return res.status(400).send({ error: 'Key is required' })
       }
-      
+
       if (value === undefined || value === null) {
-        return res.status(400).send({ error: 'Value is required' });
+        return res.status(400).send({ error: 'Value is required' })
       }
-      
+
       try {
-        await kv.set(key, value, ttl);
-        return res.send({ success: true, key, value });
+        await kv.set(key, value, ttl)
+        return res.send({ success: true, key, value })
       } catch (error) {
         // Handle quota exceeded error
         if (error.message.includes('quota exceeded')) {
-          return res.status(413).send({ error: error.message });
+          return res.status(413).send({ error: error.message })
         }
-        throw error;
+        throw error
       }
     }
-    
+
     // Route: DELETE /delete/:key - Delete a key
     if (req.method === 'DELETE' && path.startsWith('/delete/')) {
-      const key = path.substring(8);
+      const key = path.substring(8)
       if (!key) {
-        return res.status(400).send({ error: 'Key is required' });
+        return res.status(400).send({ error: 'Key is required' })
       }
-      
-      const deleted = await kv.delete(key);
-      return res.send({ success: true, deleted, key });
+
+      const deleted = await kv.delete(key)
+      return res.send({ success: true, deleted, key })
     }
-    
+
     // Route: GET /has/:key - Check if key exists
     if (req.method === 'GET' && path.startsWith('/has/')) {
-      const key = path.substring(5);
+      const key = path.substring(5)
       if (!key) {
-        return res.status(400).send({ error: 'Key is required' });
+        return res.status(400).send({ error: 'Key is required' })
       }
-      
-      const exists = await kv.has(key);
-      return res.send({ key, exists });
+
+      const exists = await kv.has(key)
+      return res.send({ key, exists })
     }
-    
+
     // Route: POST /clear - Clear all keys
     if (req.method === 'POST' && path === '/clear') {
-      await kv.clear();
-      return res.send({ success: true, message: 'All keys cleared' });
+      await kv.clear()
+      return res.send({ success: true, message: 'All keys cleared' })
     }
-    
+
     // Route: GET / - Demo page showing all operations
     if (req.method === 'GET' && path === '/') {
       const html = `
@@ -204,30 +204,22 @@ const user = await kv.get('user'); // Returns parsed object</pre>
   </div>
 </body>
 </html>
-      `.trim();
-      
-      res.setHeader('content-type', 'text/html');
-      return res.send(html);
+      `.trim()
+
+      res.setHeader('content-type', 'text/html')
+      return res.send(html)
     }
-    
+
     // Route not found
-    return res.status(404).send({ 
+    return res.status(404).send({
       error: 'Route not found',
-      availableRoutes: [
-        'GET /',
-        'GET /get/:key',
-        'POST /set',
-        'DELETE /delete/:key',
-        'GET /has/:key',
-        'POST /clear'
-      ]
-    });
-    
+      availableRoutes: ['GET /', 'GET /get/:key', 'POST /set', 'DELETE /delete/:key', 'GET /has/:key', 'POST /clear']
+    })
   } catch (error) {
-    console.error('Error:', error);
-    return res.status(500).send({ 
+    console.error('Error:', error)
+    return res.status(500).send({
       error: 'Internal server error',
-      message: error.message 
-    });
+      message: error.message
+    })
   }
-};
+}

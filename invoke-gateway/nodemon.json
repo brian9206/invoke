@@ -1,9 +1,4 @@
 {
-  "watch": [
-    "../shared",
-    "../package-lock.json",
-    "src",
-    ".env"
-  ],
+  "watch": ["../shared", "../package-lock.json", "src", ".env"],
   "ext": "ts,js,json,env"
 }

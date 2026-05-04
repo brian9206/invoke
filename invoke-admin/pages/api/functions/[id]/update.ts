@@ -15,15 +15,13 @@ const { s3Service } = require('invoke-shared')
 const upload = multer({
   dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 50 * 1024 * 1024 // 50MB limit
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['.zip', '.tar.gz', '.tgz']
     const fileExt = path.extname(file.originalname).toLowerCase()
-    const isValidType = allowedTypes.some(type => 
-      file.originalname.toLowerCase().endsWith(type)
-    )
-    
+    const isValidType = allowedTypes.some(type => file.originalname.toLowerCase().endsWith(type))
+
     if (isValidType) {
       cb(null, true)
     } else {
@@ -34,8 +32,8 @@ const upload = multer({
 
 export const config = {
   api: {
-    bodyParser: false,
-  },
+    bodyParser: false
+  }
 }
 
 export default async function handler(req: AuthenticatedRequest, res: any) {
@@ -62,7 +60,7 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
 
     // Check if function exists
     const { Function: FunctionModel, FunctionVersion } = database.models
-    const existingFunction = await FunctionModel.findByPk(functionId as string) as any
+    const existingFunction = (await FunctionModel.findByPk(functionId as string)) as any
 
     if (!existingFunction) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -77,7 +75,9 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
 
       const access = await checkProjectDeveloperAccess(userId, projectId, false)
       if (!access.allowed) {
-        return res.status(403).json(createResponse(false, null, access.message || 'Insufficient permissions to update this function', 403))
+        return res
+          .status(403)
+          .json(createResponse(false, null, access.message || 'Insufficient permissions to update this function', 403))
       }
     }
 
@@ -98,12 +98,12 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Get next version number from function_versions table
-    const latestVersionRecord = await FunctionVersion.findOne({
+    const latestVersionRecord = (await FunctionVersion.findOne({
       where: { function_id: functionId },
       order: [['version', 'DESC']],
       attributes: ['version'],
-      raw: true,
-    }) as any
+      raw: true
+    })) as any
     const newVersion = latestVersionRecord ? Number(latestVersionRecord.version) + 1 : 1
 
     const isUpdate = true
@@ -116,20 +116,17 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     if (originalName.endsWith('.zip')) {
       const extractDir = path.join(path.dirname(packagePath), `extract_${Date.now()}`)
       const tgzPath = path.join(path.dirname(packagePath), `${functionId}_${newVersion}.tgz`)
-      
+
       try {
         // Extract zip
         const zip = new AdmZip(packagePath)
         zip.extractAllTo(extractDir, true)
-        
+
         // Create tar.gz
-        await tar.create(
-          { gzip: true, file: tgzPath, cwd: extractDir },
-          fs.readdirSync(extractDir)
-        )
-        
+        await tar.create({ gzip: true, file: tgzPath, cwd: extractDir }, fs.readdirSync(extractDir))
+
         packagePath = tgzPath
-        
+
         // Clean up
         await fs.remove(extractDir)
         console.log(`✓ Converted .zip to .tgz: ${tgzPath}`)
@@ -150,7 +147,7 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
       file_size: uploadResult.size,
       package_hash: uploadResult.hash,
       package_path: uploadResult.objectName,
-      created_by: userId,
+      created_by: userId
     })
     await FunctionModel.update({ active_version_id: newVersionRecord.id }, { where: { id: functionId } })
 
@@ -163,24 +160,29 @@ export default async function handler(req: AuthenticatedRequest, res: any) {
     }
 
     // Return updated function details
-    const updatedFn = await FunctionModel.findByPk(functionId as string, {
-      include: [{ model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size', 'package_hash'], required: false }],
-    }) as any
+    const updatedFn = (await FunctionModel.findByPk(functionId as string, {
+      include: [
+        {
+          model: FunctionVersion,
+          as: 'activeVersion',
+          attributes: ['version', 'file_size', 'package_hash'],
+          required: false
+        }
+      ]
+    })) as any
     const fnRaw = updatedFn.toJSON()
     const updatedFunction = {
       ...fnRaw,
       version: fnRaw.activeVersion?.version ?? null,
       file_size: fnRaw.activeVersion?.file_size ?? null,
-      package_hash: fnRaw.activeVersion?.package_hash ?? null,
+      package_hash: fnRaw.activeVersion?.package_hash ?? null
     }
     delete updatedFunction.activeVersion
 
-    return res.status(200).json(createResponse(true, updatedFunction,
-      'Function package updated successfully', 200))
-
+    return res.status(200).json(createResponse(true, updatedFunction, 'Function package updated successfully', 200))
   } catch (error) {
     console.error('Update error:', error)
-    
+
     // Clean up uploaded file on error
     if (uploadedFile && uploadedFile.path) {
       try {

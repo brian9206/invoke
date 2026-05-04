@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class FunctionVersion extends Model {}
 
   FunctionVersion.init(
@@ -8,36 +8,50 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       function_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'functions', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       version: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: false
       },
       file_size: {
         type: DataTypes.BIGINT,
-        allowNull: false,
+        allowNull: false
       },
       package_path: {
-        type: DataTypes.STRING(500),
+        type: DataTypes.STRING(500)
       },
       package_hash: {
         type: DataTypes.STRING(64),
+        allowNull: false
+      },
+      artifact_path: {
+        type: DataTypes.STRING(500),
+        allowNull: true
+      },
+      artifact_hash: {
+        type: DataTypes.STRING(64),
+        allowNull: true
+      },
+      build_status: {
+        type: DataTypes.STRING(20),
         allowNull: false,
+        defaultValue: 'none'
+        // none | queued | building | built | failed
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       created_by: {
         type: DataTypes.INTEGER,
-        references: { model: 'users', key: 'id' },
-      },
+        references: { model: 'users', key: 'id' }
+      }
     },
     {
       sequelize,
@@ -46,14 +60,14 @@ module.exports = (sequelize) => {
       timestamps: false,
       underscored: true,
       freezeTableName: true,
-      indexes: [{ unique: true, fields: ['function_id', 'version'] }],
+      indexes: [{ unique: true, fields: ['function_id', 'version'] }]
     }
-  );
+  )
 
-  FunctionVersion.associate = (models) => {
-    FunctionVersion.belongsTo(models.Function, { foreignKey: 'function_id' });
-    FunctionVersion.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' });
-  };
+  FunctionVersion.associate = models => {
+    FunctionVersion.belongsTo(models.Function, { foreignKey: 'function_id' })
+    FunctionVersion.belongsTo(models.User, { foreignKey: 'created_by', as: 'creator' })
+  }
 
-  return FunctionVersion;
-};
+  return FunctionVersion
+}

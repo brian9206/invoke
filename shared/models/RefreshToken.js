@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class RefreshToken extends Model {}
 
   RefreshToken.init(
@@ -8,24 +8,24 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.UUID,
         primaryKey: true,
-        defaultValue: DataTypes.UUIDV4,
+        defaultValue: DataTypes.UUIDV4
       },
       user_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: false
       },
       token_hash: {
         type: DataTypes.STRING(64),
-        allowNull: false,
+        allowNull: false
       },
       expires_at: {
         type: DataTypes.DATE,
-        allowNull: false,
+        allowNull: false
       },
       created_at: {
         type: DataTypes.DATE,
-        allowNull: false,
-      },
+        allowNull: false
+      }
     },
     {
       sequelize,
@@ -33,13 +33,13 @@ module.exports = (sequelize) => {
       tableName: 'refresh_tokens',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
-  RefreshToken.associate = (models) => {
-    RefreshToken.belongsTo(models.User, { foreignKey: 'user_id' });
-  };
+  RefreshToken.associate = models => {
+    RefreshToken.belongsTo(models.User, { foreignKey: 'user_id' })
+  }
 
-  return RefreshToken;
-};
+  return RefreshToken
+}

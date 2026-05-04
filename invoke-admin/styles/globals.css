@@ -54,7 +54,12 @@
 
   body {
     @apply bg-background text-foreground h-full;
-    font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter),
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      sans-serif;
   }
 
   * {
@@ -105,5 +110,4 @@
   ::-webkit-scrollbar-button:single-button:horizontal:increment {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpolygon points='1,1 1,7 7,4' fill='%23889aaa'/%3E%3C/svg%3E");
   }
-
 }

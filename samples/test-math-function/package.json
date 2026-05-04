@@ -5,5 +5,10 @@
   "main": "index.js",
   "author": "Invoke Platform",
   "license": "MIT",
-  "keywords": ["math", "calculator", "arithmetic", "invoke"]
+  "keywords": [
+    "math",
+    "calculator",
+    "arithmetic",
+    "invoke"
+  ]
 }

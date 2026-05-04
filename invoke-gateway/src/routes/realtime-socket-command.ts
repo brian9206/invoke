@@ -1,15 +1,15 @@
-import { Router, Request, Response } from 'express';
-import { Server } from 'socket.io';
+import { Router, Request, Response } from 'express'
+import { Server } from 'socket.io'
 
-const router = Router();
+const router = Router()
 
-let _io: Server | null = null;
+let _io: Server | null = null
 
 /**
  * Register the Socket.IO server instance so this route can dispatch commands.
  */
 export function registerIo(io: Server): void {
-  _io = io;
+  _io = io
 }
 
 /**
@@ -31,120 +31,120 @@ export function registerIo(io: Server): void {
  */
 router.post('/_realtime/command', (req: Request, res: Response): void => {
   void (async () => {
-    await handleRealtimeCommand(req, res);
-  })();
-});
+    await handleRealtimeCommand(req, res)
+  })()
+})
 
 async function handleRealtimeCommand(req: Request, res: Response): Promise<void> {
-  const internalSecret = process.env.INTERNAL_SERVICE_SECRET;
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET
   if (internalSecret) {
-    const provided = req.headers['x-internal-secret'];
+    const provided = req.headers['x-internal-secret']
     if (provided !== internalSecret) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
+      res.status(403).json({ error: 'Forbidden' })
+      return
     }
   }
 
   if (!_io) {
-    res.status(503).json({ error: 'Socket.IO not initialised' });
-    return;
+    res.status(503).json({ error: 'Socket.IO not initialised' })
+    return
   }
 
-  let body: Record<string, any>;
+  let body: Record<string, any>
   try {
-    const raw = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);
-    body = JSON.parse(raw);
+    const raw = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body)
+    body = JSON.parse(raw)
   } catch {
-    res.status(400).json({ error: 'Invalid JSON body' });
-    return;
+    res.status(400).json({ error: 'Invalid JSON body' })
+    return
   }
 
   const { command, namespace, roomIds, exceptRooms, socketId, event, args } = body as {
-    command: string;
-    namespace?: string;
-    roomIds?: string[];
-    exceptRooms?: string[];
-    socketId?: string;
-    event?: string;
-    args?: unknown[];
-  };
+    command: string
+    namespace?: string
+    roomIds?: string[]
+    exceptRooms?: string[]
+    socketId?: string
+    event?: string
+    args?: unknown[]
+  }
 
   try {
-    const nsp = namespace ? _io.of(namespace) : _io.of('/');
+    const nsp = namespace ? _io.of(namespace) : _io.of('/')
 
     switch (command) {
       case 'emit': {
         // Emit directly to a specific socket.
         // Use nsp.to(socketId) so the adapter routes it to whichever server
         // the target socket is connected to, not just the local server.
-        if (!socketId || !event) break;
-        nsp.to(socketId).emit(event, ...(args || []));
-        break;
+        if (!socketId || !event) break
+        nsp.to(socketId).emit(event, ...(args || []))
+        break
       }
 
       case 'ns-emit': {
         // Broadcast from namespace level (with optional room/except filters)
-        if (!event) break;
-        let emitter: any = nsp;
+        if (!event) break
+        let emitter: any = nsp
         if (roomIds && roomIds.length > 0) {
-          emitter = nsp.to(roomIds);
+          emitter = nsp.to(roomIds)
         }
         if (exceptRooms && exceptRooms.length > 0) {
-          emitter = emitter.except(exceptRooms);
+          emitter = emitter.except(exceptRooms)
         }
-        emitter.emit(event, ...(args || []));
-        break;
+        emitter.emit(event, ...(args || []))
+        break
       }
 
       case 'broadcast': {
         // Broadcast excluding the sender socket.
         // Use nsp.except(socketId) so the adapter propagates to all servers
         // and excludes the sender regardless of which server it lives on.
-        if (!socketId || !event) break;
-        let broadcaster: any = roomIds && roomIds.length > 0 ? nsp.to(roomIds) : nsp;
-        broadcaster = broadcaster.except(socketId);
+        if (!socketId || !event) break
+        let broadcaster: any = roomIds && roomIds.length > 0 ? nsp.to(roomIds) : nsp
+        broadcaster = broadcaster.except(socketId)
         if (exceptRooms && exceptRooms.length > 0) {
-          broadcaster = broadcaster.except(exceptRooms);
+          broadcaster = broadcaster.except(exceptRooms)
         }
-        broadcaster.emit(event, ...(args || []));
-        break;
+        broadcaster.emit(event, ...(args || []))
+        break
       }
 
       case 'join': {
         // Use socketsJoin so the adapter forwards the join to the server that
         // owns the target socket.
-        if (!socketId || !roomIds) break;
-        await nsp.in(socketId).socketsJoin(roomIds);
-        break;
+        if (!socketId || !roomIds) break
+        await nsp.in(socketId).socketsJoin(roomIds)
+        break
       }
 
       case 'leave': {
         // Use socketsLeave so the adapter forwards the leave to the server that
         // owns the target socket.
-        if (!socketId || !roomIds) break;
-        await nsp.in(socketId).socketsLeave(roomIds);
-        break;
+        if (!socketId || !roomIds) break
+        await nsp.in(socketId).socketsLeave(roomIds)
+        break
       }
 
       case 'disconnect': {
         // Use disconnectSockets so the adapter forwards the disconnect to the
         // server that owns the target socket.
-        if (!socketId) break;
-        await nsp.in(socketId).disconnectSockets(true);
-        break;
+        if (!socketId) break
+        await nsp.in(socketId).disconnectSockets(true)
+        break
       }
 
       default:
-        res.status(400).json({ error: `Unknown command: ${command}` });
-        return;
+        res.status(400).json({ error: `Unknown command: ${command}` })
+        return
     }
 
-    res.status(204).end();
+    res.status(204).end()
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('[RealtimeCommand] Error processing command:', message);
-    res.status(500).json({ error: 'Internal error processing command' });
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[RealtimeCommand] Error processing command:', message)
+    res.status(500).json({ error: 'Internal error processing command' })
   }
 }
 
-export default router;
+export default router

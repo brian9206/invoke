@@ -21,21 +21,27 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   if (req.method === 'GET') {
-    const { ApiGatewayConfig } = database.models;
-    const row = await ApiGatewayConfig.findOne({ where: { project_id: projectId } });
+    const { ApiGatewayConfig } = database.models
+    const row = await ApiGatewayConfig.findOne({ where: { project_id: projectId } })
 
     if (!row) {
       // Return default (not yet configured)
       return res.json(createResponse(true, { enabled: false, customDomain: null }, 'Gateway config retrieved'))
     }
 
-    return res.json(createResponse(true, {
-      id: row.id,
-      enabled: row.enabled,
-      customDomain: row.custom_domain,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }, 'Gateway config retrieved'))
+    return res.json(
+      createResponse(
+        true,
+        {
+          id: row.id,
+          enabled: row.enabled,
+          customDomain: row.custom_domain,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        },
+        'Gateway config retrieved'
+      )
+    )
   }
 
   if (req.method === 'PUT') {
@@ -46,29 +52,37 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { enabled, customDomain } = req.body
 
     // Validate custom domain uniqueness if provided
-    const { ApiGatewayConfig } = database.models;
+    const { ApiGatewayConfig } = database.models
     if (customDomain) {
       const existing = await ApiGatewayConfig.findOne({
         where: { custom_domain: customDomain, project_id: { [Op.ne]: projectId } },
         attributes: ['id']
-      });
+      })
       if (existing) {
-        return res.status(409).json(createResponse(false, null, 'Custom domain is already in use by another project', 409))
+        return res
+          .status(409)
+          .json(createResponse(false, null, 'Custom domain is already in use by another project', 409))
       }
     }
 
     const [cfg] = await ApiGatewayConfig.upsert(
       { project_id: projectId, enabled: enabled ?? false, custom_domain: customDomain || null },
       { returning: true }
-    );
+    )
 
-    return res.json(createResponse(true, {
-      id: cfg.id,
-      enabled: cfg.enabled,
-      customDomain: cfg.custom_domain,
-      createdAt: cfg.created_at,
-      updatedAt: cfg.updated_at,
-    }, 'Gateway config updated'))
+    return res.json(
+      createResponse(
+        true,
+        {
+          id: cfg.id,
+          enabled: cfg.enabled,
+          customDomain: cfg.custom_domain,
+          createdAt: cfg.created_at,
+          updatedAt: cfg.updated_at
+        },
+        'Gateway config updated'
+      )
+    )
   }
 }
 

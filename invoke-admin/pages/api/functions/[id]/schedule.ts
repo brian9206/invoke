@@ -7,12 +7,11 @@ import database from '@/lib/database'
 function calculateNextExecution(cronExpression: string): Date | null {
   try {
     // Use cron library for accurate parsing
-    const job = new CronJob(cronExpression, function() {})
+    const job = new CronJob(cronExpression, function () {})
     const next = job.nextDate().toJSDate() // Convert to JavaScript Date object
-    
+
     console.log(`Admin UI: Cron expression "${cronExpression}" next execution: ${next.toString()}`)
     return next
-    
   } catch (error) {
     console.error(`Admin UI: Error parsing cron expression "${cronExpression}":`, (error as any).message)
     return null
@@ -27,13 +26,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Function ID is required' })
     }
 
-    const { Function: FunctionModel } = database.models;
+    const { Function: FunctionModel } = database.models
 
     if (req.method === 'GET') {
       // Get current schedule settings
       const fn = await FunctionModel.findByPk(id, {
         attributes: ['schedule_enabled', 'schedule_cron', 'next_execution', 'last_scheduled_execution']
-      });
+      })
 
       if (!fn) {
         return res.status(404).json({ error: 'Function not found' })
@@ -43,7 +42,6 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         success: true,
         data: fn.get({ plain: true })
       })
-
     } else if (req.method === 'PUT') {
       // Update schedule settings
       const { schedule_enabled, schedule_cron } = req.body
@@ -68,13 +66,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           updated_at: new Date()
         },
         { where: { id }, returning: true }
-      );
+      )
 
       if (affectedCount === 0) {
         return res.status(404).json({ error: 'Function not found' })
       }
 
-      const updated = updatedRows[0].get({ plain: true });
+      const updated = updatedRows[0].get({ plain: true })
       res.json({
         success: true,
         message: 'Schedule settings updated successfully',
@@ -84,11 +82,9 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           next_execution: updated.next_execution
         }
       })
-
     } else {
       res.status(405).json({ error: 'Method not allowed' })
     }
-
   } catch (error) {
     console.error('Schedule API error:', error)
     res.status(500).json({ error: 'Internal server error' })

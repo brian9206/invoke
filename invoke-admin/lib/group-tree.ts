@@ -9,9 +9,9 @@ export interface FunctionGroup {
 export interface TreeNode {
   group: FunctionGroup
   children: TreeNode[]
-  displayName: string  // last segment only
-  depth: number        // 0 = root
-  fullPath: string     // same as group.name
+  displayName: string // last segment only
+  depth: number // 0 = root
+  fullPath: string // same as group.name
 }
 
 /**
@@ -42,7 +42,7 @@ export function buildGroupTree(groups: FunctionGroup[]): TreeNode[] {
       children: [],
       displayName: segments[segments.length - 1],
       depth: segments.length - 1,
-      fullPath: g.name,
+      fullPath: g.name
     }
     byPath.set(g.name, node)
   }
@@ -69,7 +69,7 @@ export function buildGroupTree(groups: FunctionGroup[]): TreeNode[] {
   // Sort roots and all children by sort_order
   const sortNodes = (nodes: TreeNode[]) => {
     nodes.sort((a, b) => a.group.sort_order - b.group.sort_order)
-    nodes.forEach((n) => sortNodes(n.children))
+    nodes.forEach(n => sortNodes(n.children))
   }
   sortNodes(roots)
 
@@ -87,7 +87,7 @@ export function buildSystemTree(
   const projectTrees: TreeNode[] = []
 
   for (const proj of projects) {
-    const projGroups = groups.filter((g) => g.project_id === proj.id)
+    const projGroups = groups.filter(g => g.project_id === proj.id)
     const innerTree = buildGroupTree(projGroups)
 
     const fakeGroup: FunctionGroup = {
@@ -95,7 +95,7 @@ export function buildSystemTree(
       name: proj.name,
       project_id: proj.id,
       sort_order: 0,
-      project_name: proj.name,
+      project_name: proj.name
     }
 
     projectTrees.push({
@@ -103,7 +103,7 @@ export function buildSystemTree(
       children: innerTree,
       displayName: proj.name,
       depth: 0,
-      fullPath: proj.name,
+      fullPath: proj.name
     })
   }
 

@@ -21,6 +21,7 @@ invoke function:invoke my-api
 ```
 
 **Example output:**
+
 ```
 Executing function 'my-api'...
 ✅ Function executed successfully in 63ms
@@ -53,6 +54,7 @@ invoke function:invoke my-api --method PATCH
 ### Sending Data
 
 **JSON data:**
+
 ```bash
 invoke function:invoke my-api \
   --method POST \
@@ -60,6 +62,7 @@ invoke function:invoke my-api \
 ```
 
 **Raw body:**
+
 ```bash
 invoke function:invoke my-api \
   --method POST \
@@ -67,6 +70,7 @@ invoke function:invoke my-api \
 ```
 
 **From file:**
+
 ```bash
 invoke function:invoke my-api \
   --method POST \
@@ -104,6 +108,7 @@ invoke function:invoke my-api --path "/api/v1/products"
 ```
 
 This transforms:
+
 - From: `http://localhost:3001/invoke/{id}`
 - To: `http://localhost:3001/invoke/{id}/users/123`
 
@@ -128,6 +133,7 @@ invoke function:invoke my-api --output json
 ```
 
 **Example JSON output:**
+
 ```json
 {
   "status": 200,
@@ -149,6 +155,7 @@ invoke function:test my-api
 ```
 
 **Example output:**
+
 ```
 🧪 Testing Function:
 
@@ -303,15 +310,15 @@ invoke function:invoke my-api \
 
 ## Comparing Invoke vs Test
 
-| Feature | `function:invoke` | `function:test` |
-|---------|------------------|-----------------|
-| Execute function | ✅ | ✅ |
-| Show response | ✅ | ✅ |
-| Function details | ❌ | ✅ |
-| Recent logs | ❌ | ✅ |
-| JSON output | ✅ | ❌ |
-| Custom timeout | ✅ | ❌ |
-| Use case | Production/automation | Development/debugging |
+| Feature          | `function:invoke`     | `function:test`       |
+| ---------------- | --------------------- | --------------------- |
+| Execute function | ✅                    | ✅                    |
+| Show response    | ✅                    | ✅                    |
+| Function details | ❌                    | ✅                    |
+| Recent logs      | ❌                    | ✅                    |
+| JSON output      | ✅                    | ❌                    |
+| Custom timeout   | ✅                    | ❌                    |
+| Use case         | Production/automation | Development/debugging |
 
 ## Tips
 
@@ -381,6 +388,7 @@ GitHub Actions example:
 ### "Function not found"
 
 The function name or ID doesn't exist:
+
 ```bash
 invoke function:get my-api  # Check if function exists
 invoke function:list        # List all functions
@@ -389,6 +397,7 @@ invoke function:list        # List all functions
 ### "No active version"
 
 Upload and activate a version:
+
 ```bash
 invoke function:versions:upload my-api ./my-function --switch
 ```
@@ -396,6 +405,7 @@ invoke function:versions:upload my-api ./my-function --switch
 ### "Execution failed"
 
 Check the function logs:
+
 ```bash
 invoke function:logs my-api --limit 10
 ```
@@ -403,6 +413,7 @@ invoke function:logs my-api --limit 10
 ### "Timeout"
 
 Increase timeout or optimize your function:
+
 ```bash
 invoke function:invoke my-api --timeout 60000
 ```

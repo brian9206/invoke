@@ -4,7 +4,12 @@
   "description": "Test function for TLS module implementation",
   "main": "index.js",
   "dependencies": {},
-  "keywords": ["tls", "test", "crypto", "certificates"],
+  "keywords": [
+    "tls",
+    "test",
+    "crypto",
+    "certificates"
+  ],
   "author": "Invoke VM",
   "license": "MIT"
 }

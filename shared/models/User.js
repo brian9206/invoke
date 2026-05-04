@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class User extends Model {}
 
   User.init(
@@ -8,35 +8,35 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
+        autoIncrement: true
       },
       username: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        unique: true,
+        unique: true
       },
       email: {
         type: DataTypes.STRING(255),
         allowNull: false,
-        unique: true,
+        unique: true
       },
       password_hash: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: false
       },
       is_admin: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        defaultValue: false
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       last_login: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -44,17 +44,17 @@ module.exports = (sequelize) => {
       tableName: 'users',
       timestamps: false,
       underscored: true,
-      freezeTableName: true,
+      freezeTableName: true
     }
-  );
+  )
 
-  User.associate = (models) => {
-    User.hasMany(models.ProjectMembership, { foreignKey: 'user_id' });
-    User.hasMany(models.Project, { foreignKey: 'created_by', as: 'ownedProjects' });
-    User.hasMany(models.ApiKey, { foreignKey: 'created_by', as: 'apiKeys' });
-    User.hasMany(models.FunctionVersion, { foreignKey: 'created_by', as: 'deployedVersions' });
-    User.hasMany(models.RefreshToken, { foreignKey: 'user_id' });
-  };
+  User.associate = models => {
+    User.hasMany(models.ProjectMembership, { foreignKey: 'user_id' })
+    User.hasMany(models.Project, { foreignKey: 'created_by', as: 'ownedProjects' })
+    User.hasMany(models.ApiKey, { foreignKey: 'created_by', as: 'apiKeys' })
+    User.hasMany(models.FunctionVersion, { foreignKey: 'created_by', as: 'deployedVersions' })
+    User.hasMany(models.RefreshToken, { foreignKey: 'user_id' })
+  }
 
-  return User;
-};
+  return User
+}

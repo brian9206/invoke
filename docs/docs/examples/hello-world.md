@@ -6,19 +6,21 @@ The simplest Invoke function examples.
 
 ```javascript
 export default function handler(req, res) {
-    res.json({
-        message: 'Hello World!',
-        timestamp: new Date().toISOString()
-    });
+  res.json({
+    message: 'Hello World!',
+    timestamp: new Date().toISOString()
+  })
 }
 ```
 
 **Test:**
+
 ```bash
 curl http://<your invoke-execution URL>/invoke/{functionId}
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Hello World!",
@@ -30,22 +32,24 @@ curl http://<your invoke-execution URL>/invoke/{functionId}
 
 ```javascript
 export default function handler(req, res) {
-    const name = req.query.name || 'World';
-    const greeting = req.query.greeting || 'Hello';
-    
-    res.json({
-        message: `${greeting}, ${name}!`,
-        timestamp: new Date().toISOString()
-    });
+  const name = req.query.name || 'World'
+  const greeting = req.query.greeting || 'Hello'
+
+  res.json({
+    message: `${greeting}, ${name}!`,
+    timestamp: new Date().toISOString()
+  })
 }
 ```
 
 **Test:**
+
 ```bash
 curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice&greeting=Hi"
 ```
 
 **Response:**
+
 ```json
 {
   "message": "Hi, Alice!",
@@ -57,13 +61,13 @@ curl "http://<your invoke-execution URL>/invoke/{functionId}?name=Alice&greeting
 
 ```javascript
 export default async function handler(req, res) {
-    // Simulate async operation
-    await sleep(100);
-    
-    res.json({
-        message: 'Hello from async function!',
-        timestamp: new Date().toISOString()
-    });
+  // Simulate async operation
+  await sleep(100)
+
+  res.json({
+    message: 'Hello from async function!',
+    timestamp: new Date().toISOString()
+  })
 }
 ```
 
@@ -71,42 +75,45 @@ export default async function handler(req, res) {
 
 ```javascript
 export default function handler(req, res) {
-    res.json({
-        message: 'Hello World!',
-        request: {
-            method: req.method,
-            path: req.path,
-            query: req.query,
-            headers: {
-                userAgent: req.get('user-agent'),
-                host: req.get('host')
-            }
-        },
-        timestamp: new Date().toISOString()
-    });
+  res.json({
+    message: 'Hello World!',
+    request: {
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      headers: {
+        userAgent: req.get('user-agent'),
+        host: req.get('host')
+      }
+    },
+    timestamp: new Date().toISOString()
+  })
 }
 ```
 
 ## Different Response Formats
 
 ### JSON
+
 ```javascript
 export default function handler(req, res) {
-    res.json({ message: 'Hello World!' });
+  res.json({ message: 'Hello World!' })
 }
 ```
 
 ### Plain Text
+
 ```javascript
 export default function handler(req, res) {
-    res.send('Hello World!');
+  res.send('Hello World!')
 }
 ```
 
 ### HTML
+
 ```javascript
 export default function handler(req, res) {
-    res.type('html').send(`
+  res.type('html').send(`
         <!DOCTYPE html>
         <html>
         <head><title>Hello</title></head>
@@ -115,7 +122,7 @@ export default function handler(req, res) {
             <p>Timestamp: ${new Date().toISOString()}</p>
         </body>
         </html>
-    `);
+    `)
 }
 ```
 

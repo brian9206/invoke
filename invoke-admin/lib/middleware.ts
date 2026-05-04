@@ -65,14 +65,14 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
       if (!token) {
         return res.status(401).json(createResponse(false, null, 'No token provided', 401))
       }
-      
+
       try {
         const decoded = jwt.verify(token, JWT_SECRET) as any
-        
+
         // Get fresh user data from database
         const { User } = database.models
         const user = await User.findByPk(decoded.sub, {
-          attributes: ['id', 'username', 'email', 'is_admin'],
+          attributes: ['id', 'username', 'email', 'is_admin']
         })
 
         if (!user) {
@@ -83,7 +83,7 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
           id: user.id,
           username: user.username,
           email: user.email,
-          isAdmin: user.is_admin,
+          isAdmin: user.is_admin
         }
 
         // Check admin requirement if specified
@@ -92,11 +92,9 @@ export function withAuth(handler: NextApiHandler, options?: { adminRequired?: bo
         }
 
         return handler(req, res)
-
       } catch (jwtError) {
         return res.status(401).json(createResponse(false, null, 'Invalid token', 401))
       }
-
     } catch (error) {
       console.error('Auth middleware error:', error)
       res.status(500).json(createResponse(false, null, 'Internal server error', 500))
@@ -131,7 +129,9 @@ export function withAuthOrApiKeyAndMethods(allowedMethods: string[], authOptions
 }
 
 // Auth-only middleware for routes with special requirements (like multer)
-export async function authenticate(req: AuthenticatedRequest): Promise<{ success: boolean, user?: any, error?: string }> {
+export async function authenticate(
+  req: AuthenticatedRequest
+): Promise<{ success: boolean; user?: any; error?: string }> {
   try {
     const cookies = parseCookies(req)
     const authHeader = req.headers.authorization
@@ -146,14 +146,17 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
     if (jwtToken) {
       try {
         const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
-        
+
         const { User } = database.models
         const jwtUser = await User.findByPk(decoded.sub, {
-          attributes: ['id', 'username', 'email', 'is_admin'],
+          attributes: ['id', 'username', 'email', 'is_admin']
         })
 
         if (jwtUser) {
-          return { success: true, user: { id: jwtUser.id, username: jwtUser.username, email: jwtUser.email, isAdmin: jwtUser.is_admin } }
+          return {
+            success: true,
+            user: { id: jwtUser.id, username: jwtUser.username, email: jwtUser.email, isAdmin: jwtUser.is_admin }
+          }
         }
       } catch (jwtError) {
         // JWT invalid, will try API key next
@@ -171,18 +174,18 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
 
     if (apiKey) {
       const keyHash = hashApiKey(apiKey)
-      
+
       const { ApiKey, User: UserModel } = database.models
       const apiKeyRecord = await ApiKey.findOne({
         where: { key_hash: keyHash, is_active: true },
-        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }]
       })
 
       if (apiKeyRecord) {
         // Update API key usage
         await apiKeyRecord.update({
           last_used: new Date(),
-          usage_count: database.sequelize.literal('usage_count + 1'),
+          usage_count: database.sequelize.literal('usage_count + 1')
         })
 
         const u = apiKeyRecord.creator
@@ -191,7 +194,6 @@ export async function authenticate(req: AuthenticatedRequest): Promise<{ success
     }
 
     return { success: false, error: 'No valid authentication provided' }
-
   } catch (error) {
     console.error('Auth middleware error:', error)
     return { success: false, error: 'Internal server error' }
@@ -219,11 +221,11 @@ export function withApiKeyAuth(handler: NextApiHandler) {
 
       // Hash the incoming API key and lookup in database
       const keyHash = hashApiKey(apiKey)
-      
+
       const { ApiKey, User: UserModel } = database.models
       const apiKeyRecord = await ApiKey.findOne({
         where: { key_hash: keyHash, is_active: true },
-        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+        include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }]
       })
 
       if (!apiKeyRecord) {
@@ -233,7 +235,7 @@ export function withApiKeyAuth(handler: NextApiHandler) {
       // Update last_used and usage_count
       await apiKeyRecord.update({
         last_used: new Date(),
-        usage_count: database.sequelize.literal('usage_count + 1'),
+        usage_count: database.sequelize.literal('usage_count + 1')
       })
 
       const keyUser = apiKeyRecord.creator
@@ -242,11 +244,10 @@ export function withApiKeyAuth(handler: NextApiHandler) {
         id: keyUser.id,
         username: keyUser.username,
         email: keyUser.email,
-        isAdmin: keyUser.is_admin,
+        isAdmin: keyUser.is_admin
       }
 
       return handler(req, res)
-
     } catch (error) {
       console.error('API key auth middleware error:', error)
       res.status(500).json(createResponse(false, null, 'Internal server error', 500))
@@ -278,10 +279,10 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
       if (jwtToken) {
         try {
           const decoded = jwt.verify(jwtToken, JWT_SECRET) as any
-          
+
           const { User } = database.models
           const jwtUser = await User.findByPk(decoded.sub, {
-            attributes: ['id', 'username', 'email', 'is_admin'],
+            attributes: ['id', 'username', 'email', 'is_admin']
           })
 
           if (jwtUser) {
@@ -289,7 +290,7 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
               id: jwtUser.id,
               username: jwtUser.username,
               email: jwtUser.email,
-              isAdmin: jwtUser.is_admin,
+              isAdmin: jwtUser.is_admin
             }
           }
         } catch (jwtError) {
@@ -309,18 +310,18 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
 
         if (apiKey) {
           const keyHash = hashApiKey(apiKey)
-          
+
           const { ApiKey, User: UserModel } = database.models
           const apiKeyRecord = await ApiKey.findOne({
             where: { key_hash: keyHash, is_active: true },
-            include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }],
+            include: [{ model: UserModel, as: 'creator', attributes: ['id', 'username', 'email', 'is_admin'] }]
           })
 
           if (apiKeyRecord) {
             // Update API key usage
             await apiKeyRecord.update({
               last_used: new Date(),
-              usage_count: database.sequelize.literal('usage_count + 1'),
+              usage_count: database.sequelize.literal('usage_count + 1')
             })
 
             const keyUser = apiKeyRecord.creator
@@ -328,7 +329,7 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
               id: keyUser.id,
               username: keyUser.username,
               email: keyUser.email,
-              isAdmin: keyUser.is_admin,
+              isAdmin: keyUser.is_admin
             }
           }
         }
@@ -347,7 +348,6 @@ export function withAuthOrApiKey(handler: NextApiHandler, options?: { adminRequi
       }
 
       return handler(req, res)
-
     } catch (error) {
       console.error('Auth or API key middleware error:', error)
       res.status(500).json(createResponse(false, null, 'Internal server error', 500))
@@ -363,7 +363,7 @@ export async function getUserProjectRole(userId: number, projectId: string): Pro
     const { ProjectMembership } = database.models
     const membership = await ProjectMembership.findOne({
       where: { user_id: userId, project_id: projectId },
-      attributes: ['role'],
+      attributes: ['role']
     })
     return membership ? membership.role : null
   } catch (error) {
@@ -383,7 +383,7 @@ export async function getUserProjects(userId: number): Promise<any[]> {
       const projects = await Project.findAll({
         where: { is_active: true },
         attributes: ['id', 'name', 'description', 'slug'],
-        order: [['name', 'ASC']],
+        order: [['name', 'ASC']]
       })
       return projects.map((p: any) => ({ ...p.get({ plain: true }), role: 'owner' }))
     }
@@ -391,20 +391,22 @@ export async function getUserProjects(userId: number): Promise<any[]> {
     // Regular users get only their assigned projects
     const memberships = await ProjectMembership.findAll({
       where: { user_id: userId },
-      include: [{
-        model: Project,
-        required: true,
-        where: { is_active: true },
-        attributes: ['id', 'name', 'description', 'slug'],
-      }],
-      attributes: ['role'],
+      include: [
+        {
+          model: Project,
+          required: true,
+          where: { is_active: true },
+          attributes: ['id', 'name', 'description', 'slug']
+        }
+      ],
+      attributes: ['role']
     })
     return memberships.map((m: any) => ({
       id: m.Project.id,
       name: m.Project.name,
       description: m.Project.description,
       slug: m.Project.slug,
-      role: m.role,
+      role: m.role
     }))
   } catch (error) {
     console.error('Error getting user projects:', error)
@@ -427,13 +429,13 @@ export function withProjectAccess(requiredRole: 'developer' | 'owner' = 'develop
       }
 
       const projectId = req.query?.projectId || req.body?.projectId
-      
+
       if (!projectId) {
         return res.status(400).json(createResponse(false, null, 'Project ID is required', 400))
       }
 
       const userRole = await getUserProjectRole(req.user!.id, projectId as string)
-      
+
       if (!userRole) {
         return res.status(403).json(createResponse(false, null, 'Access denied: not a member of this project', 403))
       }

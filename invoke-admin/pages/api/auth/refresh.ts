@@ -9,7 +9,7 @@ import {
   generateRefreshToken,
   getRefreshTokenExpiresAt,
   setAuthCookies,
-  clearAuthCookies,
+  clearAuthCookies
 } from '@/lib/token-utils'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -31,9 +31,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const record = await RefreshToken.findOne({
       where: {
         token_hash: tokenHash,
-        expires_at: { [Op.gt]: new Date() },
+        expires_at: { [Op.gt]: new Date() }
       },
-      include: [{ model: User, attributes: ['id', 'username', 'email', 'is_admin'] }],
+      include: [{ model: User, attributes: ['id', 'username', 'email', 'is_admin'] }]
     })
 
     if (!record || !record.User) {
@@ -59,15 +59,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       user_id: user.id,
       token_hash: newRefreshTokenHash,
       expires_at: getRefreshTokenExpiresAt(),
-      created_at: new Date(),
+      created_at: new Date()
     })
 
     setAuthCookies(req, res, newAccessToken, newRefreshTokenRaw)
 
-    res.status(200).json(createResponse(true, {
-      user: { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin },
-    }, 'Token refreshed'))
-
+    res.status(200).json(
+      createResponse(
+        true,
+        {
+          user: { id: user.id, username: user.username, email: user.email, isAdmin: user.is_admin }
+        },
+        'Token refreshed'
+      )
+    )
   } catch (error) {
     console.error('Refresh token error:', error)
     res.status(500).json(createResponse(false, null, 'Internal server error', 500))

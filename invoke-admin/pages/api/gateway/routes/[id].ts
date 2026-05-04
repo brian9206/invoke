@@ -24,25 +24,25 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Verify route belongs to this project
-  const { ApiGatewayConfig, ApiGatewayRoute, ApiGatewayRouteAuthMethod } = database.models;
+  const { ApiGatewayConfig, ApiGatewayRoute, ApiGatewayRouteAuthMethod } = database.models
   const ownerCheck = await ApiGatewayRoute.findOne({
     where: { id },
     include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }]
-  });
+  })
   if (!ownerCheck) {
     return res.status(404).json(createResponse(false, null, 'Route not found', 404))
   }
 
   if (req.method === 'GET') {
     const { ApiGatewayRouteSettings, ApiGatewayAuthMethod, Function: FunctionModel } = database.models
-    const routeRecord = await ApiGatewayRoute.findOne({
+    const routeRecord = (await ApiGatewayRoute.findOne({
       where: { id },
       include: [
         { model: FunctionModel, attributes: ['name'], required: false },
         { model: ApiGatewayRouteSettings, as: 'settings', required: false },
-        { model: ApiGatewayAuthMethod, as: 'authMethods', through: { attributes: ['sort_order'] }, required: false },
-      ],
-    }) as any
+        { model: ApiGatewayAuthMethod, as: 'authMethods', through: { attributes: ['sort_order'] }, required: false }
+      ]
+    })) as any
 
     if (!routeRecord) {
       return res.status(404).json(createResponse(false, null, 'Route not found', 404))
@@ -56,28 +56,34 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return sortA - sortB || a.name.localeCompare(b.name)
     })
 
-    return res.json(createResponse(true, {
-      id: raw.id,
-      routePath: raw.route_path,
-      functionId: raw.function_id,
-      functionName: raw.Function?.name ?? null,
-      allowedMethods: raw.allowed_methods,
-      sortOrder: raw.sort_order,
-      isActive: raw.is_active,
-      createdAt: raw.created_at,
-      updatedAt: raw.updated_at,
-      corsSettings: {
-        enabled: settings.cors_enabled ?? false,
-        allowedOrigins: settings.cors_allowed_origins ?? [],
-        allowedHeaders: settings.cors_allowed_headers ?? [],
-        exposeHeaders: settings.cors_expose_headers ?? [],
-        maxAge: settings.cors_max_age ?? 86400,
-        allowCredentials: settings.cors_allow_credentials ?? false,
-      },
-      authMethodIds: authMethods.map((m: any) => m.id),
-      authMethodNames: authMethods.map((m: any) => m.name),
-      authLogic: (raw.auth_logic as string) || 'or',
-    }, 'Route retrieved'))
+    return res.json(
+      createResponse(
+        true,
+        {
+          id: raw.id,
+          routePath: raw.route_path,
+          functionId: raw.function_id,
+          functionName: raw.Function?.name ?? null,
+          allowedMethods: raw.allowed_methods,
+          sortOrder: raw.sort_order,
+          isActive: raw.is_active,
+          createdAt: raw.created_at,
+          updatedAt: raw.updated_at,
+          corsSettings: {
+            enabled: settings.cors_enabled ?? false,
+            allowedOrigins: settings.cors_allowed_origins ?? [],
+            allowedHeaders: settings.cors_allowed_headers ?? [],
+            exposeHeaders: settings.cors_expose_headers ?? [],
+            maxAge: settings.cors_max_age ?? 86400,
+            allowCredentials: settings.cors_allow_credentials ?? false
+          },
+          authMethodIds: authMethods.map((m: any) => m.id),
+          authMethodNames: authMethods.map((m: any) => m.name),
+          authLogic: (raw.auth_logic as string) || 'or'
+        },
+        'Route retrieved'
+      )
+    )
   }
 
   if (req.method === 'PUT') {
@@ -89,7 +95,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     await database.sequelize.transaction(async (t: any) => {
       const { ApiGatewayRouteSettings } = database.models
-      if (routePath !== undefined || functionId !== undefined || allowedMethods !== undefined || isActive !== undefined || authLogic !== undefined) {
+      if (
+        routePath !== undefined ||
+        functionId !== undefined ||
+        allowedMethods !== undefined ||
+        isActive !== undefined ||
+        authLogic !== undefined
+      ) {
         const routeUpdates: any = {}
         if (routePath !== undefined) routeUpdates.route_path = routePath
         if (functionId !== undefined) routeUpdates.function_id = functionId || null
@@ -107,7 +119,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
         if (corsSettings.allowedHeaders !== undefined) settingUpdates.cors_allowed_headers = corsSettings.allowedHeaders
         if (corsSettings.exposeHeaders !== undefined) settingUpdates.cors_expose_headers = corsSettings.exposeHeaders
         if (corsSettings.maxAge !== undefined) settingUpdates.cors_max_age = corsSettings.maxAge
-        if (corsSettings.allowCredentials !== undefined) settingUpdates.cors_allow_credentials = corsSettings.allowCredentials
+        if (corsSettings.allowCredentials !== undefined)
+          settingUpdates.cors_allow_credentials = corsSettings.allowCredentials
 
         if (Object.keys(settingUpdates).length > 0) {
           settingUpdates.updated_at = new Date()
@@ -117,13 +130,13 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
       if (authMethodIds !== undefined) {
         // Replace all auth method associations
-        await ApiGatewayRouteAuthMethod.destroy({ where: { route_id: id }, transaction: t });
+        await ApiGatewayRouteAuthMethod.destroy({ where: { route_id: id }, transaction: t })
         const methodIds: string[] = Array.isArray(authMethodIds) ? authMethodIds : []
         for (let i = 0; i < methodIds.length; i++) {
           await ApiGatewayRouteAuthMethod.upsert(
             { route_id: id, auth_method_id: methodIds[i], sort_order: i },
             { transaction: t }
-          );
+          )
         }
       }
     })
@@ -136,7 +149,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    await ApiGatewayRoute.destroy({ where: { id } });
+    await ApiGatewayRoute.destroy({ where: { id } })
     return res.json(createResponse(true, null, 'Route deleted'))
   }
 }

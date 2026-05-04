@@ -14,11 +14,7 @@
     "postpublish": "bun scripts/postpublish.ts",
     "postinstall": "node postinstall.js"
   },
-  "files": [
-    "postinstall.js",
-    "dist/postinstall.js",
-    "dist/invoke"
-  ],
+  "files": ["postinstall.js", "dist/postinstall.js", "dist/invoke"],
   "dependencies": {
     "adm-zip": "^0.5.10",
     "archiver": "^6.0.1",
@@ -46,14 +42,7 @@
     "@types/zxcvbn": "^4.4.4",
     "typescript": "^5.9.3"
   },
-  "keywords": [
-    "invoke",
-    "cli",
-    "admin",
-    "management",
-    "serverless",
-    "functions"
-  ],
+  "keywords": ["invoke", "cli", "admin", "management", "serverless", "functions"],
   "author": "Brian Choi",
   "license": "MIT",
   "repository": {

@@ -35,7 +35,7 @@ export function FieldSidebar({
   kqlQuery,
   selectedColumns,
   onClickFilter,
-  onToggleColumn,
+  onToggleColumn
 }: FieldSidebarProps) {
   const [fields, setFields] = useState<FieldStat[]>([])
   const [loading, setLoading] = useState(false)
@@ -64,7 +64,9 @@ export function FieldSidebar({
     }
 
     fetchFields()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [open, projectId, kqlQuery])
 
   const toggleField = (name: string) => {
@@ -78,44 +80,45 @@ export function FieldSidebar({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-72 p-0 flex flex-col">
-        <SheetHeader className="px-4 py-3 border-b border-border flex-shrink-0">
-          <SheetTitle className="text-sm">Fields</SheetTitle>
+      <SheetContent side='right' className='w-72 p-0 flex flex-col'>
+        <SheetHeader className='px-4 py-3 border-b border-border flex-shrink-0'>
+          <SheetTitle className='text-sm'>Fields</SheetTitle>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className='flex-1 overflow-y-auto'>
           {loading ? (
-            <div className="p-4 space-y-4">
+            <div className='p-4 space-y-4'>
               {[...Array(4)].map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-4/5" />
-                  <Skeleton className="h-3 w-3/5" />
+                <div key={i} className='space-y-2'>
+                  <Skeleton className='h-4 w-32' />
+                  <Skeleton className='h-3 w-full' />
+                  <Skeleton className='h-3 w-4/5' />
+                  <Skeleton className='h-3 w-3/5' />
                 </div>
               ))}
             </div>
           ) : fields.length === 0 ? (
-            <p className="p-4 text-xs text-muted-foreground text-center mt-4">
-              No field data available
-            </p>
+            <p className='p-4 text-xs text-muted-foreground text-center mt-4'>No field data available</p>
           ) : (
-            <div className="divide-y divide-border">
+            <div className='divide-y divide-border'>
               {fields.map(field => (
                 <Collapsible
                   key={field.name}
                   open={expandedFields.has(field.name)}
                   onOpenChange={() => toggleField(field.name)}
                 >
-                  <CollapsibleTrigger className="flex items-center justify-between w-full px-4 py-2.5 hover:bg-muted/50 transition-colors text-left">
-                    <span className="text-xs font-mono font-medium text-foreground truncate flex-1 min-w-0 mr-1">
+                  <CollapsibleTrigger className='flex items-center justify-between w-full px-4 py-2.5 hover:bg-muted/50 transition-colors text-left'>
+                    <span className='text-xs font-mono font-medium text-foreground truncate flex-1 min-w-0 mr-1'>
                       {field.name}
                     </span>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className='flex items-center gap-1 flex-shrink-0'>
                       <button
-                        type="button"
+                        type='button'
                         title={selectedColumns.includes(field.name) ? 'Remove column' : 'Add as column'}
-                        onClick={e => { e.stopPropagation(); onToggleColumn(field.name) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          onToggleColumn(field.name)
+                        }}
                         className={cn(
                           'p-0.5 rounded transition-colors',
                           selectedColumns.includes(field.name)
@@ -123,45 +126,41 @@ export function FieldSidebar({
                             : 'text-muted-foreground hover:text-foreground'
                         )}
                       >
-                        <Columns3 className="w-3 h-3" />
+                        <Columns3 className='w-3 h-3' />
                       </button>
                       {expandedFields.has(field.name) ? (
-                        <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        <ChevronDown className='w-3 h-3 text-muted-foreground' />
                       ) : (
-                        <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                        <ChevronRight className='w-3 h-3 text-muted-foreground' />
                       )}
                     </div>
                   </CollapsibleTrigger>
 
                   <CollapsibleContent>
                     {field.topValues.length === 0 ? (
-                      <p className="px-4 pb-2 text-xs text-muted-foreground">No values found</p>
+                      <p className='px-4 pb-2 text-xs text-muted-foreground'>No values found</p>
                     ) : (
-                      <div className="px-4 pb-3 space-y-1.5">
+                      <div className='px-4 pb-3 space-y-1.5'>
                         {field.topValues.map(tv => (
-                          <div key={tv.value} className="group flex items-center gap-2">
+                          <div key={tv.value} className='group flex items-center gap-2'>
                             <button
-                              type="button"
+                              type='button'
                               onClick={() => onClickFilter(field.name, tv.value)}
-                              className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-primary transition-colors"
+                              className='flex items-center gap-2 flex-1 min-w-0 text-left hover:text-primary transition-colors'
                             >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between gap-1 mb-0.5">
-                                  <span className="text-xs font-mono truncate text-foreground">
-                                    {tv.value}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                                    {tv.count}
-                                  </span>
+                              <div className='flex-1 min-w-0'>
+                                <div className='flex items-center justify-between gap-1 mb-0.5'>
+                                  <span className='text-xs font-mono truncate text-foreground'>{tv.value}</span>
+                                  <span className='text-[10px] text-muted-foreground flex-shrink-0'>{tv.count}</span>
                                 </div>
-                                <div className="h-1 rounded-full bg-muted overflow-hidden">
+                                <div className='h-1 rounded-full bg-muted overflow-hidden'>
                                   <div
-                                    className="h-full rounded-full bg-primary/60 transition-all"
+                                    className='h-full rounded-full bg-primary/60 transition-all'
                                     style={{ width: `${Math.max(2, tv.percentage)}%` }}
                                   />
                                 </div>
                               </div>
-                              <Plus className="w-3 h-3 text-muted-foreground group-hover:text-primary opacity-0 group-hover:opacity-100 transition-all flex-shrink-0" />
+                              <Plus className='w-3 h-3 text-muted-foreground group-hover:text-primary opacity-0 group-hover:opacity-100 transition-all flex-shrink-0' />
                             </button>
                           </div>
                         ))}

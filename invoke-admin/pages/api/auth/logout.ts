@@ -21,7 +21,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     clearAuthCookies(req, res)
 
     res.status(200).json(createResponse(true, null, 'Logged out'))
-
   } catch (error) {
     console.error('Logout error:', error)
     clearAuthCookies(req, res)

@@ -33,7 +33,7 @@ export function getClientIp(req: IncomingMessage): string {
       // Numeric hop count — trust that many proxies
       trust = (_addr: string, i: number) => i < n
     } else {
-      trust = proxyAddr.compile(val.split(',').map((s) => s.trim()))
+      trust = proxyAddr.compile(val.split(',').map(s => s.trim()))
     }
   }
 
@@ -67,10 +67,7 @@ export async function recordFailedLogin(username: string, ip: string): Promise<v
     const windowExpired = now.getTime() - new Date(record.last_attempt_at).getTime() > ATTEMPT_WINDOW_MS
 
     if (windowExpired) {
-      await record.update(
-        { attempts: 1, last_attempt_at: now, locked_until: null },
-        { transaction: t }
-      )
+      await record.update({ attempts: 1, last_attempt_at: now, locked_until: null }, { transaction: t })
       return
     }
 
@@ -159,6 +156,6 @@ export function getLockoutConfig() {
   return {
     maxAttempts: MAX_ATTEMPTS,
     lockoutDurationMinutes: LOCKOUT_DURATION_MS / 60000,
-    attemptWindowMinutes: ATTEMPT_WINDOW_MS / 60000,
+    attemptWindowMinutes: ATTEMPT_WINDOW_MS / 60000
   }
 }

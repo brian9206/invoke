@@ -1,58 +1,58 @@
-import dns from 'dns/promises';
-import path from 'path';
-import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool';
-import { type NetworkRule } from './sandbox-orchestrator';
-import { fetchNetworkPolicies } from './function-providers';
-import { executeSandbox } from './sandbox-execution-context';
-import { getExecutionSettings } from './execution-settings';
-import type { RequestData } from 'invoke-worker/src/protocol';
-import type { FunctionMetadata } from './function-providers';
+import dns from 'dns/promises'
+import path from 'path'
+import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool'
+import { type NetworkRule } from './sandbox-orchestrator'
+import { fetchNetworkPolicies } from './function-providers'
+import { executeSandbox } from './sandbox-execution-context'
+import { getExecutionSettings } from './execution-settings'
+import type { RequestData } from 'invoke-worker/src/protocol'
+import type { FunctionMetadata } from './function-providers'
 
 export interface AppLogEntry {
-  level: string;
-  message: string;
-  functionId: string;
-  projectId: string;
-  traceId?: string;
-  timestamp: number;
-  details?: object;
+  level: string
+  message: string
+  functionId: string
+  projectId: string
+  traceId?: string
+  timestamp: number
+  details?: object
 }
 
 interface ExecutionEngineOptions {
-  kvStoreFactory?: (projectId: string) => any;
-  envVarsProvider?: (functionId: string) => Promise<Record<string, string>>;
-  appLogHandler?: (entry: AppLogEntry) => void;
+  kvStoreFactory?: (projectId: string) => any
+  envVarsProvider?: (functionId: string) => Promise<Record<string, string>>
+  appLogHandler?: (entry: AppLogEntry) => void
 }
 
 interface ExecutionResult {
-  data?: Buffer | unknown;
-  statusCode: number;
-  headers?: Record<string, string | string[]>;
-  error?: string;
-  message?: string;
+  data?: Buffer | unknown
+  statusCode: number
+  headers?: Record<string, string | string[]>
+  error?: string
+  message?: string
 }
 
 interface RequestLike {
-  method: string;
-  url: string;
-  originalUrl?: string;
-  path?: string;
-  protocol?: string;
-  hostname?: string;
-  secure?: boolean;
-  ip?: string;
-  ips?: string[];
-  body?: unknown;
-  query?: Record<string, string>;
-  params?: Record<string, string> & { [0]?: string; [1]?: string };
-  headers?: Record<string, string>;
-  connection?: { remoteAddress?: string };
+  method: string
+  url: string
+  originalUrl?: string
+  path?: string
+  protocol?: string
+  hostname?: string
+  secure?: boolean
+  ip?: string
+  ips?: string[]
+  body?: unknown
+  query?: Record<string, string>
+  params?: Record<string, string> & { [0]?: string; [1]?: string }
+  headers?: Record<string, string>
+  connection?: { remoteAddress?: string }
 }
 
 interface ContextLike {
-  req: RequestLike;
-  traceId?: string;
-  res?: { data?: unknown };
+  req: RequestLike
+  traceId?: string
+  res?: { data?: unknown }
 }
 
 /**
@@ -60,81 +60,80 @@ interface ContextLike {
  * via SandboxOrchestrator and SandboxPool.
  */
 export class ExecutionEngine {
-  private pool = getSandboxPool();
-  private initialized = false;
-  private functionTimeout = 30_000;
+  private pool = getSandboxPool()
+  private initialized = false
+  private functionTimeout = 30_000
 
-  private kvStoreFactory: ((projectId: string) => any) | null;
-  private envVarsProvider: ((functionId: string) => Promise<any>) | null;
-  private appLogHandler: ((entry: AppLogEntry) => void) | null;
+  private kvStoreFactory: ((projectId: string) => any) | null
+  private envVarsProvider: ((functionId: string) => Promise<any>) | null
+  private appLogHandler: ((entry: AppLogEntry) => void) | null
 
   constructor(options: ExecutionEngineOptions = {}) {
-    this.kvStoreFactory = options.kvStoreFactory ?? null;
-    this.envVarsProvider = options.envVarsProvider ?? null;
-    this.appLogHandler = options.appLogHandler ?? null;
+    this.kvStoreFactory = options.kvStoreFactory ?? null
+    this.envVarsProvider = options.envVarsProvider ?? null
+    this.appLogHandler = options.appLogHandler ?? null
   }
 
   async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized) return
 
-    const missing = (
-      ['kvStoreFactory', 'envVarsProvider'] as const
-    ).filter((k) => !this[k]);
+    const missing = (['kvStoreFactory', 'envVarsProvider'] as const).filter(k => !this[k])
 
     if (missing.length) {
       throw new Error(
-        `[ExecutionEngine] Missing required providers: ${missing.join(', ')}. Pass them via the constructor options.`,
-      );
+        `[ExecutionEngine] Missing required providers: ${missing.join(', ')}. Pass them via the constructor options.`
+      )
     }
 
     // Load execution settings from DB
-    const settings = await getExecutionSettings();
-    this.functionTimeout = settings.defaultTimeoutMs;
+    const settings = await getExecutionSettings()
+    this.functionTimeout = settings.defaultTimeoutMs
 
     // Initialize the sandbox pool (pre-spawns containers)
-    await this.pool.initialize();
+    await this.pool.initialize()
 
-    this.initialized = true;
+    this.initialized = true
   }
 
   /** Update default timeout (called when global settings change). */
   updateDefaultTimeout(timeoutMs: number): void {
-    this.functionTimeout = timeoutMs;
+    this.functionTimeout = timeoutMs
   }
 
   async executeFunction(
     indexPath: string,
     context: ContextLike,
     functionId: string,
-    metadata: FunctionMetadata,
+    metadata: FunctionMetadata
   ): Promise<ExecutionResult> {
     if (!this.initialized) {
-      await this.initialize();
+      await this.initialize()
     }
 
-    let projectId: string | undefined;
-    let sandbox: Awaited<ReturnType<typeof this.pool.acquire>> | null = null;
+    let projectId: string | undefined
+    let sandbox: Awaited<ReturnType<typeof this.pool.acquire>> | null = null
 
     try {
-      projectId = metadata.project_id;
-      const projectSlug = metadata.project_slug;
+      projectId = metadata.project_id
+      const projectSlug = metadata.project_slug
 
-      const resolvedProjectId: string = projectId!;
-      const traceId = context.traceId;
+      const resolvedProjectId: string = projectId!
+      const traceId = context.traceId
       const boundConsoleLogger = this.appLogHandler
-        ? (data: { level: string; message: string; timestamp: number, details?: object }) => {
-            this.appLogHandler!({ ...data, functionId, projectId: resolvedProjectId, traceId });
+        ? (data: { level: string; message: string; timestamp: number; details?: object }) => {
+            this.appLogHandler!({ ...data, functionId, projectId: resolvedProjectId, traceId })
           }
-        : undefined;
+        : undefined
 
       // Determine effective timeout and memory for this execution
-      const settings = await getExecutionSettings();
-      const effectiveTimeoutMs = metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
-        ? metadata.custom_timeout_seconds * 1000
-        : settings.defaultTimeoutMs;
+      const settings = await getExecutionSettings()
+      const effectiveTimeoutMs =
+        metadata.custom_timeout_enabled && metadata.custom_timeout_seconds
+          ? metadata.custom_timeout_seconds * 1000
+          : settings.defaultTimeoutMs
 
-      const envVars = await this.envVarsProvider!(functionId);
-      const kvStore = this.kvStoreFactory!(resolvedProjectId);
+      const envVars = await this.envVarsProvider!(functionId)
+      const kvStore = this.kvStoreFactory!(resolvedProjectId)
 
       // Build the RequestData for the protocol
       const request: RequestData = {
@@ -150,17 +149,17 @@ export class ExecutionEngine {
         body: context.req.body ?? {},
         query: context.req.query ?? {},
         params: context.req.params ?? {},
-        headers: context.req.headers ?? {},
-      };
+        headers: context.req.headers ?? {}
+      }
 
       // Determine the function ID used to resolve the path inside the container.
       // The cache stores extracted packages at /tmp/cache/packages/{functionId}[-v{version}]/
       // which is bind-mounted to /functions/ inside the container.
       // indexPath looks like: /tmp/cache/packages/{dirName}/index.js
-      const packageDirName = path.basename(path.dirname(indexPath));
+      const packageDirName = path.basename(path.dirname(indexPath))
 
       // Execute inside the container
-      sandbox = await this.pool.acquire();
+      sandbox = await this.pool.acquire()
       const result = await executeSandbox(sandbox, {
         functionId: packageDirName,
         request,
@@ -168,17 +167,17 @@ export class ExecutionEngine {
         timeoutMs: effectiveTimeoutMs,
         kvStore,
         projectSlug,
-        consoleLogger: boundConsoleLogger,
-      });
+        consoleLogger: boundConsoleLogger
+      })
 
       return {
         data: result.data,
         statusCode: result.statusCode,
         headers: result.headers,
-        error: result.error,
-      };
+        error: result.error
+      }
     } catch (error: any) {
-      console.error('[ExecutionEngine] Execution error:', error);
+      console.error('[ExecutionEngine] Execution error:', error)
 
       if (this.appLogHandler && projectId) {
         this.appLogHandler({
@@ -187,16 +186,16 @@ export class ExecutionEngine {
           functionId,
           projectId,
           traceId: context.traceId,
-          timestamp: Date.now(),
-        });
+          timestamp: Date.now()
+        })
       }
 
-      const errorMessage = error.message || String(error);
+      const errorMessage = error.message || String(error)
 
       return {
         error: errorMessage,
-        statusCode: 500,
-      };
+        statusCode: 500
+      }
     }
     // Note: no release() call needed — the container self-reports 'ready'
     // after the supervisor cleans up the overlay, and the pool handles it.
@@ -204,13 +203,13 @@ export class ExecutionEngine {
 
   getMetrics(): { sandboxPool: SandboxPoolMetrics | null } {
     return {
-      sandboxPool: this.initialized ? this.pool.getMetrics() : null,
-    };
+      sandboxPool: this.initialized ? this.pool.getMetrics() : null
+    }
   }
 
   async shutdown(): Promise<void> {
-    await this.pool.shutdown();
-    this.initialized = false;
+    await this.pool.shutdown()
+    this.initialized = false
   }
 
   /**
@@ -220,11 +219,11 @@ export class ExecutionEngine {
    */
   async applyGlobalNetworkPolicy(): Promise<void> {
     try {
-      const { rules } = await fetchNetworkPolicies();
-      const networkRules = await policyRowsToNetworkRules(rules);
-      await this.pool.setGlobalNetwork(networkRules);
+      const { rules } = await fetchNetworkPolicies()
+      const networkRules = await policyRowsToNetworkRules(rules)
+      await this.pool.setGlobalNetwork(networkRules)
     } catch (err) {
-      console.error('[NetworkPolicy] Failed to apply global network policy:', err);
+      console.error('[NetworkPolicy] Failed to apply global network policy:', err)
     }
   }
 }
@@ -235,20 +234,20 @@ function createRequestObject(
   query: Record<string, string> = {},
   headers: Record<string, string> = {},
   params: Record<string, string> = {},
-  originalReq: RequestLike = {} as RequestLike,
+  originalReq: RequestLike = {} as RequestLike
 ): RequestLike {
-  let pathAfterFunctionId = originalReq.params?.[1] ?? '';
+  let pathAfterFunctionId = originalReq.params?.[1] ?? ''
 
-  let url = pathAfterFunctionId ? `/${pathAfterFunctionId}` : '/';
+  let url = pathAfterFunctionId ? `/${pathAfterFunctionId}` : '/'
 
   if (originalReq.originalUrl) {
-    const queryString = originalReq.originalUrl.split('?')[1];
+    const queryString = originalReq.originalUrl.split('?')[1]
     if (queryString) {
-      url += `?${queryString}`;
+      url += `?${queryString}`
     }
   }
 
-  const protocol = originalReq.protocol ?? 'http';
+  const protocol = originalReq.protocol ?? 'http'
 
   return {
     method,
@@ -258,80 +257,77 @@ function createRequestObject(
     protocol,
     hostname: 'localhost',
     secure: protocol === 'https',
-    ip:
-      originalReq.ip ||
-      originalReq.connection?.remoteAddress ||
-      '127.0.0.1',
+    ip: originalReq.ip || originalReq.connection?.remoteAddress || '127.0.0.1',
     ips: originalReq.ips ?? [],
     body,
     query,
     params,
-    headers,
-  };
+    headers
+  }
 }
 
 interface CreateExecutionContextOptions {
-  method?: string;
-  body?: unknown;
-  query?: Record<string, string>;
-  headers?: Record<string, string>;
-  params?: Record<string, string>;
-  originalReq?: RequestLike;
-  traceId?: string;
+  method?: string
+  body?: unknown
+  query?: Record<string, string>
+  headers?: Record<string, string>
+  params?: Record<string, string>
+  originalReq?: RequestLike
+  traceId?: string
 }
 
 // -----------------------------------------------------------------------
 // Network policy helpers
 // -----------------------------------------------------------------------
 
-const IPV4_CIDR_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/;
-const IPV4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+const IPV4_CIDR_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\/\d{1,2}$/
+const IPV4_RE = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
 
 interface PolicyRow {
-  action: 'allow' | 'deny';
-  target_type: 'ip' | 'cidr' | 'domain';
-  target_value: string;
-  priority: number;
+  action: 'allow' | 'deny'
+  target_type: 'ip' | 'cidr' | 'domain'
+  target_value: string
+  priority: number
 }
 
 async function policyRowsToNetworkRules(rows: PolicyRow[]): Promise<NetworkRule[]> {
-  const sorted = [...rows].sort((a, b) => a.priority - b.priority);
-  const rules: NetworkRule[] = [];
+  const sorted = [...rows].sort((a, b) => a.priority - b.priority)
+  const rules: NetworkRule[] = []
 
   for (const row of sorted) {
-    const action = row.action === 'allow' ? 'RETURN' : 'DROP';
+    const action = row.action === 'allow' ? 'RETURN' : 'DROP'
 
     switch (row.target_type) {
       case 'cidr':
         if (IPV4_CIDR_RE.test(row.target_value)) {
-          rules.push({ cidr: row.target_value, action });
+          rules.push({ cidr: row.target_value, action })
         } else {
-          console.warn(`[NetworkPolicy] Skipping non-IPv4 CIDR target "${row.target_value}"`);
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 CIDR target "${row.target_value}"`)
         }
-        break;
+        break
 
       case 'ip':
         if (IPV4_RE.test(row.target_value)) {
-          rules.push({ cidr: `${row.target_value}/32`, action });
+          rules.push({ cidr: `${row.target_value}/32`, action })
         } else {
-          console.warn(`[NetworkPolicy] Skipping non-IPv4 IP target "${row.target_value}"`);
+          console.warn(`[NetworkPolicy] Skipping non-IPv4 IP target "${row.target_value}"`)
         }
-        break;
+        break
 
       case 'domain':
         try {
-          const addresses = await dns.resolve4(row.target_value);
+          const addresses = await dns.resolve4(row.target_value)
           for (const addr of addresses) {
-            rules.push({ cidr: `${addr}/32`, action });
+            rules.push({ cidr: `${addr}/32`, action })
           }
         } catch {
-          console.warn(`[NetworkPolicy] DNS resolution failed for domain "${row.target_value}", skipping`);
+          console.warn(`[NetworkPolicy] DNS resolution failed for domain "${row.target_value}", skipping`)
         }
-        break;
+        break
     }
   }
 
-  return rules;
+  return rules
 }
 
 export function createExecutionContext({
@@ -341,10 +337,10 @@ export function createExecutionContext({
   headers = {},
   params = {},
   originalReq = {} as RequestLike,
-  traceId,
+  traceId
 }: CreateExecutionContextOptions = {}): ContextLike {
   return {
     req: createRequestObject(method, body, query, headers, params, originalReq),
-    traceId,
-  };
+    traceId
+  }
 }

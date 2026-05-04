@@ -41,10 +41,10 @@ interface MemoryInputProps {
 export function MemoryInput({ value, onChange, placeholder = 'e.g. 512M or 1G', className }: MemoryInputProps) {
   return (
     <Input
-      type="text"
+      type='text'
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={(e) => {
+      onChange={e => onChange(e.target.value)}
+      onBlur={e => {
         const mb = parseMemoryMb(e.target.value)
         if (mb !== null && !isNaN(mb)) {
           onChange(formatMemoryMb(mb))

@@ -5,6 +5,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 ## Features Tested
 
 ### Core Functionality
+
 - ✅ All synchronous convenience methods (`deflateSync`, `inflateSync`, `gzipSync`, `gunzipSync`, etc.)
 - ✅ All asynchronous convenience methods with callback support
 - ✅ All Transform stream classes (`Deflate`, `Inflate`, `Gzip`, `Gunzip`, etc.)
@@ -12,6 +13,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 - ✅ Constants and utility functions
 
 ### Compression Algorithms
+
 - ✅ **Deflate/Inflate** - Standard zlib compression
 - ✅ **Gzip/Gunzip** - Gzip format compression
 - ✅ **Raw Deflate/Inflate** - Raw deflate without headers
@@ -20,6 +22,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 - ✅ **Zstd** - Experimental Zstandard compression (if available)
 
 ### Advanced Features
+
 - ✅ **Chunked Transfer** - Optimized handling of large data (>64KB)
 - ✅ **Stream Backpressure** - Proper flow control in Transform streams
 - ✅ **ZlibBase Methods** - `flush()`, `params()`, `reset()`, `close()`
@@ -28,6 +31,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 - ✅ **Error Handling** - Proper error serialization across VM boundary
 
 ### Data Types Tested
+
 - Small text data (< 1KB)
 - Medium text data (~5KB)
 - Large text data (~100KB)
@@ -35,6 +39,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 - Invalid/corrupted data for error handling
 
 ### Stream Features
+
 - Event handling (`data`, `end`, `error`, `close`)
 - Backpressure and flow control
 - Multiple write operations
@@ -44,6 +49,7 @@ Comprehensive test suite for Node.js v24.x zlib API compatibility in the VM envi
 ## Usage
 
 ### Direct Execution
+
 ```bash
 node index.js
 ```
@@ -55,6 +61,7 @@ Deploy and call via HTTP
 ## Expected Output
 
 The test suite provides detailed output including:
+
 - Individual test results with ✓/✗ indicators
 - Performance metrics (compression ratios, processing times)
 - Memory usage statistics
@@ -64,17 +71,20 @@ The test suite provides detailed output including:
 ## Implementation Details
 
 ### Cross-VM Data Transfer
+
 - Uses ArrayBuffer ↔ Buffer conversion for binary data
 - Implements chunked transfer for large data (>64KB)
 - Preserves Node.js error codes and properties across VM boundary
 
 ### Stream Implementation
+
 - Extends `require('stream').Transform` from polyfill
 - Handle-based stateful object management on host side
 - Event bridging between host streams and VM Transform instances
 - Proper backpressure handling and flow control
 
 ### Error Handling
+
 - Follows `__ZLIB_ERROR__:` serialization pattern
 - Preserves `code`, `errno`, `syscall` properties
 - Maintains Node.js error semantics in VM environment
@@ -82,6 +92,7 @@ The test suite provides detailed output including:
 ## Compatibility
 
 This implementation provides complete Node.js v24.x zlib API compatibility including:
+
 - All 22 compression/decompression methods
 - 11 Transform stream classes
 - Full constants exposure

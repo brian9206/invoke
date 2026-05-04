@@ -53,8 +53,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       query: {
         q: `trace_id:"${trace_id}"`,
         limit: '100',
-        ...(projectId ? { projectId } : {}),
-      },
+        ...(projectId ? { projectId } : {})
+      }
     })
 
     if (!result.success || !result.data) {
@@ -67,18 +67,16 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // Separate logs by type:
     // - request logs have `source` injected into payload by dbInsertLog
     // - app logs have no `source` in payload, but have `level` + `message`
-    const executionLog = logs.find(
-      (l) => l.payload?.source === 'execution',
-    )
+    const executionLog = logs.find(l => l.payload?.source === 'execution')
 
     const appLogs = logs
-      .filter((l) => !l.payload?.source)
+      .filter(l => !l.payload?.source)
       .sort((a, b) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime())
 
-    const consoleLogs: TraceConsoleLog[] = appLogs.map((l) => ({
+    const consoleLogs: TraceConsoleLog[] = appLogs.map(l => ({
       level: String(l.payload?.level ?? 'log'),
       message: String(l.payload?.message ?? ''),
-      timestamp: String(l.payload?.timestamp ?? l.executed_at ?? ''),
+      timestamp: String(l.payload?.timestamp ?? l.executed_at ?? '')
     }))
 
     let execution: TraceExecution | null = null
@@ -98,24 +96,24 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           headers: p.request?.headers ?? {},
           body: {
             size: p.request?.body?.size ?? null,
-            payload: p.request?.body?.payload,
-          },
+            payload: p.request?.body?.payload
+          }
         },
         response: {
           status: p.response?.status ?? 0,
           headers: p.response?.headers ?? {},
           body: {
             size: p.response?.body?.size ?? null,
-            payload: p.response?.body?.payload,
-          },
-        },
+            payload: p.response?.body?.payload
+          }
+        }
       }
     }
 
     const responseData: TraceDetailResponse = {
       trace_id,
       execution,
-      consoleLogs,
+      consoleLogs
     }
 
     res.json(createResponse(true, responseData, 'Trace details retrieved successfully'))

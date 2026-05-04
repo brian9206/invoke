@@ -1,5 +1,4 @@
 import { NextApiResponse } from 'next'
-import { fn, col, literal } from 'sequelize'
 import { withAuthAndMethods, AuthenticatedRequest, getUserProjects } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
@@ -21,33 +20,35 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const fnWhere = projectId && projectId !== 'system' ? { project_id: projectId } : {}
 
     // Function statistics come from the app DB
-    const functionStatsRow: any = await database.models.Function.findOne({
-      attributes: [
-        [fn('COUNT', col('id')), 'total_functions'],
-        [literal(`COUNT(*) FILTER (WHERE is_active = true)`), 'active_functions'],
-        [fn('SUM', col('execution_count')), 'total_executions'],
-      ],
-      where: fnWhere,
-      raw: true,
+    const totalFunctions = await database.models.Function.count({
+      where: fnWhere
+    })
+    const activeFunctions = await database.models.Function.count({
+      where: {
+        ...fnWhere,
+        is_active: true
+      }
+    })
+    const totalExecutions = await database.models.Function.sum('execution_count', {
+      where: fnWhere
     })
 
     // Execution stats come from the logger service
     const logStatsResult = await proxyToLogger<any>('/stats', {
-      query: { projectId },
+      query: { projectId }
     })
     const logStats = logStatsResult.data ?? {}
 
     const stats = {
-      totalFunctions: parseInt(functionStatsRow?.total_functions ?? 0),
-      activeFunctions: parseInt(functionStatsRow?.active_functions ?? 0),
-      totalExecutions: parseInt(functionStatsRow?.total_executions ?? 0),
+      totalFunctions: Number(totalFunctions ?? 0),
+      activeFunctions: Number(activeFunctions ?? 0),
+      totalExecutions: Number(totalExecutions ?? 0),
       recentErrors: parseInt(logStats.recentErrors ?? 0),
       avgResponseTime: logStats.avgResponseTime ?? 0,
-      successRate: logStats.successRate ?? 0,
+      successRate: logStats.successRate ?? 0
     }
 
     res.status(200).json(createResponse(true, stats, 'Statistics retrieved'))
-
   } catch (error) {
     console.error('Stats error:', error)
     res.status(500).json(createResponse(false, null, 'Failed to fetch statistics', 500))

@@ -1,31 +1,31 @@
-import dns from 'dns';
-import ipaddr from 'ipaddr.js';
-import { minimatch } from 'minimatch';
+import dns from 'dns'
+import ipaddr from 'ipaddr.js'
+import { minimatch } from 'minimatch'
 
 interface PolicyRule {
-  action: 'allow' | 'deny';
-  target_type: 'ip' | 'cidr' | 'domain';
-  target_value: string;
-  priority: number;
-  description?: string;
+  action: 'allow' | 'deny'
+  target_type: 'ip' | 'cidr' | 'domain'
+  target_value: string
+  priority: number
+  description?: string
 }
 
 interface PolicyResult {
-  allowed: boolean;
-  reason: string;
+  allowed: boolean
+  reason: string
 }
 
-const dnsPromises = dns.promises;
+const dnsPromises = dns.promises
 
 /**
  * Network Policy Enforcement
  * Controls outbound network connections from VM-executed functions.
  */
 class NetworkPolicy {
-  private rules: PolicyRule[];
+  private rules: PolicyRule[]
 
   constructor(rules: PolicyRule[]) {
-    this.rules = rules || [];
+    this.rules = rules || []
 
     if (this.rules.length === 0) {
       this.rules = [
@@ -34,100 +34,97 @@ class NetworkPolicy {
           target_type: 'cidr',
           target_value: '0.0.0.0/0',
           priority: 1,
-          description: 'Default deny all',
-        },
-      ];
+          description: 'Default deny all'
+        }
+      ]
     }
   }
 
   async resolveDomainToIPs(domain: string): Promise<string[]> {
-    const ips: string[] = [];
+    const ips: string[] = []
 
     try {
-      const ipv4Addresses = await dnsPromises.resolve4(domain);
-      ips.push(...ipv4Addresses);
+      const ipv4Addresses = await dnsPromises.resolve4(domain)
+      ips.push(...ipv4Addresses)
     } catch {
       // IPv4 resolution failed — that's okay
     }
 
-    return ips;
+    return ips
   }
 
   matchesCIDR(ip: string, cidr: string): boolean {
     try {
-      const addr = ipaddr.process(ip);
-      const range = ipaddr.parseCIDR(cidr);
-      return addr.match(range as any);
+      const addr = ipaddr.process(ip)
+      const range = ipaddr.parseCIDR(cidr)
+      return addr.match(range as any)
     } catch {
-      return false;
+      return false
     }
   }
 
   matchesDomain(host: string, pattern: string): boolean {
-    const lowerHost = host.toLowerCase();
-    const lowerPattern = pattern.toLowerCase();
-    return minimatch(lowerHost, lowerPattern);
+    const lowerHost = host.toLowerCase()
+    const lowerPattern = pattern.toLowerCase()
+    return minimatch(lowerHost, lowerPattern)
   }
 
-  async evaluatePolicy(
-    host: string,
-    consoleLog?: (message: string) => void,
-  ): Promise<PolicyResult> {
-    const isIP = ipaddr.isValid(host);
-    let ipsToCheck: string[] = [];
+  async evaluatePolicy(host: string, consoleLog?: (message: string) => void): Promise<PolicyResult> {
+    const isIP = ipaddr.isValid(host)
+    let ipsToCheck: string[] = []
 
     if (isIP) {
-      ipsToCheck = [host];
+      ipsToCheck = [host]
     } else {
       try {
-        ipsToCheck = await this.resolveDomainToIPs(host);
+        ipsToCheck = await this.resolveDomainToIPs(host)
 
         if (ipsToCheck.length === 0) {
-          return { allowed: true, reason: 'DNS resolution pending' };
+          return { allowed: true, reason: 'DNS resolution pending' }
         }
       } catch {
-        return { allowed: true, reason: 'DNS resolution error' };
+        return { allowed: true, reason: 'DNS resolution error' }
       }
     }
 
     for (const rule of this.rules) {
-      let matched = false;
+      let matched = false
 
       if (rule.target_type === 'domain') {
         if (!isIP && this.matchesDomain(host, rule.target_value)) {
-          matched = true;
+          matched = true
         }
       } else if (rule.target_type === 'ip') {
         if (ipsToCheck.includes(rule.target_value)) {
-          matched = true;
+          matched = true
         }
       } else if (rule.target_type === 'cidr') {
         for (const ip of ipsToCheck) {
           if (this.matchesCIDR(ip, rule.target_value)) {
-            matched = true;
-            break;
+            matched = true
+            break
           }
         }
       }
 
       if (matched) {
         if (rule.action === 'deny') {
-          const resolvedIP = ipsToCheck[0];
-          const message = `Network policy blocked connection to ${host}${isIP ? '' : ` (resolved to ${resolvedIP})`}`;
-          if (consoleLog) consoleLog(message);
-          return { allowed: false, reason: 'Connection denied by policy rule' };
+          const resolvedIP = ipsToCheck[0]
+          const message = `Network policy blocked connection to ${host}${isIP ? '' : ` (resolved to ${resolvedIP})`}`
+          if (consoleLog) consoleLog(message)
+          return { allowed: false, reason: 'Connection denied by policy rule' }
         } else {
-          return { allowed: true, reason: 'Connection allowed by policy rule' };
+          return { allowed: true, reason: 'Connection allowed by policy rule' }
         }
       }
     }
 
     // Default deny
-    const resolvedIP = ipsToCheck[0];
-    const message = `Network policy blocked connection to ${host}${isIP ? '' : ` (resolved to ${resolvedIP})`}`;
-    if (consoleLog) consoleLog(message);
-    return { allowed: false, reason: 'No matching policy rule - default deny' };
+    const resolvedIP = ipsToCheck[0]
+    const message = `Network policy blocked connection to ${host}${isIP ? '' : ` (resolved to ${resolvedIP})`}`
+    if (consoleLog) consoleLog(message)
+    return { allowed: false, reason: 'No matching policy rule - default deny' }
   }
 }
 
-export default NetworkPolicy;
+export default NetworkPolicy

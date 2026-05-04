@@ -26,7 +26,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.json(createResponse(true, [], 'No namespaces found'))
     }
 
-    const namespaces = await RealtimeNamespace.findAll({
+    const namespaces = (await RealtimeNamespace.findAll({
       where: { gateway_config_id: cfg.id },
       include: [
         { model: RealtimeEventHandler, as: 'eventHandlers', required: false },
@@ -34,11 +34,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
           model: ApiGatewayAuthMethod,
           as: 'authMethods',
           through: { attributes: ['sort_order'] },
-          required: false,
-        },
+          required: false
+        }
       ],
-      order: [['created_at', 'ASC']],
-    }) as any[]
+      order: [['created_at', 'ASC']]
+    })) as any[]
 
     const result = namespaces.map((ns: any) => {
       const raw = ns.toJSON()
@@ -57,10 +57,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
         eventHandlers: (raw.eventHandlers || []).map((eh: any) => ({
           id: eh.id,
           eventName: eh.event_name,
-          functionId: eh.function_id,
+          functionId: eh.function_id
         })),
         authMethodIds: authMethods.map((m: any) => m.id),
-        authMethodNames: authMethods.map((m: any) => m.name),
+        authMethodNames: authMethods.map((m: any) => m.name)
       }
     })
 
@@ -82,27 +82,33 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     const [cfg] = await ApiGatewayConfig.findOrCreate({
       where: { project_id: projectId },
-      defaults: { enabled: false },
+      defaults: { enabled: false }
     })
 
     const { RealtimeNamespaceAuthMethod } = database.models
 
     const ns = await database.sequelize.transaction(async (t: any) => {
-      const newNs = await RealtimeNamespace.create({
-        gateway_config_id: cfg.id,
-        namespace_path: normalizedPath,
-        is_active: isActive !== undefined ? isActive : true,
-        auth_logic: authLogic === 'and' ? 'and' : 'or',
-      }, { transaction: t })
+      const newNs = await RealtimeNamespace.create(
+        {
+          gateway_config_id: cfg.id,
+          namespace_path: normalizedPath,
+          is_active: isActive !== undefined ? isActive : true,
+          auth_logic: authLogic === 'and' ? 'and' : 'or'
+        },
+        { transaction: t }
+      )
 
       const handlers: any[] = Array.isArray(eventHandlers) ? eventHandlers : []
       for (const eh of handlers) {
         if (!eh.eventName || typeof eh.eventName !== 'string') continue
-        await RealtimeEventHandler.create({
-          realtime_namespace_id: newNs.id,
-          event_name: eh.eventName.trim(),
-          function_id: eh.functionId || null,
-        }, { transaction: t })
+        await RealtimeEventHandler.create(
+          {
+            realtime_namespace_id: newNs.id,
+            event_name: eh.eventName.trim(),
+            function_id: eh.functionId || null
+          },
+          { transaction: t }
+        )
       }
 
       const methodIds: string[] = Array.isArray(authMethodIds) ? authMethodIds : []

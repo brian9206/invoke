@@ -32,12 +32,24 @@
   animation: fadeInUp 0.6s ease-out both;
 }
 
-.feature:nth-child(1) { animation-delay: 0.1s; }
-.feature:nth-child(2) { animation-delay: 0.2s; }
-.feature:nth-child(3) { animation-delay: 0.3s; }
-.feature:nth-child(4) { animation-delay: 0.4s; }
-.feature:nth-child(5) { animation-delay: 0.5s; }
-.feature:nth-child(6) { animation-delay: 0.6s; }
+.feature:nth-child(1) {
+  animation-delay: 0.1s;
+}
+.feature:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.feature:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.feature:nth-child(4) {
+  animation-delay: 0.4s;
+}
+.feature:nth-child(5) {
+  animation-delay: 0.5s;
+}
+.feature:nth-child(6) {
+  animation-delay: 0.6s;
+}
 
 @keyframes fadeInUp {
   from {
@@ -79,7 +91,9 @@
 
 .featureCard:hover {
   transform: translateY(-8px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
   border-color: rgba(14, 165, 233, 0.2);
 }
 
@@ -91,7 +105,9 @@
 [data-theme='dark'] .featureCard:hover {
   background: #1e293b;
   border-color: rgba(56, 189, 248, 0.3);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.3),
+    0 8px 10px -6px rgba(0, 0, 0, 0.3);
 }
 
 /* Feature Icon */
@@ -148,12 +164,24 @@
 }
 
 /* Gradient variants */
-.from-blue-500 { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
-.from-cyan-500 { background: linear-gradient(135deg, #06b6d4, #14b8a6); }
-.from-teal-500 { background: linear-gradient(135deg, #14b8a6, #3b82f6); }
-.from-purple-500 { background: linear-gradient(135deg, #a855f7, #3b82f6); }
-.from-pink-500 { background: linear-gradient(135deg, #ec4899, #a855f7); }
-.from-orange-500 { background: linear-gradient(135deg, #f97316, #ec4899); }
+.from-blue-500 {
+  background: linear-gradient(135deg, #3b82f6, #06b6d4);
+}
+.from-cyan-500 {
+  background: linear-gradient(135deg, #06b6d4, #14b8a6);
+}
+.from-teal-500 {
+  background: linear-gradient(135deg, #14b8a6, #3b82f6);
+}
+.from-purple-500 {
+  background: linear-gradient(135deg, #a855f7, #3b82f6);
+}
+.from-pink-500 {
+  background: linear-gradient(135deg, #ec4899, #a855f7);
+}
+.from-orange-500 {
+  background: linear-gradient(135deg, #f97316, #ec4899);
+}
 
 /* Responsive */
 @media screen and (max-width: 996px) {

@@ -22,8 +22,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     }
 
     // Verify function exists and requires API key
-    const { Function: FunctionModel } = database.models;
-    const fn = await FunctionModel.findByPk(id, { attributes: ['id', 'requires_api_key'] });
+    const { Function: FunctionModel } = database.models
+    const fn = await FunctionModel.findByPk(id, { attributes: ['id', 'requires_api_key'] })
 
     if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -40,13 +40,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const [, updatedRows] = await FunctionModel.update(
       { api_key: newApiKey, updated_at: new Date() },
       { where: { id }, returning: true }
-    );
+    )
 
-    return res.status(200).json(createResponse(true, {
-      id: updatedRows[0].id,
-      api_key: updatedRows[0].api_key
-    }, 'API key regenerated successfully', 200))
-
+    return res.status(200).json(
+      createResponse(
+        true,
+        {
+          id: updatedRows[0].id,
+          api_key: updatedRows[0].api_key
+        },
+        'API key regenerated successfully',
+        200
+      )
+    )
   } catch (error) {
     console.error('Regenerate API key error:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))

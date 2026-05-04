@@ -5,7 +5,7 @@ export interface FeatureFlags {
 }
 
 const defaultFlags: FeatureFlags = {
-  gatewayEnabled: false,
+  gatewayEnabled: false
 }
 
 interface FeatureFlagsContextValue {
@@ -15,26 +15,21 @@ interface FeatureFlagsContextValue {
 
 const FeatureFlagsContext = createContext<FeatureFlagsContextValue>({
   flags: defaultFlags,
-  setFlags: () => {},
+  setFlags: () => {}
 })
 
 export function FeatureFlagsProvider({
   flags: initialFlags,
-  children,
+  children
 }: {
   flags: FeatureFlags
   children: React.ReactNode
 }) {
   const [flags, setFlagsState] = useState<FeatureFlags>(initialFlags)
 
-  const setFlags = (partial: Partial<FeatureFlags>) =>
-    setFlagsState(prev => ({ ...prev, ...partial }))
+  const setFlags = (partial: Partial<FeatureFlags>) => setFlagsState(prev => ({ ...prev, ...partial }))
 
-  return (
-    <FeatureFlagsContext.Provider value={{ flags, setFlags }}>
-      {children}
-    </FeatureFlagsContext.Provider>
-  )
+  return <FeatureFlagsContext.Provider value={{ flags, setFlags }}>{children}</FeatureFlagsContext.Provider>
 }
 
 export function useFeatureFlags(): FeatureFlags {

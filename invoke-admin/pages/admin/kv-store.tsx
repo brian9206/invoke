@@ -6,19 +6,7 @@ import Modal from '@/components/Modal'
 import { useAuth } from '@/contexts/AuthContext'
 import { useProject } from '@/contexts/ProjectContext'
 import { authenticatedFetch } from '@/lib/frontend-utils'
-import {
-  Database,
-  Plus,
-  Trash2,
-  Edit,
-  Save,
-  X,
-  Search,
-  Download,
-  Upload,
-  AlertCircle,
-  Loader
-} from 'lucide-react'
+import { Database, Plus, Trash2, Edit, Save, X, Search, Download, Upload, AlertCircle, Loader } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,14 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface KVItem {
   key: string
@@ -94,7 +75,7 @@ export default function KVStore() {
       setLoading(true)
       const params = new URLSearchParams({
         page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
+        limit: pagination.limit.toString()
       })
       if (searchQuery) {
         params.append('search', searchQuery)
@@ -145,7 +126,7 @@ export default function KVStore() {
 
       const response = await authenticatedFetch(`/api/projects/${activeProject!.id}/kv`, {
         method: 'POST',
-        body: JSON.stringify({ key: formData.key, value: parsedValue }),
+        body: JSON.stringify({ key: formData.key, value: parsedValue })
       })
       const data = await response.json()
 
@@ -184,7 +165,7 @@ export default function KVStore() {
         } catch (error) {
           console.error('Error deleting item:', error)
         }
-      },
+      }
     })
   }
 
@@ -192,7 +173,7 @@ export default function KVStore() {
     setEditingKey(item.key)
     setFormData({
       key: item.key,
-      value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value, null, 2),
+      value: typeof item.value === 'string' ? item.value : JSON.stringify(item.value, null, 2)
     })
     setShowAddForm(true)
   }
@@ -230,7 +211,7 @@ export default function KVStore() {
 
       const response = await authenticatedFetch(`/api/projects/${activeProject!.id}/kv-import`, {
         method: 'POST',
-        body: JSON.stringify({ data, strategy: importStrategy }),
+        body: JSON.stringify({ data, strategy: importStrategy })
       })
       const result = await response.json()
 
@@ -238,7 +219,7 @@ export default function KVStore() {
         setDialogState({
           type: 'alert',
           title: 'Success',
-          message: `Import successful! ${result.data.imported} new, ${result.data.updated} updated`,
+          message: `Import successful! ${result.data.imported} new, ${result.data.updated} updated`
         })
         await fetchKVStore()
         setShowImportDialog(false)
@@ -269,13 +250,14 @@ export default function KVStore() {
   if (!activeProject || activeProject.id === 'system') {
     return (
       <ProtectedRoute>
-        <Layout title="KV Store">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <Database className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h2 className="text-xl font-semibold text-foreground mb-2">Please Select a Project</h2>
-              <p className="text-muted-foreground">
-                KV Store is not available for the system project. Please select a regular project to manage key-value storage.
+        <Layout title='KV Store'>
+          <div className='flex items-center justify-center min-h-[400px]'>
+            <div className='text-center'>
+              <Database className='w-16 h-16 text-muted-foreground mx-auto mb-4' />
+              <h2 className='text-xl font-semibold text-foreground mb-2'>Please Select a Project</h2>
+              <p className='text-muted-foreground'>
+                KV Store is not available for the system project. Please select a regular project to manage key-value
+                storage.
               </p>
             </div>
           </div>
@@ -287,11 +269,11 @@ export default function KVStore() {
   if (loading) {
     return (
       <ProtectedRoute>
-        <Layout title="KV Store">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader className="w-5 h-5 text-primary animate-spin" />
-              <p className="animate-pulse">Loading KV Store...</p>
+        <Layout title='KV Store'>
+          <div className='flex items-center justify-center min-h-[400px]'>
+            <div className='flex items-center gap-2 text-muted-foreground'>
+              <Loader className='w-5 h-5 text-primary animate-spin' />
+              <p className='animate-pulse'>Loading KV Store...</p>
             </div>
           </div>
         </Layout>
@@ -301,8 +283,8 @@ export default function KVStore() {
 
   return (
     <ProtectedRoute>
-      <Layout title="KV Store">
-        <div className="space-y-6">
+      <Layout title='KV Store'>
+        <div className='space-y-6'>
           <Modal
             isOpen={dialogState.type !== null}
             title={dialogState.title}
@@ -321,17 +303,17 @@ export default function KVStore() {
           />
 
           <PageHeader
-            title="Key-Value Store"
+            title='Key-Value Store'
             subtitle={`Manage persistent key-value storage for ${activeProject.name}`}
-            icon={<Database className="w-8 h-8 text-primary" />}
+            icon={<Database className='w-8 h-8 text-primary' />}
           />
 
           {/* Storage Usage */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-foreground">Storage Usage</span>
-                <span className="text-sm text-muted-foreground">
+            <CardContent className='pt-6'>
+              <div className='flex items-center justify-between mb-2'>
+                <span className='text-sm font-medium text-foreground'>Storage Usage</span>
+                <span className='text-sm text-muted-foreground'>
                   {formatBytes(storageInfo.bytes)} / {formatBytes(storageInfo.limit)}
                 </span>
               </div>
@@ -341,37 +323,39 @@ export default function KVStore() {
                   storageInfo.percentage > 90
                     ? '[&>div]:bg-red-500'
                     : storageInfo.percentage > 75
-                    ? '[&>div]:bg-yellow-500'
-                    : ''
+                      ? '[&>div]:bg-yellow-500'
+                      : ''
                 }
               />
-              <div className="text-xs text-muted-foreground mt-1">
-                {storageInfo.percentage.toFixed(1)}% used
-              </div>
+              <div className='text-xs text-muted-foreground mt-1'>{storageInfo.percentage.toFixed(1)}% used</div>
             </CardContent>
           </Card>
 
           {/* Actions Bar */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex-1 flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <div className='flex items-center justify-between gap-4'>
+            <div className='flex-1 flex gap-2'>
+              <div className='relative flex-1'>
+                <Search className='absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4' />
                 <Input
-                  type="text"
-                  placeholder="Search by key..."
+                  type='text'
+                  placeholder='Search by key...'
                   value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="pl-9"
+                  onChange={e => setSearchInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                  className='pl-9'
                 />
               </div>
-              <Button variant="outline" onClick={handleSearch}>Search</Button>
+              <Button variant='outline' onClick={handleSearch}>
+                Search
+              </Button>
               {searchQuery && (
-                <Button variant="outline" onClick={handleSearchClear}>Clear</Button>
+                <Button variant='outline' onClick={handleSearchClear}>
+                  Clear
+                </Button>
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className='flex gap-2'>
               <Button
                 onClick={() => {
                   setShowAddForm(true)
@@ -380,15 +364,15 @@ export default function KVStore() {
                   setFormError('')
                 }}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className='w-4 h-4 mr-2' />
                 Add Key
               </Button>
-              <Button variant="outline" onClick={handleExport}>
-                <Download className="w-4 h-4 mr-2" />
+              <Button variant='outline' onClick={handleExport}>
+                <Download className='w-4 h-4 mr-2' />
                 Export
               </Button>
-              <Button variant="outline" onClick={() => setShowImportDialog(true)}>
-                <Upload className="w-4 h-4 mr-2" />
+              <Button variant='outline' onClick={() => setShowImportDialog(true)}>
+                <Upload className='w-4 h-4 mr-2' />
                 Import
               </Button>
             </div>
@@ -397,14 +381,12 @@ export default function KVStore() {
           {/* Add/Edit Form */}
           {showAddForm && (
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    {editingKey ? 'Edit Key' : 'Add New Key'}
-                  </h3>
+              <CardContent className='pt-6'>
+                <div className='flex items-center justify-between mb-4'>
+                  <h3 className='text-lg font-semibold text-foreground'>{editingKey ? 'Edit Key' : 'Add New Key'}</h3>
                   <Button
-                    variant="ghost"
-                    size="icon"
+                    variant='ghost'
+                    size='icon'
                     onClick={() => {
                       setShowAddForm(false)
                       setEditingKey(null)
@@ -412,42 +394,42 @@ export default function KVStore() {
                       setFormError('')
                     }}
                   >
-                    <X className="w-4 h-4" />
+                    <X className='w-4 h-4' />
                   </Button>
                 </div>
 
                 {formError && (
-                  <div className="mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg flex items-center gap-2 text-red-400">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <div className='mb-4 p-3 bg-red-900/30 border border-red-800 rounded-lg flex items-center gap-2 text-red-400'>
+                    <AlertCircle className='w-4 h-4 flex-shrink-0' />
                     {formError}
                   </div>
                 )}
 
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
+                <div className='space-y-4'>
+                  <div className='space-y-1.5'>
                     <Label>Key</Label>
                     <Input
                       value={formData.key}
-                      onChange={(e) => setFormData({ ...formData, key: e.target.value })}
+                      onChange={e => setFormData({ ...formData, key: e.target.value })}
                       disabled={editingKey !== null}
-                      placeholder="my-key"
+                      placeholder='my-key'
                     />
                   </div>
 
-                  <div className="space-y-1.5">
+                  <div className='space-y-1.5'>
                     <Label>Value (JSON or string)</Label>
                     <Textarea
                       value={formData.value}
-                      onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                      onChange={e => setFormData({ ...formData, value: e.target.value })}
                       rows={6}
-                      className="font-mono text-sm"
+                      className='font-mono text-sm'
                       placeholder='{"example": "value"} or simple string'
                     />
                   </div>
 
-                  <div className="flex justify-end gap-2">
+                  <div className='flex justify-end gap-2'>
                     <Button
-                      variant="outline"
+                      variant='outline'
                       onClick={() => {
                         setShowAddForm(false)
                         setEditingKey(null)
@@ -458,7 +440,7 @@ export default function KVStore() {
                       Cancel
                     </Button>
                     <Button onClick={handleSaveItem} disabled={saving}>
-                      <Save className="w-4 h-4 mr-2" />
+                      <Save className='w-4 h-4 mr-2' />
                       {saving ? 'Saving...' : 'Save'}
                     </Button>
                   </div>
@@ -471,46 +453,43 @@ export default function KVStore() {
           {showImportDialog && (
             <Modal
               isOpen={showImportDialog}
-              title="Import KV Store"
+              title='Import KV Store'
               onCancel={() => setShowImportDialog(false)}
               onConfirm={() => {
                 const input = document.querySelector('input[data-import-file]') as HTMLInputElement
                 input?.click()
               }}
-              cancelText="Cancel"
-              confirmText="Select File"
+              cancelText='Cancel'
+              confirmText='Select File'
               loading={importing}
             >
-              <div className="space-y-4">
-                <div className="space-y-1.5">
+              <div className='space-y-4'>
+                <div className='space-y-1.5'>
                   <Label>Import Strategy</Label>
-                  <Select
-                    value={importStrategy}
-                    onValueChange={(v) => setImportStrategy(v as 'merge' | 'replace')}
-                  >
+                  <Select value={importStrategy} onValueChange={v => setImportStrategy(v as 'merge' | 'replace')}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="merge">Merge (keep existing keys)</SelectItem>
-                      <SelectItem value="replace">Replace All (delete existing)</SelectItem>
+                      <SelectItem value='merge'>Merge (keep existing keys)</SelectItem>
+                      <SelectItem value='replace'>Replace All (delete existing)</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">
+                  <p className='text-xs text-muted-foreground'>
                     {importStrategy === 'merge'
                       ? 'Existing keys will be preserved unless overwritten by import'
                       : 'All existing keys will be deleted before import'}
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
+                <div className='space-y-1.5'>
                   <Label>Select JSON File</Label>
                   <input
-                    type="file"
-                    accept=".json"
+                    type='file'
+                    accept='.json'
                     onChange={handleImportFile}
                     disabled={importing}
-                    className="w-full px-3 py-2 bg-card border border-border rounded-md text-foreground text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:text-sm file:cursor-pointer hover:file:opacity-90"
+                    className='w-full px-3 py-2 bg-card border border-border rounded-md text-foreground text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:text-sm file:cursor-pointer hover:file:opacity-90'
                     data-import-file
                   />
                 </div>
@@ -519,17 +498,17 @@ export default function KVStore() {
           )}
 
           {/* KV Table */}
-          <Card className="overflow-hidden">
+          <Card className='overflow-hidden'>
             {items.length === 0 ? (
-              <CardContent className="py-12 text-center">
-                <Database className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
+              <CardContent className='py-12 text-center'>
+                <Database className='w-12 h-12 text-muted-foreground mx-auto mb-3' />
+                <p className='text-muted-foreground'>
                   {searchQuery ? 'No keys match your search' : 'No keys in this project'}
                 </p>
                 {!searchQuery && (
                   <Button
-                    variant="link"
-                    className="mt-2"
+                    variant='link'
+                    className='mt-2'
                     onClick={() => {
                       setShowAddForm(true)
                       setEditingKey(null)
@@ -548,41 +527,41 @@ export default function KVStore() {
                       <TableHead>Key</TableHead>
                       <TableHead>Value</TableHead>
                       <TableHead>Size</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className='text-right'>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item) => (
+                    {items.map(item => (
                       <TableRow key={item.key}>
                         <TableCell>
-                          <code className="text-sm text-primary font-mono">{item.key}</code>
+                          <code className='text-sm text-primary font-mono'>{item.key}</code>
                         </TableCell>
                         <TableCell>
-                          <div className="text-sm text-muted-foreground max-w-md truncate font-mono">
+                          <div className='text-sm text-muted-foreground max-w-md truncate font-mono'>
                             {formatValue(item.value)}
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell className='text-muted-foreground'>
                           {item.size ? formatBytes(item.size) : '-'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className='text-right'>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant='ghost'
+                            size='icon'
                             onClick={() => handleEditItem(item)}
-                            title="Edit"
-                            className="text-primary hover:text-primary"
+                            title='Edit'
+                            className='text-primary hover:text-primary'
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className='w-4 h-4' />
                           </Button>
                           <Button
-                            variant="ghost"
-                            size="icon"
+                            variant='ghost'
+                            size='icon'
                             onClick={() => handleDeleteItem(item.key)}
-                            title="Delete"
-                            className="text-red-400 hover:text-red-300"
+                            title='Delete'
+                            className='text-red-400 hover:text-red-300'
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className='w-4 h-4' />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -591,42 +570,42 @@ export default function KVStore() {
                 </Table>
 
                 {pagination.totalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-border flex items-center justify-between">
-                    <div className="text-sm text-muted-foreground">
-                      Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
+                  <div className='px-6 py-4 border-t border-border flex items-center justify-between'>
+                    <div className='text-sm text-muted-foreground'>
+                      Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
                       {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} keys
                     </div>
-                    <div className="flex gap-2">
+                    <div className='flex gap-2'>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={() => setPagination(prev => ({ ...prev, page: 1 }))}
                         disabled={pagination.page === 1}
                       >
                         First
                       </Button>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                         disabled={pagination.page === 1}
                       >
                         Previous
                       </Button>
-                      <span className="px-3 py-1.5 text-sm text-muted-foreground">
+                      <span className='px-3 py-1.5 text-sm text-muted-foreground'>
                         Page {pagination.page} of {pagination.totalPages}
                       </span>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                         disabled={pagination.page === pagination.totalPages}
                       >
                         Next
                       </Button>
                       <Button
-                        variant="outline"
-                        size="sm"
+                        variant='outline'
+                        size='sm'
                         onClick={() => setPagination(prev => ({ ...prev, page: prev.totalPages }))}
                         disabled={pagination.page === pagination.totalPages}
                       >

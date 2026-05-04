@@ -7,57 +7,66 @@ import { v4 as uuidv4 } from 'uuid'
 import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
 import { createResponse } from '@/lib/utils'
+import { ensureS3Initialized, downloadAndExtract, applyPatch } from '@/lib/source-utils'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   const userId = req.user!.id
   const { id: functionId } = req.query
-  const { files, setActive = false } = req.body
+  const { baseVersionId, changedFiles, deletedPaths = [], movedPaths = [], setActive = false } = req.body
 
-  if (!functionId || !files || !Array.isArray(files)) {
-    return res.status(400).json(createResponse(false, null, 'Function ID and files array are required', 400))
+  if (!functionId || !baseVersionId || !Array.isArray(changedFiles)) {
+    return res
+      .status(400)
+      .json(createResponse(false, null, 'Function ID, baseVersionId and changedFiles array are required', 400))
   }
 
   try {
-    // Initialize S3 service
-    if (!s3Service.initialized) {
-      await s3Service.initialize()
-    }
+    await ensureS3Initialized()
 
     // Verify function exists
-    const { Function: FunctionModel, FunctionVersion } = database.models;
-    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] });
+    const { Function: FunctionModel, FunctionVersion } = database.models
+    const fn = await FunctionModel.findByPk(functionId, { attributes: ['id', 'name'] })
 
     if (!fn) {
       return res.status(404).json(createResponse(false, null, 'Function not found', 404))
     }
 
+    // Verify base version exists
+    const baseVersion = (await FunctionVersion.findOne({
+      where: { id: baseVersionId, function_id: functionId }
+    })) as any
+    if (!baseVersion) {
+      return res.status(404).json(createResponse(false, null, 'Base version not found', 404))
+    }
+
     // Get next version number
-    const maxVersion = await (FunctionVersion as any).max('version', { where: { function_id: functionId } });
-    const nextVersion = ((maxVersion as number) || 0) + 1;
+    const maxVersion = await (FunctionVersion as any).max('version', { where: { function_id: functionId } })
+    const nextVersion = ((maxVersion as number) || 0) + 1
     const newVersionId = uuidv4()
 
     // Get temp directory from environment or use default
     const tempBaseDir = process.env.TEMP_DIR || './.cache'
-    await fs.ensureDir(tempBaseDir)
 
-    // Create temporary directory for new version files
-    const tempDir = path.join(tempBaseDir, `version-${newVersionId}`)
-    await fs.ensureDir(tempDir)
+    // Download and extract base version
+    const { tempFilePath, tempExtractPath } = await downloadAndExtract(
+      baseVersion.toJSON(),
+      String(functionId),
+      tempBaseDir
+    )
+
+    // Temp dir for new version (reuse extracted dir after patching)
+    const tempDir = tempExtractPath
 
     try {
-      // Write all files to temporary directory
-      await writeFilesToDirectory(files, tempDir)
+      // Apply diff on top of base version
+      await applyPatch(tempDir, movedPaths, deletedPaths, changedFiles)
+
+      // Clean up the download archive (extracted dir stays for repackaging)
+      await fs.remove(tempFilePath)
 
       // Create tar.gz archive
       const tgzPath = path.join(tempBaseDir, `${newVersionId}.tgz`)
-      await tar.create(
-        {
-          gzip: true,
-          file: tgzPath,
-          cwd: tempDir
-        },
-        ['.']
-      )
+      await tar.create({ gzip: true, file: tgzPath, cwd: tempDir }, ['.'])
 
       // Get file stats and calculate hash
       const stats = await fs.stat(tgzPath)
@@ -70,7 +79,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       await s3Service.fPutObject(bucketName, minioObjectName, tgzPath, {
         'Content-Type': 'application/gzip',
         'Function-ID': functionId,
-        'Version': nextVersion.toString()
+        Version: nextVersion.toString()
       })
 
       // Create version record
@@ -82,24 +91,29 @@ async function handler(req: AuthenticatedRequest, res: any) {
         package_hash: hash,
         created_by: userId,
         package_path: minioObjectName
-      });
+      })
 
       // If setActive is true, update the function's active version
       if (setActive) {
-        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } });
+        await FunctionModel.update({ active_version_id: newVersionId }, { where: { id: functionId } })
       }
 
       // Clean up temporary files
       await fs.remove(tempDir)
       await fs.remove(tgzPath)
 
-      return res.status(201).json(createResponse(true, {
-        versionId: newVersionId,
-        version: nextVersion,
-        size: stats.size,
-        isActive: setActive
-      }, `Version ${nextVersion} created${setActive ? ' and activated' : ''} successfully`))
-
+      return res.status(201).json(
+        createResponse(
+          true,
+          {
+            versionId: newVersionId,
+            version: nextVersion,
+            size: stats.size,
+            isActive: setActive
+          },
+          `Version ${nextVersion} created${setActive ? ' and activated' : ''} successfully`
+        )
+      )
     } catch (error) {
       // Clean up on error
       try {
@@ -110,7 +124,6 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
       throw error
     }
-
   } catch (error) {
     console.error('Error saving source code:', error)
     return res.status(500).json(createResponse(false, null, 'Failed to save source code', 500))
@@ -118,19 +131,3 @@ async function handler(req: AuthenticatedRequest, res: any) {
 }
 
 export default withAuthOrApiKeyAndMethods(['POST'])(handler)
-
-async function writeFilesToDirectory(files: any[], baseDir: string): Promise<void> {
-  for (const file of files) {
-    const filePath = path.join(baseDir, file.path)
-    
-    if (file.type === 'directory') {
-      await fs.ensureDir(filePath)
-      if (file.children && Array.isArray(file.children)) {
-        await writeFilesToDirectory(file.children, baseDir)
-      }
-    } else if (file.type === 'file' && file.content !== undefined) {
-      await fs.ensureDir(path.dirname(filePath))
-      await fs.writeFile(filePath, file.content, 'utf8')
-    }
-  }
-}

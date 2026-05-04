@@ -1,30 +1,30 @@
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode, useState } from 'react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogFooter,
   DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/cn';
+  DialogDescription
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/cn'
 
 export interface ModalProps {
-  isOpen: boolean;
-  title: string | ReactNode;
-  description?: string | ReactNode;
-  children?: ReactNode;
-  onCancel?: () => void;
-  onConfirm?: () => void | Promise<void>;
-  cancelText?: string;
-  confirmText?: string;
-  confirmVariant?: 'default' | 'danger';
-  loading?: boolean;
-  confirmDisabled?: boolean;
-  size?: 'sm' | 'md' | 'lg';
-  hideFooter?: boolean;
-  className?: string;
+  isOpen: boolean
+  title: string | ReactNode
+  description?: string | ReactNode
+  children?: ReactNode
+  onCancel?: () => void
+  onConfirm?: () => void | Promise<void>
+  cancelText?: string
+  confirmText?: string
+  confirmVariant?: 'default' | 'danger'
+  loading?: boolean
+  confirmDisabled?: boolean
+  size?: 'sm' | 'md' | 'lg'
+  hideFooter?: boolean
+  className?: string
 }
 
 export default function Modal({
@@ -41,46 +41,37 @@ export default function Modal({
   confirmDisabled = false,
   size = 'md',
   hideFooter = false,
-  className,
+  className
 }: ModalProps) {
-  const sizeClass =
-    size === 'lg' ? 'sm:max-w-2xl' : size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md';
-  const [isLoading, setIsLoading] = useState(false);
+  const sizeClass = size === 'lg' ? 'sm:max-w-2xl' : size === 'sm' ? 'sm:max-w-sm' : 'sm:max-w-md'
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleConfirm = async () => {
-    if (!onConfirm) return;
-    setIsLoading(true);
+    if (!onConfirm) return
+    setIsLoading(true)
     try {
-      await onConfirm();
+      await onConfirm()
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel?.()}>
+    <Dialog open={isOpen} onOpenChange={open => !open && onCancel?.()}>
       <DialogContent className={cn(sizeClass, className)}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           {description && (
             <DialogDescription asChild={typeof description !== 'string'}>
-              {typeof description === 'string' ? (
-                description
-              ) : (
-                <div>{description}</div>
-              )}
+              {typeof description === 'string' ? description : <div>{description}</div>}
             </DialogDescription>
           )}
         </DialogHeader>
         {children}
         {!hideFooter && (onCancel || onConfirm) && (
-          <DialogFooter className="gap-2">
+          <DialogFooter className='gap-2'>
             {onCancel && (
-              <Button
-                variant="outline"
-                onClick={onCancel}
-                disabled={loading || isLoading}
-              >
+              <Button variant='outline' onClick={onCancel} disabled={loading || isLoading}>
                 {cancelText}
               </Button>
             )}
@@ -97,6 +88,5 @@ export default function Modal({
         )}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
-

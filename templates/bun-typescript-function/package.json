@@ -1,0 +1,17 @@
+{
+  "name": "hello-world",
+  "version": "1.0.0",
+  "description": "My first Invoke serverless function",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "scripts": {
+    "start": "invoke run",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "invoke-types": "^1.0.0",
+    "typescript": "^6.0.3"
+  }
+}

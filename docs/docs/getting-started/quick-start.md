@@ -49,25 +49,25 @@ hello-function/
 The generated `index.js`:
 
 ```javascript
-import crypto from 'crypto';
+import crypto from 'crypto'
 
 export default async function handler(req, res) {
-    const { name = 'World' } = req.query;
+  const { name = 'World' } = req.query
 
-    res.setHeader('x-powered-by', 'Invoke');
+  res.setHeader('x-powered-by', 'Invoke')
 
-    const resp = await fetch('http://httpbin.org/json');
-    const fetchedData = await resp.json();
+  const resp = await fetch('http://httpbin.org/json')
+  const fetchedData = await resp.json()
 
-    res.json({
-        message: `Hello, ${name}!`,
-        name: {
-            base64: Buffer.from(name).toString('base64'),
-            sha256: crypto.createHash('sha256').update(name).digest('hex')
-        },
-        fetchedData,
-        timestamp: Date.now()
-    });
+  res.json({
+    message: `Hello, ${name}!`,
+    name: {
+      base64: Buffer.from(name).toString('base64'),
+      sha256: crypto.createHash('sha256').update(name).digest('hex')
+    },
+    fetchedData,
+    timestamp: Date.now()
+  })
 }
 ```
 
@@ -78,11 +78,13 @@ invoke function:deploy --name hello --project "Default Project"
 ```
 
 The CLI will:
+
 1. Create the function record in your project (if it doesn't exist yet)
 2. Package and upload the code
 3. Automatically activate the function
 
 Example output:
+
 ```
 Function "hello" not found. Creating...
 ✅ Function created with ID: cd23cc1f-936f-445e-b2ba-dd8306b8dc01
@@ -149,6 +151,7 @@ Prefer a UI? The admin panel can scaffold and deploy a Hello World function for 
 ### Step 1: Open the Deploy Page
 
 Navigate to **Deploy** in the sidebar, or go to:
+
 ```
 http://<your invoke-admin URL>/admin/deploy
 ```
@@ -159,18 +162,16 @@ At the top of the form, select the **Create From Template** tab (next to "Upload
 
 ### Step 3: Fill in the Details
 
-- **Function Name** *(required)* — e.g. `hello`
-- **Description** *(optional)* — e.g. `My first function`
-- **Require API key** *(optional)* — check if you want to protect the endpoint
+- **Function Name** _(required)_ — e.g. `hello`
+- **Description** _(optional)_ — e.g. `My first function`
+- **Require API key** _(optional)_ — check if you want to protect the endpoint
 
 ### Step 4: Deploy
 
 Click **Deploy**. Invoke will:
+
 1. Generate a Hello World `index.js` and `package.json`
 2. Package and upload them automatically
 3. Activate the function immediately
 
 You'll be redirected to the function detail page where you can view the endpoint URL, edit the code, and monitor executions.
-
-
-

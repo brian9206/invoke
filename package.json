@@ -12,12 +12,34 @@
     "invoke-gateway",
     "invoke-logger",
     "invoke-scheduler",
-    "invoke-runtime/worker"
+    "invoke-runtime/worker",
+    "invoke-runtime/types"
   ],
   "scripts": {
-    "setup:env": "node scripts/setup-env.js"
+    "setup:env": "node scripts/setup-env.js",
+    "start": "node start.js",
+    "prepare": "husky",
+    "format:all": "prettier --write ."
   },
-  "dependencies": {
-    "plain": "^0.0.0"
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3"
+  },
+  "overrides": {
+    "debug": "^4.3.1"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "none",
+    "bracketSpacing": true,
+    "jsxSingleQuote": true,
+    "arrowParens": "avoid",
+    "printWidth": 120
+  },
+  "lint-staged": {
+    "**/*.{js,ts,jsx,tsx,json,css,md}": "prettier --write --ignore-unknown"
   }
 }

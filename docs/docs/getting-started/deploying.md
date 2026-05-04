@@ -20,7 +20,7 @@ Your function needs at minimum:
 ```javascript
 // index.js
 export default async function handler(req, res) {
-    res.json({ message: 'Hello from Invoke!' });
+  res.json({ message: 'Hello from Invoke!' })
 }
 ```
 
@@ -39,28 +39,31 @@ This creates a `node_modules/` directory that will be included in your package.
 Package your function as a zip file:
 
 **Windows (PowerShell):**
+
 ```powershell
 Compress-Archive -Path index.js,package.json,node_modules -DestinationPath function.zip
 ```
 
 **Linux/Mac:**
+
 ```bash
 zip -r function.zip index.js package.json node_modules
 ```
 
 **Node.js Script:**
+
 ```javascript
-import archiver from 'archiver';
-import fs from 'fs';
+import archiver from 'archiver'
+import fs from 'fs'
 
-const output = fs.createWriteStream('function.zip');
-const archive = archiver('zip', { zlib: { level: 9 } });
+const output = fs.createWriteStream('function.zip')
+const archive = archiver('zip', { zlib: { level: 9 } })
 
-archive.pipe(output);
-archive.file('index.js', { name: 'index.js' });
-archive.file('package.json', { name: 'package.json' });
-archive.directory('node_modules/', 'node_modules');
-archive.finalize();
+archive.pipe(output)
+archive.file('index.js', { name: 'index.js' })
+archive.file('package.json', { name: 'package.json' })
+archive.directory('node_modules/', 'node_modules')
+archive.finalize()
 ```
 
 ## Deploying via Admin Panel
@@ -136,18 +139,22 @@ invoke function:deploy [path] --name <name> --project <project>
 ```
 
 **Arguments:**
+
 - `[path]` — Path to function directory or zip file (default: `.`)
 
 **Required options:**
+
 - `--name <name>` — Function name
 - `--project <id>` — Project ID or name
 
 **Options:**
+
 - `--description <text>` — Function description (used on first creation only)
 - `--requires-api-key` — Require API key for invocation (creation only)
 - `--output <format>` — Output format: `table` or `json`
 
 **Examples:**
+
 ```bash
 # Deploy current directory
 invoke function:deploy --name user-api --project "my-project"
@@ -188,12 +195,14 @@ In the admin panel:
 Set environment variables for your function:
 
 **Admin Panel:**
+
 1. Navigate to function
 2. Click **"Environment Variables"**
 3. Add key-value pairs
 4. Click **"Save"**
 
 **CLI:**
+
 ```bash
 # Set environment variables using the env commands
 invoke function:env:set my-function DATABASE_URL "postgresql://..."
@@ -201,12 +210,13 @@ invoke function:env:set my-function API_SECRET "abc123"
 ```
 
 **Access in function:**
+
 ```javascript
 export default function handler(req, res) {
-    const dbUrl = process.env.DATABASE_URL;
-    const apiSecret = process.env.API_SECRET;
-    
-    res.json({ configured: true });
+  const dbUrl = process.env.DATABASE_URL
+  const apiSecret = process.env.API_SECRET
+
+  res.json({ configured: true })
 }
 ```
 
@@ -233,12 +243,14 @@ Execution timeouts are also configured in the admin panel:
 Control outbound network access for security:
 
 **Admin Panel:**
+
 1. Navigate to project
 2. Click **"Network Policies"**
 3. Configure allowed/blocked domains
 4. Save changes
 
 **Policies:**
+
 - **Whitelist**: Allow only specific domains
 - **Blacklist**: Block specific domains
 - **Unrestricted**: Allow all (development only)
@@ -295,6 +307,7 @@ node index.js function:test my-function --interactive
 ```
 
 **Benefits:**
+
 - No need to construct URLs manually
 - Automatically handles authentication
 - Supports all HTTP methods (GET, POST, PUT, DELETE, PATCH)
@@ -338,28 +351,28 @@ name: Deploy Invoke Function
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '18'
-      
+
       - name: Install dependencies
         run: npm install
         working-directory: ./my-function
-      
+
       - name: Create package
         run: |
           cd my-function
           zip -r ../function.zip index.js package.json node_modules
-      
+
       - name: Deploy to Invoke
         run: |
           npm install -g invoke-cli
@@ -387,6 +400,7 @@ my-function/
 ```
 
 `.gitignore`:
+
 ```
 node_modules/
 function.zip
@@ -400,23 +414,23 @@ Test locally before deploying:
 
 ```javascript
 // test.js
-import handler from './index.js';
+import handler from './index.js'
 
 const mockReq = {
-    method: 'GET',
-    path: '/',
-    query: { name: 'Test' },
-    body: {},
-    headers: {},
-};
+  method: 'GET',
+  path: '/',
+  query: { name: 'Test' },
+  body: {},
+  headers: {}
+}
 
 const mockRes = {
-    json: (data) => console.log('Response:', data),
-    send: (data) => console.log('Response:', data),
-    status: (code) => mockRes,
-};
+  json: data => console.log('Response:', data),
+  send: data => console.log('Response:', data),
+  status: code => mockRes
+}
 
-handler(mockReq, mockRes);
+handler(mockReq, mockRes)
 ```
 
 ### 3. Environment-Specific Configs
@@ -425,10 +439,10 @@ Use environment variables for different environments:
 
 ```javascript
 export default function handler(req, res) {
-    const isProduction = process.env.NODE_ENV === 'production';
-    const apiUrl = process.env.API_URL || 'http://localhost:3000';
-    
-    res.json({ isProduction, apiUrl });
+  const isProduction = process.env.NODE_ENV === 'production'
+  const apiUrl = process.env.API_URL || 'http://localhost:3000'
+
+  res.json({ isProduction, apiUrl })
 }
 ```
 
@@ -443,6 +457,7 @@ export default function handler(req, res) {
 ### Deployment Fails
 
 **Check:**
+
 - Zip file contains `index.js` and `package.json`
 - File names are correct (case-sensitive)
 - Function exports a valid handler
@@ -451,6 +466,7 @@ export default function handler(req, res) {
 ### Function Fails at Runtime
 
 **Check:**
+
 - Execution logs in admin panel
 - Network policy allows required domains
 - Environment variables are set correctly
@@ -459,6 +475,7 @@ export default function handler(req, res) {
 ### Viewing Logs
 
 **Admin Panel:**
+
 1. Navigate to function
 2. Click **"Execution Logs"**
 3. Filter by date/status

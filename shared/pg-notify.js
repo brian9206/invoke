@@ -1,4 +1,4 @@
-const createSubscriber = require('pg-listen');
+const createSubscriber = require('pg-listen')
 
 /**
  * Factory that creates a named PostgreSQL LISTEN/NOTIFY subscriber.
@@ -34,15 +34,14 @@ const createSubscriber = require('pg-listen');
  *         : 'global_network_policies',
  *   });
  */
-function createNotifyListener(channel, {
-  parsePayload = (raw) => raw,
-  getDebounceKey = () => '__default__',
-  debounceMs = 100,
-} = {}) {
-  const label = `[PgNotify:${channel}]`;
-  let subscriber = null;
-  let onNotifyCallback = null;
-  const debounceTimers = new Map();
+function createNotifyListener(
+  channel,
+  { parsePayload = raw => raw, getDebounceKey = () => '__default__', debounceMs = 100 } = {}
+) {
+  const label = `[PgNotify:${channel}]`
+  let subscriber = null
+  let onNotifyCallback = null
+  const debounceTimers = new Map()
 
   function dbConfig() {
     return {
@@ -50,27 +49,27 @@ function createNotifyListener(channel, {
       host: process.env.DB_HOST,
       database: process.env.DB_NAME,
       password: process.env.DB_PASSWORD,
-      port: parseInt(process.env.DB_PORT || '5432'),
-    };
+      port: parseInt(process.env.DB_PORT || '5432')
+    }
   }
 
   function scheduleNotify(payload) {
-    const key = getDebounceKey(payload);
-    if (debounceTimers.has(key)) clearTimeout(debounceTimers.get(key));
+    const key = getDebounceKey(payload)
+    if (debounceTimers.has(key)) clearTimeout(debounceTimers.get(key))
     debounceTimers.set(
       key,
       setTimeout(async () => {
-        debounceTimers.delete(key);
+        debounceTimers.delete(key)
         if (onNotifyCallback) {
-          console.log(`${label} Notifying`);
+          console.log(`${label} Notifying`)
           try {
-            await onNotifyCallback(payload);
+            await onNotifyCallback(payload)
           } catch (err) {
-            console.error(`${label} Callback error:`, err.message);
+            console.error(`${label} Callback error:`, err.message)
           }
         }
-      }, debounceMs),
-    );
+      }, debounceMs)
+    )
   }
 
   return {
@@ -79,46 +78,48 @@ function createNotifyListener(channel, {
      * @param {(payload: any) => Promise<void>} onNotify
      */
     async connect(onNotify) {
-      onNotifyCallback = onNotify;
-      subscriber = createSubscriber(dbConfig());
+      onNotifyCallback = onNotify
+      subscriber = createSubscriber(dbConfig())
 
-      subscriber.events.on('error', (err) => {
-        console.error(`${label} Subscriber error:`, err.message);
-      });
+      subscriber.events.on('error', err => {
+        console.error(`${label} Subscriber error:`, err.message)
+      })
 
-      subscriber.events.on('reconnect', (attempt) => {
-        console.warn(`${label} Reconnecting (attempt ${attempt})...`);
-      });
+      subscriber.events.on('reconnect', attempt => {
+        console.warn(`${label} Reconnecting (attempt ${attempt})...`)
+      })
 
-      subscriber.notifications.on(channel, (rawPayload) => {
+      subscriber.notifications.on(channel, rawPayload => {
         try {
-          const payload = parsePayload(rawPayload);
-          scheduleNotify(payload);
+          const payload = parsePayload(rawPayload)
+          scheduleNotify(payload)
         } catch (err) {
-          console.error(`${label} Failed to parse payload:`, err.message);
+          console.error(`${label} Failed to parse payload:`, err.message)
         }
-      });
+      })
 
-      await subscriber.connect();
-      await subscriber.listenTo(channel);
-      console.log(`${label} Listening`);
+      await subscriber.connect()
+      await subscriber.listenTo(channel)
+      console.log(`${label} Listening`)
     },
 
     /** Stop listening and close the subscriber. */
     async stop() {
-      for (const timer of debounceTimers.values()) clearTimeout(timer);
-      debounceTimers.clear();
+      for (const timer of debounceTimers.values()) clearTimeout(timer)
+      debounceTimers.clear()
       if (subscriber) {
-        try { await subscriber.close(); } catch (_) {}
-        subscriber = null;
+        try {
+          await subscriber.close()
+        } catch (_) {}
+        subscriber = null
       }
     },
 
     /** Returns whether the subscriber is currently connected. */
     isConnected() {
-      return subscriber !== null;
-    },
-  };
+      return subscriber !== null
+    }
+  }
 }
 
-module.exports = { createNotifyListener };
+module.exports = { createNotifyListener }

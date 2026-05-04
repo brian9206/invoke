@@ -24,11 +24,11 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 
   // Verify auth method belongs to this project
-  const { ApiGatewayConfig, ApiGatewayAuthMethod } = database.models;
+  const { ApiGatewayConfig, ApiGatewayAuthMethod } = database.models
   const ownerCheck = await ApiGatewayAuthMethod.findOne({
     where: { id },
     include: [{ model: ApiGatewayConfig, where: { project_id: projectId }, required: true, attributes: [] }]
-  });
+  })
   if (!ownerCheck) {
     return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
   }
@@ -36,18 +36,24 @@ async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
     const method = await ApiGatewayAuthMethod.findByPk(id, {
       attributes: ['id', 'name', 'type', 'config', 'created_at', 'updated_at']
-    });
+    })
     if (!method) {
       return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
     }
-    return res.json(createResponse(true, {
-      id: method.id,
-      name: method.name,
-      type: method.type,
-      config: method.config,
-      createdAt: method.created_at,
-      updatedAt: method.updated_at,
-    }, 'Auth method retrieved'))
+    return res.json(
+      createResponse(
+        true,
+        {
+          id: method.id,
+          name: method.name,
+          type: method.type,
+          config: method.config,
+          createdAt: method.created_at,
+          updatedAt: method.updated_at
+        },
+        'Auth method retrieved'
+      )
+    )
   }
 
   if (req.method === 'PUT') {
@@ -58,7 +64,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     const { name, type, config } = req.body
 
     // Get current values for partial update
-    const cur = await ApiGatewayAuthMethod.findByPk(id, { attributes: ['name', 'type', 'config'] });
+    const cur = await ApiGatewayAuthMethod.findByPk(id, { attributes: ['name', 'type', 'config'] })
     if (!cur) {
       return res.status(404).json(createResponse(false, null, 'Auth method not found', 404))
     }
@@ -71,7 +77,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(400).json(createResponse(false, null, 'name cannot be empty', 400))
     }
     if (!isValidAuthMethodType(newType)) {
-      return res.status(400).json(createResponse(false, null, 'type must be basic_auth, bearer_jwt, api_key, or middleware', 400))
+      return res
+        .status(400)
+        .json(createResponse(false, null, 'type must be basic_auth, bearer_jwt, api_key, or middleware', 400))
     }
     const configError = validateAuthMethodConfig(newType, newConfig)
     if (configError) {
@@ -81,7 +89,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
     await ApiGatewayAuthMethod.update(
       { name: newName, type: newType, config: newConfig, updated_at: new Date() },
       { where: { id } }
-    );
+    )
 
     return res.json(createResponse(true, null, 'Auth method updated'))
   }
@@ -91,7 +99,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    await ApiGatewayAuthMethod.destroy({ where: { id } });
+    await ApiGatewayAuthMethod.destroy({ where: { id } })
     return res.json(createResponse(true, null, 'Auth method deleted'))
   }
 }

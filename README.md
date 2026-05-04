@@ -1,18 +1,17 @@
-﻿
-# <img src="docs/static/img/logo.svg" height="24"/> Invoke
+﻿# <img src="docs/static/img/logo.svg" height="24"/> Invoke
 
 [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://brianchoi.me/invoke/)
 [![MIT License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge) ](LICENSE)
 
-**Open-source, self-hosted serverless platform.**    
+**Open-source, self-hosted serverless platform.**  
 Deploy, manage, and run serverless functions using familiar Express.js route handlers and Socket.IO
-    
+
 ![Invoke Admin Panel - Screenshot](docs/static/img/screenshot.png)
-    
 
 ## ✨ Features
 
 ### Core Capabilities
+
 - **🔧 Serverless Functions** — Deploy, version, and manage functions via the admin panel and CLI.
 - **🚦 API Gateway** — Expose functions as HTTP endpoints with custom domains, route patterns, and per-route auth.
 - **⚡ Socket.IO Support** — Build real-time applications without managing servers.
@@ -25,6 +24,7 @@ Deploy, manage, and run serverless functions using familiar Express.js route han
 - **🛡️ Multi‑tenancy** — Project‑level isolation and fine‑grained access control.
 
 ### Open Source & Community Driven
+
 - **🎁 MIT Licensed** — Free to use, modify, and distribute.
 - **👥 Community Supported** — Active development and community contributions.
 - **🏠 Self-Hosted** — Full control, no vendor lock-in, no recurring SaaS fees.
@@ -36,6 +36,7 @@ Deploy, manage, and run serverless functions using familiar Express.js route han
 ## Quick Start with Docker
 
 ### Prerequisites
+
 - Docker and Docker Compose
 - Git
 
@@ -69,6 +70,7 @@ The database schema is automatically applied on first run. The first admin user 
 ## Development Setup
 
 ### Prerequisites
+
 - Node.js 24+
 - PostgreSQL 15
 - MinIO server
@@ -112,14 +114,16 @@ cd invoke-admin && npm run dev
 The project includes VSCode debug configurations in `.vscode/launch.json`:
 
 ### Available Debug Configurations
+
 - **Debug Invoke Admin (Next.js)**: Launch the admin panel in dev mode with debugger attached (Node.js debug port 9229)
 - **Debug Invoke Execution Service**: Launch the execution service with debugger attached
 - **Attach to Invoke Admin**: Attach to an already-running admin process on port 9229
 - **Attach to Invoke Execution**: Attach to an already-running execution process on port 9230
 - **Debug Both Services**: Launch both services together via `scripts/debug-all.js`
-- **Debug All Services** *(compound)*: Simultaneously launches Admin and Execution debug configurations
+- **Debug All Services** _(compound)_: Simultaneously launches Admin and Execution debug configurations
 
 ### Usage
+
 1. Open the project in VSCode
 2. Go to Run and Debug panel (Ctrl+Shift+D)
 3. Select the desired configuration from the dropdown
@@ -132,6 +136,7 @@ All services are configured via environment variables. A root `.env.example` is 
 ### Docker Environment (Default — root `.env`)
 
 #### Database
+
 ```env
 DB_HOST=postgres
 DB_PORT=5432
@@ -141,6 +146,7 @@ DB_PASSWORD=invoke_password_123
 ```
 
 #### MinIO
+
 ```env
 MINIO_ROOT_USER=invoke-minio
 MINIO_ROOT_PASSWORD=invoke-minio-password-123
@@ -154,6 +160,7 @@ MINIO_BUCKET=invoke-packages
 > `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` are the MinIO server credentials. `MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` are the client access credentials used by the application services.
 
 #### Application
+
 ```env
 JWT_SECRET=your_jwt_secret_change_in_production
 ADMIN_PORT=3000
@@ -162,6 +169,7 @@ EXECUTION_SERVICE_URL=http://execution:3001
 ```
 
 #### Cloudflare Turnstile (CAPTCHA)
+
 ```env
 TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
@@ -170,6 +178,7 @@ TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 > The default keys always pass (test mode). Replace with real keys from https://dash.cloudflare.com/ for production.
 
 #### Execution Service Tuning
+
 ```env
 EXECUTION_TIMEOUT=30000
 RATE_LIMIT=100
@@ -178,6 +187,7 @@ CACHE_TTL_DAYS=7
 ```
 
 #### Scheduler
+
 ```env
 SCHEDULER_INTERVAL=60000
 TZ=Asia/Hong_Kong
@@ -196,6 +206,7 @@ For local development, use `DB_HOST=localhost` and `MINIO_ENDPOINT=localhost` in
 5. Open Pull Request
 
 ### Development Workflow
+
 1. Use Docker Compose for consistent development environment
 2. Follow TypeScript/JavaScript best practices
 3. Add tests for new features
@@ -207,6 +218,7 @@ For local development, use `DB_HOST=localhost` and `MINIO_ENDPOINT=localhost` in
 The platform consists of several microservices with containerized deployment:
 
 ### 🚀 invoke-admin (Next.js)
+
 - **Port**: 3000 (configurable via `ADMIN_PORT`)
 - **Purpose**: Admin panel with React frontend + API routes
 - **Features**: Function management, versioning system, user authentication, execution logs, dashboard, API key management, API gateway configuration, MinIO integration
@@ -214,6 +226,7 @@ The platform consists of several microservices with containerized deployment:
 - **Status**: High availability ready
 
 ### ⚡ invoke-execution (Express.js)
+
 - **Port**: 3001 (configurable via `EXECUTION_PORT`)
 - **Purpose**: Function execution service with caching and package management
 - **Features**: Secure function execution, isolated-vm sandboxing, API key auth, distributed caching, async function support, MinIO integration
@@ -221,6 +234,7 @@ The platform consists of several microservices with containerized deployment:
 - **Scalability**: ✅ Horizontal scaling supported
 
 ### 🌐 invoke-gateway (Express.js)
+
 - **Port**: 3002 (configurable via `GATEWAY_PORT`)
 - **Purpose**: API gateway that exposes deployed functions as public HTTP endpoints
 - **Features**: Route-based proxying to execution service, per-route authentication (Basic Auth, Bearer JWT, API Key), CORS policies, allowed methods enforcement, real-IP forwarding, in-memory route cache with instant PostgreSQL NOTIFY invalidation, custom domain and project-slug URL patterns
@@ -228,18 +242,21 @@ The platform consists of several microservices with containerized deployment:
 - **Scalability**: ✅ Stateless; route cache refreshes independently per instance
 
 ### ⏰ invoke-scheduler
+
 - **Port**: 8080 (internal)
 - **Purpose**: Cron/scheduled function execution
 - **Features**: Runs scheduled functions against the execution service at configured intervals
 - **Technology**: Node.js
 
 ### 🗄️ MinIO Object Storage
+
 - **Port**: 9000 (API), 9001 (Console)
 - **Purpose**: Function package storage
 - **Features**: S3-compatible storage, versioned packages, web console
 - **Technology**: MinIO server
 
 ### 🐘 PostgreSQL Database
+
 - **Port**: 5432
 - **Purpose**: Metadata and execution logs
 - **Features**: Function metadata, versioning system, user management, execution history, API gateway route and auth method configuration
@@ -249,13 +266,13 @@ The platform consists of several microservices with containerized deployment:
 
 ## 🌟 Why Invoke?
 
-| Feature | Invoke | Traditional SaaS |
-|---------|--------|------------------|
-| **Cost Control** | One-time setup, no per-invocation fees | Monthly + usage charges |
-| **Data Privacy** | Full ownership, on-premises option | Vendor control |
-| **Customization** | Full source code access | Limited customization |
-| **Vendor Lock-in** | None, standard APIs | Proprietary ecosystem |
-| **Support** | Community + self-support | Corporate support only |
+| Feature            | Invoke                                 | Traditional SaaS        |
+| ------------------ | -------------------------------------- | ----------------------- |
+| **Cost Control**   | One-time setup, no per-invocation fees | Monthly + usage charges |
+| **Data Privacy**   | Full ownership, on-premises option     | Vendor control          |
+| **Customization**  | Full source code access                | Limited customization   |
+| **Vendor Lock-in** | None, standard APIs                    | Proprietary ecosystem   |
+| **Support**        | Community + self-support               | Corporate support only  |
 
 ---
 
@@ -272,6 +289,7 @@ We believe in **open-source software built by the community, for the community**
 ### For Developers
 
 Invoke is built by developers, for developers. Whether you're:
+
 - Running a startup and need cost-effective function execution
 - Building enterprise applications with data sovereignty requirements
 - Learning serverless architecture and microservices

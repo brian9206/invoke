@@ -5,45 +5,45 @@ Learn how to serve static files from your Invoke functions.
 ## Basic File Serving
 
 ```javascript
-import path from 'path';
+import path from 'path'
 
 export default function handler(req, res) {
-    const filePath = path.join(__dirname, 'public', 'index.html');
-    res.sendFile(filePath);
+  const filePath = path.join(__dirname, 'public', 'index.html')
+  res.sendFile(filePath)
 }
 ```
 
 ## Serving a Static Website
 
 ```javascript
-import path from 'path';
-import fs from 'fs';
+import path from 'path'
+import fs from 'fs'
 
 export default function handler(req, res) {
-    // Get requested path, default to index.html
-    let requestPath = req.path === '/' ? 'index.html' : req.path.substring(1);
-    
-    // Security: prevent directory traversal
-    if (requestPath.includes('..') || requestPath.includes('\\')) {
-        return res.status(403).send('Forbidden');
-    }
-    
-    // Build full file path
-    const filePath = path.join(__dirname, 'public', requestPath);
-    
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).send('File not found');
-    }
-    
-    // Check if it's a file (not a directory)
-    const stats = fs.statSync(filePath);
-    if (!stats.isFile()) {
-        return res.status(403).send('Forbidden');
-    }
-    
-    // Serve the file
-    res.sendFile(filePath);
+  // Get requested path, default to index.html
+  let requestPath = req.path === '/' ? 'index.html' : req.path.substring(1)
+
+  // Security: prevent directory traversal
+  if (requestPath.includes('..') || requestPath.includes('\\')) {
+    return res.status(403).send('Forbidden')
+  }
+
+  // Build full file path
+  const filePath = path.join(__dirname, 'public', requestPath)
+
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send('File not found')
+  }
+
+  // Check if it's a file (not a directory)
+  const stats = fs.statSync(filePath)
+  if (!stats.isFile()) {
+    return res.status(403).send('Forbidden')
+  }
+
+  // Serve the file
+  res.sendFile(filePath)
 }
 ```
 
@@ -77,16 +77,16 @@ function.zip
 ## Manual MIME Types
 
 ```javascript
-import mimeTypes from 'mime-types';
+import mimeTypes from 'mime-types'
 
 export default function handler(req, res) {
-    const filePath = path.join(__dirname, 'files', req.query.file);
-    
-    // Get MIME type
-    const mimeType = mimeTypes.lookup(filePath) || 'application/octet-stream';
-    
-    res.type(mimeType);
-    res.sendFile(filePath);
+  const filePath = path.join(__dirname, 'files', req.query.file)
+
+  // Get MIME type
+  const mimeType = mimeTypes.lookup(filePath) || 'application/octet-stream'
+
+  res.type(mimeType)
+  res.sendFile(filePath)
 }
 ```
 
@@ -96,25 +96,25 @@ Force browser to download instead of display:
 
 ```javascript
 export default function handler(req, res) {
-    const filePath = path.join(__dirname, 'reports', 'report.pdf');
-    res.download(filePath, 'monthly-report.pdf');
+  const filePath = path.join(__dirname, 'reports', 'report.pdf')
+  res.download(filePath, 'monthly-report.pdf')
 }
 ```
 
 ## Streaming Large Files
 
 ```javascript
-import fs from 'fs';
+import fs from 'fs'
 
 export default function handler(req, res) {
-    const filePath = path.join(__dirname, 'large-file.mp4');
-    
-    const stat = fs.statSync(filePath);
-    res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Type', 'video/mp4');
-    
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
+  const filePath = path.join(__dirname, 'large-file.mp4')
+
+  const stat = fs.statSync(filePath)
+  res.setHeader('Content-Length', stat.size)
+  res.setHeader('Content-Type', 'video/mp4')
+
+  const stream = fs.createReadStream(filePath)
+  stream.pipe(res)
 }
 ```
 
@@ -124,46 +124,46 @@ export default function handler(req, res) {
 
 ```javascript
 // ❌ DANGEROUS
-const filePath = path.join(__dirname, req.query.file);
+const filePath = path.join(__dirname, req.query.file)
 
 // ✅ SAFE
-let requestPath = req.path || '/';
+let requestPath = req.path || '/'
 if (requestPath.includes('..') || requestPath.includes('\\')) {
-    return res.status(403).send('Forbidden');
+  return res.status(403).send('Forbidden')
 }
 ```
 
 ### 2. Whitelist Extensions
 
 ```javascript
-const allowedExtensions = ['.html', '.css', '.js', '.png', '.jpg', '.gif'];
+const allowedExtensions = ['.html', '.css', '.js', '.png', '.jpg', '.gif']
 
 export default function handler(req, res) {
-    const ext = path.extname(req.path).toLowerCase();
-    
-    if (!allowedExtensions.includes(ext)) {
-        return res.status(403).send('File type not allowed');
-    }
-    
-    // Serve file...
+  const ext = path.extname(req.path).toLowerCase()
+
+  if (!allowedExtensions.includes(ext)) {
+    return res.status(403).send('File type not allowed')
+  }
+
+  // Serve file...
 }
 ```
 
 ### 3. Validate File Paths
 
 ```javascript
-const publicDir = path.join(__dirname, 'public');
+const publicDir = path.join(__dirname, 'public')
 
 export default function handler(req, res) {
-    const filePath = path.join(publicDir, req.path);
-    const resolvedPath = path.resolve(filePath);
-    
-    // Ensure resolved path is within public directory
-    if (!resolvedPath.startsWith(publicDir)) {
-        return res.status(403).send('Forbidden');
-    }
-    
-    res.sendFile(resolvedPath);
+  const filePath = path.join(publicDir, req.path)
+  const resolvedPath = path.resolve(filePath)
+
+  // Ensure resolved path is within public directory
+  if (!resolvedPath.startsWith(publicDir)) {
+    return res.status(403).send('Forbidden')
+  }
+
+  res.sendFile(resolvedPath)
 }
 ```
 
@@ -171,48 +171,48 @@ export default function handler(req, res) {
 
 ```javascript
 export default function handler(req, res) {
-    const ext = path.extname(req.path);
-    
-    // Cache static assets for 1 year
-    if (['.css', '.js', '.png', '.jpg'].includes(ext)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000');
-    }
-    
-    res.sendFile(filePath);
+  const ext = path.extname(req.path)
+
+  // Cache static assets for 1 year
+  if (['.css', '.js', '.png', '.jpg'].includes(ext)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000')
+  }
+
+  res.sendFile(filePath)
 }
 ```
 
 ## Complete Example
 
 ```javascript
-import path from 'path';
-import fs from 'fs';
+import path from 'path'
+import fs from 'fs'
 
 export default function handler(req, res) {
-    // Parse request path
-    let requestPath = req.path === '/' ? '/index.html' : req.path;
-    
-    // Remove leading slash
-    requestPath = requestPath.substring(1);
-    
-    // Security checks
-    if (requestPath.includes('..') || requestPath.includes('\\')) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
-    
-    // Build file path
-    const publicDir = path.join(__dirname, 'public');
-    const filePath = path.join(publicDir, requestPath);
-    const resolvedPath = path.resolve(filePath);
-    
-    // Ensure within public directory
-    if (!resolvedPath.startsWith(publicDir)) {
-        return res.status(403).json({ error: 'Forbidden' });
-    }
-    
-    // Check existence
-    if (!fs.existsSync(resolvedPath)) {
-        return res.status(404).send(`
+  // Parse request path
+  let requestPath = req.path === '/' ? '/index.html' : req.path
+
+  // Remove leading slash
+  requestPath = requestPath.substring(1)
+
+  // Security checks
+  if (requestPath.includes('..') || requestPath.includes('\\')) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+
+  // Build file path
+  const publicDir = path.join(__dirname, 'public')
+  const filePath = path.join(publicDir, requestPath)
+  const resolvedPath = path.resolve(filePath)
+
+  // Ensure within public directory
+  if (!resolvedPath.startsWith(publicDir)) {
+    return res.status(403).json({ error: 'Forbidden' })
+  }
+
+  // Check existence
+  if (!fs.existsSync(resolvedPath)) {
+    return res.status(404).send(`
             <!DOCTYPE html>
             <html>
             <head><title>404 Not Found</title></head>
@@ -221,23 +221,23 @@ export default function handler(req, res) {
                 <p>The requested file was not found.</p>
             </body>
             </html>
-        `);
-    }
-    
-    // Check if file
-    const stats = fs.statSync(resolvedPath);
-    if (!stats.isFile()) {
-        return res.status(403).json({ error: 'Not a file' });
-    }
-    
-    // Set caching headers for static assets
-    const ext = path.extname(resolvedPath);
-    if (['.css', '.js', '.png', '.jpg', '.gif', '.svg'].includes(ext)) {
-        res.setHeader('Cache-Control', 'public, max-age=3600');
-    }
-    
-    // Serve file
-    res.sendFile(resolvedPath);
+        `)
+  }
+
+  // Check if file
+  const stats = fs.statSync(resolvedPath)
+  if (!stats.isFile()) {
+    return res.status(403).json({ error: 'Not a file' })
+  }
+
+  // Set caching headers for static assets
+  const ext = path.extname(resolvedPath)
+  if (['.css', '.js', '.png', '.jpg', '.gif', '.svg'].includes(ext)) {
+    res.setHeader('Cache-Control', 'public, max-age=3600')
+  }
+
+  // Serve file
+  res.sendFile(resolvedPath)
 }
 ```
 

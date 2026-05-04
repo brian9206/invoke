@@ -1,4 +1,4 @@
-import { executionClient, buildGatewayHeaders, buildInvokeUrl } from './execution-client';
+import { executionClient, buildGatewayHeaders, buildInvokeUrl } from './execution-client'
 
 /**
  * Invoke a function for a realtime socket event.
@@ -13,7 +13,7 @@ export async function invokeRealtimeSocketFunction(
   handshake: Record<string, any>,
   eventName: string,
   eventData: unknown[],
-  clientIp = '',
+  clientIp = ''
 ): Promise<void> {
   const headers = buildGatewayHeaders(clientIp, {
     'x-realtime-socket-event': eventName,
@@ -21,10 +21,10 @@ export async function invokeRealtimeSocketFunction(
     'x-realtime-socket-namespace': namespacePath,
     'x-realtime-socket-rooms': JSON.stringify(socketRooms),
     'x-realtime-socket-handshake': JSON.stringify(handshake),
-    'content-type': 'application/json',
-  });
+    'content-type': 'application/json'
+  })
 
-  const url = buildInvokeUrl(functionId, '/socket.io');
+  const url = buildInvokeUrl(functionId, '/socket.io')
 
-  await executionClient.post(url, JSON.stringify(eventData), { headers });
+  await executionClient.post(url, JSON.stringify(eventData), { headers })
 }

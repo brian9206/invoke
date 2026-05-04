@@ -23,14 +23,14 @@ The command looks for `index.js` inside the given directory (defaults to `.`).
 
 ## Options
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `-m, --method <method>` | HTTP method | `GET` |
-| `-p, --path <urlpath>` | Request URL path | `/` |
-| `-d, --data <json>` | Request body as a JSON string | — |
-| `-H, --header <key:value>` | Request header — repeatable | — |
-| `-e, --env <file>` | Path to a `.env` file to load | `<path>/.env` |
-| `--kv-file <file>` | JSON file path for persistent KV storage | in-memory |
+| Option                     | Description                              | Default       |
+| -------------------------- | ---------------------------------------- | ------------- |
+| `-m, --method <method>`    | HTTP method                              | `GET`         |
+| `-p, --path <urlpath>`     | Request URL path                         | `/`           |
+| `-d, --data <json>`        | Request body as a JSON string            | —             |
+| `-H, --header <key:value>` | Request header — repeatable              | —             |
+| `-e, --env <file>`         | Path to a `.env` file to load            | `<path>/.env` |
+| `--kv-file <file>`         | JSON file path for persistent KV storage | in-memory     |
 
 ## Environment Variables
 

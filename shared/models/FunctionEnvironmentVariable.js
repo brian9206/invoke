@@ -1,6 +1,6 @@
-const { Model, DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize')
 
-module.exports = (sequelize) => {
+module.exports = sequelize => {
   class FunctionEnvironmentVariable extends Model {}
 
   FunctionEnvironmentVariable.init(
@@ -8,31 +8,31 @@ module.exports = (sequelize) => {
       id: {
         type: DataTypes.INTEGER,
         primaryKey: true,
-        autoIncrement: true,
+        autoIncrement: true
       },
       function_id: {
         type: DataTypes.UUID,
         allowNull: false,
         references: { model: 'functions', key: 'id' },
-        onDelete: 'CASCADE',
+        onDelete: 'CASCADE'
       },
       variable_name: {
         type: DataTypes.STRING(255),
-        allowNull: false,
+        allowNull: false
       },
       variable_value: {
         type: DataTypes.TEXT,
-        allowNull: false,
+        allowNull: false
       },
       description: {
-        type: DataTypes.TEXT,
+        type: DataTypes.TEXT
       },
       created_at: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATE
       },
       updated_at: {
-        type: DataTypes.DATE,
-      },
+        type: DataTypes.DATE
+      }
     },
     {
       sequelize,
@@ -41,13 +41,13 @@ module.exports = (sequelize) => {
       timestamps: false,
       underscored: true,
       freezeTableName: true,
-      indexes: [{ unique: true, fields: ['function_id', 'variable_name'] }],
+      indexes: [{ unique: true, fields: ['function_id', 'variable_name'] }]
     }
-  );
+  )
 
-  FunctionEnvironmentVariable.associate = (models) => {
-    FunctionEnvironmentVariable.belongsTo(models.Function, { foreignKey: 'function_id' });
-  };
+  FunctionEnvironmentVariable.associate = models => {
+    FunctionEnvironmentVariable.belongsTo(models.Function, { foreignKey: 'function_id' })
+  }
 
-  return FunctionEnvironmentVariable;
-};
+  return FunctionEnvironmentVariable
+}

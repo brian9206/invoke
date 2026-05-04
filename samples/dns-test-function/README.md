@@ -5,6 +5,7 @@ This function tests the `dns` module implementation in the Invoke VM environment
 ## Features Tested
 
 ### Callback-based API
+
 - `dns.lookup()` - Resolves a hostname to an IP address
 - `dns.lookupService()` - Resolves an address and port to a hostname and service
 - `dns.resolve()` - Generic DNS resolution
@@ -18,12 +19,14 @@ This function tests the `dns` module implementation in the Invoke VM environment
 - `dns.reverse()` - Reverse DNS lookup
 
 ### Promises API
+
 - `dns.promises.lookup()`
 - `dns.promises.resolve4()`
 - `dns.promises.resolve6()`
 - `dns.promises.resolveMx()`
 
 ### Resolver Class
+
 - `new dns.Resolver()` - Custom resolver instances
 - `resolver.setServers()` - Configure custom DNS servers
 - `resolver.getServers()` - Get configured DNS servers
@@ -32,12 +35,15 @@ This function tests the `dns` module implementation in the Invoke VM environment
 - `new dns.promises.Resolver()` - Promises-based resolver
 
 ### Server Configuration
+
 - `dns.getServers()` - Get system DNS servers
 - `dns.setServers()` - Set system DNS servers
 - `dns.getDefaultResultOrder()` - Get default result ordering (Node.js v16+)
 
 ### Error Codes
+
 Tests that all DNS error code constants are exposed:
+
 - `NODATA`, `FORMERR`, `SERVFAIL`, `NOTFOUND`, `NOTIMP`, `REFUSED`
 - `BADQUERY`, `BADNAME`, `BADFAMILY`, `BADRESP`, `CONNREFUSED`
 - `TIMEOUT`, `EOF`, `FILE`, `NOMEM`, `DESTRUCTION`
@@ -115,6 +121,7 @@ The function returns a JSON object with the following structure:
 ## Node.js v24 Compatibility
 
 This test function verifies full compatibility with Node.js v24 DNS API including:
+
 - All callback-based methods with proper error handling
 - Complete `dns.promises` API for async/await usage
 - Full `Resolver` class with custom DNS server support

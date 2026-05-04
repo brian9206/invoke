@@ -1,10 +1,4 @@
 {
-  "watch": [
-    "../shared",
-    "../invoke-runtime",
-    "../package-lock.json",
-    "src",
-    ".env"
-  ],
+  "watch": ["../shared", "../invoke-runtime", "../package-lock.json", "src", ".env"],
   "ext": "ts,js,json,env"
 }

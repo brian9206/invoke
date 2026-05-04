@@ -11,20 +11,21 @@ import AdmZip from 'adm-zip'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 const { s3Service } = require('invoke-shared')
+import { resolveBuildPipeline } from '@/lib/build-pipeline'
 
 // Configure multer for file uploads
 const upload = multer({
   dest: path.join(os.tmpdir(), 'uploads'),
   limits: {
-    fileSize: 100 * 1024 * 1024, // 100MB limit
+    fileSize: 100 * 1024 * 1024 // 100MB limit
   },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['application/zip', 'application/x-gzip', 'application/gzip']
     const allowedExtensions = ['.zip', '.tar.gz', '.tgz']
-    
+
     const hasValidType = allowedTypes.includes(file.mimetype)
     const hasValidExtension = allowedExtensions.some(ext => file.originalname.toLowerCase().endsWith(ext))
-    
+
     if (hasValidType || hasValidExtension) {
       cb(null, true)
     } else {
@@ -36,8 +37,8 @@ const upload = multer({
 // Disable default body parsing for file uploads
 export const config = {
   api: {
-    bodyParser: false,
-  },
+    bodyParser: false
+  }
 }
 
 export default async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -57,12 +58,12 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
 
     // Check project access for non-admins (required for all operations)
     if (!authResult.user?.isAdmin) {
-      const { Function: FunctionModel } = database.models;
-      const fnAccess = await FunctionModel.findByPk(functionId, { attributes: ['project_id'] });
+      const { Function: FunctionModel } = database.models
+      const fnAccess = await FunctionModel.findByPk(functionId, { attributes: ['project_id'] })
       if (!fnAccess) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
       }
-      const projectId = fnAccess.project_id;
+      const projectId = fnAccess.project_id
       if (projectId) {
         const access = await checkProjectDeveloperAccess(userId, projectId, false)
         if (!access.allowed) {
@@ -74,14 +75,26 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
     if (req.method === 'GET') {
       // List all versions for a function — get active_version_id first, then fetch versions
       const { FunctionVersion, User } = database.models
-      const funcRecord = await (database.models as any).Function.findByPk(functionId, { attributes: ['active_version_id'], raw: true }) as any
+      const funcRecord = (await (database.models as any).Function.findByPk(functionId, {
+        attributes: ['active_version_id'],
+        raw: true
+      })) as any
       const activeVersionId = funcRecord?.active_version_id ?? null
 
       const versionRows = await FunctionVersion.findAll({
         where: { function_id: functionId },
-        attributes: ['id', 'version', 'file_size', 'package_hash', 'created_at', 'created_by'],
+        attributes: [
+          'id',
+          'version',
+          'file_size',
+          'package_hash',
+          'created_at',
+          'created_by',
+          'build_status',
+          'artifact_path'
+        ],
         include: [{ model: User, as: 'creator', attributes: ['username'], required: false }],
-        order: [['created_at', 'DESC']],
+        order: [['created_at', 'DESC']]
       })
 
       const versions = versionRows.map((v: any) => {
@@ -95,24 +108,25 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           created_at: raw.created_at,
           created_by: raw.created_by,
           created_by_name: raw.creator?.username ?? null,
+          build_status: raw.build_status ?? 'none',
+          artifact_path: raw.artifact_path ?? null
         }
       })
 
       return res.status(200).json(createResponse(true, versions, 'Versions retrieved successfully'))
-
     } else if (req.method === 'DELETE') {
       // Handle version deletion (only inactive versions)
       const { version } = req.query
-      
+
       if (!version) {
         return res.status(400).json(createResponse(false, null, 'Version number is required', 400))
       }
 
       // Check if function exists and get active version
-      const { Function: FunctionModel, FunctionVersion } = database.models;
+      const { Function: FunctionModel, FunctionVersion } = database.models
       const functionData = await FunctionModel.findByPk(functionId, {
         attributes: ['id', 'name', 'active_version_id']
-      });
+      })
 
       if (!functionData) {
         return res.status(404).json(createResponse(false, null, 'Function not found', 404))
@@ -122,34 +136,49 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
       const versionStr = Array.isArray(version) ? version[0] : version
       const versionRecord = await FunctionVersion.findOne({
         where: { function_id: functionId, version: parseInt(versionStr) },
-        attributes: ['id', 'version']
-      });
+        attributes: ['id', 'version', 'artifact_path']
+      })
 
-        if (!versionRecord) {
-          return res.status(404).json(createResponse(false, null, `Version ${version} not found`, 404))
-        }
+      if (!versionRecord) {
+        return res.status(404).json(createResponse(false, null, `Version ${version} not found`, 404))
+      }
 
-        const versionData = versionRecord.get({ plain: true });
+      const versionData = versionRecord.get({ plain: true })
 
-        // Check if this version is currently active
-        if (functionData.active_version_id === versionData.id) {
-          return res.status(400).json(createResponse(false, null, 'Cannot delete the active version. Switch to a different version first.', 400))
-        }
+      // Check if this version is currently active
+      if (functionData.active_version_id === versionData.id) {
+        return res
+          .status(400)
+          .json(
+            createResponse(false, null, 'Cannot delete the active version. Switch to a different version first.', 400)
+          )
+      }
 
-        // Delete the version record
-        await versionRecord.destroy();
+      // Delete the version record
+      const artifactPath: string | null = (versionData as any).artifact_path ?? null
+      await versionRecord.destroy()
 
-        // Delete the package from S3
+      // Delete the package from S3
+      try {
+        await s3Service.deletePackage(functionId, version)
+        console.log(`✓ Deleted S3 package for function ${functionId} version ${version}`)
+      } catch (s3Error) {
+        console.error('Error deleting package from S3:', s3Error)
+        // Continue even if S3 deletion fails
+      }
+
+      // Delete the build artifact from S3 if present
+      if (artifactPath) {
         try {
-          await s3Service.deletePackage(functionId, version)
-          console.log(`✓ Deleted S3 package for function ${functionId} version ${version}`)
-        } catch (s3Error) {
-          console.error('Error deleting package from S3:', s3Error)
-          // Continue even if S3 deletion fails
+          await s3Service.deleteArtifact(artifactPath)
+          console.log(`✓ Deleted S3 artifact for function ${functionId} version ${version}`)
+        } catch (artifactError) {
+          console.error('Error deleting artifact from S3:', artifactError)
+          // Continue even if artifact deletion fails
         }
+      }
 
-        return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))
-
+      return res.status(200).json(createResponse(true, null, `Version ${version} deleted successfully`))
     } else if (req.method === 'POST') {
       // Handle file upload for new version
       let uploadedFile: any = null
@@ -173,8 +202,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         }
 
         // Check if function exists
-        const { Function: FnModel, FunctionVersion: FnVersion } = database.models;
-        const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name'] });
+        const { Function: FnModel, FunctionVersion: FnVersion } = database.models
+        const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name', 'language', 'runtime'] })
 
         if (!fn) {
           return res.status(404).json({
@@ -183,14 +212,14 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           })
         }
 
-        const functionName = fn.name;
+        const functionName = fn.name
 
         // Calculate file hash
         const fileBuffer = await fs.readFile(uploadedFile.path)
         const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
-        const maxVersion = await (FnVersion as any).max('version', { where: { function_id: functionId } });
-        const nextVersion = ((maxVersion as number) || 0) + 1;
+        const maxVersion = await (FnVersion as any).max('version', { where: { function_id: functionId } })
+        const nextVersion = ((maxVersion as number) || 0) + 1
 
         // Prepare package for upload to MinIO - convert .tar.gz to .tgz if needed
         let packagePath = uploadedFile.path
@@ -200,21 +229,18 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         if (originalName.endsWith('.zip')) {
           const extractDir = path.join(path.dirname(packagePath), `extract_${Date.now()}`)
           const tgzPath = path.join(path.dirname(packagePath), `${functionId}_${nextVersion}.tgz`)
-          
+
           try {
             // Extract zip
             const zip = new AdmZip(packagePath)
             zip.extractAllTo(extractDir, true)
-            
+
             // Create tgz
-            await tar.create(
-              { gzip: true, file: tgzPath, cwd: extractDir },
-              fs.readdirSync(extractDir)
-            )
-            
+            await tar.create({ gzip: true, file: tgzPath, cwd: extractDir }, fs.readdirSync(extractDir))
+
             // Update package path
             packagePath = tgzPath
-            
+
             // Clean up
             await fs.remove(extractDir)
           } catch (error) {
@@ -225,7 +251,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         // Convert .tar.gz to .tgz for consistency
         else if (originalName.endsWith('.tar.gz')) {
           const tgzPath = path.join(path.dirname(packagePath), `${functionId}_${nextVersion}.tgz`)
-          
+
           try {
             // Just rename/copy the file with .tgz extension
             await fs.move(packagePath, tgzPath)
@@ -247,20 +273,38 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           file_size: fs.statSync(packagePath).size,
           package_hash: hash,
           created_by: userId
-        });
+        })
 
         // Clean up uploaded file
         await fs.remove(packagePath)
 
-        res.status(201).json(createResponse(true, {
-          id: newVersion.id,
-          version: newVersion.version,
-          functionId: functionId
-        }, `Version ${nextVersion} uploaded successfully`))
+        // Enqueue build for the new version
+        const { FunctionBuild } = database.models as any
+        const pipeline = resolveBuildPipeline((fn as any).language ?? 'javascript', (fn as any).runtime ?? 'bun')
+        await FunctionBuild.create({
+          function_id: functionId,
+          version_id: newVersion.id,
+          status: 'queued',
+          after_build_action: 'none',
+          pipeline,
+          created_by: userId
+        })
+        await FnVersion.update({ build_status: 'queued' }, { where: { id: newVersion.id } })
 
+        res.status(201).json(
+          createResponse(
+            true,
+            {
+              id: newVersion.id,
+              version: newVersion.version,
+              functionId: functionId
+            },
+            `Version ${nextVersion} uploaded successfully`
+          )
+        )
       } catch (error) {
         console.error('Error creating new version:', error)
-        
+
         // Clean up uploaded file if it exists
         if (packagePath) {
           try {
@@ -280,7 +324,6 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         res.status(500).json(createResponse(false, null, 'Internal server error', 500))
       }
     }
-
   } catch (error) {
     console.error('Error in versions API:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))
