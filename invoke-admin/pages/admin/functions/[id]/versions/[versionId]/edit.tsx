@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, type JSX } from 'react'
+import Head from 'next/head'
 import { useRouter } from 'next/router'
 import dynamic from 'next/dynamic'
 import Layout from '@/components/Layout'
@@ -117,6 +118,11 @@ export default function FunctionCodeEditor() {
   const [deploying, setDeploying] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [modifiedFiles, setModifiedFiles] = useState<Set<string>>(new Set())
+  const [deletedPaths, setDeletedPaths] = useState<Set<string>>(new Set())
+  const [newlyCreatedPaths, setNewlyCreatedPaths] = useState<Set<string>>(new Set())
+  const [movedPaths, setMovedPaths] = useState<Array<{ from: string; to: string }>>([])
+  const [loadingFile, setLoadingFile] = useState<string | null>(null)
+  const loadingFileRef = useRef<string | null>(null)
   const hasFetchedRef = useRef(false)
   const editorRef = useRef<any>(null)
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -297,6 +303,9 @@ export default function FunctionCodeEditor() {
       setActiveTabPath(null)
       setHasChanges(false)
       setModifiedFiles(new Set())
+      setDeletedPaths(new Set())
+      setNewlyCreatedPaths(new Set())
+      setMovedPaths([])
       setCurrentBuild(null)
       setBuildLogs([])
       setShowBuildPanel(false)
@@ -478,7 +487,7 @@ export default function FunctionCodeEditor() {
 
     try {
       hasFetchedRef.current = true
-      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`)
+      const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source/tree`)
 
       const result = await response.json()
 
@@ -488,20 +497,21 @@ export default function FunctionCodeEditor() {
         setFunctionData(result.data)
         setFiles(normalizedFiles)
 
-        // Auto-select index.js if it exists
+        // Auto-select index.js if it exists, lazy-loading its content
         const indexFile = findFileByName(normalizedFiles, 'index.js')
         if (indexFile) {
-          setSelectedFile(indexFile)
-          setEditorContent(indexFile.content || '')
           setOpenTabs([indexFile])
           setActiveTabPath(indexFile.path)
+          setSelectedFile(indexFile)
+          // Lazy-load content for the auto-selected file
+          loadFileContent(indexFile)
         }
       } else {
-        console.error('Failed to fetch source code:', result.message)
+        console.error('Failed to fetch source tree:', result.message)
         hasFetchedRef.current = false // Allow retry on error
       }
     } catch (error) {
-      console.error('Error fetching source code:', error)
+      console.error('Error fetching source tree:', error)
       hasFetchedRef.current = false // Allow retry on error
     } finally {
       setLoading(false)
@@ -537,6 +547,86 @@ export default function FunctionCodeEditor() {
     return null
   }
 
+  const findFileByPath = (nodes: FileNode[], filePath: string): FileNode | null => {
+    for (const node of nodes) {
+      if (node.type === 'file' && node.path === filePath) return node
+      if (node.type === 'directory' && node.children) {
+        const found = findFileByPath(node.children, filePath)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  // Collect all file nodes that have been edited in-memory (content !== undefined).
+  // These form the changedFiles payload for save operations.
+  const getChangedFiles = (nodes: FileNode[]): Array<{ path: string; content: string }> => {
+    const result: Array<{ path: string; content: string }> = []
+    for (const node of nodes) {
+      if (node.type === 'file' && node.content !== undefined) {
+        result.push({ path: node.path, content: node.content })
+      } else if (node.type === 'directory' && node.children) {
+        result.push(...getChangedFiles(node.children))
+      }
+    }
+    return result
+  }
+
+  // Helper to update path prefixes in a Set when a file/directory is moved.
+  const updatePathsInSet = (set: Set<string>, oldPrefix: string, newPrefix: string): Set<string> => {
+    const next = new Set<string>()
+    for (const p of set) {
+      if (p === oldPrefix || p.startsWith(oldPrefix + '/')) {
+        next.add(newPrefix + p.slice(oldPrefix.length))
+      } else {
+        next.add(p)
+      }
+    }
+    return next
+  }
+
+  // Fetch file content from the server and show it in the editor.
+  // Content is NOT stored back into the files state unless the user edits it.
+  const loadFileContent = async (file: FileNode) => {
+    // If already edited in memory, use that content directly
+    if (file.content !== undefined) {
+      setEditorContent(file.content)
+      setLoadingFile(null)
+      loadingFileRef.current = null
+      return
+    }
+
+    loadingFileRef.current = file.path
+    setLoadingFile(file.path)
+    setEditorContent('')
+
+    try {
+      const response = await authenticatedFetch(
+        `/api/functions/${functionId}/versions/${versionId}/source/file?p=${encodeURIComponent(file.path)}`
+      )
+      const result = await response.json()
+
+      // Only update if this file is still the one being requested
+      if (loadingFileRef.current === file.path) {
+        if (result.success) {
+          setEditorContent(result.data.content)
+        } else {
+          setEditorContent('')
+        }
+      }
+    } catch (error) {
+      console.error('Error loading file content:', error)
+      if (loadingFileRef.current === file.path) {
+        setEditorContent('')
+      }
+    } finally {
+      if (loadingFileRef.current === file.path) {
+        setLoadingFile(null)
+        loadingFileRef.current = null
+      }
+    }
+  }
+
   const toggleDirectory = (path: string) => {
     const newExpanded = new Set(expandedDirs)
     if (newExpanded.has(path)) {
@@ -549,7 +639,7 @@ export default function FunctionCodeEditor() {
 
   const handleFileSelect = (file: FileNode) => {
     if (file.type === 'file') {
-      // Save current file changes before switching
+      // Persist current edits to state before switching
       if (selectedFile && hasChanges) {
         updateFileContent(selectedFile, editorContent)
       }
@@ -561,8 +651,11 @@ export default function FunctionCodeEditor() {
 
       setActiveTabPath(file.path)
       setSelectedFile(file)
-      setEditorContent(file.content || '')
       setHasChanges(false)
+
+      // Lazy-load content: if file has been edited it has content in state,
+      // otherwise fetch from the server without caching in files state.
+      loadFileContent(file)
     } else {
       toggleDirectory(file.path)
     }
@@ -580,26 +673,31 @@ export default function FunctionCodeEditor() {
         const newActiveTab = newTabs[newTabs.length - 1]
         setActiveTabPath(newActiveTab.path)
         setSelectedFile(newActiveTab)
-        setEditorContent(newActiveTab.content || '')
+        setHasChanges(false)
+        loadFileContent(newActiveTab)
       } else {
         setActiveTabPath(null)
         setSelectedFile(null)
         setEditorContent('')
+        setLoadingFile(null)
+        loadingFileRef.current = null
         // Don't reset hasChanges here - let it persist for deletions
       }
     }
   }
 
   const switchTab = (file: FileNode) => {
-    // Save current file changes before switching
+    // Persist current edits to state before switching
     if (selectedFile && hasChanges) {
       updateFileContent(selectedFile, editorContent)
     }
 
     setActiveTabPath(file.path)
     setSelectedFile(file)
-    setEditorContent(file.content || '')
     setHasChanges(false)
+
+    // Lazy-load content (uses in-memory content if already edited)
+    loadFileContent(file)
   }
 
   const handleEditorChange = (value: string | undefined) => {
@@ -680,10 +778,15 @@ export default function FunctionCodeEditor() {
 
     setSelectedFile(newFile)
     setEditorContent('')
+    setOpenTabs(prev => [...prev, newFile])
+    setActiveTabPath(newPath)
     setHasChanges(true)
     setNewFileName('')
     setShowCreateFileModal(false)
     setParentDirectory(null)
+    // Track as newly created (exists only in memory, not yet on server)
+    setNewlyCreatedPaths(prev => new Set(prev).add(newPath))
+    setModifiedFiles(prev => new Set(prev).add(newPath))
   }
 
   const handleCreateDirectory = () => {
@@ -744,6 +847,13 @@ export default function FunctionCodeEditor() {
       title: 'Delete File',
       message: `Are you sure you want to delete "${fileToDelete.name}"?`,
       onConfirm: () => {
+        // Collect all file paths under the node being deleted
+        const collectPaths = (node: FileNode): string[] => {
+          if (node.type === 'file') return [node.path]
+          return (node.children || []).flatMap(collectPaths)
+        }
+        const pathsToRemove = collectPaths(fileToDelete)
+
         const deleteFromFiles = (files: FileNode[]): FileNode[] => {
           return files
             .filter(file => {
@@ -771,11 +881,24 @@ export default function FunctionCodeEditor() {
         setFiles(deleteFromFiles(files))
         setHasChanges(true)
 
-        // Remove from modified files set
+        // Track deletions: only add to deletedPaths if not newly created
+        setDeletedPaths(prev => {
+          const next = new Set(prev)
+          for (const p of pathsToRemove) {
+            if (!newlyCreatedPaths.has(p)) next.add(p)
+          }
+          return next
+        })
+        // Remove from tracking sets
         setModifiedFiles(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(fileToDelete.path)
-          return newSet
+          const next = new Set(prev)
+          for (const p of pathsToRemove) next.delete(p)
+          return next
+        })
+        setNewlyCreatedPaths(prev => {
+          const next = new Set(prev)
+          for (const p of pathsToRemove) next.delete(p)
+          return next
         })
 
         // Close tab if file is open
@@ -814,14 +937,33 @@ export default function FunctionCodeEditor() {
 
     setFiles(prev => updateFileNames(prev, file.path, newPath))
 
-    // Update modified files set with new path if it was modified
-    if (modifiedFiles.has(file.path)) {
-      setModifiedFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(file.path)
-        newSet.add(newPath)
-        return newSet
+    // Track rename for diff payload
+    if (newlyCreatedPaths.has(file.path)) {
+      // Newly created file — just update the path in tracking sets
+      setNewlyCreatedPaths(prev => {
+        const s = new Set(prev)
+        s.delete(file.path)
+        s.add(newPath)
+        return s
       })
+      setModifiedFiles(prev => {
+        const s = new Set(prev)
+        s.delete(file.path)
+        s.add(newPath)
+        return s
+      })
+    } else if (file.content !== undefined) {
+      // File was edited in memory: track as delete-old + create-new (content already in files state at new path)
+      setDeletedPaths(prev => new Set(prev).add(file.path))
+      setModifiedFiles(prev => {
+        const s = new Set(prev)
+        s.delete(file.path)
+        s.add(newPath)
+        return s
+      })
+    } else {
+      // Unloaded existing file: track as a server-side rename
+      setMovedPaths(prev => [...prev, { from: file.path, to: newPath }])
     }
 
     // Update selected file if it's the one being renamed
@@ -954,13 +1096,20 @@ export default function FunctionCodeEditor() {
       const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files })
+        body: JSON.stringify({
+          changedFiles: getChangedFiles(files),
+          deletedPaths: Array.from(deletedPaths),
+          movedPaths
+        })
       })
       const result = await response.json()
       if (result.success) {
         toast.success(`Version ${functionData.version} saved successfully!`)
         setHasChanges(false)
         setModifiedFiles(new Set())
+        setDeletedPaths(new Set())
+        setMovedPaths([])
+        setNewlyCreatedPaths(new Set())
         fetchVersions()
       } else if (response.status === 409) {
         // Version was built/activated in the meantime, fall back to save as new
@@ -980,16 +1129,25 @@ export default function FunctionCodeEditor() {
     if (!functionData) return null
     if (!hasChanges) return functionData.versionId
 
+    const diffPayload = {
+      changedFiles: getChangedFiles(files),
+      deletedPaths: Array.from(deletedPaths),
+      movedPaths
+    }
+
     if (canOverwrite) {
       const response = await authenticatedFetch(`/api/functions/${functionId}/versions/${versionId}/source`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files })
+        body: JSON.stringify(diffPayload)
       })
       const result = await response.json()
       if (result.success) {
         setHasChanges(false)
         setModifiedFiles(new Set())
+        setDeletedPaths(new Set())
+        setMovedPaths([])
+        setNewlyCreatedPaths(new Set())
         return functionData.versionId
       }
       throw new Error(result.message || 'Failed to save')
@@ -997,12 +1155,15 @@ export default function FunctionCodeEditor() {
       const response = await authenticatedFetch(`/api/functions/${functionId}/versions/create-from-source`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ files })
+        body: JSON.stringify({ baseVersionId: functionData.versionId, ...diffPayload })
       })
       const result = await response.json()
       if (result.success) {
         setHasChanges(false)
         setModifiedFiles(new Set())
+        setDeletedPaths(new Set())
+        setMovedPaths([])
+        setNewlyCreatedPaths(new Set())
         return result.data.versionId
       }
       throw new Error(result.message || 'Failed to save')
@@ -1025,7 +1186,12 @@ export default function FunctionCodeEditor() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ files })
+        body: JSON.stringify({
+          baseVersionId: functionData.versionId,
+          changedFiles: getChangedFiles(files),
+          deletedPaths: Array.from(deletedPaths),
+          movedPaths
+        })
       })
 
       const result = await response.json()
@@ -1034,6 +1200,9 @@ export default function FunctionCodeEditor() {
         toast.success(`New version ${result.data.version} created successfully!`)
         setHasChanges(false)
         setModifiedFiles(new Set())
+        setDeletedPaths(new Set())
+        setMovedPaths([])
+        setNewlyCreatedPaths(new Set())
         setFunctionData({
           ...functionData,
           versionId: result.data.versionId,
@@ -1209,9 +1378,8 @@ export default function FunctionCodeEditor() {
     }, 100)
   }
 
-  // Search in all files with debouncing and performance optimization
+  // Find in Files: delegate to server-side search API for full-package coverage.
   const searchInFiles = (query: string) => {
-    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
@@ -1224,47 +1392,48 @@ export default function FunctionCodeEditor() {
 
     setIsSearching(true)
 
-    // Debounce search by 300ms
-    searchTimeoutRef.current = setTimeout(() => {
-      const MAX_RESULTS = 1000
-      const results: Array<{ file: FileNode; line: number; lineText: string; matchStart: number; matchEnd: number }> =
-        []
-      const allFiles = getAllFiles(files)
-      const searchLower = query.toLowerCase()
-      let resultCount = 0
-
-      // Use early break when max results reached
-      for (const file of allFiles) {
-        if (file.content && resultCount < MAX_RESULTS) {
-          const lines = file.content.split('\n')
-
-          for (let lineIndex = 0; lineIndex < lines.length && resultCount < MAX_RESULTS; lineIndex++) {
-            const lineText = lines[lineIndex]
-            const lineLower = lineText.toLowerCase()
-            let startIndex = 0
-            let matchIndex = lineLower.indexOf(searchLower, startIndex)
-
-            while (matchIndex !== -1 && resultCount < MAX_RESULTS) {
-              results.push({
-                file,
-                line: lineIndex + 1,
-                lineText: lineText,
-                matchStart: matchIndex,
-                matchEnd: matchIndex + query.length
-              })
-              resultCount++
-              startIndex = matchIndex + 1
-              matchIndex = lineLower.indexOf(searchLower, startIndex)
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await authenticatedFetch(
+          `/api/functions/${functionId}/versions/${versionId}/source/search?q=${encodeURIComponent(query)}`
+        )
+        const result = await response.json()
+        if (result.success) {
+          // Map server results to the expected shape, resolving FileNode references from files state
+          const mapped = (
+            result.data.results as Array<{
+              path: string
+              line: number
+              lineText: string
+              matchStart: number
+              matchEnd: number
+            }>
+          ).map(r => {
+            // Find the FileNode in the current tree (for navigation); fall back to a minimal stub
+            const fileNode = findFileByPath(files, r.path) ?? {
+              name: r.path.split('/').pop() || r.path,
+              path: r.path,
+              type: 'file' as const
             }
-          }
+            return {
+              file: fileNode,
+              line: r.line,
+              lineText: r.lineText,
+              matchStart: r.matchStart,
+              matchEnd: r.matchEnd
+            }
+          })
+          setSearchResults(mapped)
+        } else {
+          setSearchResults([])
         }
-
-        if (resultCount >= MAX_RESULTS) break
+      } catch (error) {
+        console.error('Error searching files:', error)
+        setSearchResults([])
+      } finally {
+        setSelectedSearchIndex(0)
+        setIsSearching(false)
       }
-
-      setSearchResults(results)
-      setSelectedSearchIndex(0)
-      setIsSearching(false)
     }, 300)
   }
 
@@ -1368,14 +1537,12 @@ export default function FunctionCodeEditor() {
           lines[lineIndex] = newLine
           const newContent = lines.join('\n')
 
-          // Update the editor and mark as changed
           setEditorContent(newContent)
-          selectedFile.content = newContent
           setHasChanges(true)
 
-          // Update the files tree
-          const updatedFiles = [...files]
-          setFiles(updatedFiles)
+          // Persist to files state and mark as modified
+          updateFileContent(selectedFile, newContent)
+          setModifiedFiles(prev => new Set(prev).add(selectedFile.path))
 
           // Re-search to update results
           searchInFilesForReplace(findQuery)
@@ -1396,10 +1563,11 @@ export default function FunctionCodeEditor() {
       fileMap.get(result.file.path)!.push(result)
     }
 
-    // Replace in each file
+    // Replace in each file that has content loaded in memory
+    const newModified = new Set(modifiedFiles)
     for (const [filePath, results] of fileMap) {
       const file = getAllFiles(files).find(f => f.path === filePath)
-      if (file && file.content) {
+      if (file && file.content !== undefined) {
         let newContent = file.content
 
         // Sort results in reverse order to preserve indices
@@ -1417,13 +1585,15 @@ export default function FunctionCodeEditor() {
           }
         }
 
-        file.content = newContent
+        updateFileContent(file, newContent)
+        newModified.add(filePath)
         if (selectedFile && selectedFile.path === filePath) {
           setEditorContent(newContent)
         }
       }
     }
 
+    setModifiedFiles(newModified)
     setHasChanges(true)
     setFindReplaceResults([])
     setShowFindReplace(false)
@@ -1596,7 +1766,7 @@ export default function FunctionCodeEditor() {
           setFiles(prev => [...prev, ...newNodes])
         }
 
-        // Mark new files as modified
+        // Mark new files as modified and newly created
         const getAllPaths = (nodes: FileNode[]): string[] => {
           const paths: string[] = []
           for (const node of nodes) {
@@ -1609,9 +1779,15 @@ export default function FunctionCodeEditor() {
           return paths
         }
 
+        const newPaths = getAllPaths(newNodes)
         setModifiedFiles(prev => {
           const newSet = new Set(prev)
-          getAllPaths(newNodes).forEach(path => newSet.add(path))
+          newPaths.forEach(path => newSet.add(path))
+          return newSet
+        })
+        setNewlyCreatedPaths(prev => {
+          const newSet = new Set(prev)
+          newPaths.forEach(path => newSet.add(path))
           return newSet
         })
 
@@ -1722,6 +1898,14 @@ export default function FunctionCodeEditor() {
         setSelectedFile({ ...draggedFile, path: newPath })
       }
 
+      // Track move for diff payload and update path sets
+      if (!newlyCreatedPaths.has(oldPath)) {
+        setMovedPaths(prev => [...prev, { from: oldPath, to: newPath }])
+      }
+      setModifiedFiles(prev => updatePathsInSet(prev, oldPath, newPath))
+      setNewlyCreatedPaths(prev => updatePathsInSet(prev, oldPath, newPath))
+      setDeletedPaths(prev => updatePathsInSet(prev, oldPath, newPath))
+
       setHasChanges(true)
       setDraggedFile(null)
       toast.success(`Moved "${draggedFile.name}" to root`)
@@ -1831,6 +2015,14 @@ export default function FunctionCodeEditor() {
     if (selectedFile?.path === oldPath) {
       setSelectedFile({ ...draggedFile, path: newPath })
     }
+
+    // Track move for diff payload and update path sets
+    if (!newlyCreatedPaths.has(oldPath)) {
+      setMovedPaths(prev => [...prev, { from: oldPath, to: newPath }])
+    }
+    setModifiedFiles(prev => updatePathsInSet(prev, oldPath, newPath))
+    setNewlyCreatedPaths(prev => updatePathsInSet(prev, oldPath, newPath))
+    setDeletedPaths(prev => updatePathsInSet(prev, oldPath, newPath))
 
     // Expand target directory
     setExpandedDirs(prev => new Set(prev).add(targetFile.path))
@@ -1965,6 +2157,11 @@ export default function FunctionCodeEditor() {
 
   return (
     <ProtectedRoute>
+      <Head>
+        <title>
+          {functionData.functionName} v{functionData.version} - Code Editor
+        </title>
+      </Head>
       {/* Fullscreen VS Code-like container */}
       <div
         className='flex flex-col h-screen w-screen bg-[#1e1e1e] overflow-hidden'
@@ -2281,7 +2478,12 @@ export default function FunctionCodeEditor() {
             )}
 
             {/* Monaco Editor */}
-            <div className='flex-1 overflow-hidden'>
+            <div className='flex-1 overflow-hidden relative'>
+              {loadingFile && (
+                <div className='absolute inset-0 z-10 flex items-center justify-center bg-[#1e1e1e] bg-opacity-80'>
+                  <Loader2 className='w-6 h-6 animate-spin text-[#007acc]' />
+                </div>
+              )}
               {selectedFile ? (
                 <MonacoEditor
                   height='100%'
@@ -2850,7 +3052,14 @@ export default function FunctionCodeEditor() {
         {/* Context Menu */}
         {contextMenu && (
           <>
-            <div className='fixed inset-0 z-40' onClick={closeContextMenu} />
+            <div
+              className='fixed inset-0 z-40'
+              onClick={closeContextMenu}
+              onContextMenu={e => {
+                e.preventDefault()
+                closeContextMenu()
+              }}
+            />
             <div
               className='fixed bg-[#3c3c3c] border border-[#454545] rounded shadow-lg z-50 py-1 min-w-[180px]'
               style={{
