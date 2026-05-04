@@ -93,6 +93,7 @@ services:
       - DOCKER_SOCKET=/var/run/docker.sock
       # Set GVISOR_PLATFORM=ptrace to fall back if /dev/kvm is unavailable
       - GVISOR_PLATFORM=${GVISOR_PLATFORM:-kvm}
+      - INVOKE_INSTRUMENT=${INVOKE_INSTRUMENT:-}
     privileged: true
     cgroup: host
     security_opt:
