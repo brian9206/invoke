@@ -8,7 +8,6 @@
     "copy:types": "node scripts/copy-types.js",
     "predev": "npm run build:editor -w invoke-types && npm run copy:monaco-assets",
     "prebuild": "npm run build:editor -w invoke-types && npm run copy:monaco-assets",
-    "prestart": "npm run build:editor -w invoke-types && npm run copy:monaco-assets",
     "dev": "node ../shared/scripts/migrate.js && next dev",
     "build": "next build",
     "start": "node ../shared/scripts/migrate.js && next start",
