@@ -54,26 +54,41 @@ export class BuildService {
       const available = maxConcurrent - this.running.size
       if (available <= 0) return
 
-      const queued = await FunctionBuild.findAll({
-        where: { status: 'queued' },
-        order: [['created_at', 'ASC']],
-        limit: available,
-        attributes: ['id', 'function_id', 'version_id', 'after_build_action', 'pipeline'],
-        include: [
-          {
-            model: database.models.FunctionVersion as any,
-            as: 'version',
-            attributes: ['id', 'version', 'package_path', 'package_hash', 'function_id']
+      const claimedBuilds: any[] = []
+
+      await database.sequelize.transaction(async (t: any) => {
+        const queued = await FunctionBuild.findAll({
+          where: { status: 'queued' },
+          order: [['created_at', 'ASC']],
+          limit: available,
+          lock: t.LOCK.UPDATE,
+          skipLocked: true,
+          attributes: ['id', 'function_id', 'version_id', 'after_build_action', 'pipeline'],
+          include: [
+            {
+              model: database.models.FunctionVersion as any,
+              as: 'version',
+              attributes: ['id', 'version', 'package_path', 'package_hash', 'function_id']
+            }
+          ],
+          transaction: t
+        })
+
+        for (const build of queued as any[]) {
+          const buildData = build.get({ plain: false })
+          if (!this.running.has(buildData.id)) {
+            await FunctionBuild.update(
+              { status: 'running', started_at: new Date() },
+              { where: { id: buildData.id }, transaction: t }
+            )
+            claimedBuilds.push(buildData)
           }
-        ]
+        }
       })
 
-      for (const build of queued as any[]) {
-        const buildData = build.get({ plain: false })
-        if (!this.running.has(buildData.id)) {
-          this.running.add(buildData.id)
-          this.runBuild(buildData).finally(() => this.running.delete(buildData.id))
-        }
+      for (const buildData of claimedBuilds) {
+        this.running.add(buildData.id)
+        this.runBuild(buildData).finally(() => this.running.delete(buildData.id))
       }
     } catch (err) {
       console.error('[BuildService] processBuildQueue error:', err)
@@ -94,10 +109,10 @@ export class BuildService {
 
     const { FunctionBuild, FunctionVersion, Function: FunctionModel, Project, GlobalSetting } = database.models as any
 
-    // Re-check status in case build was cancelled while queued
+    // Re-check status in case build was cancelled or reset after being claimed
     const freshBuild = await FunctionBuild.findByPk(buildId, { attributes: ['status'] })
-    if (!freshBuild || freshBuild.status === 'cancelled') {
-      console.log(`[BuildService] Build ${buildId} was cancelled before start, skipping`)
+    if (!freshBuild || freshBuild.status !== 'running') {
+      console.log(`[BuildService] Build ${buildId} is no longer running (status=${freshBuild?.status}), skipping`)
       return
     }
 
@@ -117,8 +132,7 @@ export class BuildService {
         projectName = projectRecord?.name ?? null
       }
 
-      // Mark running
-      await FunctionBuild.update({ status: 'running', started_at: new Date() }, { where: { id: buildId } })
+      // Mark version as building (status already set to 'running' during atomic claim)
       await (FunctionVersion as any).update({ build_status: 'building' }, { where: { id: build.version_id } })
 
       // Prepare build temp dir
