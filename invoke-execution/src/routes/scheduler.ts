@@ -183,7 +183,7 @@ router.post('/trigger-scheduled', async (_req: Request, res: Response): Promise<
     console.log(`Found ${functionsToExecute.length} functions to execute`)
 
     const executionResults: any[] = await Promise.all(
-      functionsToExecute.map(async func => {
+      functionsToExecute.map(async (func: any) => {
         try {
           const executionResult = await executeScheduledFunction(func)
 

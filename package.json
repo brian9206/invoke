@@ -18,7 +18,7 @@
   "scripts": {
     "setup:env": "node scripts/setup-env.js",
     "start": "node start.js",
-    "prepare": "husky",
+    "prepare": "husky || true",
     "format:all": "prettier --write ."
   },
   "devDependencies": {

@@ -9,13 +9,17 @@ WORKDIR /app
 # Copy workspace manifests
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY shared/package.json ./shared/
+COPY invoke-runtime/worker/package.json ./invoke-runtime/worker/
+COPY invoke-runtime/types/package.json ./invoke-runtime/types/
 COPY invoke-admin/package.json ./invoke-admin/
 
 # Install dependencies
-RUN npm ci -w invoke-shared && npm ci -w invoke-admin
+RUN npm ci -w invoke-shared -w invoke-worker -w invoke-types -w invoke-admin
 
 # Copy source
 COPY shared/ ./shared/
+COPY invoke-runtime/worker/ ./invoke-runtime/worker/
+COPY invoke-runtime/types/ ./invoke-runtime/types/
 COPY invoke-admin/ ./invoke-admin/
 
 # Build Next.js application
@@ -39,8 +43,10 @@ WORKDIR /app
 # Copy built artifacts and prod dependencies from builder
 COPY --from=builder --chown=appuser:appgroup /app/package.json /app/package-lock.json /app/tsconfig.base.json ./
 COPY --from=builder --chown=appuser:appgroup /app/shared/ ./shared/
+COPY --from=builder --chown=appuser:appgroup /app/invoke-runtime/types/ ./invoke-runtime/types/
 COPY --from=builder --chown=appuser:appgroup /app/invoke-admin/ ./invoke-admin/
 COPY --from=builder --chown=appuser:appgroup /app/node_modules/ ./node_modules/
+COPY --chown=appuser:appgroup templates/ ./templates/
 
 USER appuser
 

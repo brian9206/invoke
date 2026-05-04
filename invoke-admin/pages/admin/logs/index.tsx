@@ -31,15 +31,17 @@ interface PaginationInfo {
   hasPrevPage: boolean
 }
 
+type LogType = 'app' | 'request' | 'build'
+
 export default function Logs() {
   const router = useRouter()
   const { activeProject, loading: projectLoading } = useProject()
 
   // ── URL-derived filter state ────────────────────────────────────────
   const kqlQuery = (router.query.q as string) ?? ''
-  const logType = ['app', 'request', 'build'].includes(router.query.type as string)
-    ? (router.query.type as string)
-    : ('request' as 'app' | 'request' | 'build')
+  const logType: LogType = (['app', 'request', 'build'] as const).includes(router.query.type as LogType)
+    ? (router.query.type as LogType)
+    : 'request'
   const currentPage = Math.max(1, parseInt((router.query.page as string) ?? '1', 10) || 1)
   const pageSize = parseInt((router.query.limit as string) ?? '20', 10) || 20
 
