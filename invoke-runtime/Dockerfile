@@ -20,6 +20,8 @@ RUN ARCH=$(uname -m) && \
     && chmod 755 /usr/local/bin/bun \
     && rm -rf /tmp/bun.zip /tmp/bun
 
+FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine-amd64 AS dotnet-sdk-base
+
 # ============ STAGE 1: Worker builder ============
 FROM bun-base AS worker-builder
 
@@ -71,6 +73,11 @@ COPY --from=bun-base /etc/ssl/certs/ca-certificates.crt /opt/rootfs/etc/ssl/cert
 # Copy the worker shim files built in the worker-builder stage.
 COPY --from=worker-builder /opt/shim/dist/ /opt/rootfs/opt/shim/
 RUN chmod 755 /opt/rootfs/opt/shim/worker
+
+# Copy dotnet SDK
+COPY --from=dotnet-sdk-base /usr/share/dotnet /opt/rootfs/usr/share/dotnet
+RUN ln -sf /opt/rootfs/usr/share/dotnet/dotnet /opt/rootfs/usr/local/bin/dotnet && \
+    ln -sf /opt/rootfs/usr/share/dotnet/dnx /usr/local/bin/dnx
 
 # Create directories that must exist inside the rootfs but aren't part of the
 # Bun image (virtual mounts, invocation scratch space).
