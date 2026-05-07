@@ -17,15 +17,22 @@ static const char* env_or(const char* name, const char* fallback) {
 
 bool g_instrument = false;
 
-int main() {
+int main(int argc, char* argv[]) {
+    bool debug_mode = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--debug") == 0) {
+            debug_mode = true;
+        }
+    }
+
     invoke::SupervisorConfig config;
 
     config.socket_path     = env_or("INVOKE_SOCKET_PATH", "/run/events.sock");
     config.rootfs_path     = env_or("INVOKE_ROOTFS_PATH", "/opt/rootfs");
-    config.tmpfs_mb        = std::atoi(env_or("SANDBOX_TMPFS_MB", "64"));
+    config.tmpfs_mb        = std::atoi(env_or("SANDBOX_TMPFS_MB", "512")); // .NET NativeAOT requires ~300MB+ for NuGet packages
     config.worker_uid      = std::atoi(env_or("INVOKE_WORKER_UID", "65534"));
     config.worker_gid      = std::atoi(env_or("INVOKE_WORKER_GID", "65534"));
-    config.default_memory_mb = std::atoi(env_or("SANDBOX_MEMORY_MB", "256"));
+    config.default_memory_mb = std::atoi(env_or("SANDBOX_MEMORY_MB", "2048")); // .NET builds require substantial memory
 
     const char* inv_instrument = std::getenv("INVOKE_INSTRUMENT");
     config.instrument = (inv_instrument && std::strcmp(inv_instrument, "true") == 0);
@@ -40,7 +47,11 @@ int main() {
     std::cout << "[supervisor]   tmpfs:    " << config.tmpfs_mb << " MB" << std::endl;
     std::cout << "[supervisor]   uid/gid:  " << config.worker_uid << "/" << config.worker_gid << std::endl;
 
-    invoke::supervisor_run(config);
+    if (debug_mode) {
+        invoke::supervisor_run_debug(config);
+    } else {
+        invoke::supervisor_run(config);
+    }
 
     return 0;
 }

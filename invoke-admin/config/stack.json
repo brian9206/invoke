@@ -43,12 +43,38 @@
           "description": "A realtime namespace event handler sample."
         }
       ]
+    },
+    {
+      "name": "csharp",
+      "displayName": "C#",
+      "runtimes": ["dotnet"],
+      "templates": [
+        {
+          "path": "dotnet-csharp-function",
+          "displayName": "Simple Function",
+          "description": "A simple Hello World function."
+        },
+        {
+          "path": "dotnet-csharp-app",
+          "displayName": "Multi-Route App",
+          "description": "A multi-route app sample."
+        },
+        {
+          "path": "dotnet-csharp-realtime",
+          "displayName": "Realtime Handler",
+          "description": "A realtime namespace event handler sample."
+        }
+      ]
     }
   ],
   "runtimes": [
     {
       "name": "bun",
       "displayName": "Bun"
+    },
+    {
+      "name": "dotnet",
+      "displayName": ".NET 10.0"
     }
   ],
   "pipelines": [
@@ -61,6 +87,11 @@
       "language": "typescript",
       "runtime": "bun",
       "pipeline": "bun-typescript"
+    },
+    {
+      "language": "csharp",
+      "runtime": "dotnet",
+      "pipeline": "dotnet-csharp"
     }
   ]
 }

@@ -30,4 +30,10 @@ struct SupervisorConfig {
 /// 2. Sends "ready", processes "execute" events, sends "ready" after each
 void supervisor_run(const SupervisorConfig& config);
 
+/// Run a debug interactive shell inside the sandbox environment.
+/// Called when the supervisor is launched with the --debug argument.
+/// Sets up the overlay filesystem, drops into /bin/sh as root, and cleans
+/// up on exit. Does not connect to the host IPC socket.
+void supervisor_run_debug(const SupervisorConfig& config);
+
 } // namespace invoke

@@ -30,6 +30,7 @@ export interface FunctionMetadata {
   custom_timeout_seconds: number | null
   custom_memory_enabled: boolean
   custom_memory_mb: number | null
+  runtime: string
 }
 
 interface NetworkPolicies {

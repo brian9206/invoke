@@ -35,7 +35,7 @@ const std::string& sandbox_last_setup_error();
 ///   Returns child PID (> 0) on success, or -1 on error.
 pid_t sandbox_start_worker(const std::string& sandbox_dir,
                            const std::string& invocation_id,
-                           const std::string& entry,
+                           const std::vector<const char*>& argv,
                            uint64_t memory_bytes,
                            int uid, int gid,
                            const std::vector<std::string>& extra_env = {});
@@ -46,7 +46,7 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
 ///   Returns child exit code (0 = success), or -1 on error.
 int sandbox_spawn_worker(const std::string& sandbox_dir,
                          const std::string& invocation_id,
-                         const std::string& entry,
+                         const std::vector<const char*>& argv,
                          uint64_t memory_bytes,
                          int uid, int gid,
                          const std::vector<std::string>& extra_env = {});

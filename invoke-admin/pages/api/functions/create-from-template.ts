@@ -145,10 +145,9 @@ Returns a JSON object with a greeting message.
 
       // Get file stats
       const stats = await fs.stat(tgzPath)
-      const fileBuffer = await fs.readFile(tgzPath)
 
-      // Calculate hash
-      const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
+      // Generate a random signature for cache invalidation
+      const hash = crypto.randomBytes(16).toString('hex')
 
       // Upload to S3
       const minioObjectName = `functions/${functionId}/v${version}.tgz`

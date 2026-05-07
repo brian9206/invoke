@@ -35,10 +35,14 @@ const pipeline: Pipeline = {
             packageJson.devDependencies[dep] = '*'
           }
 
+          // Add overrides
+          packageJson.overrides = packageJson.overrides || {}
+          packageJson.overrides['invoke-types'] = 'file:/opt/packages/npm/invoke-types.tgz'
+
           await fs.writeFile('/app/package.json', JSON.stringify(packageJson, null, 2), { encoding: 'utf-8' })
         }
 
-        await exec(['bun', 'install', '--frozen-lockfile'])
+        await exec(['bun', 'install', '--no-save'])
       }
     },
 

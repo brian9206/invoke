@@ -1,4 +1,5 @@
 import dns from 'dns/promises'
+import fs from 'fs'
 import path from 'path'
 import { getSandboxPool, type SandboxPoolMetrics } from './sandbox-pool'
 import { type NetworkRule } from './sandbox-orchestrator'
@@ -152,11 +153,42 @@ export class ExecutionEngine {
         headers: context.req.headers ?? {}
       }
 
+      // For non-bun runtimes (e.g. dotnet), execution requires a compiled artifact.
+      // If artifact_path is null the function has not been built yet.
+      if (metadata.runtime !== 'bun' && !metadata.artifact_path) {
+        return {
+          error:
+            'Function must be built before it can be executed. Please trigger a build and wait for it to complete.',
+          statusCode: 503
+        }
+      }
+
       // Determine the function ID used to resolve the path inside the container.
       // The cache stores extracted packages at /tmp/cache/packages/{functionId}[-v{version}]/
       // which is bind-mounted to /functions/ inside the container.
       // indexPath looks like: /tmp/cache/packages/{dirName}/index.js
       const packageDirName = path.basename(path.dirname(indexPath))
+      const extractedDir = path.dirname(indexPath)
+
+      // For non-bun runtimes, verify the compiled binary is present in the package.
+      // If missing, the cache likely holds stale source files — purge it and re-download.
+      if (metadata.runtime !== 'bun') {
+        let files: string[] = []
+        try {
+          files = await fs.promises.readdir(extractedDir)
+        } catch (_) {}
+        if (!files.includes('program')) {
+          console.error(
+            `[ExecutionEngine] Binary 'program' missing in ${extractedDir}. Contents: ${JSON.stringify(files)}. Purging stale cache.`
+          )
+          const cache = (await import('./cache')).default
+          await cache.removeFromCache(functionId)
+          return {
+            error: `Compiled binary not found (package contained: ${JSON.stringify(files)}). Cache was purged — please retry or trigger a new build.`,
+            statusCode: 503
+          }
+        }
+      }
 
       // Execute inside the container
       sandbox = await this.pool.acquire()
@@ -167,6 +199,7 @@ export class ExecutionEngine {
         timeoutMs: effectiveTimeoutMs,
         kvStore,
         projectSlug,
+        runtime: metadata.runtime ?? 'bun',
         consoleLogger: boundConsoleLogger
       })
 

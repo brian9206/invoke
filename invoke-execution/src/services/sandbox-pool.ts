@@ -21,7 +21,7 @@ import {
 
 const MIN_POOL_SIZE = parseInt(process.env.SANDBOX_MIN_POOL_SIZE || process.env.SANDBOX_POOL_SIZE || '5', 10)
 const MAX_POOL_SIZE = parseInt(process.env.SANDBOX_MAX_POOL_SIZE || '20', 10)
-const MEMORY_MB = parseInt(process.env.SANDBOX_MEMORY_MB || '256', 10)
+const MEMORY_MB = parseInt(process.env.SANDBOX_MEMORY_MB || '2048', 10)
 const RUNTIME = process.env.SANDBOX_RUNTIME || 'runc'
 const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock'
 const IPC_DIR = process.env.SANDBOX_IPC_DIR || '/tmp/invoke-ipc'

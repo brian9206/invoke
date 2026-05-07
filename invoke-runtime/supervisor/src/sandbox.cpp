@@ -93,8 +93,7 @@ struct ChildArgs {
     int         uid;
     int         gid;
     // execve argv (null-terminated)
-    const char* worker_path;
-    const char* entry;
+    const char* const* argv;
     // execve envp (null-terminated, built by parent)
     const char* const* envp;
 };
@@ -145,6 +144,11 @@ static int child_fn(void* arg) {
     ::mknod("/dev/urandom", S_IFCHR | 0444, makedev(1, 9));
     ::mknod("/dev/tty",     S_IFCHR | 0666, makedev(5, 0));
 
+    // dotnet needs /dev/shm for MSBuild node communication
+    ::mkdir("/dev/shm", 0777);    if (::mount("tmpfs", "/dev/shm", "tmpfs", MS_NOSUID | MS_NODEV | MS_NOEXEC, "mode=1777") < 0) {
+        std::fprintf(stderr, "[worker-child] warning: mount /dev/shm failed (%s)\n", std::strerror(errno));
+    }
+
     // 4. Drop privileges: gid first, then uid
     auto privdrop_start = std::chrono::high_resolution_clock::now();
     if (::setgid(static_cast<gid_t>(a->gid)) < 0) {
@@ -159,16 +163,6 @@ static int child_fn(void* arg) {
         std::chrono::high_resolution_clock::now() - privdrop_start).count();
     ILOG("[child_fn] setgid+setuid took %ldms\n", privdrop_ms);
 
-    // 5. Build argv for execve
-    const char* argv_no_instr[] = {
-        a->worker_path, a->entry, nullptr,
-    };
-    const char* argv_with_instr[] = {
-        a->worker_path, a->entry, "--instrument", nullptr,
-    };
-    const char* const* argv =
-        g_instrument ? argv_with_instr : argv_no_instr;
-
     // 6. Build minimal envp — provided by the caller (supervisor builds it from
     // the execute event payload and the required base vars).
 
@@ -177,7 +171,8 @@ static int child_fn(void* arg) {
     ILOG("[child_fn] setup complete in %ldms, about to execve bun\n", child_setup_ms);
 
     // 7. execve
-    ::execve(a->worker_path, const_cast<char* const*>(argv), const_cast<char* const*>(a->envp));
+    ILOG("[child_fn] execve: %s\n", a->argv[0]);
+    ::execve(a->argv[0], const_cast<char* const*>(a->argv), const_cast<char* const*>(a->envp));
 
     // Only reached on error
     std::perror("[worker-child] execve");
@@ -380,7 +375,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
 
 pid_t sandbox_start_worker(const std::string& sandbox_dir,
                            const std::string& invocation_id,
-                           const std::string& entry,
+                           const std::vector<const char*>& argv,
                            uint64_t memory_bytes,
                            int uid, int gid,
                            const std::vector<std::string>& extra_env) {
@@ -401,19 +396,42 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
     args.invocation_id = invocation_id.c_str();
     args.uid           = uid;
     args.gid           = gid;
-    args.worker_path   = "/opt/shim/worker";
-    args.entry         = entry.c_str();
+
+    std::vector<const char*> argv_modified = argv;
+
+    if (g_instrument) {
+      argv_modified.push_back("--instrument");
+    }
+
+    argv_modified.push_back(nullptr);
+    args.argv = argv_modified.data();    
 
     // 3. Build envp: base vars required by Bun + caller-supplied user vars.
     // The strings and pointer array must outlive the child execve call.
     // CLONE_VFORK guarantees the parent is suspended until the child execs,
     // so locals allocated here remain valid for the child.
     static const char* const base_vars[] = {
+        // System
         "HOME=/tmp",
         "TMPDIR=/tmp",
         "PATH=/app/node_modules/.bin:/usr/local/bin:/usr/bin:/bin",
         "TZ=UTC",
+
+        // Bun
         "BUN_JSC_maxPerThreadStackUsage=524288",    // --smol
+
+        // dotnet
+        "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true",  // required by dotnet on musl for ICU support
+        "DOTNET_CLI_TELEMETRY_OPTOUT=true",            // opt-out dotnet CLI telemetry
+        "DOTNET_NOLOGO=true",
+        "DOTNET_GENERATE_ASPNET_HTTPS_CERTIFICATE=false",
+        "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=true",
+        "DOTNET_USE_POLLING_FILE_WATCHER=true",
+        "DOTNET_RUNNING_IN_CONTAINER=true",
+        "DOTNET_VERSION=10.0.7",
+        "DOTNET_ROLL_FORWARD=Major",
+        "DOTNET_GENERATE_ASPNET_CERTIFICATE=false",
+        "DOTNET_SDK_VERSION=10.0.203",
     };
     static constexpr std::size_t BASE_COUNT = sizeof(base_vars) / sizeof(base_vars[0]);
 
@@ -474,13 +492,13 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
 
 int sandbox_spawn_worker(const std::string& sandbox_dir,
                          const std::string& invocation_id,
-                         const std::string& entry,
+                         const std::vector<const char*>& argv,
                          uint64_t memory_bytes,
                          int uid, int gid,
                          const std::vector<std::string>& extra_env) {
     auto spawn_start = std::chrono::high_resolution_clock::now();
 
-    pid_t child_pid = sandbox_start_worker(sandbox_dir, invocation_id, entry, memory_bytes, uid, gid, extra_env);
+    pid_t child_pid = sandbox_start_worker(sandbox_dir, invocation_id, argv, memory_bytes, uid, gid, extra_env);
     if (child_pid < 0) return -1;
 
     ILOG("[spawn_worker] waiting for child (pid %d) to exit...\n", child_pid);

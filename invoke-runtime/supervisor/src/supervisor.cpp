@@ -13,13 +13,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <iostream>
 #include <memory>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <vector>
 
 namespace invoke {
+
+static const char *WORKER_PATH = "/opt/invoke/worker";
 
 // ---------------------------------------------------------------------------
 // Signal handling
@@ -114,7 +118,7 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
     pid_t worker_pid = sandbox_start_worker(
         sandbox_dir,
         "bld-" + build_id,
-        "index.js",     // entry (unused by build worker but required by signature)
+        {WORKER_PATH, "builder"},
         build_memory_bytes,
         config.worker_uid,
         config.worker_gid,
@@ -181,28 +185,33 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
 
     std::string function_id   = p.value("functionId", "");
     std::string invocation_id = p.value("invocationId", "");
-    std::string code_path     = p.value("codePath", "");
+    std::string runtime       = p.value("runtime", "");
     // Determine memory limit from payload (fall back to default)
     int memory_mb = p.value("memoryMb", config.default_memory_mb);
     uint64_t memory_bytes = static_cast<uint64_t>(memory_mb) * 1024 * 1024;
 
-    if (invocation_id.empty() || code_path.empty()) {
+    if (invocation_id.empty()) {
         std::fprintf(stderr, "[supervisor] Invalid execute event: missing fields\n");
-        ipc.send("worker_error", {{"error", "Missing invocationId or codePath"}});
+        ipc.send("worker_error", {{"error", "Missing invocationId"}});
         ipc.send("ready");
         return;
     }
 
-    // Determine paths
-    // code_path is like /functions/<funcId>/index.js
-    // lower_dir = directory containing the code: /functions/<funcId>
-    // entry     = basename: index.js
-    auto slash = code_path.rfind('/');
-    std::string lower_dir = (slash != std::string::npos) ? code_path.substr(0, slash) : "/functions";
-    std::string entry = (slash != std::string::npos) ? code_path.substr(slash + 1) : code_path;
-
+    const std::string lower_dir = std::string("/functions/") + function_id;
     const std::string sandbox_dir = std::string("/opt/inv/") + invocation_id;
 
+    // Determine argv
+    std::vector<const char *> argv;
+
+    if (runtime == "bun") {
+      argv = {WORKER_PATH, "index.js"};
+    }
+    else {
+      argv = {"/app/program"};
+    }
+
+    ILOG("[supervisor] execve target: %s (runtime=%s)\n", argv[0], runtime.c_str());
+    
     auto inv_start = std::chrono::high_resolution_clock::now();
 
     // 1. Set up filesystem
@@ -237,7 +246,7 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
     pid_t worker_pid = sandbox_start_worker(
         sandbox_dir,
         invocation_id,
-        entry,
+        argv,
         memory_bytes,
         config.worker_uid,
         config.worker_gid,
@@ -374,6 +383,90 @@ void supervisor_run(const SupervisorConfig& config) {
     }
 
     ILOG("[supervisor] Shutdown complete\n");
+}
+
+// ---------------------------------------------------------------------------
+// Debug shell
+// ---------------------------------------------------------------------------
+
+void supervisor_run_debug(const SupervisorConfig& config) {
+    // Use INVOKE_DEBUG_APP_DIR if set, otherwise default to /invoke-app.
+    // Mount your project directory here (outside /opt/rootfs) to avoid the
+    // nested overlayfs limitation where bind mounts inside the lowerdir are
+    // not visible through the overlay.
+    const char* debug_app_env = std::getenv("INVOKE_DEBUG_APP_DIR");
+    const std::string debug_app_dir = (debug_app_env && debug_app_env[0]) ? debug_app_env : "/invoke-app";
+    ::mkdir(debug_app_dir.c_str(), 0755); // create if not already present (e.g. no volume mounted)
+
+    std::cout << "[supervisor] *** DEBUG MODE ***" << std::endl;
+    std::cout << "[supervisor] Setting up sandbox environment..." << std::endl;
+    std::cout << "[supervisor]   app dir: " << debug_app_dir << std::endl;
+    std::cout << "[supervisor]   (mount your project with: -v /host/path:" << debug_app_dir << ")" << std::endl;
+
+    // Ensure required directories exist
+    ::mkdir("/opt/inv", 0755);
+    ::mkdir("/run", 0755);
+
+    // Create a dummy events.sock so sandbox_setup_fs bind-mount doesn't fail
+    // (in debug mode there is no event socket running)
+    {
+        int fd = ::open("/run/events.sock", O_CREAT | O_WRONLY, 0600);
+        if (fd >= 0) ::close(fd);
+    }
+
+    const std::string sandbox_dir = "/opt/inv/debug";
+    if (::mkdir(sandbox_dir.c_str(), 0755) < 0 && errno != EEXIST) {
+        std::perror("[supervisor] Failed to create debug sandbox dir");
+        return;
+    }
+
+    // Initialise cgroup subsystem (needed by sandbox_start_worker)
+    cgroup_init();
+
+    // Set up overlay + tmpfs filesystem
+    if (!sandbox_setup_fs(sandbox_dir, debug_app_dir, config.rootfs_path, config.tmpfs_mb)) {
+        std::fprintf(stderr, "[supervisor] Debug sandbox filesystem setup failed: %s\n",
+                     sandbox_last_setup_error().c_str());
+        return;
+    }
+
+    std::cout << "[supervisor] Sandbox ready — launching interactive shell inside rootfs" << std::endl;
+    std::cout << "[supervisor] (Type 'exit' or press Ctrl+D to leave the sandbox)" << std::endl;
+
+    uint64_t memory_bytes = static_cast<uint64_t>(config.default_memory_mb) * 1024 * 1024;
+
+    // Spawn /bin/sh as root (uid=0, gid=0) inside the sandboxed rootfs
+    pid_t child_pid = sandbox_start_worker(
+        sandbox_dir,
+        "debug",
+        {"/bin/sh"},
+        memory_bytes,
+        0, 0,           // run as root inside sandbox
+        {}            // no extra env
+    );
+
+    if (child_pid < 0) {
+        std::fprintf(stderr, "[supervisor] Failed to start debug shell\n");
+        sandbox_cleanup(sandbox_dir, "debug");
+        return;
+    }
+
+    // Wait for the interactive shell to exit
+    int status = 0;
+    while (::waitpid(child_pid, &status, 0) < 0) {
+        if (errno != EINTR) {
+            std::perror("[supervisor] waitpid");
+            break;
+        }
+    }
+
+    int exit_code = -1;
+    if (WIFEXITED(status))        exit_code = WEXITSTATUS(status);
+    else if (WIFSIGNALED(status)) exit_code = 128 + WTERMSIG(status);
+
+    std::cout << "[supervisor] Debug shell exited (code " << exit_code << ")" << std::endl;
+
+    sandbox_cleanup(sandbox_dir, "debug");
 }
 
 } // namespace invoke

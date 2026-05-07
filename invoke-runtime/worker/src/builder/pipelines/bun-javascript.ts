@@ -10,7 +10,7 @@ const pipeline: Pipeline = {
     {
       name: 'install_dev_dependencies',
       run: async () => {
-        await exec(['bun', 'install', '--frozen-lockfile'])
+        await exec(['bun', 'install', '--no-save'])
       }
     },
 

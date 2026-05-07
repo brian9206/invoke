@@ -62,8 +62,10 @@ router.get('/logs/search', async (req: Request, res: Response) => {
         whereParts.push(`executed_at <= $${binds.length}`)
       }
 
-      binds.push(logType)
-      whereParts.push(`type = $${binds.length}`)
+      if (logType) {
+        binds.push(logType)
+        whereParts.push(`type = $${binds.length}`)
+      }
 
       const whereStr = whereParts.join(' AND ')
       const countSql = `SELECT COUNT(*) AS total FROM function_logs WHERE ${whereStr}`
@@ -106,7 +108,7 @@ router.get('/logs/search', async (req: Request, res: Response) => {
     const andConditions: any[] = []
     if (projectId && projectId !== 'system') andConditions.push({ project_id: projectId })
     if (functionId) andConditions.push({ function_id: functionId })
-    andConditions.push({ type: logType })
+    if (logType) andConditions.push({ type: logType })
     if (fromDate && !isNaN(fromDate.getTime())) {
       andConditions.push({ executed_at: { [Op.gte]: fromDate } })
     }

@@ -178,7 +178,8 @@ router.all(
         custom_timeout_enabled: fi.custom_timeout_enabled ?? false,
         custom_timeout_seconds: fi.custom_timeout_seconds ?? null,
         custom_memory_enabled: fi.custom_memory_enabled ?? false,
-        custom_memory_mb: fi.custom_memory_mb ?? null
+        custom_memory_mb: fi.custom_memory_mb ?? null,
+        runtime: fi.runtime ?? 'bun'
       }
 
       let t1 = Date.now()
