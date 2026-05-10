@@ -28,8 +28,25 @@ public static class WorkerRuntime
 
     // ── Implementation ────────────────────────────────────────────────────────
 
+    private static async Task WaitForDebugger()
+    {
+        var isDebugMode = Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE") == "debug";
+
+        if (isDebugMode)
+        {
+            Console.WriteLine("Waiting for debugger to attach... (set INVOKE_TESTING_MODE=debug to enable)");
+            while (!System.Diagnostics.Debugger.IsAttached)
+            {
+                await Task.Delay(100);
+            }
+            Console.WriteLine("Debugger attached.");
+        }
+    }
+
     private static async Task RunCore(Func<Invoke.InvokeRequest, Invoke.InvokeResponse, Task> handler)
     {
+        await WaitForDebugger();
+
         var ipc = IpcChannel.Instance;
 
         // Announce ourselves and request the payload
@@ -75,6 +92,8 @@ public static class WorkerRuntime
 
     private static async Task RunRealtimeCore(Invoke.RealtimeNamespace ns)
     {
+        await WaitForDebugger();
+
         var ipc = IpcChannel.Instance;
 
         await ipc.SendAsync("payload");

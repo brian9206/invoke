@@ -3,6 +3,7 @@ import { table } from 'table'
 import type { Command } from 'commander'
 import { get } from '../services/api-client'
 import { resolveFunctionId } from '../services/helpers'
+import { formatFileSize } from '../services/file-utils'
 
 export function register(program: Command): void {
   program
@@ -46,18 +47,26 @@ export function register(program: Command): void {
         }
 
         console.log(chalk.cyan('\n📋 Execution Logs:\n'))
-        const tableData: string[][] = [['Time', 'Status', 'Duration', 'Error']]
+        const tableData: string[][] = [['Time', 'Status', 'Duration', 'Req Size', 'Res Size', 'Client IP']]
 
         logs.forEach((log: any) => {
-          const status = log.status_code >= 200 && log.status_code < 300 ? chalk.green('✅') : chalk.red('❌')
-          const duration = log.execution_time_ms ? `${log.execution_time_ms}ms` : 'N/A'
-          const error = log.error_message
-            ? log.error_message.length > 40
-              ? log.error_message.substring(0, 37) + '...'
-              : log.error_message
-            : '-'
+          const payload = log.payload || {}
+          const statusCode = payload.response?.status ?? '-'
+          const isSuccess = typeof statusCode === 'number' ? statusCode >= 200 && statusCode < 400 : true
+          const statusDisplay = isSuccess ? chalk.green('✅ ' + statusCode) : chalk.red('❌ ' + statusCode)
+          const duration = payload.execution_time_ms != null ? `${payload.execution_time_ms}ms` : '-'
+          const reqSize = payload.request?.body?.size != null ? formatFileSize(payload.request.body.size) : '-'
+          const resSize = payload.response?.body?.size != null ? formatFileSize(payload.response.body.size) : '-'
+          const clientIp = payload.request?.ip || '-'
 
-          tableData.push([new Date(log.executed_at).toLocaleString(), status + ' ' + log.status_code, duration, error])
+          tableData.push([
+            new Date(log.executed_at).toLocaleString(),
+            statusDisplay,
+            duration,
+            reqSize,
+            resSize,
+            clientIp
+          ])
         })
 
         console.log(table(tableData))

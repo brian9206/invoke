@@ -1,22 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Important settings. Recommend not to touch -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <AssemblyName>hello-world-realtime</AssemblyName>
-    <RootNamespace>HelloWorldRealtime</RootNamespace>
     <PublishAot>true</PublishAot>
-    <RuntimeIdentifier>linux-musl-x64</RuntimeIdentifier>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <StripSymbols>true</StripSymbols>
+  </PropertyGroup>
+
+  <!-- Customization here -->
+  <PropertyGroup>
+    <RootNamespace>MyFunction</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Invoke.SDK" Version="1.*" />
-    <PackageReference Include="Invoke.SDK.SourceGenerator" Version="1.*" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

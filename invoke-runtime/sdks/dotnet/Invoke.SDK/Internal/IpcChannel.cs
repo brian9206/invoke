@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -51,8 +52,26 @@ internal sealed class IpcChannel : IDisposable
 
     private IpcChannel()
     {
-        _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        _socket.Connect(new UnixDomainSocketEndPoint(SocketPath));
+        var testingMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE"));
+        var testingHost = Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE_HOST");
+
+        if (testingMode && !string.IsNullOrEmpty(testingHost))
+        {
+            // Testing mode: connect via TCP instead of the Unix domain socket.
+            // The CLI listens on a random TCP port and passes the address via
+            // INVOKE_TESTING_MODE_HOST=127.0.0.1:<port>.
+            var lastColon = testingHost.LastIndexOf(':');
+            var host = testingHost[..lastColon];
+            var port = int.Parse(testingHost[(lastColon + 1)..]);
+            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _socket.Connect(new IPEndPoint(IPAddress.Parse(host), port));
+        }
+        else
+        {
+            _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            _socket.Connect(new UnixDomainSocketEndPoint(SocketPath));
+        }
+
         _stream = new NetworkStream(_socket, ownsSocket: false);
         _reader = new StreamReader(_stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, 4096, leaveOpen: true);
 
