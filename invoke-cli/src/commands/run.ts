@@ -4,8 +4,9 @@ import fs from 'fs'
 import net from 'net'
 import os from 'os'
 import path from 'path'
-import { spawn } from 'child_process'
+import { spawn, spawnSync } from 'child_process'
 import type { Command } from 'commander'
+import * as semver from 'semver'
 import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/public-api/exchange'
 import { setupEnvironment } from 'invoke-worker/src/environment'
 import { IpcChannel, NoOpIpcChannel, type RequestData } from 'invoke-worker/src/protocol'
@@ -159,6 +160,21 @@ function ensureNugetConfig(fnDir: string, nugetDir: string): boolean {
   return true
 }
 
+function resolveDotnet(): string {
+  const dotnetExe = process.env.DOTNET_PATH || 'dotnet'
+  const result = spawnSync(dotnetExe, ['--version'], { encoding: 'utf8' })
+  if (result.error) {
+    throw new Error(
+      `.NET SDK not found: ${result.error.message}\nDownload latest .NET SDK from https://dotnet.microsoft.com/en-us/download/dotnet`
+    )
+  }
+  const version = (result.stdout || '').trim()
+  if (!semver.satisfies(version, '>=10.0.203')) {
+    throw new Error(`.NET SDK v10.0.203 or above is required, but found: ${version || '(unknown)'}`)
+  }
+  return dotnetExe
+}
+
 function runDotnet(
   absoluteFnDir: string,
   requestData: RequestData,
@@ -169,6 +185,9 @@ function runDotnet(
   const nugetDir = ensureNugetFeed()
   const createdNugetConfig = ensureNugetConfig(absoluteFnDir, nugetDir)
   const nugetConfigPath = path.join(absoluteFnDir, 'nuget.config')
+
+  // Resolve and validate dotnet executable
+  const dotnetExe = resolveDotnet()
 
   // In-memory KV store for this local run session
   const kvStore = new Map<string, { value: unknown; expiresAt?: number }>()
@@ -189,7 +208,7 @@ function runDotnet(
       // (which may hold a stale Invoke.SDK) is bypassed.
       const nugetPackagesDir = path.join(os.homedir(), '.invoke', 'nuget-cache')
       fs.mkdirSync(nugetPackagesDir, { recursive: true })
-      const child = spawn('dotnet', ['run'], {
+      const child = spawn(dotnetExe, ['run'], {
         cwd: absoluteFnDir,
         env: {
           ...process.env,
