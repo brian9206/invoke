@@ -79,12 +79,18 @@ function printResponse(statusCode: number, headers: Record<string, any>, bodyBas
 // ── Bun / JS in-process runner ────────────────────────────────────────────────
 
 async function runBun(absoluteFnDir: string, requestData: RequestData, options: any): Promise<void> {
-  const indexPath = path.join(absoluteFnDir, 'index.js')
+  const packageJsonPath = path.join(absoluteFnDir, 'package.json')
 
-  if (!fs.existsSync(indexPath)) {
-    console.error(chalk.red(`✗ index.js not found in: ${absoluteFnDir}`))
+  if (!fs.existsSync(packageJsonPath)) {
+    console.error(chalk.red(`✗ package.json not found in: ${absoluteFnDir}`))
     process.exit(1)
   }
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
+  const indexPath = path.resolve(
+    absoluteFnDir,
+    packageJson.main || (fs.existsSync(path.join(absoluteFnDir, 'index.js')) ? 'index.js' : 'index.ts')
+  )
 
   console.log(chalk.cyan(`▶ Running (bun): ${absoluteFnDir}`))
   if (options.kvFile) {
@@ -144,6 +150,7 @@ function ensureNugetConfig(fnDir: string, nugetDir: string): boolean {
     '<configuration>',
     '  <packageSources>',
     `    <add key="invoke-sdk-local" value="${nugetDir}" />`,
+    `    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />`,
     '  </packageSources>',
     '</configuration>',
     ''
@@ -253,7 +260,12 @@ function runDotnet(
         ipc.on('console_log', (payload: any) => {
           const level: string = payload?.level ?? 'log'
           const msg: string = (payload?.args ?? []).join(' ')
-          console.log(level === 'error' ? chalk.red(`[stderr] ${msg}`) : chalk.gray(`[stdout] ${msg}`))
+
+          if (level === 'error') {
+            console.error(msg)
+          } else {
+            console.log(msg)
+          }
         })
 
         ipc.on('execute_result', (payload: any) => {
@@ -369,13 +381,10 @@ export function register(program: Command): void {
       const requestData = buildRequestData(options)
 
       // Detect runtime
-      const hasCsproj = fs.readdirSync(absoluteFnDir).some(f => f.endsWith('.csproj'))
-      const hasIndexJs = fs.existsSync(path.join(absoluteFnDir, 'index.js'))
-
       try {
-        if (hasCsproj) {
+        if (fs.readdirSync(absoluteFnDir).some(f => f.endsWith('.csproj'))) {
           await runDotnet(absoluteFnDir, requestData, envVars, options.debug)
-        } else if (hasIndexJs) {
+        } else if (fs.existsSync(path.join(absoluteFnDir, 'package.json'))) {
           // Inject env vars into process for in-process bun runner
           for (const [key, value] of Object.entries(envVars)) {
             process.env[key] = value
@@ -383,7 +392,7 @@ export function register(program: Command): void {
           await runBun(absoluteFnDir, requestData, options)
         } else {
           console.error(chalk.red(`✗ No supported function entry point found in: ${absoluteFnDir}`))
-          console.error(chalk.gray('  Expected: index.js (bun/js) or *.csproj (dotnet)'))
+          console.error(chalk.gray('  Expected: package.json (bun) or *.csproj (dotnet)'))
           process.exit(1)
         }
       } catch (err: any) {
