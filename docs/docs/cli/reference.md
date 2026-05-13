@@ -45,38 +45,74 @@ invoke config:show
 
 ### `init`
 
-Scaffold a new function directory from the hello world template.
+Scaffold a new function directory from an embedded template. Runs interactively by default.
 
 ```bash
-invoke init <path> [options]
+invoke init [path] [options]
 ```
 
 **Arguments:**
 
-- `<path>` - Directory to create
+- `[path]` - Directory to create (defaults to the function name)
 
 **Options:**
 
-- `--name <name>` - Function name (required)
-- `--description <text>` - Function description
-- `--project <project>` - Project name used in the generated deploy script (default: `Default Project`)
+- `--name <name>` - Function name
+- `--language <language>` - Language: `javascript`, `typescript`, or `csharp`
+- `--runtime <runtime>` - Runtime: `bun` (JS/TS) or `dotnet` (C#)
+- `--template <template>` - Template path, e.g. `bun-typescript-function`, `dotnet-csharp-app`
+
+**Interactive prompts (when options are omitted):**
+
+```
+$ invoke init hello-function
+? Function name: hello
+? Language:
+  ❯ JavaScript
+    TypeScript
+    C#
+? Template:
+  ❯ Simple Function — Single handler, handles all requests
+    Multi-Route App — Router with multiple paths and methods
+    Realtime Handler — Socket.IO-style event-driven namespace
+```
 
 **Examples:**
 
 ```bash
-# Minimal
-invoke init hello-function --name hello
+# Interactive
+invoke init hello-function
 
-# With all options
-invoke init hello-function --name hello --description "My first function" --project "my-project"
+# Non-interactive JavaScript function
+invoke init hello-function --name hello --language javascript --template bun-javascript-function
+
+# Non-interactive C# app
+invoke init my-api --name my-api --language csharp --template dotnet-csharp-app
 ```
 
-**Generated files:**
+**Generated files (JavaScript):**
 
 ```
 hello-function/
-├── index.js       # Hello World handler using crypto + fetch
-└── package.json   # Pre-configured with start/deploy/test scripts
+├── index.js
+└── package.json
+```
+
+**Generated files (TypeScript):**
+
+```
+hello-function/
+├── index.ts
+├── tsconfig.json
+└── package.json
+```
+
+**Generated files (C#):**
+
+```
+hello-function/
+├── Function.cs     # or App.cs for router/realtime
+└── app.csproj
 ```
 
 :::tip
@@ -140,11 +176,18 @@ invoke function:create [options] <path>
 **Options:**
 
 - `--name <name>` - Function name (required)
+- `--project <id>` - Project ID or name (required)
+- `--language <language>` - Language: `javascript`, `typescript`, or `csharp` (required)
+- `--runtime <runtime>` - Runtime: `bun` (JS/TS) or `dotnet` (C#) (required)
 - `--description <text>` - Function description
-- `--project-id <id>` - Project ID
-- `--active <value>` - Set active status: `true` or `false`
-- `--requires-api-key <value>` - Require API key: `true` or `false`
 - `--output <format>` - Output format: `table` or `json`
+
+**Examples:**
+
+```bash
+invoke function:create --name my-api --project "my-project" --language javascript --runtime bun ./my-function
+invoke function:create --name my-api --project "my-project" --language csharp --runtime dotnet ./my-csharp-function
+```
 
 ---
 

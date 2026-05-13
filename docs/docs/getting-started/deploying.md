@@ -1,3 +1,6 @@
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 # Deploying Functions
 
 Learn how to package and deploy your Invoke functions.
@@ -13,20 +16,61 @@ Invoke supports two deployment methods:
 
 ### 1. Create Function Files
 
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
+
 Your function needs at minimum:
 
 - `index.js` - Main function file
+- `package.json` - Package metadata
 
-```javascript
-// index.js
+```javascript title="index.js"
 export default async function handler(req, res) {
   res.json({ message: 'Hello from Invoke!' })
 }
 ```
 
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+- `index.ts` - Main function file
+- `package.json` - Package metadata
+- `tsconfig.json` - TypeScript configuration
+
+```typescript title="index.ts"
+export default async function handler(req: InvokeRequest, res: InvokeResponse) {
+  res.json({ message: 'Hello from Invoke!' })
+}
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+- `Function.cs` - Main entry point
+- `app.csproj` - Project file
+
+```csharp title="Function.cs"
+using Invoke;
+using System.Text.Json.Nodes;
+
+public static class Function
+{
+    [EntryPoint]
+    public static Task EntryPoint(InvokeRequest req, InvokeResponse res)
+    {
+        res.Status(200).Json(new JsonObject { ["message"] = "Hello from Invoke!" });
+        return Task.CompletedTask;
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
+
 ### 2. Install Dependencies (Optional)
 
-If your function uses npm packages:
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 ```bash
 npm install lodash axios
@@ -34,15 +78,34 @@ npm install lodash axios
 
 This creates a `node_modules/` directory that will be included in your package.
 
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+```bash
+npm install axios
+npm install --save-dev invoke-types typescript
+```
+
+TypeScript dependencies in `devDependencies` are available at build time.
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+C# dependencies are declared in `app.csproj` as NuGet `PackageReference` entries. The platform restores them during the build — you do **not** run `dotnet restore` locally.
+
+```xml title="app.csproj"
+<ItemGroup>
+  <PackageReference Include="Invoke.SDK" Version="1.*" />
+</ItemGroup>
+```
+
+  </TabItem>
+</Tabs>
+
 ### 3. Create Function Package
 
-Package your function as a zip file:
-
-**Windows (PowerShell):**
-
-```powershell
-Compress-Archive -Path index.js,package.json,node_modules -DestinationPath function.zip
-```
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 **Linux/Mac:**
 
@@ -50,21 +113,50 @@ Compress-Archive -Path index.js,package.json,node_modules -DestinationPath funct
 zip -r function.zip index.js package.json node_modules
 ```
 
-**Node.js Script:**
+**Windows (PowerShell):**
 
-```javascript
-import archiver from 'archiver'
-import fs from 'fs'
-
-const output = fs.createWriteStream('function.zip')
-const archive = archiver('zip', { zlib: { level: 9 } })
-
-archive.pipe(output)
-archive.file('index.js', { name: 'index.js' })
-archive.file('package.json', { name: 'package.json' })
-archive.directory('node_modules/', 'node_modules')
-archive.finalize()
+```powershell
+Compress-Archive -Path index.js,package.json,node_modules -DestinationPath function.zip
 ```
+
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+**Linux/Mac:**
+
+```bash
+zip -r function.zip index.ts tsconfig.json package.json node_modules
+```
+
+**Windows (PowerShell):**
+
+```powershell
+Compress-Archive -Path index.ts,tsconfig.json,package.json,node_modules -DestinationPath function.zip
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+Just zip the source files — the platform handles compilation:
+
+**Linux/Mac:**
+
+```bash
+zip function.zip Function.cs app.csproj
+```
+
+**Windows (PowerShell):**
+
+```powershell
+Compress-Archive -Path Function.cs,app.csproj -DestinationPath function.zip
+```
+
+:::note Build time
+After upload, the platform compiles your C# code to a Native AOT binary. The first activation may take longer while the build completes.
+:::
+
+  </TabItem>
+</Tabs>
 
 ## Deploying via Admin Panel
 
@@ -483,6 +575,7 @@ export default function handler(req, res) {
 
 ## Next Steps
 
-- [API Reference](/docs/api/globals) - Learn available APIs
+- [Bun API Reference](/docs/api/bun/globals) - Bun/JS available APIs
+- [.NET API Reference](/docs/api/dotnet/overview) - C# available APIs
 - [Examples](/docs/examples/hello-world) - See deployment examples
 - [Best Practices](/docs/advanced/best-practices) - Deployment best practices

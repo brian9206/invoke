@@ -2,6 +2,10 @@
 
 Learn how to serve static files from your Invoke functions.
 
+:::info JavaScript / TypeScript only
+File serving (`res.sendFile`, `fs.createReadStream`) is a **Bun (JavaScript/TypeScript)** feature. The C# SDK (`Invoke.SDK`) does not currently support serving static files or streaming binary responses. For static websites use a Bun function.
+:::
+
 ## Basic File Serving
 
 ```javascript
@@ -243,5 +247,5 @@ export default function handler(req, res) {
 
 ## Next Steps
 
-- [Response Object](/docs/api/response) - File serving methods
+- [Response Object](/docs/api/bun/response) - File serving methods
 - [Examples](/docs/examples/static-website) - Complete static site example

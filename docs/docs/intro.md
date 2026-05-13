@@ -2,44 +2,82 @@
 sidebar_position: 1
 ---
 
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 # Welcome to Invoke
 
 **Invoke** is a modern serverless function management platform that lets you deploy and execute custom functions in a secure, isolated sandbox environment.
 
 ## What is Invoke?
 
-Invoke allows you to write serverless functions using Node.js-compatible JavaScript, with access to a rich set of built-in modules and APIs. Your functions run in a sandboxed environment with:
+Invoke lets you write serverless functions in **JavaScript**, **TypeScript**, or **C#**, with access to a rich set of built-in APIs. Your functions run in sandboxed environments with:
 
-- **Express.js-compatible APIs**: Familiar `req` and `res` objects
+- **Multi-language support**: JavaScript, TypeScript (Bun runtime), and C# (.NET 10 NativeAOT)
+- **Express.js-compatible APIs**: Familiar `req` and `res` objects (JS/TS) or `InvokeRequest`/`InvokeResponse` (C#)
 - **Persistent Storage**: Built-in key-value store with TTL support
 - **Realtime Support**: Socket.IO-style real-time communication via `RealtimeNamespace`
-- **Modern JavaScript**: Full async/await, Promises, and ES6+ support
-- **Package Support**: Use npm packages with `node_modules`
+- **Package Support**: npm packages (JS/TS) or NuGet packages (C#)
 
 ## Quick Example
 
-Here's a simple Invoke function:
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 ```javascript
 import crypto from 'crypto'
 
 export default async function handler(req, res) {
-  // Access request data
   const name = req.query.name || 'World'
-
-  // Use built-in modules
   const id = crypto.randomUUID()
 
-  // Store data in KV store
   await kv.set(`user:${id}`, { name, timestamp: Date.now() })
 
-  // Send response
-  res.json({
-    message: `Hello, ${name}!`,
-    id
-  })
+  res.json({ message: `Hello, ${name}!`, id })
 }
 ```
+
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+```typescript
+import crypto from 'crypto'
+
+export default async function handler(req: InvokeRequest, res: InvokeResponse) {
+  const name = (req.query.name as string) || 'World'
+  const id = crypto.randomUUID()
+
+  await kv.set(`user:${id}`, { name, timestamp: Date.now() })
+
+  res.json({ message: `Hello, ${name}!`, id })
+}
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp
+using Invoke;
+using System.Text.Json.Nodes;
+
+public static class Function
+{
+    [EntryPoint]
+    public static async Task EntryPoint(InvokeRequest req, InvokeResponse res)
+    {
+        var name = req.Query.TryGetValue("name", out var n) ? n : "World";
+        var id = Guid.NewGuid().ToString();
+
+        var kv = new KeyValueStore();
+        await kv.Set($"user:{id}", new JsonObject { ["name"] = name, ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+
+        res.Status(200).Json(new JsonObject { ["message"] = $"Hello, {name}!", ["id"] = id });
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ## Key Features
 
@@ -55,9 +93,9 @@ Make external API calls using `fetch`, `http`, or `https` modules.
 
 Persistent key-value storage with automatic TTL management.
 
-### 📦 npm Package Support
+### 📦 Package Support
 
-Include `node_modules` in your function packages for third-party libraries.
+Use npm packages (`node_modules`) in JavaScript/TypeScript functions, or NuGet packages (`Invoke.SDK`) in C# functions.
 
 ### ⚡ High Performance
 
@@ -93,8 +131,10 @@ Learn more in the [CLI Documentation](/docs/cli/installation).
 ## What You'll Learn
 
 - [Quick Start](/docs/getting-started/quick-start) - Create your first function in 5 minutes
+- [Runtimes & Languages](/docs/getting-started/runtimes) - Language and runtime overview
 - [CLI Reference](/docs/cli/installation) - Command-line interface documentation
-- [API Reference](/docs/api/globals) - Complete documentation of available APIs
+- [Bun API Reference](/docs/api/bun/globals) - JS/TS API documentation
+- [.NET API Reference](/docs/api/dotnet/overview) - C# SDK documentation
 - [Guides](/docs/guides/http-requests) - Step-by-step tutorials for common tasks
 - [Examples](/docs/examples/hello-world) - Real-world function examples
 

@@ -28,6 +28,18 @@ const config: Config = {
 
   onBrokenLinks: 'throw',
 
+  headTags: [
+    { tagName: 'link', attributes: { rel: 'preconnect', href: 'https://fonts.googleapis.com' } },
+    { tagName: 'link', attributes: { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: 'anonymous' } },
+    {
+      tagName: 'link',
+      attributes: {
+        rel: 'stylesheet',
+        href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+      }
+    }
+  ],
+
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
   // may want to replace "en" with "zh-Hans".
@@ -121,7 +133,7 @@ const config: Config = {
             },
             {
               label: 'API Reference',
-              to: '/docs/api/globals'
+              to: '/docs/api/bun/globals'
             },
             {
               label: 'Examples',
@@ -171,14 +183,14 @@ const config: Config = {
       copyright: `Built with ⚡ by Brian · © ${new Date().getFullYear()} Invoke Documentation`
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'javascript', 'typescript', 'json', 'docker']
+      theme: prismThemes.oneLight,
+      darkTheme: prismThemes.nightOwl,
+      additionalLanguages: ['bash', 'javascript', 'typescript', 'json', 'docker', 'csharp']
     },
     docs: {
       sidebar: {
         hideable: true,
-        autoCollapseCategories: true
+        autoCollapseCategories: false
       }
     }
   } satisfies Preset.ThemeConfig,

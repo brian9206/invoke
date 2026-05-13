@@ -2,6 +2,10 @@
 
 Serve HTML, CSS, JavaScript, and other static assets.
 
+:::info JavaScript / TypeScript only
+Static file serving is a **Bun (JavaScript/TypeScript)** feature. The C# SDK (`Invoke.SDK`) does not currently support serving static files or streaming file responses.
+:::
+
 ## Basic HTML Page
 
 ```javascript
@@ -337,5 +341,5 @@ export default function handler(req, res) {
 ## Next Steps
 
 - [File Serving Guide](/docs/guides/file-serving) - Advanced file serving
-- [Response Object](/docs/api/response) - Response API
+- [Response Object](/docs/api/bun/response) - Response API
 - [HTTP Requests Guide](/docs/guides/http-requests) - Make API calls

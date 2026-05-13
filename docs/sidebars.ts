@@ -18,7 +18,13 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Getting Started',
-      items: ['getting-started/quick-start', 'getting-started/function-anatomy', 'getting-started/deploying']
+      collapsed: false,
+      items: [
+        'getting-started/quick-start',
+        'getting-started/runtimes',
+        'getting-started/function-anatomy',
+        'getting-started/deploying'
+      ]
     }
   ],
 
@@ -26,6 +32,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'CLI Reference',
+      collapsed: false,
       items: [
         'cli/installation',
         'cli/configuration',
@@ -43,8 +50,29 @@ const sidebars: SidebarsConfig = {
   apiSidebar: [
     {
       type: 'category',
-      label: 'Core APIs',
-      items: ['api/globals', 'api/request', 'api/response', 'api/router', 'api/kv-store', 'api/realtime']
+      label: 'Bun (JavaScript / TypeScript)',
+      collapsed: false,
+      items: [
+        'api/bun/globals',
+        'api/bun/request',
+        'api/bun/response',
+        'api/bun/router',
+        'api/bun/kv-store',
+        'api/bun/realtime'
+      ]
+    },
+    {
+      type: 'category',
+      label: '.NET (C#)',
+      collapsed: false,
+      items: [
+        'api/dotnet/overview',
+        'api/dotnet/request',
+        'api/dotnet/response',
+        'api/dotnet/router',
+        'api/dotnet/kv-store',
+        'api/dotnet/realtime'
+      ]
     }
   ],
 
@@ -52,6 +80,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Guides',
+      collapsed: false,
       items: [
         'guides/http-requests',
         'guides/file-serving',
@@ -68,6 +97,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Examples',
+      collapsed: false,
       items: [
         'examples/hello-world',
         'examples/rest-api',
@@ -81,6 +111,7 @@ const sidebars: SidebarsConfig = {
     {
       type: 'category',
       label: 'Advanced',
+      collapsed: false,
       items: ['advanced/limitations', 'advanced/best-practices', 'advanced/debugging']
     }
   ]

@@ -1,27 +1,28 @@
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 # REST API Example
 
 Complete REST API implementation with CRUD operations.
 
 ## Using the Router
 
-The `Router` global provides clean, Express.js-style routing with path parameter support:
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 ```javascript
 const router = new Router()
 
-// In-memory storage (use KV store in production)
 let items = [
   { id: 1, name: 'Item 1', description: 'First item' },
   { id: 2, name: 'Item 2', description: 'Second item' }
 ]
 let nextId = 3
 
-// LIST: GET /
 router.get('/', (req, res) => {
   res.json({ items, count: items.length })
 })
 
-// GET: GET /:id
 router.get('/:id', (req, res) => {
   const id = parseInt(req.params.id)
   const item = items.find(i => i.id === id)
@@ -29,7 +30,6 @@ router.get('/:id', (req, res) => {
   res.json({ item })
 })
 
-// CREATE: POST /
 router.post('/', (req, res) => {
   const { name, description } = req.body
   if (!name) return res.status(400).json({ error: 'Name is required' })
@@ -38,7 +38,6 @@ router.post('/', (req, res) => {
   res.status(201).json({ item: newItem })
 })
 
-// UPDATE: PUT /:id
 router.put('/:id', (req, res) => {
   const id = parseInt(req.params.id)
   const item = items.find(i => i.id === id)
@@ -49,7 +48,6 @@ router.put('/:id', (req, res) => {
   res.json({ item })
 })
 
-// DELETE: DELETE /:id
 router.delete('/:id', (req, res) => {
   const id = parseInt(req.params.id)
   const index = items.findIndex(i => i.id === id)
@@ -58,157 +56,114 @@ router.delete('/:id', (req, res) => {
   res.status(204).end()
 })
 
-// 404 fallback
-router.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' })
-})
-
 export default router
 ```
 
-## Testing the API
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
 
-### List Items
+```typescript
+interface Item {
+  id: number
+  name: string
+  description: string
+}
 
-```bash
-curl http://<your invoke-execution URL>/invoke/{functionId}
-```
-
-### Get Single Item
-
-```bash
-curl http://<your invoke-execution URL>/invoke/{functionId}/1
-```
-
-### Create Item
-
-```bash
-curl -X POST http://<your invoke-execution URL>/invoke/{functionId} \
-  -H "Content-Type: application/json" \
-  -d '{"name":"New Item","description":"A new item"}'
-```
-
-### Update Item
-
-```bash
-curl -X PUT http://<your invoke-execution URL>/invoke/{functionId}/1 \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Updated Item"}'
-```
-
-### Delete Item
-
-```bash
-curl -X DELETE http://<your invoke-execution URL>/invoke/{functionId}/1
-```
-
-## with KV Store Persistence
-
-```javascript
 const router = new Router()
+let items: Item[] = [
+  { id: 1, name: 'Item 1', description: 'First item' },
+  { id: 2, name: 'Item 2', description: 'Second item' }
+]
+let nextId = 3
 
-router.get('/', async (req, res) => {
-  const items = (await kv.get('api:items')) || []
+router.get('/', (req: InvokeRequest, res: InvokeResponse) => {
   res.json({ items, count: items.length })
 })
 
-router.get('/:id', async (req, res) => {
-  const items = (await kv.get('api:items')) || []
-  const item = items.find(i => i.id === parseInt(req.params.id))
+router.get('/:id', (req: InvokeRequest, res: InvokeResponse) => {
+  const id = parseInt(req.params.id)
+  const item = items.find(i => i.id === id)
   if (!item) return res.status(404).json({ error: 'Item not found' })
   res.json({ item })
 })
 
-router.post('/', async (req, res) => {
-  const { name, description } = req.body
+router.post('/', (req: InvokeRequest, res: InvokeResponse) => {
+  const { name, description } = req.body as { name: string; description?: string }
   if (!name) return res.status(400).json({ error: 'Name is required' })
-
-  const items = (await kv.get('api:items')) || []
-  const nextId = (await kv.get('api:nextId')) || 1
-  const newItem = { id: nextId, name, description: description || '', createdAt: new Date().toISOString() }
-
+  const newItem: Item = { id: nextId++, name, description: description ?? '' }
   items.push(newItem)
-  await kv.set('api:items', items)
-  await kv.set('api:nextId', nextId + 1)
   res.status(201).json({ item: newItem })
 })
 
-router.put('/:id', async (req, res) => {
-  const items = (await kv.get('api:items')) || []
-  const item = items.find(i => i.id === parseInt(req.params.id))
-  if (!item) return res.status(404).json({ error: 'Item not found' })
-
-  const { name, description } = req.body
-  if (name) item.name = name
-  if (description !== undefined) item.description = description
-  item.updatedAt = new Date().toISOString()
-
-  await kv.set('api:items', items)
-  res.json({ item })
-})
-
-router.delete('/:id', async (req, res) => {
-  const items = (await kv.get('api:items')) || []
-  const index = items.findIndex(i => i.id === parseInt(req.params.id))
+router.delete('/:id', (req: InvokeRequest, res: InvokeResponse) => {
+  const id = parseInt(req.params.id)
+  const index = items.findIndex(i => i.id === id)
   if (index === -1) return res.status(404).json({ error: 'Item not found' })
-
   items.splice(index, 1)
-  await kv.set('api:items', items)
   res.status(204).end()
 })
 
-router.use((req, res) => res.status(404).json({ error: 'Endpoint not found' }))
-
 export default router
 ```
 
-## With Pagination
+  </TabItem>
+  <TabItem value="csharp" label="C#">
 
-```javascript
-const router = new Router()
+```csharp
+using Invoke;
+using System.Text.Json.Nodes;
 
-router.get('/', async (req, res) => {
-  const items = (await kv.get('api:items')) || []
+[EntryPoint]
+public partial class App : Router
+{
+    private static readonly List<JsonObject> _items = new()
+    {
+        new JsonObject { ["id"] = 1, ["name"] = "Item 1", ["description"] = "First item" },
+        new JsonObject { ["id"] = 2, ["name"] = "Item 2", ["description"] = "Second item" }
+    };
+    private static int _nextId = 3;
 
-  // Filter
-  const search = req.query.search?.toLowerCase()
-  let filtered = search
-    ? items.filter(i => i.name.toLowerCase().includes(search) || i.description.toLowerCase().includes(search))
-    : items
-
-  // Sort
-  const sortBy = req.query.sortBy || 'id'
-  const sortOrder = req.query.order === 'desc' ? -1 : 1
-  filtered.sort((a, b) => {
-    if (a[sortBy] < b[sortBy]) return -sortOrder
-    if (a[sortBy] > b[sortBy]) return sortOrder
-    return 0
-  })
-
-  // Paginate
-  const page = parseInt(req.query.page) || 1
-  const limit = parseInt(req.query.limit) || 10
-  const offset = (page - 1) * limit
-  const paginated = filtered.slice(offset, offset + limit)
-
-  res.json({
-    items: paginated,
-    pagination: {
-      page,
-      limit,
-      total: filtered.length,
-      pages: Math.ceil(filtered.length / limit),
-      hasNext: page * limit < filtered.length,
-      hasPrev: page > 1
+    [HttpGet("/")]
+    public Task List(InvokeRequest req, InvokeResponse res)
+    {
+        var arr = new JsonArray();
+        foreach (var item in _items) arr.Add(item.DeepClone());
+        res.Status(200).Json(new JsonObject { ["items"] = arr, ["count"] = _items.Count });
+        return Task.CompletedTask;
     }
-  })
-})
 
-export default router
+    [HttpGet("/:id")]
+    public Task Get(InvokeRequest req, InvokeResponse res)
+    {
+        var id = int.Parse(req.Params["id"]);
+        var item = _items.FirstOrDefault(i => i["id"]?.GetValue<int>() == id);
+        if (item is null) { res.Status(404).Json(new JsonObject { ["error"] = "Item not found" }); return Task.CompletedTask; }
+        res.Status(200).Json(item.DeepClone());
+        return Task.CompletedTask;
+    }
+
+    [HttpPost("/")]
+    public Task Create(InvokeRequest req, InvokeResponse res)
+    {
+        var name = req.Body?["name"]?.GetValue<string>();
+        if (string.IsNullOrEmpty(name)) { res.Status(400).Json(new JsonObject { ["error"] = "Name is required" }); return Task.CompletedTask; }
+        var newItem = new JsonObject { ["id"] = _nextId++, ["name"] = name, ["description"] = req.Body?["description"]?.GetValue<string>() ?? "" };
+        _items.Add(newItem);
+        res.Status(201).Json(newItem.DeepClone());
+        return Task.CompletedTask;
+    }
+
+    [HttpDelete("/:id")]
+    public Task Delete(InvokeRequest req, InvokeResponse res)
+    {
+        var id = int.Parse(req.Params["id"]);
+        var removed = _items.RemoveAll(i => i["id"]?.GetValue<int>() == id) > 0;
+        if (!removed) { res.Status(404).Json(new JsonObject { ["error"] = "Item not found" }); return Task.CompletedTask; }
+        res.Status(204).End();
+        return Task.CompletedTask;
+    }
+}
 ```
 
-## Next Steps
-
-- [KV Store Usage](/docs/examples/kv-store-usage) - Persistent storage
-- [Request Object](/docs/api/request) - Handle requests
-- [Response Object](/docs/api/response) - Send responses
+  </TabItem>
+</Tabs>
