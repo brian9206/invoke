@@ -21,7 +21,16 @@ import {
 
 const MIN_POOL_SIZE = parseInt(process.env.SANDBOX_MIN_POOL_SIZE || process.env.SANDBOX_POOL_SIZE || '5', 10)
 const MAX_POOL_SIZE = parseInt(process.env.SANDBOX_MAX_POOL_SIZE || '20', 10)
-const MEMORY_MB = parseInt(process.env.SANDBOX_MEMORY_MB || '2048', 10)
+// CONTAINER_MEMORY_MB: Docker-level memory limit per container. Must be large enough to
+// accommodate dotnet NativeAOT builds (which need 2 GB+). Distinct from the per-execution
+// cgroup limit configured via SANDBOX_MEMORY_MB.
+const CONTAINER_MEMORY_MB = parseInt(process.env.CONTAINER_MEMORY_MB || '2048', 10)
+// SANDBOX_MEMORY_MB: default per-execution cgroup memory limit (256 MB). Forwarded into
+// the container env so the supervisor uses it when no per-invocation value is provided.
+const SANDBOX_MEMORY_MB = parseInt(process.env.SANDBOX_MEMORY_MB || '256', 10)
+// SANDBOX_TMPFS_MB: tmpfs size for execution sandbox writable overlays. Forwarded into
+// the container env so the supervisor uses the same value configured on the host.
+const SANDBOX_TMPFS_MB = parseInt(process.env.SANDBOX_TMPFS_MB || '512', 10)
 const RUNTIME = process.env.SANDBOX_RUNTIME || 'runc'
 const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock'
 const IPC_DIR = process.env.SANDBOX_IPC_DIR || '/tmp/invoke-ipc'
@@ -84,7 +93,9 @@ export class SandboxPool extends EventEmitter {
       ],
       env: {
         INVOKE_SOCKET_PATH: '/run/events.sock',
-        NODE_COMPILE_CACHE: '/tmp/nodecache'
+        NODE_COMPILE_CACHE: '/tmp/nodecache',
+        SANDBOX_MEMORY_MB: String(SANDBOX_MEMORY_MB),
+        SANDBOX_TMPFS_MB: String(SANDBOX_TMPFS_MB)
       },
       caps: ['CAP_SYS_ADMIN', 'SYS_CHROOT', 'SETUID', 'SETGID', 'SYS_RESOURCE', 'DAC_OVERRIDE'],
       cgroupnsMode: CGROUPNS_MODE
@@ -259,7 +270,7 @@ export class SandboxPool extends EventEmitter {
     const spawnOpts: SpawnOptions = {
       network: 'bridge',
       resources: {
-        memory: { limit: MEMORY_MB * 1024 * 1024 }
+        memory: { limit: CONTAINER_MEMORY_MB * 1024 * 1024 }
       }
     }
 

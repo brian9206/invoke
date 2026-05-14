@@ -34,6 +34,8 @@ export interface SandboxExecutionOptions {
   projectSlug: string
   /** Runtime identifier forwarded to the supervisor (e.g. 'bun', 'dotnet-csharp') */
   runtime: string
+  /** Per-invocation cgroup memory limit in MB. Falls back to the supervisor's default when omitted. */
+  memoryMb?: number
   /** Console log handler (optional) */
   consoleLogger?: (data: { level: string; message: string; timestamp: number; details?: object }) => void
 }
@@ -46,7 +48,7 @@ export async function executeSandbox(
   sandbox: Sandbox,
   options: SandboxExecutionOptions
 ): Promise<SandboxExecutionResult> {
-  const { functionId, request, env, timeoutMs, kvStore, projectSlug, runtime, consoleLogger } = options
+  const { functionId, request, env, timeoutMs, kvStore, projectSlug, runtime, memoryMb, consoleLogger } = options
 
   const gatewayInternalUrl = process.env.GATEWAY_SERVICE_URL || 'http://localhost:3000'
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET || ''
@@ -265,6 +267,7 @@ export async function executeSandbox(
         invocationId,
         codePath,
         runtime,
+        memoryMb,
         env
       })
     } catch (err: any) {

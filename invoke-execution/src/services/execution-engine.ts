@@ -133,6 +133,11 @@ export class ExecutionEngine {
           ? metadata.custom_timeout_seconds * 1000
           : settings.defaultTimeoutMs
 
+      const effectiveMemoryMb =
+        metadata.custom_memory_enabled && metadata.custom_memory_mb
+          ? metadata.custom_memory_mb
+          : settings.defaultMemoryMb
+
       const envVars = await this.envVarsProvider!(functionId)
       const kvStore = this.kvStoreFactory!(resolvedProjectId)
 
@@ -200,6 +205,7 @@ export class ExecutionEngine {
         kvStore,
         projectSlug,
         runtime: metadata.runtime ?? 'bun',
+        memoryMb: effectiveMemoryMb,
         consoleLogger: boundConsoleLogger
       })
 

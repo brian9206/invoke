@@ -272,7 +272,7 @@ function runDotnet(
         // NDJSON framing instead of hand-rolling buffer parsing.
         const ipc = IpcChannel.fromSocket(tcpSocket)
 
-        ipc.on('payload', () => {
+        ipc.once('payload', () => {
           ipc.emit('payload', { type: 'execute', request: requestData })
         })
 
