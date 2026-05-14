@@ -117,6 +117,7 @@ const pipeline: Pipeline = {
           '--target',
           'bun',
           '--minify',
+          '--bytecode',
           '--sourcemap'
         ])
 
