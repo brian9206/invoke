@@ -67,6 +67,7 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'api/dotnet/overview',
+        'api/dotnet/logger',
         'api/dotnet/request',
         'api/dotnet/response',
         'api/dotnet/router',

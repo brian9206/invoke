@@ -10,6 +10,7 @@ Structured logging is natively supported via the built-in Pino instance, accessi
 logger.info({ foo: 'bar' })
 logger.error('%s has won %d dollars!', 'Brian', 100000)
 logger.warn(req, 'Request object')
+logger.debug('%j', { id: 1, name: 'Alice' }) // serialises object to JSON string
 
 const child = logger.child({ module: 'auth-service' })
 child.info('hello world')

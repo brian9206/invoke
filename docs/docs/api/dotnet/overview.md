@@ -95,18 +95,19 @@ public partial class App : RealtimeNamespace
 
 ## Namespaces
 
-| Namespace | Content                                                                                               |
-| --------- | ----------------------------------------------------------------------------------------------------- |
-| `Invoke`  | `InvokeRequest`, `InvokeResponse`, `Router`, `RealtimeNamespace`, `KeyValueStore`, and all attributes |
+| Namespace | Content                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `Invoke`  | `InvokeRequest`, `InvokeResponse`, `Router`, `RealtimeNamespace`, `KeyValueStore`, `Logger`, `ChildLogger`, and all attributes |
 
 All types are available via `using Invoke;`. No additional namespaces are required for core functionality.
 
 ## Available APIs
 
-| API                                              | Type           | Description                       |
-| ------------------------------------------------ | -------------- | --------------------------------- |
-| [`InvokeRequest`](/docs/api/dotnet/request)      | Class          | Incoming HTTP request data        |
-| [`InvokeResponse`](/docs/api/dotnet/response)    | Class          | Fluent response builder           |
-| [`Router`](/docs/api/dotnet/router)              | Abstract class | Attribute-based HTTP routing      |
-| [`KeyValueStore`](/docs/api/dotnet/kv-store)     | Class          | Persistent distributed KV storage |
-| [`RealtimeNamespace`](/docs/api/dotnet/realtime) | Abstract class | Socket.IO event-driven handlers   |
+| API                                              | Type           | Description                                      |
+| ------------------------------------------------ | -------------- | ------------------------------------------------ |
+| [`InvokeRequest`](/docs/api/dotnet/request)      | Class          | Incoming HTTP request data                       |
+| [`InvokeResponse`](/docs/api/dotnet/response)    | Class          | Fluent response builder                          |
+| [`Router`](/docs/api/dotnet/router)              | Abstract class | Attribute-based HTTP routing                     |
+| [`KeyValueStore`](/docs/api/dotnet/kv-store)     | Class          | Persistent distributed KV storage                |
+| [`RealtimeNamespace`](/docs/api/dotnet/realtime) | Abstract class | Socket.IO event-driven handlers                  |
+| [`Logger`](/docs/api/dotnet/logger)              | Static class   | Structured logging with levels and child loggers |
