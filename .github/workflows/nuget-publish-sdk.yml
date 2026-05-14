@@ -52,9 +52,16 @@ jobs:
 
       - name: Publish to NuGet
         if: steps.version_check.outputs.already_published == 'false'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "NUGET_API_KEY is empty or not available to this workflow run."
+            exit 1
+          fi
+
           dotnet nuget push ./nupkg/*.nupkg \
-            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --api-key "$NUGET_API_KEY" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
         working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK
