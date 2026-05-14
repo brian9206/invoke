@@ -50,6 +50,18 @@ jobs:
         run: dotnet pack -c Release -o ./nupkg
         working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK
 
+      - name: Inspect package metadata
+        if: steps.version_check.outputs.already_published == 'false'
+        run: |
+          PACKAGE_FILE=$(ls ./nupkg/*.nupkg | head -n 1)
+          echo "Package file: $PACKAGE_FILE"
+          unzip -p "$PACKAGE_FILE" "*.nuspec" > package.nuspec
+          PACKAGE_ID=$(grep -oPm1 '(?<=<id>)[^<]+' package.nuspec || true)
+          PACKAGE_VERSION=$(grep -oPm1 '(?<=<version>)[^<]+' package.nuspec || true)
+          echo "Detected PackageId: $PACKAGE_ID"
+          echo "Detected Version: $PACKAGE_VERSION"
+        working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK
+
       - name: Publish to NuGet
         if: steps.version_check.outputs.already_published == 'false'
         env:
