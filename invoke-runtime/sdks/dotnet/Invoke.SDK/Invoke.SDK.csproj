@@ -19,6 +19,7 @@
     <TrimmerRootDescriptor>ILLink.Descriptors.xml</TrimmerRootDescriptor>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddGeneratorToPackage</TargetsForTfmSpecificContentInPackage>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
   
   <PropertyGroup>
@@ -49,5 +50,9 @@
                               PackagePath="analyzers/dotnet/cs" />
     </ItemGroup>
   </Target>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
 
 </Project>
