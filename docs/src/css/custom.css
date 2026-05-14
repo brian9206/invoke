@@ -691,3 +691,7 @@ html[data-theme='dark']::-webkit-scrollbar-thumb:hover {
 [data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+.dsla-search-wrapper {
+  min-width: 200px;
+}

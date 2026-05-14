@@ -239,14 +239,11 @@ class CacheService {
     const extractedPath = this.getExtractedPackagePath(functionId, version)
 
     try {
-      console.log(`  [1/4] Downloading from S3: ${packagePath} → ${cachedPath}`)
       await (s3Service as any).downloadPackageFromPath(packagePath, cachedPath)
 
       await fs.remove(extractedPath)
       await fs.ensureDir(extractedPath)
-      console.log(`  [2/4] Extracting tarball to ${extractedPath}`)
       await tar.extract({ file: cachedPath, cwd: extractedPath })
-      console.log(`  [3/4] Saving cache metadata`)
       await this.saveCacheMetadata(functionId, {
         version,
         hash,
@@ -256,8 +253,6 @@ class CacheService {
         lastAccessed: new Date().toISOString(),
         accessCount: 1
       })
-
-      console.log(`  [4/4] ✅ Package ${functionId} cached successfully from ${packagePath}`)
       return extractedPath
     } catch (error: any) {
       console.error(`❌ Failed to cache package ${functionId} from path ${packagePath}:`, error)

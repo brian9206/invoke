@@ -11,7 +11,7 @@ const pipeline: Pipeline = {
       name: 'install_dev_dependencies',
       run: async () => {
         // check typescript and invoke-types installed
-        const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+        const packageJson = JSON.parse(await fs.readFile('/output/source/package.json', { encoding: 'utf-8' }))
         const dependencies = Object.keys(packageJson.dependencies || {}).concat(
           Object.keys(packageJson.devDependencies || {})
         )
@@ -39,7 +39,7 @@ const pipeline: Pipeline = {
           packageJson.overrides = packageJson.overrides || {}
           packageJson.overrides['invoke-types'] = 'file:/opt/packages/npm/invoke-types.tgz'
 
-          await fs.writeFile('/app/package.json', JSON.stringify(packageJson, null, 2), { encoding: 'utf-8' })
+          await fs.writeFile('/output/source/package.json', JSON.stringify(packageJson, null, 2), { encoding: 'utf-8' })
         }
 
         await exec(['bun', 'install', '--no-save'])
@@ -55,7 +55,7 @@ const pipeline: Pipeline = {
         let hasBuildScript = false
 
         try {
-          const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+          const packageJson = JSON.parse(await fs.readFile('/output/source/package.json', { encoding: 'utf-8' }))
           hasBuildScript = !!packageJson?.scripts?.build
         } catch {
           hasBuildScript = false
@@ -78,12 +78,12 @@ const pipeline: Pipeline = {
       dependsOn: ['build'],
       run: async () => {
         // Detect entrypoint
-        const entrypoints = ['/app/index.ts', '/app/main.ts']
+        const entrypoints = ['/output/source/index.ts', '/output/source/main.ts']
 
         let entrypoint = ''
 
         try {
-          const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+          const packageJson = JSON.parse(await fs.readFile('/output/source/package.json', { encoding: 'utf-8' }))
 
           if (!packageJson.main) {
             throw new Error('No "main" field in package.json')
@@ -126,9 +126,9 @@ const pipeline: Pipeline = {
           throw new Error('bun build produced no output files')
         }
 
-        // Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
+        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
         console.log('Copying project files to output artifacts...')
-        await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] })
+        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 
@@ -138,9 +138,9 @@ const pipeline: Pipeline = {
       run: async () => {
         await fs.mkdir('/output/artifacts', { recursive: true })
 
-        // Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
+        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
         console.log('Copying project files to output artifacts...')
-        await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] })
+        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 

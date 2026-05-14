@@ -1,6 +1,5 @@
 import fs from 'fs/promises'
-import path from 'path'
-import { exec, copyRecursive } from '../utils'
+import { exec } from '../utils'
 import { Pipeline } from '../types'
 
 // ---------------------------------------------------------------------------
@@ -10,12 +9,12 @@ import { Pipeline } from '../types'
 // targeting linux-musl-x64.  The user's project must reference Invoke.SDK
 // (e.g. via PackageReference or ProjectReference).
 //
-// Expected layout under /app/:
+// Expected layout under /output/source/:
 //   *.csproj  — the user's project file
 //   **/*.cs   — user source files
 //
 // Produces:
-//   /app/bin/<project-name>  — the native executable
+//   /output/artifacts/program  — the native executable
 // ---------------------------------------------------------------------------
 
 const nugetConfig = `<?xml version="1.0" encoding="utf-8"?>
@@ -36,20 +35,11 @@ const env = {
 const pipeline: Pipeline = {
   name: 'dotnet-csharp',
   stages: [
-    {
-      name: 'copy_files',
-      run: async () => {
-        await fs.mkdir('/output/build', { recursive: true })
-        await copyRecursive('/app', '/output/build')
-      }
-    },
-
     // ── Stage: publish NativeAOT binary ─────────────────────────────────────
     {
       name: 'publish',
-      dependsOn: ['copy_files'],
       run: async () => {
-        await fs.writeFile('/output/build/nuget.config', nugetConfig, { encoding: 'utf-8' })
+        await fs.writeFile('/output/source/nuget.config', nugetConfig, { encoding: 'utf-8' })
         await exec(
           [
             'dotnet',
@@ -69,7 +59,7 @@ const pipeline: Pipeline = {
             '/output/artifacts'
           ],
           {
-            cwd: '/output/build',
+            cwd: '/output/source',
             env
           }
         )

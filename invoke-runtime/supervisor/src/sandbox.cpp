@@ -118,11 +118,14 @@ static int child_fn(void* arg) {
         std::chrono::high_resolution_clock::now() - chroot_start).count();
     ILOG("[child_fn] chroot took %ldms\n", chroot_ms);
 
-    // 3. chdir to /app — the function code working directory
+    // 3. chdir to /app (execution) or /output/source (build sandbox fallback)
     auto chdir_start = std::chrono::high_resolution_clock::now();
     if (::chdir("/app") < 0) {
-        std::perror("[worker-child] chdir");
-        _exit(126);
+        // Build sandboxes have no /app; fall back to /output/source
+        if (::chdir("/output/source") < 0) {
+            std::perror("[worker-child] chdir");
+            _exit(126);
+        }
     }
     auto chdir_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - chdir_start).count();
@@ -186,7 +189,8 @@ static int child_fn(void* arg) {
 bool sandbox_setup_fs(const std::string& sandbox_dir,
                       const std::string& lower_dir,
                       const std::string& rootfs,
-                      int tmpfs_mb) {
+                      int tmpfs_mb,
+                      bool include_app_overlay) {
     g_last_setup_error.clear();
 
     const std::string actual_rw_dir = sandbox_dir + "/rw";
@@ -195,7 +199,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     auto fs_start = std::chrono::high_resolution_clock::now();
 
     struct stat st{};
-    if (::stat(lower_dir.c_str(), &st) < 0) {
+    if (include_app_overlay && ::stat(lower_dir.c_str(), &st) < 0) {
         g_last_setup_error = "lowerdir missing or inaccessible: " + lower_dir + " (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         return false;
@@ -238,8 +242,9 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
 
     // Create upper/work subdirs
     ILOG("[sandbox_setup_fs] creating upper/work dirs\n");
-    if (!mkdirp(root_upper) || !mkdirp(root_work) ||
-        !mkdirp(app_upper)  || !mkdirp(app_work)) {
+    bool rw_dirs_ok = mkdirp(root_upper) && mkdirp(root_work);
+    if (include_app_overlay) rw_dirs_ok = rw_dirs_ok && mkdirp(app_upper) && mkdirp(app_work);
+    if (!rw_dirs_ok) {
         g_last_setup_error = "failed to create upper/work dirs";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
         ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
@@ -273,41 +278,43 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         std::chrono::high_resolution_clock::now() - overlay_start).count();
     ILOG("[sandbox_setup_fs] overlay mount took %ldms\n", overlay_ms);
 
-    // Mount a nested overlay at /app for the function code
-    // This allows /app to be writable (writes go to upper layer)
-    // while the function code (lower_dir) remains unmodified on the host
-    if (!mkdirp(merged_dir + "/app")) {
-        g_last_setup_error = "failed to create /app dirs";
-        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        ::umount2(merged_dir.c_str(), MNT_DETACH);
-        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
-        return false;
-    }
-    
-    ILOG("[sandbox_setup_fs] mounting nested overlay at /app (lowerdir=%s)\n", lower_dir.c_str());
-    auto app_overlay_opts = "lowerdir=" + lower_dir +
-                            ",upperdir=" + app_upper +
-                            ",workdir=" + app_work;
-    if (::mount("overlay", (merged_dir + "/app").c_str(), "overlay",
-                MS_NOSUID, app_overlay_opts.c_str()) < 0) {
-        g_last_setup_error = "mount nested overlay at /app failed (" + std::string(std::strerror(errno)) + ")";
-        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        ::umount2(merged_dir.c_str(), MNT_DETACH);
-        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
-        return false;
-    }
-    ILOG("[sandbox_setup_fs] nested overlay at /app mounted\n");
+    if (include_app_overlay) {
+        // Mount a nested overlay at /app for the function code
+        // This allows /app to be writable (writes go to upper layer)
+        // while the function code (lower_dir) remains unmodified on the host
+        if (!mkdirp(merged_dir + "/app")) {
+            g_last_setup_error = "failed to create /app dirs";
+            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+            ::umount2(merged_dir.c_str(), MNT_DETACH);
+            ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+            return false;
+        }
 
-    // chmod /app to 777 so the worker can write files
-    if (::chmod((merged_dir + "/app").c_str(), 0777) < 0) {
-        g_last_setup_error = "chmod /app failed (" + std::string(std::strerror(errno)) + ")";
-        std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
-        ::umount2(merged_dir.c_str(), MNT_DETACH);
-        ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
-        return false;
+        ILOG("[sandbox_setup_fs] mounting nested overlay at /app (lowerdir=%s)\n", lower_dir.c_str());
+        auto app_overlay_opts = "lowerdir=" + lower_dir +
+                                ",upperdir=" + app_upper +
+                                ",workdir=" + app_work;
+        if (::mount("overlay", (merged_dir + "/app").c_str(), "overlay",
+                    MS_NOSUID, app_overlay_opts.c_str()) < 0) {
+            g_last_setup_error = "mount nested overlay at /app failed (" + std::string(std::strerror(errno)) + ")";
+            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+            ::umount2(merged_dir.c_str(), MNT_DETACH);
+            ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+            return false;
+        }
+        ILOG("[sandbox_setup_fs] nested overlay at /app mounted\n");
+
+        // chmod /app to 777 so the worker can write files
+        if (::chmod((merged_dir + "/app").c_str(), 0777) < 0) {
+            g_last_setup_error = "chmod /app failed (" + std::string(std::strerror(errno)) + ")";
+            std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
+            ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
+            ::umount2(merged_dir.c_str(), MNT_DETACH);
+            ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
+            return false;
+        }
+        ILOG("[sandbox_setup_fs] /app permissions set to 777\n");
     }
-    ILOG("[sandbox_setup_fs] /app permissions set to 777\n");
 
     // Bind mount /run/events.sock into the sandbox for event communication
     auto events_socket_host = "/run/events.sock";
@@ -316,7 +323,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     if (!mkdirp(merged_dir + "/run")) {
         g_last_setup_error = "failed to create /run in merged dir for socket bind mount";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
+        if (include_app_overlay) ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
         ::umount2(merged_dir.c_str(), MNT_DETACH);
         ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
@@ -329,7 +336,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
         if (tfd < 0) {
             g_last_setup_error = "failed to create socket bind mount target at " + events_socket_jail + " (" + std::string(std::strerror(errno)) + ")";
             std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-            ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
+            if (include_app_overlay) ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
             ::umount2(merged_dir.c_str(), MNT_DETACH);
             ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
             return false;
@@ -341,7 +348,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
     if (::mount(events_socket_host, events_socket_jail.c_str(), nullptr, MS_BIND | MS_SHARED, nullptr) < 0) {
         g_last_setup_error = "bind mount of events.sock failed at " + events_socket_jail + " (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox] %s\n", g_last_setup_error.c_str());
-        ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
+        if (include_app_overlay) ::umount2((merged_dir + "/app").c_str(), MNT_DETACH);
         ::umount2(merged_dir.c_str(), MNT_DETACH);
         ::umount2(actual_rw_dir.c_str(), MNT_DETACH);
         return false;
@@ -428,10 +435,9 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
         "DOTNET_SKIP_FIRST_TIME_EXPERIENCE=true",
         "DOTNET_USE_POLLING_FILE_WATCHER=true",
         "DOTNET_RUNNING_IN_CONTAINER=true",
-        "DOTNET_VERSION=10.0.7",
         "DOTNET_ROLL_FORWARD=Major",
         "DOTNET_GENERATE_ASPNET_CERTIFICATE=false",
-        "DOTNET_SDK_VERSION=10.0.203",
+        "DOTNET_SKIP_WORKLOAD_INTEGRITY_CHECK=true",
     };
     static constexpr std::size_t BASE_COUNT = sizeof(base_vars) / sizeof(base_vars[0]);
 
@@ -528,14 +534,12 @@ int sandbox_spawn_worker(const std::string& sandbox_dir,
 }
 
 bool sandbox_setup_build_fs(const std::string& sandbox_dir,
-                             const std::string& source_dir,
                              const std::string& output_dir,
                              const std::string& rootfs,
                              int tmpfs_mb) {
     g_last_setup_error.clear();
 
-    
-    sandbox_setup_fs(sandbox_dir, source_dir, rootfs, tmpfs_mb);
+    sandbox_setup_fs(sandbox_dir, "", rootfs, tmpfs_mb, false);
 
     const std::string merged_dir = sandbox_dir + "/merged/output";
     if (::mount(output_dir.c_str(), merged_dir.c_str(), nullptr, MS_BIND | MS_NOSUID, nullptr) < 0) {

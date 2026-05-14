@@ -78,6 +78,34 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
         return;
     }
 
+    // Copy source files into output/source/ so the build sandbox can access them at /output/source
+    std::string source_input_dir = output_dir + "/source";
+    if (::mkdir(source_input_dir.c_str(), 0755) < 0 && errno != EEXIST) {
+        std::fprintf(stderr, "[supervisor] Failed to create output/source dir: %s\n", std::strerror(errno));
+        ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to create output/source dir"}});
+        std::string rm_cmd = "rm -rf " + build_rw;
+        ::system(rm_cmd.c_str());
+        ipc.send("ready");
+        return;
+    }
+    {
+        std::string cp_cmd = "cp -rp " + source_dir + "/." + " " + source_input_dir + "/";
+        int cp_ret = ::system(cp_cmd.c_str());
+        if (cp_ret != 0) {
+            std::fprintf(stderr, "[supervisor] Failed to copy source files to output/source (exit %d)\n", cp_ret);
+            ipc.send("build_complete", {{"success", false}, {"buildId", build_id}, {"error", "Failed to copy source files"}});
+            std::string rm_cmd = "rm -rf " + build_rw;
+            ::system(rm_cmd.c_str());
+            ipc.send("ready");
+            return;
+        }
+        // Make the source directory writable by the worker so pipeline can modify it (e.g., nuget.config)
+        if (::chmod(source_input_dir.c_str(), 0777) < 0) {
+            std::fprintf(stderr, "[supervisor] Warning: Failed to chmod output/source directory: %s\n", std::strerror(errno));
+            // Non-fatal; continue anyway
+        }
+    }
+
     const std::string sandbox_dir = std::string("/opt/inv/bld-") + build_id;
     if (::mkdir(sandbox_dir.c_str(), 0755) < 0 && errno != EEXIST) {
         std::fprintf(stderr, "[supervisor] Failed to create build sandbox dir: %s\n", std::strerror(errno));
@@ -86,9 +114,9 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
         return;
     }
 
-    // Set up build filesystem: rootfs ro bind, /app ro bind to source, /output rw bind, /tmp tmpfs
+    // Set up build filesystem: /output rw bind to output_dir (source pre-copied to output_dir/source/), /tmp tmpfs
     ILOG("[supervisor:build] Setting up build filesystem for %s\n", build_id.c_str());
-    if (!sandbox_setup_build_fs(sandbox_dir, source_dir, output_dir, config.rootfs_path)) {
+    if (!sandbox_setup_build_fs(sandbox_dir, output_dir, config.rootfs_path)) {
         const auto& detail = sandbox_last_setup_error();
         std::fprintf(stderr, "[supervisor] Build filesystem setup failed for %s: %s\n",
                      build_id.c_str(), detail.c_str());
