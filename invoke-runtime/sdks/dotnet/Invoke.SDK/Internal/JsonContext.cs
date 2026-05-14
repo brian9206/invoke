@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Invoke.Internal;
@@ -14,7 +15,8 @@ namespace Invoke.Internal;
 [JsonSerializable(typeof(IpcOutboundFrame<IpcEmptyPayload>))]
 [JsonSerializable(typeof(IpcOutboundFrame<IpcExecuteResultPayload>))]
 [JsonSerializable(typeof(IpcOutboundFrame<IpcWorkerErrorPayload>))]
-[JsonSerializable(typeof(IpcOutboundFrame<IpcConsoleLogPayload>))]
+[JsonSerializable(typeof(IpcOutboundFrame<IpcConsolePayload>))]
+[JsonSerializable(typeof(JsonObject))]
 [JsonSerializable(typeof(IpcOutboundFrame<IpcKvGetPayload>))]
 [JsonSerializable(typeof(IpcOutboundFrame<IpcKvSetPayload>))]
 [JsonSerializable(typeof(IpcOutboundFrame<IpcKvDeletePayload>))]

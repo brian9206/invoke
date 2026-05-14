@@ -101,7 +101,6 @@ const sidebars: SidebarsConfig = {
       items: [
         'examples/hello-world',
         'examples/rest-api',
-        'examples/static-website',
         'examples/crypto-hashing',
         'examples/kv-store-usage',
         'examples/webhook-handler',

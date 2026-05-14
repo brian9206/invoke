@@ -200,6 +200,83 @@ res.Type("text/html").Send("<h1>Hello</h1>");
 res.Type("application/xml").Send("<result>ok</result>");
 ```
 
+---
+
+## File Response Methods
+
+### `SendFile(filePath, options?)`
+
+Send a file as the response body, detecting its MIME type automatically. Returns `this` for chaining.
+
+```csharp
+public InvokeResponse SendFile(string filePath, SendFileOptions? options = null)
+```
+
+```csharp
+// Absolute path
+res.SendFile("/var/task/public/index.html");
+
+// Relative path resolved from a root directory
+res.SendFile("images/logo.png", new SendFileOptions { Root = "/var/task/public" });
+```
+
+Responds with `404` if the file is not found, `403` if access is denied, `500` on any other I/O error.
+
+---
+
+### `Download(filePath, filename?, options?)`
+
+Prompt the browser to download a file as an attachment. Sets `Content-Disposition: attachment` and delegates to `SendFile`.
+
+```csharp
+public InvokeResponse Download(string filePath, string? filename = null, SendFileOptions? options = null)
+```
+
+```csharp
+res.Download("/var/task/reports/report.pdf", "monthly-report.pdf");
+```
+
+---
+
+### `Attachment(filename?)`
+
+Set the `Content-Disposition` header to `attachment`, optionally with a filename. Non-ASCII filenames are RFC 5987–encoded. Returns `this` for chaining.
+
+```csharp
+public InvokeResponse Attachment(string? filename = null)
+```
+
+```csharp
+res.Attachment("résumé.pdf").SendFile("/var/task/files/cv.pdf");
+```
+
+---
+
+### `SendFileOptions`
+
+Options accepted by `SendFile` and `Download`:
+
+| Property       | Type                          | Default | Description                                                              |
+| -------------- | ----------------------------- | ------- | ------------------------------------------------------------------------ |
+| `Root`         | `string?`                     | `"/"`   | Root directory to resolve the file path against                          |
+| `MaxAge`       | `int?`                        | `null`  | Cache max-age in **milliseconds** for `Cache-Control: public, max-age=N` |
+| `CacheControl` | `bool`                        | `true`  | Whether to emit a `Cache-Control` header when `MaxAge` is set            |
+| `LastModified` | `bool`                        | `true`  | Whether to set the `Last-Modified` header from the file's mtime          |
+| `Headers`      | `Dictionary<string, string>?` | `null`  | Additional response headers to merge into the response                   |
+
+```csharp
+res.SendFile("/var/task/public/style.css", new SendFileOptions
+{
+    MaxAge = 31_536_000_000, // 1 year in ms
+    Headers = new Dictionary<string, string>
+    {
+        ["x-served-by"] = "invoke"
+    }
+});
+```
+
+---
+
 ## Common Patterns
 
 ### Success with data

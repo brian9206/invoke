@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
+using Invoke.Internal;
 
 namespace Invoke;
 
@@ -120,6 +121,119 @@ public sealed class InvokeResponse
     {
         _body = data;
         _finished = true;
+        return this;
+    }
+
+    // ── File responses ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Send a file as the response body, detecting its MIME type automatically.
+    /// Mirrors <c>res.sendFile()</c> from the JavaScript SDK.
+    /// </summary>
+    /// <param name="filePath">
+    /// Path to the file. When <see cref="SendFileOptions.Root"/> is set the path is resolved
+    /// relative to that directory; otherwise it must be absolute.
+    /// </param>
+    /// <param name="options">Optional file-sending options.</param>
+    public InvokeResponse SendFile(string filePath, SendFileOptions? options = null)
+    {
+        var root = options?.Root ?? "/";
+        var resolved = Path.GetFullPath(filePath, root);
+
+        byte[] data;
+        try
+        {
+            data = File.ReadAllBytes(resolved);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException)
+        {
+            return SendStatus(404);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return SendStatus(403);
+        }
+        catch
+        {
+            return SendStatus(500);
+        }
+
+        var mimeType = MimeTypes.GetMimeType(resolved);
+        if (mimeType is not null)
+            SetHeader("content-type", mimeType);
+
+        SetHeader("content-length", data.Length.ToString());
+
+        if (options?.MaxAge is int maxAgeMs && options.CacheControl)
+        {
+            var maxAgeSeconds = maxAgeMs / 1000;
+            SetHeader("cache-control", $"public, max-age={maxAgeSeconds}");
+        }
+
+        if (options?.LastModified != false)
+        {
+            try
+            {
+                var mtime = File.GetLastWriteTimeUtc(resolved);
+                SetHeader("last-modified", mtime.ToString("R"));
+            }
+            catch { /* metadata unavailable — skip */ }
+        }
+
+        if (options?.Headers is { } extraHeaders)
+        {
+            foreach (var (key, value) in extraHeaders)
+                SetHeader(key, value);
+        }
+
+        return End(data);
+    }
+
+    /// <summary>
+    /// Prompt the browser to download a file as an attachment.
+    /// Sets <c>Content-Disposition: attachment</c> and delegates to <see cref="SendFile"/>.
+    /// Mirrors <c>res.download()</c> from the JavaScript SDK.
+    /// </summary>
+    /// <param name="filePath">Path to the file to send.</param>
+    /// <param name="filename">Download filename shown to the user. Defaults to the file's base name.</param>
+    /// <param name="options">Optional file-sending options.</param>
+    public InvokeResponse Download(string filePath, string? filename = null, SendFileOptions? options = null)
+    {
+        Attachment(filename ?? Path.GetFileName(filePath));
+        return SendFile(filePath, options);
+    }
+
+    /// <summary>
+    /// Set the <c>Content-Disposition</c> header to <c>attachment</c>, optionally with a filename.
+    /// Mirrors <c>res.attachment()</c> from the JavaScript SDK.
+    /// </summary>
+    /// <param name="filename">Optional filename. Non-ASCII names are RFC 5987–encoded.</param>
+    public InvokeResponse Attachment(string? filename = null)
+    {
+        if (filename is { Length: > 0 })
+        {
+            bool needsEncoding = false;
+            foreach (char c in filename)
+            {
+                if (c < 0x20 || c > 0x7E) { needsEncoding = true; break; }
+            }
+
+            if (needsEncoding)
+            {
+                var encoded = Uri.EscapeDataString(filename);
+                SetHeader("content-disposition", $"attachment; filename=\"{filename}\"; filename*=UTF-8''{encoded}");
+            }
+            else
+            {
+                var escaped = filename.Replace("\"", "\\\"");
+                SetHeader("content-disposition", $"attachment; filename=\"{escaped}\"");
+            }
+        }
+        else
+        {
+            SetHeader("content-disposition", "attachment");
+        }
+
         return this;
     }
 

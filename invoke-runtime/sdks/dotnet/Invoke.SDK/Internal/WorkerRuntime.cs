@@ -146,7 +146,7 @@ public static class WorkerRuntime
 
 /// <summary>
 /// TextWriter that redirects <see cref="Console"/> output to the host via IPC
-/// <c>console_log</c> events.
+/// <c>console</c> events.
 /// </summary>
 internal sealed class IpcConsoleWriter : System.IO.TextWriter
 {
@@ -156,7 +156,8 @@ internal sealed class IpcConsoleWriter : System.IO.TextWriter
     public IpcConsoleWriter(IpcChannel ipc, string level)
     {
         _ipc = ipc;
-        _level = level;
+        // Map Console.Out ("log") → "info" to match structured log levels
+        _level = level == "log" ? "info" : level;
     }
 
     public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
@@ -164,16 +165,16 @@ internal sealed class IpcConsoleWriter : System.IO.TextWriter
     public override void WriteLine(string? value)
     {
         // Fire-and-forget — we don't await to avoid deadlocks in sync contexts
-        _ = _ipc.SendAsync("console_log",
-            new IpcConsoleLogPayload { Level = _level, Args = [value ?? string.Empty] },
-            IpcJsonContext.Default.IpcOutboundFrameIpcConsoleLogPayload);
+        _ = _ipc.SendAsync("console",
+            new IpcConsolePayload { Level = _level, Args = [value ?? string.Empty] },
+            IpcJsonContext.Default.IpcOutboundFrameIpcConsolePayload);
     }
 
     public override void Write(string? value)
     {
         if (value is not null)
-            _ = _ipc.SendAsync("console_log",
-                new IpcConsoleLogPayload { Level = _level, Args = [value] },
-                IpcJsonContext.Default.IpcOutboundFrameIpcConsoleLogPayload);
+            _ = _ipc.SendAsync("console",
+                new IpcConsolePayload { Level = _level, Args = [value] },
+                IpcJsonContext.Default.IpcOutboundFrameIpcConsolePayload);
     }
 }

@@ -276,7 +276,7 @@ function runDotnet(
           ipc.emit('payload', { type: 'execute', request: requestData })
         })
 
-        ipc.on('console_log', (payload: any) => {
+        ipc.on('console', (payload: any) => {
           const level: string = payload?.level ?? 'log'
           const msg: string = (payload?.args ?? []).join(' ')
 

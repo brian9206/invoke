@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 
 namespace Invoke.Internal;
@@ -128,14 +129,17 @@ internal sealed class IpcWorkerErrorPayload
     public string? Error { get; set; }
 }
 
-/// <summary>Payload for <c>console_log</c> event.</summary>
-internal sealed class IpcConsoleLogPayload
+/// <summary>Payload for <c>console</c> event.</summary>
+internal sealed class IpcConsolePayload
 {
     [JsonPropertyName("level")]
     public string? Level { get; set; }
 
     [JsonPropertyName("args")]
     public string[]? Args { get; set; }
+
+    [JsonPropertyName("details")]
+    public JsonObject? Details { get; set; }
 }
 
 /// <summary>Payload for <c>kv_get</c> event.</summary>
