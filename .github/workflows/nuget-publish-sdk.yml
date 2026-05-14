@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - master
+      - feat/dotnet-support
     paths:
       - 'invoke-runtime/sdks/dotnet/Invoke.SDK/Invoke.SDK.csproj'
       - 'invoke-runtime/sdks/dotnet/Invoke.SDK.SourceGenerator/Invoke.SDK.SourceGenerator.csproj'
