@@ -5,7 +5,6 @@
 
 import path from 'path'
 import fs from 'fs-extra'
-import crypto from 'crypto'
 import * as tar from 'tar'
 import { createNotifyListener } from 'invoke-shared'
 import database from './database'
@@ -61,13 +60,17 @@ export class BuildService {
           where: { status: 'queued' },
           order: [['created_at', 'ASC']],
           limit: available,
-          lock: t.LOCK.UPDATE,
+          lock: {
+            level: t.LOCK.UPDATE,
+            of: FunctionBuild
+          },
           skipLocked: true,
           attributes: ['id', 'function_id', 'version_id', 'after_build_action', 'pipeline'],
           include: [
             {
               model: database.models.FunctionVersion as any,
               as: 'version',
+              required: true,
               attributes: ['id', 'version', 'package_path', 'package_hash', 'function_id']
             }
           ],
@@ -208,9 +211,8 @@ export class BuildService {
               const artifactLocalPath = path.join(artifactDir, 'artifacts.tgz')
               const uploadResult = await s3Service.uploadArtifact(functionId, versionNum, artifactLocalPath)
 
-              // Compute hash of artifact
-              const artifactBuf = await fs.readFile(artifactLocalPath)
-              const artifactHash = crypto.createHash('sha256').update(artifactBuf).digest('hex')
+              // Use the random signature returned by uploadArtifact as the artifact hash
+              const artifactHash = uploadResult.hash
 
               sandbox.emit('build_end')
 

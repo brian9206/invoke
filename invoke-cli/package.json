@@ -7,8 +7,10 @@
   },
   "scripts": {
     "start": "bun src/index.ts",
+    "prebuild": "npm run generate-templates",
     "build": "npm run postpublish && npm run typecheck && bun scripts/build.ts",
     "build:postinstall": "bun build ./scripts/postinstall.ts --outdir ./dist --minify --target node --format cjs",
+    "generate-templates": "bun run ./scripts/generate-templates.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build:postinstall && bun scripts/prepublishOnly.ts",
     "postpublish": "bun scripts/postpublish.ts",
@@ -33,6 +35,7 @@
     "inquirer": "^12.11.1",
     "invoke-worker": "*",
     "pg": "^8.11.3",
+    "semver": "^6.3.1",
     "table": "^6.8.1",
     "zxcvbn": "^4.4.2",
     "listr2": "^10.2.1"
@@ -43,6 +46,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/bun": "^1.3.12",
     "@types/node": "^20",
+    "@types/semver": "^7.7.1",
     "@types/zxcvbn": "^4.4.4",
     "typescript": "^5.9.3"
   },

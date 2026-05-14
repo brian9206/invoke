@@ -10,7 +10,7 @@ const pipeline: Pipeline = {
     {
       name: 'install_dev_dependencies',
       run: async () => {
-        await exec(['bun', 'install', '--frozen-lockfile'])
+        await exec(['bun', 'install', '--no-save'])
       }
     },
 
@@ -23,7 +23,7 @@ const pipeline: Pipeline = {
         let hasBuildScript = false
 
         try {
-          const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+          const packageJson = JSON.parse(await fs.readFile('/output/source/package.json', { encoding: 'utf-8' }))
           hasBuildScript = !!packageJson?.scripts?.build
         } catch {
           hasBuildScript = false
@@ -44,12 +44,12 @@ const pipeline: Pipeline = {
       dependsOn: ['build'],
       run: async () => {
         // Detect entrypoint
-        const entrypoints = ['/app/index.js', '/app/main.js']
+        const entrypoints = ['/output/source/index.js', '/output/source/main.js']
 
         let entrypoint = ''
 
         try {
-          const packageJson = JSON.parse(await fs.readFile('/app/package.json', { encoding: 'utf-8' }))
+          const packageJson = JSON.parse(await fs.readFile('/output/source/package.json', { encoding: 'utf-8' }))
 
           if (!packageJson.main) {
             throw new Error('No "main" field in package.json')
@@ -83,6 +83,7 @@ const pipeline: Pipeline = {
           '--target',
           'bun',
           '--minify',
+          '--bytecode',
           '--sourcemap'
         ])
 
@@ -92,9 +93,9 @@ const pipeline: Pipeline = {
           throw new Error('bun build produced no output files')
         }
 
-        // Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
+        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
         console.log('Copying project files to output artifacts...')
-        await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] })
+        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 
@@ -104,9 +105,9 @@ const pipeline: Pipeline = {
       run: async () => {
         await fs.mkdir('/output/artifacts', { recursive: true })
 
-        // Copy everything from /app to /output/artifacts (except node_modules) so that user code can require() them
+        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
         console.log('Copying project files to output artifacts...')
-        await copyRecursive('/app', '/output/artifacts', { exclude: ['node_modules'] })
+        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 

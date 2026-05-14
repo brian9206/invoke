@@ -6,6 +6,7 @@ import type { Command } from 'commander'
 import { get } from '../services/api-client'
 import { getExecutionUrl } from '../services/config'
 import { resolveFunctionId } from '../services/helpers'
+import { formatFileSize } from '../services/file-utils'
 
 export function register(program: Command): void {
   program
@@ -115,15 +116,25 @@ export function register(program: Command): void {
           const logsData = await get(`/api/functions/${id}/logs`, { limit: 5, page: 1 })
 
           if (logsData.success && logsData.data.logs && logsData.data.logs.length > 0) {
-            const tableData: string[][] = [['Time', 'Status', 'Duration']]
+            const tableData: string[][] = [['Time', 'Status', 'Duration', 'Req Size', 'Res Size', 'Client IP']]
 
             logsData.data.logs.forEach((log: any) => {
-              const status = log.status_code < 400 ? chalk.green('✅') : chalk.red('❌')
+              const payload = log.payload || {}
+              const statusCode = payload.response?.status ?? '-'
+              const isSuccess = typeof statusCode === 'number' ? statusCode >= 200 && statusCode < 400 : true
+              const statusDisplay = isSuccess ? chalk.green('✅ ' + statusCode) : chalk.red('❌ ' + statusCode)
+              const duration = payload.execution_time_ms != null ? `${payload.execution_time_ms}ms` : '-'
+              const reqSize = payload.request?.body?.size != null ? formatFileSize(payload.request.body.size) : '-'
+              const resSize = payload.response?.body?.size != null ? formatFileSize(payload.response.body.size) : '-'
+              const clientIp = payload.request?.ip || '-'
 
               tableData.push([
                 new Date(log.executed_at).toLocaleString(),
-                status + ' ' + log.status_code,
-                log.execution_time_ms ? `${log.execution_time_ms}ms` : 'N/A'
+                statusDisplay,
+                duration,
+                reqSize,
+                resSize,
+                clientIp
               ])
             })
 
@@ -140,9 +151,16 @@ export function register(program: Command): void {
           try {
             const logsData = await get(`/api/functions/${id}/logs`, { limit: 1, page: 1 })
             const latestLog = logsData.success && logsData.data.logs && logsData.data.logs[0]
-            if (latestLog && latestLog.error_message) {
-              console.log(chalk.red('\n📋 Error Log:\n'))
-              console.log(latestLog.error_message)
+            if (latestLog) {
+              const payload = latestLog.payload || {}
+              const statusCode = payload.response?.status
+              const errorBody = payload.response?.body?.text || payload.response?.body
+              if (statusCode || errorBody) {
+                console.log(chalk.red('\n📋 Error Log:\n'))
+                if (statusCode) console.log(`Status: ${statusCode}`)
+                if (errorBody)
+                  console.log(typeof errorBody === 'string' ? errorBody : JSON.stringify(errorBody, null, 2))
+              }
             }
           } catch {
             // ignore log fetch errors

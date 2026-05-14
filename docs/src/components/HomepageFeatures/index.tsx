@@ -12,13 +12,13 @@ type FeatureItem = {
 
 const FeatureList: FeatureItem[] = [
   {
-    title: 'Serverless Execution',
+    title: 'Multi-Language Support',
     icon: '⚡',
     gradient: 'from-blue-500 to-cyan-500',
     description: (
       <>
-        Write functions in Node.js and execute them in a secure sandbox environment. No servers to manage, automatic
-        scaling, just focus on your code.
+        Write functions in <strong>JavaScript</strong> or <strong>TypeScript</strong> (Bun runtime) or{' '}
+        <strong>C#</strong> (.NET 10 NativeAOT). Same powerful API, your choice of language.
       </>
     )
   },

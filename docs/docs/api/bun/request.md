@@ -467,6 +467,6 @@ export default function handler(req, res) {
 
 ## Next Steps
 
-- [Response Object](/docs/api/response) - Sending responses
+- [Response Object](/docs/api/bun/response) - Sending responses
 - [Examples](/docs/examples/rest-api) - Request handling examples
 - [Guides](/docs/guides/http-requests) - HTTP request patterns

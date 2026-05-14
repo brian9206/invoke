@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <IsAotCompatible>true</IsAotCompatible>
+    <RootNamespace>Invoke</RootNamespace>
+    <AssemblyName>Invoke.SDK</AssemblyName>
+    <Version>1.0.0</Version>
+    <Description>Invoke platform SDK for .NET — NativeAOT</Description>
+    <PublishAot>true</PublishAot>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <RuntimeIdentifier>linux-musl-x64</RuntimeIdentifier>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+    <TrimmerRootDescriptor>ILLink.Descriptors.xml</TrimmerRootDescriptor>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);_AddGeneratorToPackage</TargetsForTfmSpecificContentInPackage>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <!-- Disables the search for 'appsettings.json' and other config files if not needed -->
+    <HostConfigurationKnob>false</HostConfigurationKnob>
+    
+    <!-- Removes unused Exception messages to reduce binary size -->
+    <StackTraceSupport>false</StackTraceSupport>
+    
+    <!-- Optimization for cold-starts: skips some runtime checks -->
+    <OptimizationPreference>Size</OptimizationPreference> <!-- Or Speed -->
+  </PropertyGroup>
+
+  <!-- Wire in the source generator as an analyzer so user projects get codegen -->
+  <ItemGroup>
+    <ProjectReference Include="..\Invoke.SDK.SourceGenerator\Invoke.SDK.SourceGenerator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      Pack="true"
+                      PackagePath="analyzers/dotnet/cs"
+                      Visible="false"
+                      AssetTargetFallback="netstandard2.0" />
+  </ItemGroup>
+
+  <Target Name="_AddGeneratorToPackage">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="..\Invoke.SDK.SourceGenerator\bin\$(Configuration)\netstandard2.0\Invoke.SDK.SourceGenerator.dll" 
+                              PackagePath="analyzers/dotnet/cs" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+</Project>

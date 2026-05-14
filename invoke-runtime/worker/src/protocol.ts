@@ -197,25 +197,33 @@ export class IpcChannel extends EventEmitter implements IIpcChannel {
   /** Resolves when the socket connects successfully. */
   readonly connected: Promise<void>
 
-  private constructor() {
+  private constructor(existingSocket?: net.Socket) {
     super()
-    this.socket = net.createConnection(IPC_SOCKET_PATH)
 
-    this.connected = new Promise<void>((resolve, reject) => {
-      const onConnect = () => {
-        this.socket.removeListener('error', onError)
-        // After connection: forward ongoing errors and close to the emitter
-        this.socket.on('error', err => super.emit('error', err))
-        this.socket.on('close', () => super.emit('close'))
-        resolve()
-      }
-      const onError = (err: Error) => {
-        this.socket.removeListener('connect', onConnect)
-        reject(err)
-      }
-      this.socket.once('connect', onConnect)
-      this.socket.once('error', onError)
-    })
+    if (existingSocket) {
+      // Wrap an already-connected socket (e.g. TCP socket from CLI testing host)
+      this.socket = existingSocket
+      this.connected = Promise.resolve()
+      this.socket.on('error', err => super.emit('error', err))
+      this.socket.on('close', () => super.emit('close'))
+    } else {
+      this.socket = net.createConnection(IPC_SOCKET_PATH)
+      this.connected = new Promise<void>((resolve, reject) => {
+        const onConnect = () => {
+          this.socket.removeListener('error', onError)
+          // After connection: forward ongoing errors and close to the emitter
+          this.socket.on('error', err => super.emit('error', err))
+          this.socket.on('close', () => super.emit('close'))
+          resolve()
+        }
+        const onError = (err: Error) => {
+          this.socket.removeListener('connect', onConnect)
+          reject(err)
+        }
+        this.socket.once('connect', onConnect)
+        this.socket.once('error', onError)
+      })
+    }
 
     // Decode incoming data and re-emit as named events
     this.socket.on('data', (chunk: Buffer) => {
@@ -236,6 +244,14 @@ export class IpcChannel extends EventEmitter implements IIpcChannel {
       this._instance = new IpcChannel()
     }
     return this._instance
+  }
+
+  /**
+   * Create a non-singleton IpcChannel wrapping an already-connected socket.
+   * Used by the CLI testing host to reuse the full IPC protocol over TCP.
+   */
+  static fromSocket(socket: net.Socket): IpcChannel {
+    return new IpcChannel(socket)
   }
 
   /**

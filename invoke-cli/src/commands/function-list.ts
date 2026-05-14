@@ -37,13 +37,17 @@ export function register(program: Command): void {
         }
 
         console.log(chalk.cyan('\n⚡ Functions:\n'))
-        const tableData: string[][] = [['ID', 'Name', 'Project', 'Active', 'Version', 'Last Execution']]
+        const tableData: string[][] = [
+          ['ID', 'Name', 'Project', 'Language', 'Runtime', 'Active', 'Version', 'Last Execution']
+        ]
 
         functions.forEach((fn: any) => {
           tableData.push([
             fn.id,
             fn.name,
             fn.project_name || fn.project_id,
+            fn.language || '-',
+            fn.runtime || '-',
             fn.is_active ? '✅' : '❌',
             fn.active_version || '-',
             fn.last_execution ? new Date(fn.last_execution).toLocaleString() : 'Never'

@@ -110,14 +110,12 @@ module.exports = sequelize => {
       language: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        defaultValue: 'javascript',
-        validate: { isIn: [['javascript', 'typescript']] }
+        defaultValue: 'javascript'
       },
       runtime: {
         type: DataTypes.STRING(50),
         allowNull: false,
-        defaultValue: 'bun',
-        validate: { isIn: [['bun']] }
+        defaultValue: 'bun'
       }
     },
     {

@@ -117,13 +117,25 @@ async function main(): Promise<void> {
   })
 
   // Graceful shutdown
+  let shutdownPromise: Promise<void> | null = null
   const shutdown = async (): Promise<void> => {
-    console.log('[Gateway] Shutting down...')
-    routeCache.stop()
-    await pgNotifyListener.stop()
-    await database.close()
-    await pgPool.end()
-    server.close(() => process.exit(0))
+    if (shutdownPromise) {
+      return shutdownPromise
+    }
+
+    shutdownPromise = (async () => {
+      console.log('[Gateway] Shutting down...')
+      routeCache.stop()
+      await pgNotifyListener.stop()
+      await database.close()
+      await pgPool.end()
+      await new Promise<void>(resolve => {
+        server.close(() => resolve())
+      })
+      process.exit(0)
+    })()
+
+    return shutdownPromise
   }
 
   process.on('SIGTERM', () => void shutdown())

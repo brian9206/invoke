@@ -13,6 +13,7 @@ dist/
 build/
 coverage/
 .nyc_output/
+next-env.d.ts
 
 # Caches
 .cache/

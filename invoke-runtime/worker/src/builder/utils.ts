@@ -25,12 +25,20 @@ async function streamLines(stream: ReadableStream<Uint8Array> | null) {
   if (buffer) console.log(buffer)
 }
 
-export async function exec(cmds: string[], options?: { cwd?: string; fatal?: boolean }): Promise<number> {
+export async function exec(
+  cmds: string[],
+  options?: { cwd?: string; fatal?: boolean; env?: Record<string, string> }
+): Promise<number> {
   const fatal = !options || options.fatal === undefined || options.fatal == null ? true : !!options.fatal
 
   console.log(`Executing: ${cmds.join(' ')}`)
 
-  const proc = Bun.spawn(cmds, { cwd: options?.cwd || '.', stderr: 'pipe', stdout: 'pipe' })
+  const proc = Bun.spawn(cmds, {
+    cwd: options?.cwd || '.',
+    stderr: 'pipe',
+    stdout: 'pipe',
+    env: { ...process.env, ...options?.env }
+  })
 
   const [exitCode] = await Promise.all([proc.exited, streamLines(proc.stdout), streamLines(proc.stderr)])
 

@@ -1,8 +1,14 @@
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 # Hello World Example
 
 The simplest Invoke function examples.
 
 ## Basic Hello World
+
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 ```javascript
 export default function handler(req, res) {
@@ -12,6 +18,43 @@ export default function handler(req, res) {
   })
 }
 ```
+
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+```typescript
+export default function handler(req: InvokeRequest, res: InvokeResponse) {
+  res.json({
+    message: 'Hello World!',
+    timestamp: new Date().toISOString()
+  })
+}
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp
+using Invoke;
+using System.Text.Json.Nodes;
+
+public static class Function
+{
+    [EntryPoint]
+    public static Task EntryPoint(InvokeRequest req, InvokeResponse res)
+    {
+        res.Status(200).Json(new JsonObject
+        {
+            ["message"]   = "Hello World!",
+            ["timestamp"] = DateTime.UtcNow.ToString("O")
+        });
+        return Task.CompletedTask;
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 **Test:**
 
@@ -30,6 +73,9 @@ curl http://<your invoke-execution URL>/invoke/{functionId}
 
 ## With Query Parameters
 
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
+
 ```javascript
 export default function handler(req, res) {
   const name = req.query.name || 'World'
@@ -41,6 +87,49 @@ export default function handler(req, res) {
   })
 }
 ```
+
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
+
+```typescript
+export default function handler(req: InvokeRequest, res: InvokeResponse) {
+  const name = (req.query.name as string) || 'World'
+  const greeting = (req.query.greeting as string) || 'Hello'
+
+  res.json({
+    message: `${greeting}, ${name}!`,
+    timestamp: new Date().toISOString()
+  })
+}
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp
+using Invoke;
+using System.Text.Json.Nodes;
+
+public static class Function
+{
+    [EntryPoint]
+    public static Task EntryPoint(InvokeRequest req, InvokeResponse res)
+    {
+        var name = req.Query.TryGetValue("name", out var n) ? n : "World";
+        var greeting = req.Query.TryGetValue("greeting", out var g) ? g : "Hello";
+
+        res.Status(200).Json(new JsonObject
+        {
+            ["message"]   = $"{greeting}, {name}!",
+            ["timestamp"] = DateTime.UtcNow.ToString("O")
+        });
+        return Task.CompletedTask;
+    }
+}
+```
+
+  </TabItem>
+</Tabs>
 
 **Test:**
 
@@ -130,4 +219,4 @@ export default function handler(req, res) {
 
 - [REST API Example](/docs/examples/rest-api) - Build a full API
 - [Function Anatomy](/docs/getting-started/function-anatomy) - Learn function structure
-- [Request Object](/docs/api/request) - Request API reference
+- [Request Object](/docs/api/bun/request) - Request API reference (Bun)

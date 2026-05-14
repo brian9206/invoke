@@ -1,0 +1,35 @@
+<linker>
+  <assembly fullname="Invoke.SDK">
+
+    <!-- ── Core types ─────────────────────────────────────────────────────── -->
+    <type fullname="Invoke.IEntryPoint" preserve="all" />
+    <type fullname="Invoke.InvokeRequest" preserve="all" />
+    <type fullname="Invoke.InvokeResponse" preserve="all" />
+    <type fullname="Invoke.Router" preserve="all" />
+    <type fullname="Invoke.RealtimeNamespace" preserve="all" />
+    <type fullname="Invoke.BroadcastOperator" preserve="all" />
+    <type fullname="Invoke.SendFileOptions" preserve="all" />
+
+    <!-- ── Attributes (must survive trimming so the source generator works) ── -->
+    <type fullname="Invoke.EntryPointAttribute" preserve="all" />
+    <type fullname="Invoke.HttpMethodAttribute" preserve="all" />
+    <type fullname="Invoke.HttpGetAttribute" preserve="all" />
+    <type fullname="Invoke.HttpPostAttribute" preserve="all" />
+    <type fullname="Invoke.HttpPutAttribute" preserve="all" />
+    <type fullname="Invoke.HttpPatchAttribute" preserve="all" />
+    <type fullname="Invoke.HttpDeleteAttribute" preserve="all" />
+    <type fullname="Invoke.HttpOptionsAttribute" preserve="all" />
+    <type fullname="Invoke.RealtimeEventAttribute" preserve="all" />
+
+    <!-- ── Services ───────────────────────────────────────────────────────── -->
+    <type fullname="Invoke.KeyValueStore" preserve="all" />
+    <type fullname="Invoke.Logger" preserve="all" />
+    <type fullname="Invoke.ChildLogger" preserve="all" />
+
+    <!-- ── Internal runtime (called from source-generated Program.Main) ───── -->
+    <type fullname="Invoke.Internal.WorkerRuntime" preserve="all" />
+    <type fullname="Invoke.Internal.IpcChannel" preserve="all" />
+    <type fullname="Invoke.Internal.IpcJsonContext" preserve="all" />
+
+  </assembly>
+</linker>

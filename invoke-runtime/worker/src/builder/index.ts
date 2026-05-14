@@ -6,7 +6,8 @@ export { PipelineRunner } from './runner'
 const pipelines: { [key: string]: () => Promise<Pipeline> } = {
   // register pipeline
   'bun-javascript': () => import('./pipelines/bun-javascript').then(mod => mod.default),
-  'bun-typescript': () => import('./pipelines/bun-typescript').then(mod => mod.default)
+  'bun-typescript': () => import('./pipelines/bun-typescript').then(mod => mod.default),
+  'dotnet-csharp': () => import('./pipelines/dotnet-csharp').then(mod => mod.default)
 }
 
 export async function createPipelineRunner(name: string): Promise<PipelineRunner> {

@@ -168,6 +168,63 @@
   color: #475569;
 }
 
+/* Language pills */
+.langPills {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  animation: fadeInUp 0.8s ease-out 0.35s both;
+}
+
+.langPillJs,
+.langPillTs,
+.langPillCs {
+  padding: 0.2rem 0.875rem;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid;
+}
+
+.langPillJs {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.25);
+}
+
+.langPillTs {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.25);
+}
+
+.langPillCs {
+  color: #a78bfa;
+  background: rgba(167, 139, 250, 0.1);
+  border-color: rgba(167, 139, 250, 0.25);
+}
+
+[data-theme='light'] .langPillJs {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme='light'] .langPillTs {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.08);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+[data-theme='light'] .langPillCs {
+  color: #6d28d9;
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
 /* Buttons */
 .heroButtons {
   display: flex;
@@ -192,7 +249,6 @@
 
 .primaryButton:hover {
   color: white !important;
-  transform: translateY(-3px);
   box-shadow: 0 15px 30px -5px rgba(14, 165, 233, 0.4);
 }
 
@@ -235,7 +291,6 @@
 .secondaryButton:hover {
   border-color: #38bdf8;
   background: rgba(14, 165, 233, 0.1);
-  transform: translateY(-3px);
 }
 
 [data-theme='light'] .secondaryButton {
@@ -292,61 +347,97 @@
 
 /* Code Section */
 .codeSection {
-  padding: 4rem 0;
+  padding: 5rem 0;
   background: var(--ifm-background-surface-color);
 }
 
-.codeContainer {
-  max-width: 800px;
+.codeSectionInner {
+  max-width: 760px;
   margin: 0 auto;
-  background: #1e293b;
-  border-radius: 1rem;
-  overflow: hidden;
-  box-shadow:
-    0 20px 25px -5px rgb(0 0 0 / 0.2),
-    0 8px 10px -6px rgb(0 0 0 / 0.2);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  text-align: center;
 }
 
-[data-theme='light'] .codeContainer {
-  background: #0f172a;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+.codeSectionTitle {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+  color: #f1f5f9;
+}
+
+[data-theme='light'] .codeSectionTitle {
+  color: #0f172a;
+}
+
+.codeSectionSubtitle {
+  font-size: 1rem;
+  color: #94a3b8;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+[data-theme='light'] .codeSectionSubtitle {
+  color: #64748b;
+}
+
+.codeContainer {
+  text-align: left;
+  background: #0d1526;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 20px 40px -12px rgb(0 0 0 / 0.5);
 }
 
 .codeHeader {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 1.5rem;
-  background: rgba(15, 23, 42, 0.5);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  align-items: stretch;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0 0.5rem;
 }
 
-.codeTitle {
+.codeTabs {
+  display: flex;
+  gap: 0;
+}
+
+.codeTab {
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.codeTab:hover {
+  color: #cbd5e1;
+}
+
+.codeTabActive {
+  /* color and borderBottomColor set via inline style */
   font-weight: 600;
-  color: #e2e8f0;
-  font-size: 0.875rem;
-}
-
-.codeLang {
-  font-size: 0.75rem;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
 .codeBlock {
-  padding: 1.5rem;
+  padding: 1.5rem 1.75rem;
   margin: 0;
   background: transparent;
   overflow-x: auto;
 }
 
 .codeBlock code {
-  font-family: 'JetBrains Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 0.9rem;
-  line-height: 1.7;
+  font-family: ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+  font-size: 0.84rem;
+  line-height: 1.75;
   color: #e2e8f0;
+  white-space: pre;
 }
 
 /* Responsive */

@@ -1,0 +1,61 @@
+name: Publish Invoke.SDK to NuGet
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'invoke-runtime/sdks/dotnet/Invoke.SDK/Invoke.SDK.csproj'
+      - 'invoke-runtime/sdks/dotnet/Invoke.SDK.SourceGenerator/Invoke.SDK.SourceGenerator.csproj'
+      - '.github/workflows/nuget-publish-sdk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Check if version already published
+        id: version_check
+        run: |
+          VERSION=$(grep -oP '(?<=<Version>)[^<]+' invoke-runtime/sdks/dotnet/Invoke.SDK/Invoke.SDK.csproj)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://api.nuget.org/v3-flatcontainer/invoke.sdk/$VERSION/invoke.sdk.$VERSION.nupkg")
+          if [ "$STATUS" = "200" ]; then
+            echo "already_published=true" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is already published, skipping."
+          else
+            echo "already_published=false" >> $GITHUB_OUTPUT
+            echo "Version $VERSION is not yet published, proceeding."
+          fi
+
+      - name: Build source generator
+        if: steps.version_check.outputs.already_published == 'false'
+        run: dotnet build -c Release
+        working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK.SourceGenerator
+
+      - name: Pack SDK
+        if: steps.version_check.outputs.already_published == 'false'
+        run: dotnet pack -c Release -o ./nupkg
+        working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK
+
+      - name: Publish to NuGet
+        if: steps.version_check.outputs.already_published == 'false'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          dotnet nuget push ./nupkg/*.nupkg \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+        working-directory: invoke-runtime/sdks/dotnet/Invoke.SDK

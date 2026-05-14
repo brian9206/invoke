@@ -1,4 +1,4 @@
-import { KvClient } from 'invoke-worker/src/kv'
+import { KvClient } from 'invoke-worker/src/public-api/kv'
 import fs from 'fs'
 
 class LocalInMemoryKvClient extends KvClient {

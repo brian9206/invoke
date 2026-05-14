@@ -10,6 +10,7 @@ Structured logging is natively supported via the built-in Pino instance, accessi
 logger.info({ foo: 'bar' })
 logger.error('%s has won %d dollars!', 'Brian', 100000)
 logger.warn(req, 'Request object')
+logger.debug('%j', { id: 1, name: 'Alice' }) // serialises object to JSON string
 
 const child = logger.child({ module: 'auth-service' })
 child.info('hello world')
@@ -34,7 +35,7 @@ router.use((req, res) => res.status(404).send('Not found'))
 export default router
 ```
 
-See the [Router API](/docs/api/router) for full documentation.
+See the [Router API](/docs/api/bun/router) for full documentation.
 
 ## RealtimeNamespace
 
@@ -59,7 +60,7 @@ ns.socket.on('$disconnect', function (reason) {
 export default ns
 ```
 
-See the [Realtime APIs](/docs/api/realtime) for full documentation.
+See the [Realtime APIs](/docs/api/bun/realtime) for full documentation.
 
 ## Standard Modules
 
@@ -82,6 +83,7 @@ User code executes on the Bun runtime. For detailed guidance, please consult the
 
 ## Next Steps
 
-- [Request Object](/docs/api/request) - HTTP request API
-- [Response Object](/docs/api/response) - HTTP response API
-- [KV Store](/docs/api/kv-store) - Persistent storage
+- [Request Object](/docs/api/bun/request) - HTTP request API
+- [Response Object](/docs/api/bun/response) - HTTP response API
+- [KV Store](/docs/api/bun/kv-store) - Persistent storage
+- [.NET API Reference](/docs/api/dotnet/overview) - C# SDK documentation

@@ -1245,6 +1245,11 @@ export default function FunctionCodeEditor() {
         return 'html'
       case 'css':
         return 'css'
+      case 'cs':
+        return 'csharp'
+      case 'xml':
+      case 'csproj':
+        return 'xml'
       default:
         return 'plaintext'
     }

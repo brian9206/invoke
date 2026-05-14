@@ -16,12 +16,14 @@ export function register(program: Command): void {
           version_number: options.ver
         })
 
-        if (!data.success) {
+        if (data.buildRequired) {
+          console.log(chalk.yellow(`⚡ ${data.message}`))
+        } else if (!data.success) {
           console.log(chalk.red('❌ ' + data.message))
           process.exit(1)
+        } else {
+          console.log(chalk.green(`✅ Switched to version ${options.ver}`))
         }
-
-        console.log(chalk.green(`✅ Switched to version ${options.ver}`))
       } catch (error: any) {
         console.log(chalk.red('❌ Failed to switch version:'), error.message)
         process.exit(1)

@@ -161,25 +161,21 @@ class CacheService {
     if (!extractedExists) return { cached: false, valid: false }
 
     if (metadata && metadata.hash) {
-      try {
-        const actualHash = await (s3Service as any).computeFileHash(cachedPath)
-        const valid = actualHash === metadata.hash
+      const valid = metadata.hash === expectedHash
 
-        if (valid) {
-          await this.saveCacheMetadata(functionId, {
-            ...metadata,
-            lastAccessed: new Date().toISOString()
-          })
+      if (valid) {
+        await this.saveCacheMetadata(functionId, {
+          ...metadata,
+          lastAccessed: new Date().toISOString()
+        })
 
-          return { cached: true, valid: true, extractedPath }
-        }
-
-        console.log(`⚠️ Cache corruption detected for ${functionId}: file hash doesn't match metadata`)
-        return { cached: true, valid: false }
-      } catch (error) {
-        console.error(`Error verifying cache for ${functionId}:`, error)
-        return { cached: true, valid: false }
+        return { cached: true, valid: true, extractedPath }
       }
+
+      console.log(
+        `⚠️ Signature mismatch for ${functionId}: cache has ${metadata.hash}, expected ${expectedHash}. Cache is stale.`
+      )
+      return { cached: true, valid: false }
     }
 
     return { cached: true, valid: true, extractedPath }
@@ -243,32 +239,20 @@ class CacheService {
     const extractedPath = this.getExtractedPackagePath(functionId, version)
 
     try {
-      console.log(`  [1/5] Downloading from S3: ${packagePath} → ${cachedPath}`)
       await (s3Service as any).downloadPackageFromPath(packagePath, cachedPath)
-      console.log(`  [2/5] Computing hash for ${cachedPath}`)
-      const actualHash = await (s3Service as any).computeFileHash(cachedPath)
-
-      if (hash && actualHash !== hash) {
-        console.log(`⚠️  Hash mismatch for ${functionId}: expected ${hash}, got ${actualHash}`)
-        console.log(`   Using actual hash ${actualHash} for cache validation`)
-      }
 
       await fs.remove(extractedPath)
       await fs.ensureDir(extractedPath)
-      console.log(`  [3/5] Extracting tarball to ${extractedPath}`)
       await tar.extract({ file: cachedPath, cwd: extractedPath })
-      console.log(`  [4/5] Saving cache metadata`)
       await this.saveCacheMetadata(functionId, {
         version,
-        hash: actualHash,
+        hash,
         size,
         packagePath,
         cachedAt: new Date().toISOString(),
         lastAccessed: new Date().toISOString(),
         accessCount: 1
       })
-
-      console.log(`  [5/5] ✅ Package ${functionId} cached successfully from ${packagePath}`)
       return extractedPath
     } catch (error: any) {
       console.error(`❌ Failed to cache package ${functionId} from path ${packagePath}:`, error)

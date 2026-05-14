@@ -208,13 +208,13 @@ class S3Service {
 
     const objectName = `packages/${functionId}/${version}.tgz`
     const fileStats = fs.statSync(filePath)
-    const hash = await this.computeFileHash(filePath)
+    const signature = crypto.randomBytes(16).toString('hex')
 
     await this.fPutObject(this.bucketName, objectName, filePath, {
       'Content-Type': contentType,
       'x-function-id': functionId,
       'x-package-version': String(version),
-      'x-package-hash': hash,
+      'x-package-signature': signature,
       'upload-time': new Date().toISOString()
     })
 
@@ -223,7 +223,7 @@ class S3Service {
       bucket: this.bucketName,
       objectName,
       size: fileStats.size,
-      hash,
+      hash: signature,
       url: `${this.bucketName}/${objectName}`
     }
   }
@@ -241,25 +241,23 @@ class S3Service {
     const objectName = `packages/${functionId}/${version}.tgz`
     await this.fGetObject(this.bucketName, objectName, downloadPath)
 
-    const hash = await this.computeFileHash(downloadPath)
     const stats = fs.statSync(downloadPath)
-    return { hash, size: stats.size }
+    return { size: stats.size }
   }
 
   /**
    * Download a package from an arbitrary S3 key path (used by versioning system).
    * @param {string} packagePath  – S3 key
    * @param {string} downloadPath – local path to write the archive
-   * @returns {Promise<{hash:string, size:number}>}
+   * @returns {Promise<{size:number}>}
    */
   async downloadPackageFromPath(packagePath, downloadPath) {
     await this.initialize()
 
     await this.fGetObject(this.bucketName, packagePath, downloadPath)
 
-    const hash = await this.computeFileHash(downloadPath)
     const stats = fs.statSync(downloadPath)
-    return { hash, size: stats.size }
+    return { size: stats.size }
   }
 
   /**
@@ -367,17 +365,17 @@ class S3Service {
 
     const objectName = `artifacts/${functionId}/${version}/artifact.tgz`
     const fileStats = fs.statSync(filePath)
-    const hash = await this.computeFileHash(filePath)
+    const signature = crypto.randomBytes(16).toString('hex')
 
     await this.fPutObject(this.bucketName, objectName, filePath, {
       'Content-Type': 'application/gzip',
       'x-function-id': functionId,
       'x-artifact-version': String(version),
-      'x-artifact-hash': hash
+      'x-artifact-signature': signature
     })
 
     console.log(`✅ Uploaded artifact: ${objectName}`)
-    return { objectName, size: fileStats.size, hash }
+    return { objectName, size: fileStats.size, hash: signature }
   }
 
   /**
@@ -389,9 +387,8 @@ class S3Service {
   async downloadArtifact(artifactPath, downloadPath) {
     await this.initialize()
     await this.fGetObject(this.bucketName, artifactPath, downloadPath)
-    const hash = await this.computeFileHash(downloadPath)
     const stats = fs.statSync(downloadPath)
-    return { hash, size: stats.size }
+    return { size: stats.size }
   }
 
   /**

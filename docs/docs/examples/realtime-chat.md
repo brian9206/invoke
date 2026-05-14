@@ -1,3 +1,6 @@
+import Tabs from '@theme/Tabs'
+import TabItem from '@theme/TabItem'
+
 # Realtime Chat
 
 A complete chat application with rooms, usernames, and typing indicators using `RealtimeNamespace`.
@@ -14,242 +17,179 @@ This example builds a multi-room chat where clients can:
 
 ## Function Code
 
-Create a function and map it to the `$connect`, `$disconnect`, `joinRoom`, `leaveRoom`, `message`, and `typing` events in your namespace configuration.
+<Tabs groupId="language">
+  <TabItem value="js" label="JavaScript">
 
 ```javascript
 const ns = new RealtimeNamespace('/chat')
 
-// ─── Connection ──────────────────────────────────────────────────
-
 ns.socket.on('$connect', async function () {
   const username = ns.socket.handshake.auth.username || 'Anonymous'
-
   await kv.set(`${ns.socket.id}:username`, username)
   await kv.set(`${ns.socket.id}:currentRoom`, null)
-
-  ns.socket.emit('welcome', {
-    message: `Welcome, ${username}!`,
-    socketId: ns.socket.id
-  })
+  ns.socket.emit('welcome', { message: `Welcome, ${username}!`, socketId: ns.socket.id })
 })
-
-// ─── Room Management ─────────────────────────────────────────────
 
 ns.socket.on('joinRoom', async function (data) {
   if (!data || typeof data.room !== 'string') return
-
   const room = data.room
   const currentRoom = await kv.get(`${ns.socket.id}:currentRoom`)
   const username = await kv.get(`${ns.socket.id}:username`)
-
-  // Leave current room if already in one
   if (currentRoom) {
     ns.socket.to(currentRoom).emit('userLeft', { username })
     ns.socket.leave(currentRoom)
   }
-
   ns.socket.join(room)
   await kv.set(`${ns.socket.id}:currentRoom`, room)
-
-  ns.socket.emit('joinedRoom', { room })
   ns.socket.to(room).emit('userJoined', { username })
+  ns.socket.emit('joinedRoom', { room })
 })
-
-ns.socket.on('leaveRoom', async function () {
-  const room = await kv.get(`${ns.socket.id}:currentRoom`)
-  const username = await kv.get(`${ns.socket.id}:username`)
-  if (!room) return
-
-  ns.socket.to(room).emit('userLeft', { username })
-  ns.socket.leave(room)
-  await kv.set(`${ns.socket.id}:currentRoom`, null)
-
-  ns.socket.emit('leftRoom', { room })
-})
-
-// ─── Messaging ───────────────────────────────────────────────────
 
 ns.socket.on('message', async function (data) {
-  if (!data || typeof data.text !== 'string' || !data.text.trim()) return
-  if (data.text.length > 2000) return
-
   const room = await kv.get(`${ns.socket.id}:currentRoom`)
   const username = await kv.get(`${ns.socket.id}:username`)
-
-  if (!room) {
-    ns.socket.emit('error', { message: 'Join a room first' })
-    return
-  }
-
-  const message = {
-    from: username,
-    text: data.text.trim(),
-    timestamp: Date.now()
-  }
-
-  ns.to(room).emit('message', message)
+  if (!room || !data?.text) return
+  ns.to(room).emit('message', {
+    username,
+    text: data.text,
+    timestamp: Date.now(),
+    id: crypto.randomUUID()
+  })
 })
 
-ns.socket.on('typing', async function () {
+ns.socket.on('$disconnect', async function () {
   const room = await kv.get(`${ns.socket.id}:currentRoom`)
   const username = await kv.get(`${ns.socket.id}:username`)
-  if (!room) return
-
-  ns.socket.to(room).emit('typing', { username })
-})
-
-// ─── Disconnect ──────────────────────────────────────────────────
-
-ns.socket.on('$disconnect', async function (reason) {
-  const room = await kv.get(`${ns.socket.id}:currentRoom`)
-  const username = await kv.get(`${ns.socket.id}:username`)
-  if (room) {
-    ns.to(room).emit('userLeft', { username })
-  }
+  if (room) ns.socket.to(room).emit('userLeft', { username })
+  await kv.delete(`${ns.socket.id}:username`)
+  await kv.delete(`${ns.socket.id}:currentRoom`)
 })
 
 export default ns
 ```
 
-## Namespace Configuration
+  </TabItem>
+  <TabItem value="ts" label="TypeScript">
 
-In the admin UI (**API Gateway → Realtime → Add Namespace**):
+```typescript
+const ns = new RealtimeNamespace('/chat')
 
-| Setting        | Value   |
-| -------------- | ------- |
-| Namespace Path | `/chat` |
-| Active         | Yes     |
+ns.socket.on('$connect', async () => {
+  const username = (ns.socket.handshake.auth as { username?: string }).username ?? 'Anonymous'
+  await kv.set(`${ns.socket.id}:username`, username)
+  await kv.set(`${ns.socket.id}:currentRoom`, null)
+  ns.socket.emit('welcome', { message: `Welcome, ${username}!`, socketId: ns.socket.id })
+})
 
-Map **all event handlers** to the same function:
+ns.socket.on('joinRoom', async (data: { room: string }) => {
+  if (!data?.room) return
+  const room = data.room
+  const currentRoom = (await kv.get(`${ns.socket.id}:currentRoom`)) as string | null
+  const username = (await kv.get(`${ns.socket.id}:username`)) as string
+  if (currentRoom) {
+    ns.socket.to(currentRoom).emit('userLeft', { username })
+    ns.socket.leave(currentRoom)
+  }
+  ns.socket.join(room)
+  await kv.set(`${ns.socket.id}:currentRoom`, room)
+  ns.socket.to(room).emit('userJoined', { username })
+  ns.socket.emit('joinedRoom', { room })
+})
 
-| Event         | Function       |
-| ------------- | -------------- |
-| `$connect`    | `chat-handler` |
-| `$disconnect` | `chat-handler` |
-| `joinRoom`    | `chat-handler` |
-| `leaveRoom`   | `chat-handler` |
-| `message`     | `chat-handler` |
-| `typing`      | `chat-handler` |
+ns.socket.on('message', async (data: { text: string }) => {
+  const room = (await kv.get(`${ns.socket.id}:currentRoom`)) as string | null
+  const username = (await kv.get(`${ns.socket.id}:username`)) as string
+  if (!room || !data?.text) return
+  ns.to(room).emit('message', {
+    username,
+    text: data.text,
+    timestamp: Date.now(),
+    id: crypto.randomUUID()
+  })
+})
 
-## Client Code
+ns.socket.on('$disconnect', async () => {
+  const room = (await kv.get(`${ns.socket.id}:currentRoom`)) as string | null
+  const username = (await kv.get(`${ns.socket.id}:username`)) as string
+  if (room) ns.socket.to(room).emit('userLeft', { username })
+  await kv.delete(`${ns.socket.id}:username`)
+  await kv.delete(`${ns.socket.id}:currentRoom`)
+})
 
-A minimal HTML client that connects and interacts with the chat:
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Invoke Chat</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        max-width: 600px;
-        margin: 2rem auto;
-      }
-      #messages {
-        border: 1px solid #ccc;
-        height: 300px;
-        overflow-y: auto;
-        padding: 0.5rem;
-        margin-bottom: 1rem;
-      }
-      .msg {
-        margin: 0.25rem 0;
-      }
-      .system {
-        color: #888;
-        font-style: italic;
-      }
-      input,
-      button {
-        padding: 0.4rem 0.8rem;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Chat</h1>
-    <div>
-      <input id="username" placeholder="Username" value="User1" />
-      <input id="room" placeholder="Room" value="general" />
-      <button onclick="connect()">Connect</button>
-      <button onclick="joinRoom()">Join Room</button>
-    </div>
-    <div id="messages"></div>
-    <div>
-      <input
-        id="text"
-        placeholder="Type a message..."
-        onkeydown="if(event.key==='Enter')sendMessage()"
-        oninput="sendTyping()"
-      />
-      <button onclick="sendMessage()">Send</button>
-    </div>
-    <div id="typing" style="color:#888; height:1.2em;"></div>
-
-    <script src="/socket.io/socket.io.min.js"></script>
-    <script>
-      let socket
-      const messagesEl = document.getElementById('messages')
-      const typingEl = document.getElementById('typing')
-
-      function log(text, cls) {
-        const div = document.createElement('div')
-        div.className = 'msg ' + (cls || '')
-        div.textContent = text
-        messagesEl.appendChild(div)
-        messagesEl.scrollTop = messagesEl.scrollHeight
-      }
-
-      function connect() {
-        const username = document.getElementById('username').value
-        // Replace with your gateway URL and project slug
-        socket = io('https://api.brianchoi.me/testing/chat', {
-          auth: { username },
-          transports: ['websocket']
-        })
-
-        socket.on('connect', () => log('Connected as ' + username, 'system'))
-        socket.on('welcome', d => log(d.message, 'system'))
-        socket.on('userJoined', d => log(d.username + ' joined', 'system'))
-        socket.on('userLeft', d => log(d.username + ' left', 'system'))
-        socket.on('joinedRoom', d => log('Joined room: ' + d.room, 'system'))
-        socket.on('message', d => log(d.from + ': ' + d.text))
-        socket.on('typing', d => {
-          typingEl.textContent = d.username + ' is typing...'
-          clearTimeout(typingEl._timer)
-          typingEl._timer = setTimeout(() => {
-            typingEl.textContent = ''
-          }, 2000)
-        })
-        socket.on('error', d => log('Error: ' + d.message, 'system'))
-        socket.on('disconnect', r => log('Disconnected: ' + r, 'system'))
-      }
-
-      function joinRoom() {
-        if (!socket) return
-        socket.emit('joinRoom', { room: document.getElementById('room').value })
-      }
-
-      function sendMessage() {
-        if (!socket) return
-        const input = document.getElementById('text')
-        if (!input.value.trim()) return
-        socket.emit('message', { text: input.value })
-        input.value = ''
-      }
-
-      function sendTyping() {
-        if (!socket) return
-        socket.emit('typing')
-      }
-    </script>
-  </body>
-</html>
+export default ns
 ```
 
-## Next Steps
+  </TabItem>
+  <TabItem value="csharp" label="C#">
 
-- [Realtime APIs](/docs/api/realtime) — Full API reference
-- [Realtime Functions Guide](/docs/guides/realtime) — Architecture, rooms, auth, and best practices
-- [KV Store](/docs/api/kv-store) — Persist chat history or user profiles
+```csharp
+using Invoke;
+using System.Text.Json.Nodes;
+
+[EntryPoint]
+public partial class Chat : RealtimeNamespace
+{
+    public override string Namespace => "/chat";
+
+    [RealtimeEvent("$connect")]
+    public async Task OnConnect(InvokeRequest req, InvokeResponse res)
+    {
+        var kv = new KeyValueStore();
+        var username = req.Body?["auth"]?["username"]?.GetValue<string>() ?? "Anonymous";
+        await kv.Set($"{SocketId}:username", username);
+        await kv.Set($"{SocketId}:currentRoom", "");
+        await Emit("welcome", new JsonObject { ["message"] = $"Welcome, {username}!", ["socketId"] = SocketId });
+    }
+
+    [RealtimeEvent("joinRoom")]
+    public async Task OnJoinRoom(InvokeRequest req, InvokeResponse res)
+    {
+        var kv = new KeyValueStore();
+        var room = req.Body?["room"]?.GetValue<string>();
+        if (string.IsNullOrEmpty(room)) return;
+
+        var currentRoom = (await kv.Get($"{SocketId}:currentRoom"))?.ToString();
+        var username = (await kv.Get($"{SocketId}:username"))?.ToString() ?? "Anonymous";
+
+        if (!string.IsNullOrEmpty(currentRoom))
+            await To(currentRoom).Emit("userLeft", new JsonObject { ["username"] = username });
+
+        await kv.Set($"{SocketId}:currentRoom", room);
+        await To(room).Emit("userJoined", new JsonObject { ["username"] = username });
+        await Emit("joinedRoom", new JsonObject { ["room"] = room });
+    }
+
+    [RealtimeEvent("message")]
+    public async Task OnMessage(InvokeRequest req, InvokeResponse res)
+    {
+        var kv = new KeyValueStore();
+        var text = req.Body?["text"]?.GetValue<string>();
+        var room = (await kv.Get($"{SocketId}:currentRoom"))?.ToString();
+        var username = (await kv.Get($"{SocketId}:username"))?.ToString() ?? "Anonymous";
+        if (string.IsNullOrEmpty(room) || string.IsNullOrEmpty(text)) return;
+
+        await To(room).Emit("message", new JsonObject
+        {
+            ["username"]  = username,
+            ["text"]      = text,
+            ["timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            ["id"]        = Guid.NewGuid().ToString()
+        });
+    }
+
+    [RealtimeEvent("$disconnect")]
+    public async Task OnDisconnect(InvokeRequest req, InvokeResponse res)
+    {
+        var kv = new KeyValueStore();
+        var room = (await kv.Get($"{SocketId}:currentRoom"))?.ToString();
+        var username = (await kv.Get($"{SocketId}:username"))?.ToString() ?? "Anonymous";
+        if (!string.IsNullOrEmpty(room))
+            await To(room).Emit("userLeft", new JsonObject { ["username"] = username });
+        await kv.Delete($"{SocketId}:username");
+        await kv.Delete($"{SocketId}:currentRoom");
+    }
+}
+```
+
+  </TabItem>
+</Tabs>

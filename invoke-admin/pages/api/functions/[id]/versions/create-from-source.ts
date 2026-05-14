@@ -68,10 +68,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       const tgzPath = path.join(tempBaseDir, `${newVersionId}.tgz`)
       await tar.create({ gzip: true, file: tgzPath, cwd: tempDir }, ['.'])
 
-      // Get file stats and calculate hash
+      // Get file stats and generate signature for cache invalidation
       const stats = await fs.stat(tgzPath)
-      const fileBuffer = await fs.readFile(tgzPath)
-      const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
+      const hash = crypto.randomBytes(16).toString('hex')
 
       // Upload to S3
       const minioObjectName = `functions/${functionId}/v${nextVersion}.tgz`

@@ -46,7 +46,8 @@ async function executeScheduledFunction(functionData: any): Promise<any> {
       custom_timeout_enabled: functionData.custom_timeout_enabled ?? false,
       custom_timeout_seconds: functionData.custom_timeout_seconds ?? null,
       custom_memory_enabled: functionData.custom_memory_enabled ?? false,
-      custom_memory_mb: functionData.custom_memory_mb ?? null
+      custom_memory_mb: functionData.custom_memory_mb ?? null,
+      runtime: functionData.runtime ?? 'bun'
     }
 
     const { indexPath } = await getFunctionPackage(functionData.id, metadata)

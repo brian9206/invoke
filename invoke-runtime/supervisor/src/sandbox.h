@@ -22,7 +22,8 @@ using json = nlohmann::json;
 bool sandbox_setup_fs(const std::string& sandbox_dir,
                       const std::string& lower_dir,
                       const std::string& rootfs,
-                      int tmpfs_mb);
+                      int tmpfs_mb,
+                      bool include_app_overlay = true);
 
 /// Return the last sandbox setup error message from sandbox_setup_fs.
 const std::string& sandbox_last_setup_error();
@@ -35,7 +36,7 @@ const std::string& sandbox_last_setup_error();
 ///   Returns child PID (> 0) on success, or -1 on error.
 pid_t sandbox_start_worker(const std::string& sandbox_dir,
                            const std::string& invocation_id,
-                           const std::string& entry,
+                           const std::vector<const char*>& argv,
                            uint64_t memory_bytes,
                            int uid, int gid,
                            const std::vector<std::string>& extra_env = {});
@@ -46,7 +47,7 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
 ///   Returns child exit code (0 = success), or -1 on error.
 int sandbox_spawn_worker(const std::string& sandbox_dir,
                          const std::string& invocation_id,
-                         const std::string& entry,
+                         const std::vector<const char*>& argv,
                          uint64_t memory_bytes,
                          int uid, int gid,
                          const std::vector<std::string>& extra_env = {});
@@ -55,15 +56,13 @@ int sandbox_spawn_worker(const std::string& sandbox_dir,
 void sandbox_cleanup(const std::string& sandbox_dir, const std::string& invocation_id);
 
 /// Set up a minimal build sandbox:
-///   - /tmp  : tmpfs (tmpfs_mb size)
-///   - /app  : read-only bind mount to source_dir
-///   - /output: read-write bind mount to output_dir
+///   - /tmp    : tmpfs (tmpfs_mb size)
+///   - /output : read-write bind mount to output_dir
+///               (caller must pre-populate output_dir/source/ with source files)
 ///   sandbox_dir:  /opt/inv/bld-<id>  (will be created/used as chroot)
-///   source_dir:   directory with source files to bind into /app (ro)
-///   output_dir:   directory to bind into /output (rw, receives build artifacts)
+///   output_dir:   directory to bind into /output (rw); source expected at output_dir/source/
 ///   rootfs:       path to base rootfs
 bool sandbox_setup_build_fs(const std::string& sandbox_dir,
-                             const std::string& source_dir,
                              const std::string& output_dir,
                              const std::string& rootfs,
                              int tmpfs_mb = 256);

@@ -570,6 +570,6 @@ export default function handler(req, res) {
 
 ## Next Steps
 
-- [Request Object](/docs/api/request) - Reading requests
+- [Request Object](/docs/api/bun/request) - Reading requests
 - [Examples](/docs/examples/rest-api) - Response patterns
 - [Guides](/docs/guides/file-serving) - File serving guide

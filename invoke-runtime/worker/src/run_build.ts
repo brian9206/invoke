@@ -55,10 +55,6 @@ export async function runBuild(bootstrapPayload: any, log: (...args: unknown[]) 
       emitBuildContext(context)
     })
 
-    runner.on('error', (error: Error) => {
-      console.log(`[builder] Build failed with error:`, error)
-    })
-
     console.log(`[builder] Start running pipeline "${pipeline}"...`)
     await runner.run(buildData)
 
@@ -89,7 +85,7 @@ export async function runBuild(bootstrapPayload: any, log: (...args: unknown[]) 
     log('[builder] Build end received. exiting...')
   } catch (err) {
     error = true
-    console.log('Build failed with error:', err instanceof Error ? err.stack : err)
+    console.log('[builder] Build failed with error:', err instanceof Error ? err.stack : err)
   } finally {
     restoreConsole()
     await ipc.end()

@@ -10,11 +10,16 @@ Manage your serverless functions using the Invoke CLI.
 
 ### Scaffold and Deploy (Recommended)
 
-The quickest way to create and deploy a new function:
+The quickest way to create and deploy a new function. `invoke init` runs an interactive prompt to select language and template type:
 
 ```bash
-# 1. Scaffold a new function directory
-invoke init my-api --name my-api --description "REST API handler" --project "my-project"
+# 1. Scaffold a new function directory (interactive)
+invoke init my-api
+
+# You will be prompted:
+#   ? Function name: my-api
+#   ? Language: JavaScript | TypeScript | C#
+#   ? Template: Simple Function | Multi-Route App | Realtime Handler
 
 # 2. Enter the directory
 cd my-api
@@ -74,6 +79,7 @@ invoke function:create \
   --name my-api \
   --description "REST API handler" \
   --project abc123 \
+  --language javascript \
   ./my-function
 ```
 
@@ -82,6 +88,8 @@ invoke function:create \
 - `--name` (required): Function name
 - `--description`: Function description
 - `--project`: Project ID (defaults to default project)
+- `--language`: Language (`javascript`, `typescript`, `csharp`)
+- `--runtime`: Runtime (`bun`, `dotnet`)
 - `--requires-api-key`: Require API key for execution
 - `--output`: Output format (`table`/`json`)
 
