@@ -32,6 +32,5 @@
 **/.vercel/
 
 # Project files not needed in container
-**/README.md
 **/uploads/
 docker-compose.yml
