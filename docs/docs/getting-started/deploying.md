@@ -151,7 +151,7 @@ zip function.zip Function.cs app.csproj
 Compress-Archive -Path Function.cs,app.csproj -DestinationPath function.zip
 ```
 
-:::note Build time
+:::note[Build time]
 After upload, the platform compiles your C# code to a Native AOT binary. The first activation may take longer while the build completes.
 :::
 

@@ -5,7 +5,7 @@ import TabItem from '@theme/TabItem'
 
 Get started with Invoke by creating your first serverless function in under 5 minutes!
 
-:::tip Using UI
+:::tip[Using UI]
 Check out [Alternative: Deploy via Admin Panel](#alternative-deploy-via-admin-panel) section to learn more about deploying function with Web GUI.
 :::
 
@@ -199,7 +199,7 @@ Activating...
 ✅ Function deployed successfully
 ```
 
-:::note C# build time
+:::note[C# build time]
 C# functions are compiled to a Native AOT binary by the platform after upload. The first activation may take slightly longer while the build completes.
 :::
 

@@ -6,7 +6,7 @@ sidebar_position: 6
 
 Execute and test your functions directly from the CLI.
 
-:::tip Running functions locally
+:::tip[Running functions locally]
 Use [`invoke run`](./local-run) to execute a function on your machine without a running execution service — same sandbox environment, no network connection required.
 :::
 
