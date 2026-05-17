@@ -36,7 +36,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     id: 'system',
     name: 'System',
     description: 'System-wide administration',
-    role: 'admin'
+    role: 'admin',
+    slug: ''
   }
 
   const refreshProjects = async () => {
