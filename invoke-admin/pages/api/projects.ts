@@ -47,4 +47,4 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuthOrApiKeyAndMethods(handler, ['GET'])
+export default withAuthOrApiKeyAndMethods(['GET'])(handler)

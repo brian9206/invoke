@@ -323,6 +323,7 @@ export default function FunctionCodeEditor() {
         id: functionData.project_id,
         name: functionData.project_name,
         description: '',
+        slug: '',
         role: 'locked'
       })
     }

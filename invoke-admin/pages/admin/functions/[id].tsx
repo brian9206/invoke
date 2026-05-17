@@ -312,7 +312,13 @@ export default function FunctionDetails() {
   useEffect(() => {
     if (functionData?.project_id && functionData?.project_name && !hasLockedProject.current) {
       hasLockedProject.current = true
-      lockProject({ id: functionData.project_id, name: functionData.project_name, description: '', role: 'locked' })
+      lockProject({
+        id: functionData.project_id,
+        name: functionData.project_name,
+        description: '',
+        slug: '',
+        role: 'locked'
+      })
     }
     return () => {
       if (hasLockedProject.current) {
