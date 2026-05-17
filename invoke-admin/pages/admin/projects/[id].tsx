@@ -412,7 +412,7 @@ export default function ProjectDetails() {
 
           <div>
             {/* ── Header ───────────────────────────────────────────────────── */}
-            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
+            <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-5'>
               <PageHeader
                 title={project.name}
                 subtitle={project.description || 'No description provided'}
@@ -609,11 +609,15 @@ export default function ProjectDetails() {
                           {project.created_by_username || '—'}
                         </dd>
                       </div>
-                      <div className='flex flex-col gap-0.5 sm:col-span-2'>
+                      <div className='flex flex-col gap-1'>
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
                           Project ID
                         </dt>
                         <dd className='break-all font-mono text-xs'>{project.id}</dd>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Slug</dt>
+                        <dd className='break-all font-mono text-xs'>{project.slug}</dd>
                       </div>
                     </dl>
                   </CardContent>
