@@ -270,9 +270,12 @@ export default function ProfileSettings() {
             {/* ── GENERAL TAB ─────────────────────────────────── */}
             <TabsContent value='general' className='space-y-6'>
               {/* Account Information */}
-              <Card>
+              <Card className='max-w-2xl'>
                 <CardContent className='pt-6 space-y-5'>
-                  <h2 className='text-base font-semibold'>Account Information</h2>
+                  <div className='flex items-center gap-2'>
+                    <User className='w-5 h-5 text-blue-400' />
+                    <h2 className='text-base font-semibold'>Account Information</h2>
+                  </div>
 
                   {/* Username */}
                   <div className='space-y-1'>
@@ -340,7 +343,7 @@ export default function ProfileSettings() {
               </Card>
 
               {/* Change Password */}
-              <Card>
+              <Card className='max-w-2xl'>
                 <CardContent className='pt-6 space-y-4'>
                   <div className='flex items-center gap-2'>
                     <Key className='w-5 h-5 text-blue-400' />
@@ -386,7 +389,10 @@ export default function ProfileSettings() {
                           {showNewPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
                         </button>
                       </div>
-                      <PasswordStrengthMeter password={passwordForm.newPassword} onScoreChange={setPasswordScore} />
+
+                      <div className='mt-2 max-w-sm'>
+                        <PasswordStrengthMeter password={passwordForm.newPassword} onScoreChange={setPasswordScore} />
+                      </div>
                     </div>
                     <div className='space-y-1.5'>
                       <Label>Confirm New Password</Label>

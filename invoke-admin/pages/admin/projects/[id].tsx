@@ -37,6 +37,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/comp
 interface ProjectDetail {
   id: string
   name: string
+  slug: string
   description: string | null
   is_active: boolean
   kv_storage_limit_bytes: number
@@ -82,6 +83,7 @@ export default function ProjectDetails() {
   // ── Header editing ──────────────────────────────────────────────────────────
   const [editHeaderModalOpen, setEditHeaderModalOpen] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editSlug, setEditSlug] = useState('')
   const [editDescription, setEditDescription] = useState('')
   const [headerSaving, setHeaderSaving] = useState(false)
 
@@ -170,6 +172,7 @@ export default function ProjectDetails() {
         body: JSON.stringify({
           id,
           name: editName,
+          slug: editSlug,
           description: editDescription,
           is_active: project?.is_active,
           kv_storage_limit_bytes: project?.kv_storage_limit_bytes
@@ -423,6 +426,7 @@ export default function ProjectDetails() {
                       size='icon'
                       onClick={() => {
                         setEditName(project.name)
+                        setEditSlug(project.slug || '')
                         setEditDescription(project.description || '')
                         setEditHeaderModalOpen(true)
                       }}
@@ -754,6 +758,18 @@ export default function ProjectDetails() {
                   onChange={e => setEditName(e.target.value)}
                   placeholder='Project name'
                 />
+              </div>
+              <div className='space-y-1.5'>
+                <Label htmlFor='edit-slug'>Slug</Label>
+                <Input
+                  id='edit-slug'
+                  value={editSlug}
+                  onChange={e => setEditSlug(e.target.value)}
+                  placeholder='project-slug'
+                />
+                <p className='text-xs text-muted-foreground'>
+                  Used in URLs and CLI. Lowercase letters, numbers, hyphens, and underscores only.
+                </p>
               </div>
               <div className='space-y-1.5'>
                 <Label htmlFor='edit-description'>Description</Label>

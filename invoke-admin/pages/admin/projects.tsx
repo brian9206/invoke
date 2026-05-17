@@ -6,6 +6,7 @@ import PageHeader from '@/components/PageHeader'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
 import Modal from '@/components/Modal'
+import slugify from '@sindresorhus/slugify'
 import { FolderOpen, Loader, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 interface Project {
   id: string
   name: string
+  slug: string
   description: string
   is_active: boolean
   kv_storage_limit_bytes: number
@@ -32,7 +34,8 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [formData, setFormData] = useState({ name: '', description: '', kvStorageLimit: 1 })
+  const [formData, setFormData] = useState({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+  const [slugTouched, setSlugTouched] = useState(false)
   const [dialogState, setDialogState] = useState<{
     type: 'alert' | 'confirm' | null
     title: string
@@ -83,7 +86,8 @@ export default function ProjectsPage() {
       })
       if (response.ok) {
         setShowCreateModal(false)
-        setFormData({ name: '', description: '', kvStorageLimit: 1 })
+        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+        setSlugTouched(false)
         await refreshProjects()
         loadProjects()
       } else {
@@ -104,6 +108,7 @@ export default function ProjectsPage() {
         body: JSON.stringify({
           id: editingProject.id,
           name: formData.name,
+          slug: formData.slug,
           description: formData.description,
           is_active: editingProject.is_active,
           kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024
@@ -111,7 +116,8 @@ export default function ProjectsPage() {
       })
       if (response.ok) {
         setEditingProject(null)
-        setFormData({ name: '', description: '', kvStorageLimit: 1 })
+        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+        setSlugTouched(false)
         await refreshProjects()
         loadProjects()
       } else {
@@ -153,15 +159,18 @@ export default function ProjectsPage() {
     setEditingProject(project)
     setFormData({
       name: project.name,
+      slug: project.slug || '',
       description: project.description || '',
       kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024)
     })
+    setSlugTouched(true)
   }
 
   const closeModals = () => {
     setShowCreateModal(false)
     setEditingProject(null)
-    setFormData({ name: '', description: '', kvStorageLimit: 1 })
+    setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+    setSlugTouched(false)
   }
 
   if (loading) {
@@ -270,8 +279,30 @@ export default function ProjectsPage() {
                   <Input
                     required
                     value={formData.name}
-                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    onChange={e => {
+                      const name = e.target.value
+                      const update: any = { ...formData, name }
+                      if (!slugTouched) {
+                        update.slug = slugify(name)
+                      }
+                      setFormData(update)
+                    }}
                   />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>Slug</Label>
+                  <Input
+                    required
+                    value={formData.slug}
+                    onChange={e => {
+                      setSlugTouched(true)
+                      setFormData({ ...formData, slug: e.target.value })
+                    }}
+                    placeholder='project-slug'
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Used in URLs and CLI. Lowercase letters, numbers, hyphens, and underscores only.
+                  </p>
                 </div>
                 <div className='space-y-1.5'>
                   <Label>Description (optional)</Label>
@@ -324,6 +355,18 @@ export default function ProjectsPage() {
                     value={formData.name}
                     onChange={e => setFormData({ ...formData, name: e.target.value })}
                   />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>Slug</Label>
+                  <Input
+                    required
+                    value={formData.slug}
+                    onChange={e => setFormData({ ...formData, slug: e.target.value })}
+                    placeholder='project-slug'
+                  />
+                  <p className='text-xs text-muted-foreground'>
+                    Used in URLs and CLI. Lowercase letters, numbers, hyphens, and underscores only.
+                  </p>
                 </div>
                 <div className='space-y-1.5'>
                   <Label>Description (optional)</Label>

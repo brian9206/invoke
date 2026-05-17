@@ -66,15 +66,30 @@ async function getProjects(req: NextApiRequest, res: NextApiResponse) {
 
 // Create new project
 async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { name, description } = req.body
+  const { name, description, slug } = req.body
   const userId = req.user?.id
 
   if (!name) {
     return res.status(400).json({ error: 'Project name is required' })
   }
 
+  if (!slug) {
+    return res.status(400).json({ error: 'Project slug is required' })
+  }
+
   if (typeof name !== 'string' || name.length > 100) {
     return res.status(400).json({ error: 'Project name must be 100 characters or less' })
+  }
+  if (typeof slug !== 'string' || slug.length > 120) {
+    return res.status(400).json({ error: 'Slug must be 120 characters or less' })
+  }
+  if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) {
+    return res
+      .status(400)
+      .json({
+        error:
+          'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
+      })
   }
   if (description !== undefined && typeof description === 'string' && description.length > 1000) {
     return res.status(400).json({ error: 'Project description must be 1000 characters or less' })
@@ -89,6 +104,12 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Project name already exists' })
     }
 
+    // Check if slug already exists
+    const existingSlug = await Project.findOne({ where: { slug }, attributes: ['id'] })
+    if (existingSlug) {
+      return res.status(400).json({ error: 'Slug already exists. Please choose a different slug.' })
+    }
+
     // Get default KV storage limit from global settings
     const limitRecord = await GlobalSetting.findOne({
       where: { setting_key: 'kv_storage_limit_bytes' },
@@ -99,6 +120,7 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
     // Create project
     const projectRecord = await Project.create({
       name,
+      slug,
       description: description || null,
       created_by: userId,
       kv_storage_limit_bytes: defaultLimit
@@ -122,7 +144,7 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
 
 // Update project
 async function updateProject(req: NextApiRequest, res: NextApiResponse) {
-  const { id, name, description, is_active, kv_storage_limit_bytes } = req.body
+  const { id, name, description, slug, is_active, kv_storage_limit_bytes } = req.body
 
   if (!id || !name) {
     return res.status(400).json({ error: 'Project ID and name are required' })
@@ -131,34 +153,62 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
   if (typeof name !== 'string' || name.length > 100) {
     return res.status(400).json({ error: 'Project name must be 100 characters or less' })
   }
+  if (slug !== undefined) {
+    if (typeof slug !== 'string' || slug.length > 120) {
+      return res.status(400).json({ error: 'Slug must be 120 characters or less' })
+    }
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) {
+      return res
+        .status(400)
+        .json({
+          error:
+            'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
+        })
+    }
+  }
   if (description !== undefined && typeof description === 'string' && description.length > 1000) {
     return res.status(400).json({ error: 'Project description must be 1000 characters or less' })
   }
 
   try {
     const { Project } = database.models
+    const { Op } = require('sequelize')
 
-    // Fetch current state so we know if is_active is changing
-    const existing = await Project.findByPk(id, { attributes: ['is_active'] })
+    // If slug is provided, check uniqueness (exclude current project)
+    if (slug) {
+      const existingSlug = await Project.findOne({
+        where: { slug, id: { [Op.ne]: id } },
+        attributes: ['id']
+      })
+      if (existingSlug) {
+        return res.status(400).json({ error: 'Slug already exists. Please choose a different slug.' })
+      }
+    }
+
+    // Fetch current state so we know if is_active or slug is changing
+    const existing = await Project.findByPk(id, { attributes: ['is_active', 'slug'] })
     const activeChanged = existing && existing.is_active !== (is_active ?? true)
+    const slugChanged = slug && existing && existing.slug !== slug
 
-    const [affectedCount, updatedRows] = await Project.update(
-      {
-        name,
-        description: description || null,
-        is_active: is_active ?? true,
-        kv_storage_limit_bytes: kv_storage_limit_bytes ?? 1073741824,
-        updated_at: new Date()
-      },
-      { where: { id }, returning: true }
-    )
+    const updateData: any = {
+      name,
+      description: description || null,
+      is_active: is_active ?? true,
+      kv_storage_limit_bytes: kv_storage_limit_bytes ?? 1073741824,
+      updated_at: new Date()
+    }
+    if (slug) {
+      updateData.slug = slug
+    }
+
+    const [affectedCount, updatedRows] = await Project.update(updateData, { where: { id }, returning: true })
 
     if (affectedCount === 0) {
       return res.status(404).json({ error: 'Project not found' })
     }
 
-    // Notify gateway to invalidate its route cache when project active state changes
-    if (activeChanged) {
+    // Notify gateway to invalidate its route cache when project active state or slug changes
+    if (activeChanged || slugChanged) {
       await database.sequelize.query(`SELECT pg_notify('gateway_invalidated', :payload)`, {
         replacements: { payload: JSON.stringify({ table: 'projects', action: 'UPDATE', project_id: id }) }
       })

@@ -85,14 +85,17 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const functionName = name.trim()
     const functionDescription = description || 'Hello World function'
 
-    // Check if function already exists by name
+    // Check if function already exists by name in this project
     const { Function: FunctionModel, FunctionVersion } = database.models
-    const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] })
+    const existing = await FunctionModel.findOne({
+      where: { name: functionName, project_id: projectId },
+      attributes: ['id', 'name']
+    })
 
     if (existing) {
       return res
         .status(409)
-        .json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
+        .json(createResponse(false, null, `Function with name "${functionName}" already exists in this project`, 409))
     }
 
     const functionId = uuidv4()

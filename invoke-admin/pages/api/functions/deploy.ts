@@ -101,11 +101,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       FunctionModel = database.models.Function
       FunctionVersion = database.models.FunctionVersion
 
-      const existing = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id'] })
+      const existing = await FunctionModel.findOne({
+        where: { name: functionName, project_id: projectId },
+        attributes: ['id']
+      })
       if (existing) {
         return res
           .status(409)
-          .json(createResponse(false, null, `Function with name "${functionName}" already exists`, 409))
+          .json(createResponse(false, null, `Function with name "${functionName}" already exists in this project`, 409))
       }
     } catch (dbError) {
       console.error('Error during duplicate check:', dbError)

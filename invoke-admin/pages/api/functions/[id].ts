@@ -1,3 +1,4 @@
+import { Op } from 'sequelize'
 import database from '@/lib/database'
 import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { checkProjectDeveloperAccess, checkProjectOwnerAccess } from '@/lib/project-access'
@@ -88,7 +89,19 @@ async function handler(req: AuthenticatedRequest, res: any) {
 
     const updates: Record<string, unknown> = {}
 
-    if (name !== undefined) updates.name = name
+    if (name !== undefined) {
+      // Check for duplicate name within the same project
+      const duplicate = await FunctionModel.findOne({
+        where: { name, project_id: fn.project_id, id: { [Op.ne]: id } },
+        attributes: ['id']
+      })
+      if (duplicate) {
+        return res
+          .status(409)
+          .json(createResponse(false, null, `Function with name "${name}" already exists in this project`, 409))
+      }
+      updates.name = name
+    }
     if (description !== undefined) updates.description = description
     if (is_active !== undefined) updates.is_active = is_active
     if (group_id !== undefined) updates.group_id = group_id ?? null
