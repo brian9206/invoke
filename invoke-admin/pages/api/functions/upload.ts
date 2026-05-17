@@ -79,9 +79,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     }
 
-    // Check if function already exists by name - reject duplicates for new uploads
+    // Check if function already exists by name in this project - reject duplicates for new uploads
     const { Function: FunctionModel, FunctionVersion } = database.models
-    const existingFn = await FunctionModel.findOne({ where: { name: functionName }, attributes: ['id', 'name'] })
+    const existingFn = await FunctionModel.findOne({
+      where: { name: functionName, project_id: projectId },
+      attributes: ['id', 'name']
+    })
 
     if (existingFn) {
       return res
@@ -90,7 +93,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
           createResponse(
             false,
             null,
-            `Function with name "${functionName}" already exists. Use the update function feature to modify existing functions.`,
+            `Function with name "${functionName}" already exists in this project. Use the update function feature to modify existing functions.`,
             409
           )
         )

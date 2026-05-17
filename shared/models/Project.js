@@ -1,5 +1,4 @@
 const { Model, DataTypes } = require('sequelize')
-const { default: slugify } = require('@sindresorhus/slugify')
 
 module.exports = sequelize => {
   class Project extends Model {}
@@ -31,11 +30,11 @@ module.exports = sequelize => {
         defaultValue: 1073741824
       },
       slug: {
-        type: DataTypes.VIRTUAL,
-        get() {
-          const name = this.getDataValue('name')
-          if (!name) return null
-          return slugify(name)
+        type: DataTypes.STRING(120),
+        allowNull: false,
+        unique: true,
+        validate: {
+          is: /^[a-z0-9][a-z0-9_-]*$/
         }
       },
       created_at: {

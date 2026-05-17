@@ -14,10 +14,17 @@ Use [`invoke run`](./local-run) to execute a function on your machine without a 
 
 ### Basic Invocation
 
-Invoke a function using its name or ID:
+Invoke a function using its name, ID, or `@project-slug/function-name`:
 
 ```bash
+# By name (uses your default project)
 invoke function:invoke my-api
+
+# By project slug and function name
+invoke function:invoke @my-project/my-api
+
+# By UUID
+invoke function:invoke cd23cc1f-936f-445e-b2ba-dd8306b8dc01
 ```
 
 **Example output:**
@@ -151,7 +158,11 @@ The `function:test` command provides enhanced output with function details and r
 ### Basic Test
 
 ```bash
+# By name (uses your default project)
 invoke function:test my-api
+
+# By project slug and function name
+invoke function:test @my-project/my-api
 ```
 
 **Example output:**

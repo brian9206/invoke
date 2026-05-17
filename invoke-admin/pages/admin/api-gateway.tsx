@@ -1862,7 +1862,7 @@ export default function ApiGatewayPage() {
     setDeleteNamespaceId(null)
   }
 
-  const projectSlug = activeProject?.slug || activeProject?.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  const projectSlug = activeProject?.slug
   const gatewayFull = gatewayDomain
     ? gatewayDomain.startsWith('http')
       ? gatewayDomain

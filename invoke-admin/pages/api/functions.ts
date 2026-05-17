@@ -6,12 +6,15 @@ import database from '@/lib/database'
 
 async function handler(req: AuthenticatedRequest, res: any) {
   if (req.method === 'GET') {
-    const { projectId } = req.query
+    const { projectId, name } = req.query
     const { Function: FunctionModel, FunctionVersion, User, Project, ProjectMembership } = database.models
     let fns: any[]
 
     if (req.user?.isAdmin && (projectId === 'system' || !projectId)) {
+      const where: any = {}
+      if (name) where.name = name
       fns = await (FunctionModel as any).findAll({
+        where,
         include: [
           { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
           { model: User, as: 'deployedBy', attributes: ['username'], required: false },
@@ -41,7 +44,10 @@ async function handler(req: AuthenticatedRequest, res: any) {
         return res.status(200).json(createResponse(true, [], 'No functions found'))
       }
       fns = await (FunctionModel as any).findAll({
-        where: { project_id: { [Op.in]: projectIds } },
+        where: {
+          project_id: { [Op.in]: projectIds },
+          ...(name ? { name } : {})
+        },
         include: [
           { model: FunctionVersion, as: 'activeVersion', attributes: ['version', 'file_size'], required: false },
           { model: User, as: 'deployedBy', attributes: ['username'], required: false },
@@ -103,12 +109,14 @@ async function handler(req: AuthenticatedRequest, res: any) {
       }
     }
 
-    // Check if function name already exists
+    // Check if function name already exists in this project
     const { Function: FunctionModel } = database.models
-    const existing = await FunctionModel.findOne({ where: { name }, attributes: ['id'] })
+    const existing = await FunctionModel.findOne({ where: { name, project_id }, attributes: ['id'] })
 
     if (existing) {
-      return res.status(409).json(createResponse(false, null, `Function with name "${name}" already exists`, 409))
+      return res
+        .status(409)
+        .json(createResponse(false, null, `Function with name "${name}" already exists in this project`, 409))
     }
 
     // Generate function ID and API key if needed
