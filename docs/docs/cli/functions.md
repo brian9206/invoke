@@ -6,6 +6,27 @@ sidebar_position: 3
 
 Manage your serverless functions using the Invoke CLI.
 
+## Referencing Functions Across Projects
+
+The CLI supports an `@project-slug/function-name` syntax to reference functions in any project without switching your default project:
+
+```bash
+invoke function:test @my-project/my-api
+invoke function:invoke @analytics/data-processor --method POST --data '{"id":1}'
+invoke function:get @billing/invoice-handler
+```
+
+This works with all function commands that accept a function name or ID. The `@project-slug` part identifies the project by its slug, and `function-name` is the name of the function within that project.
+
+You can also reference a project by its slug in the `--project` option (with or without `@`):
+
+```bash
+invoke function:deploy --name my-api --project @my-project
+invoke function:list --project my-project
+```
+
+---
+
 ## Creating Functions
 
 ### Scaffold and Deploy (Recommended)

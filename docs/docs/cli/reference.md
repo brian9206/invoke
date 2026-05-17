@@ -6,6 +6,25 @@ sidebar_position: 9
 
 Complete reference of all Invoke CLI commands.
 
+## Cross-Project Function Reference
+
+Most function commands accept a function argument as a name, UUID, or the `@project-slug/function-name` shorthand. This lets you work with functions in any project without switching your default project:
+
+```bash
+# Referencing a function in another project
+invoke function:test @analytics/data-processor
+invoke function:invoke @billing/invoice-handler --method POST
+invoke function:get @my-project/my-api
+
+# Using a project slug in --project options
+invoke function:deploy --name my-api --project @my-project
+invoke function:list --project my-project
+```
+
+The `project-slug` is the unique slug assigned to each project (visible in the admin UI under project settings).
+
+---
+
 ## Configuration Commands
 
 ### `config:set`
@@ -153,7 +172,7 @@ invoke function:get <id> [options]
 
 **Arguments:**
 
-- `<id>` - Function ID (UUID) or name
+- `<id>` - Function ID (UUID), name, or `@project-slug/function-name`
 
 **Options:**
 
@@ -206,7 +225,7 @@ invoke function:deploy [path] [options]
 **Required Options:**
 
 - `--name <name>` - Function name
-- `--project <id>` - Project ID or name
+- `--project <id>` - Project ID, name, slug, or `@project-slug`
 
 **Options:**
 
@@ -219,6 +238,9 @@ invoke function:deploy [path] [options]
 ```bash
 # Deploy current directory
 invoke function:deploy --name hello --project "my-project"
+
+# Deploy using project slug with @ prefix
+invoke function:deploy --name hello --project @my-project
 
 # Deploy a specific path
 invoke function:deploy ./hello-function --name hello --project "my-project"
@@ -474,7 +496,7 @@ invoke function:invoke <id> [options]
 
 **Arguments:**
 
-- `<id>` - Function ID or name
+- `<id>` - Function ID (UUID), name, or `@project-slug/function-name`
 
 **Options:**
 
@@ -490,11 +512,11 @@ invoke function:invoke <id> [options]
 **Examples:**
 
 ```bash
-# GET request
+# GET request (default project)
 invoke function:invoke my-api --method GET
 
-# POST with JSON
-invoke function:invoke my-api --method POST --data '{"name":"John"}'
+# POST with JSON (cross-project @slug syntax)
+invoke function:invoke @my-project/my-api --method POST --data '{"name":"John"}'
 
 # Custom path and headers
 invoke function:invoke my-api \
@@ -515,7 +537,7 @@ invoke function:test <id> [options]
 
 **Arguments:**
 
-- `<id>` - Function ID or name
+- `<id>` - Function ID (UUID), name, or `@project-slug/function-name`
 
 **Options:**
 
