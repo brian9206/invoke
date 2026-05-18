@@ -233,9 +233,18 @@ export default function ProfileSettings() {
     }
   }
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    toast.success('Copied to clipboard!')
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(text)
+        toast.success('Copied to clipboard!')
+      } else {
+        toast.error('Clipboard not available')
+      }
+    } catch (e) {
+      console.error('Failed to copy:', e)
+      toast.error('Failed to copy to clipboard')
+    }
   }
 
   const formatDate = (d: string | null) => (d ? new Date(d).toLocaleString() : 'Never')

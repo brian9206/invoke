@@ -36,6 +36,24 @@ services:
       start_period: 5s
       retries: 3
 
+  # PostgreSQL Userdata Database (per-project managed databases)
+  postgres-userdata:
+    image: postgres:15-alpine
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${USERDATA_DB_USER}
+      POSTGRES_PASSWORD: ${USERDATA_DB_PASSWORD}
+    volumes:
+      - postgres-userdata_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+
   # MinIO Object Storage (S3-compatible)
   minio:
     image: minio/minio:latest
@@ -146,11 +164,14 @@ services:
       - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY}
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - LOGGER_SERVICE_URL=http://logger:3000
+      - SQL_SERVICE_URL=http://sql:3000
     depends_on:
       postgres-app:
         condition: service_healthy
       minio:
         condition: service_healthy
+      sql:
+        condition: service_started
     restart: unless-stopped
 
   # API Gateway Service
@@ -212,6 +233,37 @@ services:
     restart: unless-stopped
     deploy:
       replicas: ${LOGGER_REPLICAS}
+
+  # SQL Service (WebSocket relay + future function SDK)
+  sql:
+    build:
+      context: .
+      dockerfile: invoke-sql/Dockerfile
+    image: ghcr.io/brian9206/invoke/sql:latest
+    ports:
+      - '${SQL_PORT:-3010}:3000'
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=postgres-app
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - USERDATA_DB_HOST=postgres-userdata
+      - USERDATA_DB_PORT=5432
+      - USERDATA_DB_USER=${USERDATA_DB_USER}
+      - USERDATA_DB_PASSWORD=${USERDATA_DB_PASSWORD}
+      - SQL_ENCRYPTION_KEY=${SQL_ENCRYPTION_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
+    depends_on:
+      postgres-app:
+        condition: service_healthy
+      postgres-userdata:
+        condition: service_healthy
+    restart: unless-stopped
+
   scheduler:
     build:
       context: .
@@ -239,6 +291,7 @@ services:
 volumes:
   postgres_data:
   postgres-logs_data:
+  postgres-userdata_data:
   minio_data:
   execution_cache:
   execution_builds:

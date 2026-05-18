@@ -3,6 +3,8 @@ const { initModels } = require('./models')
 const { createServiceDatabase } = require('./service-database')
 const s3Service = require('./s3')
 const MigrationManager = require('./migration-manager')
+const { encrypt, decrypt } = require('./crypto')
+const { createUserdataConnection, createProjectDbConnection } = require('./userdata-db')
 
 // Lazy-load createNotifyListener so that consumers that never use it
 // (e.g. invoke-cli) don't pull pg-listen/pg-format into their bundle.
@@ -16,5 +18,9 @@ module.exports = {
   createServiceDatabase,
   createNotifyListener,
   s3Service,
-  MigrationManager
+  MigrationManager,
+  encrypt,
+  decrypt,
+  createUserdataConnection,
+  createProjectDbConnection
 }

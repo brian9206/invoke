@@ -1,0 +1,39 @@
+{
+  "name": "invoke-sql",
+  "version": "1.0.0",
+  "description": "Invoke SQL Service - WebSocket relay for project databases and future function SDK access",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "nodemon --exec node -r @swc-node/register src/server.ts"
+  },
+  "dependencies": {
+    "@criblinc/docker-names": "^1.2.2",
+    "@pgsql/parser": "^1.2.1",
+    "dotenv": "^16.3.1",
+    "express": "^5.2.1",
+    "invoke-shared": "*",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.11.3",
+    "pg-protocol": "^1.7.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.11.1",
+    "@swc/core": "^1.15.18",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.10",
+    "nodemon": "^3.0.2",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "invoke",
+    "sql",
+    "database",
+    "proxy",
+    "websocket"
+  ]
+}

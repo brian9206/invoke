@@ -28,6 +28,7 @@ export default function GlobalSettingsPage() {
   const [retentionType, setRetentionType] = useState<'time' | 'count' | 'none'>('none')
   const [retentionValue, setRetentionValue] = useState('')
   const [functionBaseUrl, setFunctionBaseUrl] = useState('')
+  const [sqlRelayUrl, setSqlRelayUrl] = useState('')
   const [kvStorageLimitGB, setKvStorageLimitGB] = useState('')
   const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false)
   const [apiGatewayDomain, setApiGatewayDomain] = useState('')
@@ -85,6 +86,7 @@ export default function GlobalSettingsPage() {
         setRetentionType((readSetting('type') || 'none') as 'time' | 'count' | 'none')
         setRetentionValue(readSetting('value'))
         setFunctionBaseUrl(readSetting('function_base_url'))
+        setSqlRelayUrl(readSetting('sql_relay_url'))
 
         const kvBytesRaw = readSetting('kv_storage_limit_bytes')
         if (kvBytesRaw) {
@@ -188,6 +190,7 @@ export default function GlobalSettingsPage() {
           type: retentionType,
           value: retentionValue !== '' ? Number(retentionValue) : null,
           function_base_url: functionBaseUrl,
+          sql_relay_url: sqlRelayUrl,
           kv_storage_limit_bytes: kvStorageLimitGB !== '' ? Math.round(Number(kvStorageLimitGB) * 1024 ** 3) : null,
           api_gateway_domain: apiGatewayEnabled ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : '',
           execution_default_timeout_seconds: Number(execDefaultTimeout),
@@ -282,6 +285,30 @@ export default function GlobalSettingsPage() {
                         onChange={e => setFunctionBaseUrl(e.target.value)}
                         placeholder='https://functions.example.com'
                       />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* SQL Relay URL Settings */}
+                  <div className='space-y-4'>
+                    <div>
+                      <h3 className='text-base font-semibold text-foreground'>SQL Relay URL</h3>
+                      <p className='text-sm text-muted-foreground mt-1'>
+                        The WebSocket URL the CLI uses to connect to the SQL relay service.
+                      </p>
+                    </div>
+                    <div className='space-y-1.5'>
+                      <Label>Relay URL</Label>
+                      <Input
+                        type='url'
+                        value={sqlRelayUrl}
+                        onChange={e => setSqlRelayUrl(e.target.value)}
+                        placeholder='ws://localhost:3010/sql/relay'
+                      />
+                      <p className='text-xs text-muted-foreground'>
+                        Used by <code className='text-xs'>invoke sql:connect</code> to establish database tunnels.
+                      </p>
                     </div>
                   </div>
 

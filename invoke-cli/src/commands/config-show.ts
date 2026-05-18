@@ -1,17 +1,18 @@
 import chalk from 'chalk'
 import type { Command } from 'commander'
-import { loadConfig, getApiKey, getBaseUrl, getExecutionUrl, CONFIG_FILE } from '../services/config'
+import { loadConfig, getApiKey, getBaseUrl, getExecutionUrl, getSqlRelayUrl, CONFIG_FILE } from '../services/config'
 
 export function register(program: Command): void {
   program
     .command('config:show')
     .description('Display current configuration')
-    .action(() => {
+    .action(async () => {
       try {
         const currentConfig = loadConfig()
         const apiKey = getApiKey()
         const baseUrl = getBaseUrl()
         const executionUrl = getExecutionUrl()
+        const sqlRelayUrl = await getSqlRelayUrl()
 
         console.log(chalk.cyan('Current configuration:'))
         console.log(`Config file: ${CONFIG_FILE}`)
@@ -24,6 +25,7 @@ export function register(program: Command): void {
           `Base URL Source: ${process.env.INVOKE_BASE_URL ? 'Environment Variable' : currentConfig.baseUrl ? 'Config File' : 'Default'}`
         )
         console.log(`Execution URL: ${executionUrl}`)
+        console.log(`SQL Relay URL: ${sqlRelayUrl || chalk.yellow('Not set')}`)
       } catch (error: any) {
         console.log(chalk.red('❌ Failed to load configuration:'), error.message)
         process.exit(1)

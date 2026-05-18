@@ -56,6 +56,9 @@ import { register as functionInvoke } from './commands/function-invoke'
 import { register as functionTest } from './commands/function-test'
 
 import { register as run } from './commands/run'
+import { register as dbStatus } from './commands/db-status'
+import { register as dbCredentials } from './commands/db-credentials'
+import { register as dbConnect } from './commands/db-connect'
 import { checkForUpdates } from './services/update'
 
 configSet(program)
@@ -101,6 +104,10 @@ functionInvoke(program)
 functionTest(program)
 
 run(program)
+
+dbStatus(program)
+dbCredentials(program)
+dbConnect(program)
 
 // ========================================
 // Parse

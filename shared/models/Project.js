@@ -59,6 +59,7 @@ module.exports = sequelize => {
     Project.hasMany(models.Function, { foreignKey: 'project_id' })
     Project.hasMany(models.ProjectMembership, { foreignKey: 'project_id' })
     Project.hasOne(models.ApiGatewayConfig, { foreignKey: 'project_id' })
+    Project.hasOne(models.ProjectDatabase, { foreignKey: 'project_id', as: 'database' })
   }
 
   return Project

@@ -579,9 +579,13 @@ export default function FunctionDetails() {
   // ── Copy to clipboard ────────────────────────────────────────────────────────
   const copyToClipboard = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text)
-      setCopiedUrl(text)
-      setTimeout(() => setCopiedUrl(null), 2000)
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(text)
+        setCopiedUrl(text)
+        setTimeout(() => setCopiedUrl(null), 2000)
+      } else {
+        console.error('Clipboard not available')
+      }
     } catch (e) {
       console.error('Failed to copy:', e)
     }

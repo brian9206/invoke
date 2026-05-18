@@ -20,5 +20,10 @@ const { result } = concurrently([
     name: 'scheduler',
     command: 'npm run dev',
     cwd: './invoke-scheduler'
+  },
+  {
+    name: 'sql',
+    command: 'npm run dev',
+    cwd: './invoke-sql'
   }
 ])
