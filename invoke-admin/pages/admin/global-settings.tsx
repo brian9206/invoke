@@ -30,6 +30,7 @@ export default function GlobalSettingsPage() {
   const [functionBaseUrl, setFunctionBaseUrl] = useState('')
   const [sqlRelayUrl, setSqlRelayUrl] = useState('')
   const [kvStorageLimitGB, setKvStorageLimitGB] = useState('')
+  const [sqlStorageLimitGB, setSqlStorageLimitGB] = useState('')
   const [apiGatewayEnabled, setApiGatewayEnabled] = useState(false)
   const [apiGatewayDomain, setApiGatewayDomain] = useState('')
   const [apiGatewayDomainProtocol, setApiGatewayDomainProtocol] = useState<'http' | 'https'>('https')
@@ -94,6 +95,14 @@ export default function GlobalSettingsPage() {
           setKvStorageLimitGB(Number.isFinite(kvBytes) ? String(kvBytes / 1024 ** 3) : '')
         } else {
           setKvStorageLimitGB('')
+        }
+
+        const sqlBytesRaw = readSetting('sql_storage_limit_bytes')
+        if (sqlBytesRaw) {
+          const sqlBytes = Number(sqlBytesRaw)
+          setSqlStorageLimitGB(Number.isFinite(sqlBytes) ? String(sqlBytes / 1024 ** 3) : '')
+        } else {
+          setSqlStorageLimitGB('')
         }
 
         const gatewayDomain = readSetting('api_gateway_domain')
@@ -192,6 +201,7 @@ export default function GlobalSettingsPage() {
           function_base_url: functionBaseUrl,
           sql_relay_url: sqlRelayUrl,
           kv_storage_limit_bytes: kvStorageLimitGB !== '' ? Math.round(Number(kvStorageLimitGB) * 1024 ** 3) : null,
+          sql_storage_limit_bytes: sqlStorageLimitGB !== '' ? Math.round(Number(sqlStorageLimitGB) * 1024 ** 3) : null,
           api_gateway_domain: apiGatewayEnabled ? `${apiGatewayDomainProtocol}://${apiGatewayDomain}` : '',
           execution_default_timeout_seconds: Number(execDefaultTimeout),
           execution_max_timeout_seconds: Number(execMaxTimeout),
@@ -330,6 +340,28 @@ export default function GlobalSettingsPage() {
                         step={0.1}
                         value={kvStorageLimitGB}
                         onChange={e => setKvStorageLimitGB(e.target.value)}
+                        placeholder='e.g. 1'
+                      />
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className='space-y-4'>
+                    <div>
+                      <h3 className='text-base font-semibold text-foreground'>SQL Database Settings</h3>
+                      <p className='text-sm text-muted-foreground mt-1'>
+                        Set the default storage quota for project PostgreSQL databases.
+                      </p>
+                    </div>
+                    <div className='space-y-1.5 max-w-xs'>
+                      <Label>Storage Limit (GB)</Label>
+                      <Input
+                        type='number'
+                        min={0}
+                        step={0.1}
+                        value={sqlStorageLimitGB}
+                        onChange={e => setSqlStorageLimitGB(e.target.value)}
                         placeholder='e.g. 1'
                       />
                     </div>

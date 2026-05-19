@@ -41,6 +41,7 @@ interface ProjectDetail {
   description: string | null
   is_active: boolean
   kv_storage_limit_bytes: number
+  sql_storage_limit_bytes: number
   created_at: string
   created_by_username: string | null
   member_count: number
@@ -76,6 +77,9 @@ export default function ProjectDetails() {
     onConfirm?: () => void
   }>({ type: null, title: '', message: '' })
 
+  // ── Tab navigation ───────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState('general')
+
   // ── Core project data ───────────────────────────────────────────────────────
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
@@ -102,6 +106,9 @@ export default function ProjectDetails() {
   const [kvLimitEditing, setKvLimitEditing] = useState(false)
   const [kvLimitDraft, setKvLimitDraft] = useState(1)
   const [kvLimitSaving, setKvLimitSaving] = useState(false)
+  const [sqlLimitEditing, setSqlLimitEditing] = useState(false)
+  const [sqlLimitDraft, setSqlLimitDraft] = useState(1)
+  const [sqlLimitSaving, setSqlLimitSaving] = useState(false)
 
   // ── Project locking ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -175,7 +182,8 @@ export default function ProjectDetails() {
           slug: editSlug,
           description: editDescription,
           is_active: project?.is_active,
-          kv_storage_limit_bytes: project?.kv_storage_limit_bytes
+          kv_storage_limit_bytes: project?.kv_storage_limit_bytes,
+          sql_storage_limit_bytes: project?.sql_storage_limit_bytes
         })
       })
       if (r.ok) {
@@ -204,7 +212,8 @@ export default function ProjectDetails() {
           name: project.name,
           description: project.description,
           is_active: !project.is_active,
-          kv_storage_limit_bytes: project.kv_storage_limit_bytes
+          kv_storage_limit_bytes: project.kv_storage_limit_bytes,
+          sql_storage_limit_bytes: project.sql_storage_limit_bytes
         })
       })
       if (r.ok) {
@@ -337,7 +346,8 @@ export default function ProjectDetails() {
           name: project.name,
           description: project.description,
           is_active: project.is_active,
-          kv_storage_limit_bytes: Math.round(kvLimitDraft * 1024 * 1024 * 1024)
+          kv_storage_limit_bytes: Math.round(kvLimitDraft * 1024 * 1024 * 1024),
+          sql_storage_limit_bytes: project.sql_storage_limit_bytes
         })
       })
       if (r.ok) {
@@ -355,6 +365,36 @@ export default function ProjectDetails() {
     }
   }
 
+  const saveSqlLimit = async () => {
+    if (!project) return
+    setSqlLimitSaving(true)
+    try {
+      const r = await authenticatedFetch('/api/admin/projects', {
+        method: 'PUT',
+        body: JSON.stringify({
+          id,
+          name: project.name,
+          description: project.description,
+          is_active: project.is_active,
+          kv_storage_limit_bytes: project.kv_storage_limit_bytes,
+          sql_storage_limit_bytes: Math.round(sqlLimitDraft * 1024 * 1024 * 1024)
+        })
+      })
+      if (r.ok) {
+        await fetchProject()
+        await refreshProjects()
+        setSqlLimitEditing(false)
+      } else {
+        const d = await r.json()
+        setDialogState({ type: 'alert', title: 'Error', message: d.error || 'Failed to save' })
+      }
+    } catch {
+      setDialogState({ type: 'alert', title: 'Error', message: 'Error saving SQL limit' })
+    } finally {
+      setSqlLimitSaving(false)
+    }
+  }
+
   // ── Utilities ──────────────────────────────────────────────────────────────────
   const formatDate = (ds: string) => new Date(ds).toLocaleString()
   const formatBytes = (bytes: number) => {
@@ -365,6 +405,10 @@ export default function ProjectDetails() {
   }
 
   const availableUsersToAdd = allUsers.filter(u => !members.some(m => m.user_id === u.id))
+
+  const handleTabChange = (next: string) => {
+    setActiveTab(next)
+  }
 
   if (loading) {
     return (
@@ -453,14 +497,15 @@ export default function ProjectDetails() {
             </div>
 
             {/* ── Tabs ─────────────────────────────────────────────────────── */}
-            <Tabs defaultValue='overview'>
+            <Tabs value={activeTab} onValueChange={handleTabChange}>
               <TabsList>
-                <TabsTrigger value='overview'>Overview</TabsTrigger>
+                <TabsTrigger value='general'>General</TabsTrigger>
+                <TabsTrigger value='quota'>Quota</TabsTrigger>
                 <TabsTrigger value='members'>Members</TabsTrigger>
               </TabsList>
 
-              {/* ── Overview Tab ─────────────────────────────────────────── */}
-              <TabsContent value='overview' className='space-y-6 mt-0'>
+              {/* ── General Tab ──────────────────────────────────────────── */}
+              <TabsContent value='general' className='space-y-6 mt-0'>
                 {/* Actions */}
                 <Card>
                   <CardContent className='overflow-x-auto'>
@@ -514,6 +559,48 @@ export default function ProjectDetails() {
                           {project.function_count}
                         </dd>
                       </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Created</dt>
+                        <dd className='flex items-center gap-1'>
+                          <Calendar className='w-4 h-4 text-muted-foreground' />
+                          {formatDate(project.created_at)}
+                        </dd>
+                      </div>
+                      <div className='flex flex-col gap-0.5'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+                          Created By
+                        </dt>
+                        <dd className='flex items-center gap-1'>
+                          <User className='w-4 h-4 text-muted-foreground' />
+                          {project.created_by_username || '—'}
+                        </dd>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+                          Project ID
+                        </dt>
+                        <dd className='break-all font-mono text-xs'>{project.id}</dd>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Slug</dt>
+                        <dd className='break-all font-mono text-xs'>{project.slug}</dd>
+                      </div>
+                    </dl>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* ── Quota Tab ────────────────────────────────────────────── */}
+              <TabsContent value='quota' className='space-y-6 mt-0'>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className='text-base flex items-center gap-2'>
+                      <HardDrive className='w-5 h-5' />
+                      Storage Quotas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className='grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 text-sm'>
                       <div className='flex flex-col gap-0.5'>
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
                           KV Storage Limit
@@ -594,30 +681,83 @@ export default function ProjectDetails() {
                         </dd>
                       </div>
                       <div className='flex flex-col gap-0.5'>
-                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Created</dt>
-                        <dd className='flex items-center gap-1'>
-                          <Calendar className='w-4 h-4 text-muted-foreground' />
-                          {formatDate(project.created_at)}
-                        </dd>
-                      </div>
-                      <div className='flex flex-col gap-0.5'>
                         <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
-                          Created By
+                          SQL Storage Limit
                         </dt>
                         <dd className='flex items-center gap-1'>
-                          <User className='w-4 h-4 text-muted-foreground' />
-                          {project.created_by_username || '—'}
+                          {sqlLimitEditing ? (
+                            <>
+                              <HardDrive className='w-4 h-4 text-muted-foreground shrink-0' />
+                              <Input
+                                type='number'
+                                min='0.001'
+                                step='0.1'
+                                autoFocus
+                                value={sqlLimitDraft}
+                                onChange={e => setSqlLimitDraft(parseFloat(e.target.value) || 0)}
+                                className='h-7 w-28 text-sm px-2'
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveSqlLimit()
+                                  if (e.key === 'Escape') setSqlLimitEditing(false)
+                                }}
+                              />
+                              <span className='text-muted-foreground text-sm'>GB</span>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-6 w-6'
+                                    onClick={saveSqlLimit}
+                                    disabled={sqlLimitSaving}
+                                  >
+                                    {sqlLimitSaving ? (
+                                      <Loader className='w-3 h-3 animate-spin' />
+                                    ) : (
+                                      <Check className='w-3 h-3 text-green-500' />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Save</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-6 w-6'
+                                    onClick={() => setSqlLimitEditing(false)}
+                                    disabled={sqlLimitSaving}
+                                  >
+                                    <X className='w-3 h-3' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Cancel</TooltipContent>
+                              </Tooltip>
+                            </>
+                          ) : (
+                            <>
+                              <HardDrive className='w-4 h-4 text-muted-foreground' />
+                              {formatBytes(project.sql_storage_limit_bytes)}
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-6 w-6 ml-0.5'
+                                    onClick={() => {
+                                      setSqlLimitDraft(project.sql_storage_limit_bytes / (1024 * 1024 * 1024))
+                                      setSqlLimitEditing(true)
+                                    }}
+                                  >
+                                    <Edit className='w-3 h-3' />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit SQL storage limit</TooltipContent>
+                              </Tooltip>
+                            </>
+                          )}
                         </dd>
-                      </div>
-                      <div className='flex flex-col gap-1'>
-                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
-                          Project ID
-                        </dt>
-                        <dd className='break-all font-mono text-xs'>{project.id}</dd>
-                      </div>
-                      <div className='flex flex-col gap-1'>
-                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Slug</dt>
-                        <dd className='break-all font-mono text-xs'>{project.slug}</dd>
                       </div>
                     </dl>
                   </CardContent>

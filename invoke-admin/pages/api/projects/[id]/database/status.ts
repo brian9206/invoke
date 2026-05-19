@@ -2,6 +2,7 @@ import { NextApiResponse } from 'next'
 import { AuthenticatedRequest, withAuth } from '@/lib/middleware'
 import { checkProjectAccess } from '@/lib/project-access'
 import { createResponse } from '@/lib/utils'
+import database from '@/lib/database'
 import { getProjectDatabaseStatus } from '@/lib/sql-service-client'
 
 /**
@@ -29,6 +30,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(403).json(createResponse(false, null, hasAccess.message, 403))
     }
 
+    const { Project } = database.models
+    const project = await Project.findByPk(projectId, { attributes: ['sql_storage_limit_bytes'] })
+    if (!project) {
+      return res.status(404).json(createResponse(false, null, 'Project not found', 404))
+    }
+
     const result = await getProjectDatabaseStatus(projectId)
     if (!result.ok) {
       return res
@@ -36,7 +43,15 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         .json(createResponse(false, null, result.message || 'Failed to fetch database status', result.status || 500))
     }
 
-    return res.status(200).json(createResponse(true, result.data as any))
+    const configuredLimit = parseInt(project.sql_storage_limit_bytes, 10) || 1073741824
+    const payload =
+      result.data && typeof result.data === 'object' ? { ...(result.data as Record<string, unknown>) } : {}
+
+    if (payload.initialized === false) {
+      payload.configured_storage_limit_bytes = configuredLimit
+    }
+
+    return res.status(200).json(createResponse(true, payload as any))
   } catch (error) {
     console.error('Database status API error:', error)
     return res.status(500).json(createResponse(false, null, 'Internal server error', 500))

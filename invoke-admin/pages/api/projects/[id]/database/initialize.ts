@@ -34,7 +34,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const { ProjectDatabase, Project } = database.models
 
     // Check project exists
-    const project = await Project.findByPk(projectId)
+    const project = await Project.findByPk(projectId, { attributes: ['id'] })
     if (!project) {
       return res.status(404).json(createResponse(false, null, 'Project not found', 404))
     }

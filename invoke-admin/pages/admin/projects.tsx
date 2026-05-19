@@ -23,6 +23,7 @@ interface Project {
   description: string
   is_active: boolean
   kv_storage_limit_bytes: number
+  sql_storage_limit_bytes: number
   created_at: string
   created_by: string
   member_count: number
@@ -34,7 +35,13 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [formData, setFormData] = useState({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+  const [formData, setFormData] = useState({
+    name: '',
+    slug: '',
+    description: '',
+    kvStorageLimit: 1,
+    sqlStorageLimit: 1
+  })
   const [slugTouched, setSlugTouched] = useState(false)
   const [dialogState, setDialogState] = useState<{
     type: 'alert' | 'confirm' | null
@@ -86,7 +93,7 @@ export default function ProjectsPage() {
       })
       if (response.ok) {
         setShowCreateModal(false)
-        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1, sqlStorageLimit: 1 })
         setSlugTouched(false)
         await refreshProjects()
         loadProjects()
@@ -111,12 +118,13 @@ export default function ProjectsPage() {
           slug: formData.slug,
           description: formData.description,
           is_active: editingProject.is_active,
-          kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024
+          kv_storage_limit_bytes: formData.kvStorageLimit * 1024 * 1024 * 1024,
+          sql_storage_limit_bytes: formData.sqlStorageLimit * 1024 * 1024 * 1024
         })
       })
       if (response.ok) {
         setEditingProject(null)
-        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+        setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1, sqlStorageLimit: 1 })
         setSlugTouched(false)
         await refreshProjects()
         loadProjects()
@@ -161,7 +169,8 @@ export default function ProjectsPage() {
       name: project.name,
       slug: project.slug || '',
       description: project.description || '',
-      kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024)
+      kvStorageLimit: project.kv_storage_limit_bytes / (1024 * 1024 * 1024),
+      sqlStorageLimit: project.sql_storage_limit_bytes / (1024 * 1024 * 1024)
     })
     setSlugTouched(true)
   }
@@ -169,7 +178,7 @@ export default function ProjectsPage() {
   const closeModals = () => {
     setShowCreateModal(false)
     setEditingProject(null)
-    setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1 })
+    setFormData({ name: '', slug: '', description: '', kvStorageLimit: 1, sqlStorageLimit: 1 })
     setSlugTouched(false)
   }
 
@@ -385,6 +394,17 @@ export default function ProjectsPage() {
                     required
                     value={formData.kvStorageLimit}
                     onChange={e => setFormData({ ...formData, kvStorageLimit: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className='space-y-1.5'>
+                  <Label>SQL Storage Limit (GB)</Label>
+                  <Input
+                    type='number'
+                    min='0.001'
+                    step='0.1'
+                    required
+                    value={formData.sqlStorageLimit}
+                    onChange={e => setFormData({ ...formData, sqlStorageLimit: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </form>

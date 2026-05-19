@@ -29,6 +29,10 @@ module.exports = sequelize => {
         type: DataTypes.BIGINT,
         defaultValue: 1073741824
       },
+      sql_storage_limit_bytes: {
+        type: DataTypes.BIGINT,
+        defaultValue: 1073741824
+      },
       slug: {
         type: DataTypes.STRING(120),
         allowNull: false,

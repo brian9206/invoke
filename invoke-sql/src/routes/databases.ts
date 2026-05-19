@@ -18,7 +18,7 @@ function respondError(res: Response, status: number, message: string): void {
 
 router.post('/initialize', async (req: Request, res: Response) => {
   try {
-    const { projectId, initializedBy, storageLimitBytes } = req.body || {}
+    const { projectId, initializedBy } = req.body || {}
     if (!projectId || typeof projectId !== 'string') {
       return respondError(res, 400, 'Project ID is required')
     }
@@ -113,7 +113,6 @@ router.post('/initialize', async (req: Request, res: Response) => {
         admin_username: adminUsername,
         app_password_encrypted: encrypt(appPassword),
         admin_password_encrypted: encrypt(adminPassword),
-        storage_limit_bytes: storageLimitBytes || 1073741824,
         status: 'initialized',
         initialized_at: new Date(),
         initialized_by: initializedBy || null
@@ -154,12 +153,15 @@ router.get('/:projectId/status', async (req: Request, res: Response) => {
       return respondError(res, 400, 'Project ID is required')
     }
 
-    const { ProjectDatabase } = database.models
+    const { ProjectDatabase, Project } = database.models
     const record = await ProjectDatabase.findOne({ where: { project_id: projectId } })
 
     if (!record) {
       return res.status(200).json({ success: true, data: { initialized: false } })
     }
+
+    const project = await Project.findByPk(projectId, { attributes: ['sql_storage_limit_bytes'] })
+    const limitBytes = project ? parseInt(project.sql_storage_limit_bytes, 10) : 1073741824
 
     let storageBytes = 0
     try {
@@ -179,8 +181,6 @@ router.get('/:projectId/status', async (req: Request, res: Response) => {
     } catch (err) {
       console.error('[SQL] Error querying database size:', err)
     }
-
-    const limitBytes = parseInt(record.storage_limit_bytes, 10)
 
     return res.status(200).json({
       success: true,
@@ -231,7 +231,7 @@ router.post('/:projectId/query', async (req: Request, res: Response) => {
       }
     }
 
-    const { ProjectDatabase } = database.models
+    const { ProjectDatabase, Project } = database.models
     const record = await ProjectDatabase.findOne({ where: { project_id: projectId } })
     if (!record) {
       return respondError(res, 404, 'Database not initialized for this project')
@@ -239,6 +239,9 @@ router.post('/:projectId/query', async (req: Request, res: Response) => {
     if (record.status !== 'initialized') {
       return respondError(res, 400, `Database is in '${record.status}' state`)
     }
+
+    const project = await Project.findByPk(projectId, { attributes: ['sql_storage_limit_bytes'] })
+    const limitBytes = project ? parseInt(project.sql_storage_limit_bytes, 10) : 1073741824
 
     const adminPassword = decrypt(record.admin_password_encrypted)
     const pool = createProjectDbConnection(
@@ -286,7 +289,7 @@ router.post('/:projectId/query', async (req: Request, res: Response) => {
         try {
           const sizeResult = await client.query('SELECT pg_database_size(current_database()) AS size')
           const currentSize = parseInt(sizeResult.rows[0].size, 10)
-          const limit = parseInt(record.storage_limit_bytes, 10)
+          const limit = limitBytes
           if (currentSize > limit) {
             storageWarning = `Storage limit exceeded: ${(currentSize / 1024 / 1024).toFixed(1)}MB / ${(limit / 1024 / 1024).toFixed(1)}MB`
           }

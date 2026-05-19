@@ -41,6 +41,7 @@ interface DatabaseStatus {
   db_name?: string
   status?: string
   storage?: StorageInfo
+  configured_storage_limit_bytes?: number
   users?: { app: string; admin: string }
   initialized_at?: string
   initialized_by?: number
@@ -340,7 +341,7 @@ export default function SqlDatabase() {
                 <p className='text-sm text-muted-foreground mb-6'>
                   You&apos;ll get two users: <span className='font-mono text-foreground'>admin_*</span> (full DDL + DML)
                   and <span className='font-mono text-foreground'>app_*</span> (SELECT, INSERT, UPDATE, DELETE only),
-                  with a 1 GB storage quota.
+                  with a {formatBytes(dbStatus.configured_storage_limit_bytes || 1073741824)} storage quota.
                 </p>
                 <Button onClick={handleInitialize} disabled={initializing}>
                   {initializing ? (

@@ -36,10 +36,6 @@ module.exports = sequelize => {
         type: DataTypes.TEXT,
         allowNull: false
       },
-      storage_limit_bytes: {
-        type: DataTypes.BIGINT,
-        defaultValue: 1073741824
-      },
       status: {
         type: DataTypes.STRING(20),
         allowNull: false,
