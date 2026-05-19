@@ -33,6 +33,7 @@
     "form-data": "^4.0.0",
     "ignore": "^5.3.2",
     "inquirer": "^12.11.1",
+    "invoke-shared": "*",
     "invoke-worker": "*",
     "pg": "^8.11.3",
     "semver": "^6.3.1",

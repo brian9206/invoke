@@ -113,5 +113,3 @@ export function createNotifyListener<TPayload = unknown>(
 ): NotifyListener<TPayload>
 
 export const s3Service: S3Service
-
-export function joinUri(...parts: string[]): string

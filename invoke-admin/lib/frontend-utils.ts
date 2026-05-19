@@ -1,7 +1,7 @@
 /**
  * Frontend utility functions for Invoke Admin
  */
-const { joinUri } = require('invoke-shared')
+import { joinUri } from 'invoke-shared/uri'
 
 let cachedFunctionBaseUrl: string | null = null
 let fetchPromise: Promise<string> | null = null

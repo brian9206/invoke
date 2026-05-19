@@ -1,8 +1,8 @@
 import axios, { AxiosRequestConfig } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
+import { joinUri } from 'invoke-shared/uri'
 import { getApiKey, getBaseUrl } from './config'
-import { joinUri } from './utils'
 
 /**
  * Make an authenticated API request

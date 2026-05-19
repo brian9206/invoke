@@ -3,11 +3,11 @@ import fs from 'fs'
 import axios from 'axios'
 import { table } from 'table'
 import type { Command } from 'commander'
+import { joinUri } from 'invoke-shared/uri'
 import { get } from '../services/api-client'
 import { getExecutionUrl } from '../services/config'
 import { resolveFunctionId } from '../services/helpers'
 import { formatFileSize } from '../services/file-utils'
-import { joinUri } from '../services/utils'
 
 export function register(program: Command): void {
   program

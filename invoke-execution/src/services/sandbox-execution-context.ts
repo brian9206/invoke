@@ -5,7 +5,7 @@
 
 import crypto from 'crypto'
 import axios from 'axios'
-import { joinUri } from 'invoke-shared'
+import { joinUri } from 'invoke-shared/uri'
 import type { Sandbox } from './sandbox-orchestrator'
 import type { RequestData, ResponseData } from 'invoke-worker/src/protocol'
 

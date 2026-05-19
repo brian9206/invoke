@@ -97,33 +97,6 @@ function createResponse(success: boolean, data?: any, error?: string): Record<st
   }
 }
 
-/**
- * Join URI parts safely, ensuring no duplicate slashes and preventing path traversal.
- */
-function joinUri(...parts: string[]): string {
-  const combined = parts.map((p, i) => (i === 0 ? p.replace(/\/$/, '') : p.replace(/^\//, ''))).join('/')
-
-  const protocolMatch = combined.match(/^([^:]+:\/\/[^/]+)(.*)$/)
-
-  let base = ''
-  let pathString = combined
-
-  if (protocolMatch) {
-    base = protocolMatch[1]
-    pathString = protocolMatch[2]
-  }
-
-  const segments = pathString.split('/')
-  const stack: string[] = []
-
-  for (const segment of segments) {
-    if (segment === '' || segment === '.' || segment === '..') continue
-    stack.push(segment)
-  }
-
-  return base + '/' + stack.join('/')
-}
-
 export {
   generateApiKey,
   hashApiKey,
@@ -133,6 +106,5 @@ export {
   validateEnvironment,
   formatFileSize,
   sanitizeFilename,
-  createResponse,
-  joinUri
+  createResponse
 }
