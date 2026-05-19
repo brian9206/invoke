@@ -7,6 +7,7 @@ import { get } from '../services/api-client'
 import { getExecutionUrl } from '../services/config'
 import { resolveFunctionId } from '../services/helpers'
 import { formatFileSize } from '../services/file-utils'
+import { joinUri } from '../services/utils'
 
 export function register(program: Command): void {
   program
@@ -73,7 +74,7 @@ export function register(program: Command): void {
         // Build execution URL with optional path
         const executionUrl = getExecutionUrl()
         const pathSuffix = options.path || ''
-        const url = `${executionUrl}/invoke/${fn.id}${pathSuffix}`
+        const url = joinUri(executionUrl, 'invoke', fn.id, pathSuffix)
 
         console.log(chalk.cyan('\n⚡ Executing...\n'))
 

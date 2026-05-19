@@ -1,10 +1,7 @@
-'use strict'
-
-const crypto = require('crypto')
+import crypto from 'crypto'
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
-const TAG_LENGTH = 16
 
 /**
  * Get the encryption key from environment variable.
@@ -30,7 +27,7 @@ function getKey() {
  * @param {string} plaintext
  * @returns {string} JSON string containing base64-encoded iv, tag, and ciphertext
  */
-function encrypt(plaintext) {
+function encrypt(plaintext: string): string {
   const key = getKey()
   const iv = crypto.randomBytes(IV_LENGTH)
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
@@ -48,7 +45,7 @@ function encrypt(plaintext) {
  * @param {string} encryptedJson - JSON string from encrypt()
  * @returns {string} Original plaintext
  */
-function decrypt(encryptedJson) {
+function decrypt(encryptedJson: string): string {
   const key = getKey()
   const { iv, tag, ciphertext } = JSON.parse(encryptedJson)
   const decipher = crypto.createDecipheriv(ALGORITHM, key, Buffer.from(iv, 'base64'))
@@ -57,4 +54,4 @@ function decrypt(encryptedJson) {
   return decrypted.toString('utf8')
 }
 
-module.exports = { encrypt, decrypt }
+export { encrypt, decrypt }

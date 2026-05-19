@@ -1,6 +1,7 @@
 /**
  * Frontend utility functions for Invoke Admin
  */
+const { joinUri } = require('invoke-shared')
 
 let cachedFunctionBaseUrl: string | null = null
 let fetchPromise: Promise<string> | null = null
@@ -91,12 +92,12 @@ export async function getFunctionBaseUrl(): Promise<string> {
       }
 
       // Fallback to default if not found
-      cachedFunctionBaseUrl = 'https://localhost:3001/invoke'
+      cachedFunctionBaseUrl = 'https://localhost:3001'
       return cachedFunctionBaseUrl!
     } catch (error) {
       console.error('Failed to get function base URL:', error)
       // Fallback to default on error
-      cachedFunctionBaseUrl = 'https://localhost:3001/invoke'
+      cachedFunctionBaseUrl = 'https://localhost:3001'
       return cachedFunctionBaseUrl!
     } finally {
       fetchPromise = null
@@ -113,7 +114,7 @@ export async function getFunctionBaseUrl(): Promise<string> {
  */
 export async function getFunctionUrl(functionId: string): Promise<string> {
   const baseUrl = await getFunctionBaseUrl()
-  return `${baseUrl}/${functionId}`
+  return joinUri(baseUrl, 'invoke', functionId)
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import crypto from 'crypto'
 import axios from 'axios'
+import { joinUri } from 'invoke-shared'
 import type { Sandbox } from './sandbox-orchestrator'
 import type { RequestData, ResponseData } from 'invoke-worker/src/protocol'
 
@@ -175,7 +176,7 @@ export async function executeSandbox(
       }
 
       try {
-        await axios.post(`${gatewayInternalUrl}/_realtime/command`, cmd, {
+        await axios.post(joinUri(gatewayInternalUrl, '_realtime/command'), cmd, {
           headers: { 'x-internal-secret': internalSecret },
           timeout: 5000
         })

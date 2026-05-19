@@ -3,8 +3,9 @@ import { Router, Request, Response } from 'express'
 import { generateName } from '@criblinc/docker-names'
 import database from '../services/database'
 import { checkSqlBlocked } from '../lib/sql-filter'
+import { encrypt, decrypt } from '../lib/crypto'
 
-const { encrypt, decrypt, createUserdataConnection, createProjectDbConnection } = require('invoke-shared')
+const { createUserdataConnection, createProjectDbConnection } = require('invoke-shared')
 
 const router = Router()
 
