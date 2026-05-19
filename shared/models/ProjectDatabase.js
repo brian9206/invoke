@@ -41,6 +41,11 @@ module.exports = sequelize => {
         allowNull: false,
         defaultValue: 'initialized'
       },
+      storage_locked: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       initialized_at: {
         type: DataTypes.DATE
       },

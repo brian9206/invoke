@@ -1,7 +1,7 @@
 import net from 'net'
 import { Client as PgClient, ClientConfig } from 'pg'
 import { Duplex } from 'stream'
-import { createProxyFilter } from './pg-message-filter'
+import { createProxyFilter, LockState } from './pg-message-filter'
 
 // Use pg-protocol's Writer for building protocol messages cleanly
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -143,6 +143,12 @@ export interface PostgresProxyOptions {
 
   /** Idle timeout in milliseconds. Default: 30 minutes. */
   idleTimeoutMs?: number
+
+  /** Mutable lock-state reference; filter reads this per-message to block writes when locked. */
+  lockState: LockState
+
+  /** Called after each query cycle completes (ReadyForQuery received from server). */
+  onQueryExecuted: () => void
 }
 
 export interface PostgresProxy {
@@ -163,7 +169,7 @@ export interface PostgresProxy {
  * ```
  */
 export async function createPostgresProxy(opts: PostgresProxyOptions): Promise<PostgresProxy> {
-  const { options, socket, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS } = opts
+  const { options, socket, idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS, lockState, onQueryExecuted } = opts
 
   // ── 1. Create pg.Client and tap internal Connection events BEFORE connect ──
   // pg.Client always creates `this.connection = new Connection(...)` in its constructor,
@@ -245,7 +251,7 @@ export async function createPostgresProxy(opts: PostgresProxyOptions): Promise<P
   resetIdleTimer()
 
   // Per-connection stateful filter (tracks rowFilterActive, pending buffers, etc.)
-  const filter = createProxyFilter(options.database as string)
+  const filter = createProxyFilter(options.database as string, lockState, onQueryExecuted)
 
   // ── Async queue for client→server direction ────────────────────────────────
   // filterFromClient is async (invokes WASM parser on regex hits).

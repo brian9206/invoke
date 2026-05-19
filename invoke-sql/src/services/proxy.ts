@@ -3,6 +3,7 @@ import { WebSocket, createWebSocketStream } from 'ws'
 import database from './database'
 import { authenticateWsRequest } from './auth'
 import { createPostgresProxy, PostgresProxy } from '../lib/pg-proxy'
+import { scheduleQuotaCheck, onNextQuotaCheck } from '../lib/storage-quota'
 
 const { decrypt } = require('invoke-shared')
 
@@ -53,6 +54,26 @@ export async function handleWsUpgrade(ws: WebSocket, req: IncomingMessage): Prom
     return
   }
 
+  // Create a mutable lock-state ref so the filter can see updated state during
+  // the lifetime of a long-lived WS connection.
+  const lockState = { isLocked: record.storage_locked === true }
+  const projectId = auth.projectId
+
+  // Called by the filter on every ReadyForQuery (= query cycle complete).
+  // Schedules a debounced quota check and refreshes lockState when it resolves.
+  const onQueryExecuted = () => {
+    scheduleQuotaCheck(projectId)
+    onNextQuotaCheck(projectId, async () => {
+      try {
+        const { ProjectDatabase } = database.models
+        const fresh = await ProjectDatabase.findOne({ where: { project_id: projectId } })
+        if (fresh) lockState.isLocked = fresh.storage_locked === true
+      } catch (err) {
+        console.error('[Proxy] Failed to refresh lockState:', err)
+      }
+    })
+  }
+
   // Create the auth bridge — pg.Client authenticates with postgres, client gets AuthOk
   let proxy: PostgresProxy
   try {
@@ -65,7 +86,9 @@ export async function handleWsUpgrade(ws: WebSocket, req: IncomingMessage): Prom
         database: record.db_name,
         ssl: false
       },
-      socket
+      socket,
+      lockState,
+      onQueryExecuted
     })
 
     // Resume the stream now that handleClientStartup has its data listener attached

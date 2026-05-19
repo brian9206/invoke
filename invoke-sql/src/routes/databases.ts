@@ -4,6 +4,7 @@ import { generateName } from '@criblinc/docker-names'
 import database from '../services/database'
 import { checkSqlBlocked } from '../lib/sql-filter'
 import { encrypt, decrypt } from '../lib/crypto'
+import { scheduleQuotaCheck } from '../lib/storage-quota'
 
 const { createUserdataConnection, createProjectDbConnection } = require('invoke-shared')
 
@@ -240,6 +241,11 @@ router.post('/:projectId/query', async (req: Request, res: Response) => {
       return respondError(res, 400, `Database is in '${record.status}' state`)
     }
 
+    // Storage quota pre-flight: reject write operations when DB is locked
+    if (record.storage_locked && /INSERT\s+INTO|UPDATE\s/i.test(sql.trim())) {
+      return respondError(res, 403, 'Storage quota exceeded. Write operation except DELETE has been disabled')
+    }
+
     const project = await Project.findByPk(projectId, { attributes: ['sql_storage_limit_bytes'] })
     const limitBytes = project ? parseInt(project.sql_storage_limit_bytes, 10) : 1073741824
 
@@ -295,6 +301,9 @@ router.post('/:projectId/query', async (req: Request, res: Response) => {
           }
         } catch {}
       }
+
+      // Schedule an async quota check after every query (fire-and-forget)
+      scheduleQuotaCheck(projectId as string)
 
       return res.status(200).json({
         success: true,

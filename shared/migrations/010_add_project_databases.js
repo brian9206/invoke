@@ -50,6 +50,11 @@ module.exports = {
         references: { model: 'users', key: 'id' },
         onDelete: 'SET NULL'
       },
+      storage_locked: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       created_at: {
         type: 'TIMESTAMP WITH TIME ZONE',
         allowNull: false,

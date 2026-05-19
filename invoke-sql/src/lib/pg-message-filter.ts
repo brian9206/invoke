@@ -88,6 +88,14 @@ export interface ProxyFilter {
   filterFromServer(chunk: Buffer): Buffer
 }
 
+/** Mutable reference to the current storage-lock state, shared with the proxy. */
+export interface LockState {
+  isLocked: boolean
+}
+
+const STORAGE_QUOTA_ERROR = 'Storage quota exceeded. Write operation except DELETE has been disabled'
+const WRITE_OP_PATTERN = /INSERT\s+INTO|UPDATE\s/i
+
 /**
  * Create a stateful bidirectional proxy filter for a single connection.
  *
@@ -95,8 +103,13 @@ export interface ProxyFilter {
  *   the response DataRows are filtered to only rows containing `dbName`.
  * - Queries touching other system catalogs (block-action) are rejected with
  *   an ErrorResponse + ReadyForQuery, never forwarded to postgres.
+ * - When `lockState.isLocked` is true, INSERT/UPDATE queries are rejected
+ *   with a storage-quota error.
+ * - `onQueryExecuted` is called whenever a ReadyForQuery message arrives from
+ *   the server (i.e. a query cycle has finished), suitable for scheduling a
+ *   storage quota check.
  */
-export function createProxyFilter(dbName: string): ProxyFilter {
+export function createProxyFilter(dbName: string, lockState: LockState, onQueryExecuted: () => void): ProxyFilter {
   let clientPending = Buffer.alloc(0)
   let serverPending = Buffer.alloc(0)
 
@@ -129,6 +142,13 @@ export function createProxyFilter(dbName: string): ProxyFilter {
         const nullPos = msgBytes.indexOf(0, 5)
         if (nullPos >= 0) {
           const sql = msgBytes.slice(5, nullPos).toString('utf8')
+
+          // Storage quota: reject write ops when DB is locked
+          if (lockState.isLocked && WRITE_OP_PATTERN.test(sql)) {
+            toClientParts.push(buildErrorResponse(STORAGE_QUOTA_ERROR), BLOCK_RESPONSE)
+            continue
+          }
+
           const check = await checkSqlBlocked(sql)
           if (check.blocked) {
             if (check.action === 'rewrite') {
@@ -153,6 +173,13 @@ export function createProxyFilter(dbName: string): ProxyFilter {
           const queryEnd = msgBytes.indexOf(0, queryStart)
           if (queryEnd >= 0) {
             const sql = msgBytes.slice(queryStart, queryEnd).toString('utf8')
+
+            // Storage quota: reject write ops when DB is locked
+            if (lockState.isLocked && WRITE_OP_PATTERN.test(sql)) {
+              toClientParts.push(buildErrorResponse(STORAGE_QUOTA_ERROR), BLOCK_RESPONSE)
+              continue
+            }
+
             const check = await checkSqlBlocked(sql)
             if (check.blocked) {
               if (check.action === 'rewrite') {
@@ -227,9 +254,11 @@ export function createProxyFilter(dbName: string): ProxyFilter {
       serverPending = serverPending.slice(totalLen)
 
       // ReadyForQuery signals end of the command cycle — deactivate row filter
+      // and notify the proxy that a query has completed (for quota checking)
       if (msgType === MSG_READY_FOR_QUERY) {
         rowFilterActive = false
         toClientParts.push(msgBytes)
+        onQueryExecuted()
         continue
       }
 
