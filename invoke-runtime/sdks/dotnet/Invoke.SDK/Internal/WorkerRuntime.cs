@@ -30,11 +30,11 @@ public static class WorkerRuntime
 
     private static async Task WaitForDebugger()
     {
-        var isDebugMode = Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE") == "debug";
+        var isDebugMode = EnvironmentEx.IsDebugging();
 
         if (isDebugMode)
         {
-            Console.WriteLine("Waiting for debugger to attach... (set INVOKE_TESTING_MODE=debug to enable)");
+            Console.WriteLine("Waiting for debugger to attach...");
             while (!System.Diagnostics.Debugger.IsAttached)
             {
                 await Task.Delay(100);

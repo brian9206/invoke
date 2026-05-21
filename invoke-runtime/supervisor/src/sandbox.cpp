@@ -190,6 +190,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
                       const std::string& lower_dir,
                       const std::string& rootfs,
                       int tmpfs_mb,
+                      bool has_database,
                       bool include_app_overlay) {
     g_last_setup_error.clear();
 
@@ -371,7 +372,25 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
             ILOG("[sandbox_setup_fs] resolv.conf bind mounted\n");
         }
     }
-
+    // Conditionally bind-mount /run/postgresql/.s.PGSQL.5432 for projects with a database.
+    // This is the default socket path used by psql and most PostgreSQL clients.
+    if (has_database) {
+        auto pg_socket_host = "/run/postgresql/.s.PGSQL.5432";
+        auto pg_socket_jail = merged_dir + "/run/postgresql/.s.PGSQL.5432";
+        ILOG("[sandbox_setup_fs] creating /run/postgresql dir and socket bind mount target\n");
+        mkdirp(merged_dir + "/run/postgresql");
+        {
+            int tfd = ::open(pg_socket_jail.c_str(), O_CREAT | O_WRONLY, 0600);
+            if (tfd >= 0) ::close(tfd);
+        }
+        if (::mount(pg_socket_host, pg_socket_jail.c_str(), nullptr, MS_BIND | MS_SHARED, nullptr) < 0) {
+            std::fprintf(stderr, "[sandbox_setup_fs] warning: postgresql socket bind mount failed at %s (%s)\n",
+                         pg_socket_jail.c_str(), std::strerror(errno));
+            // Non-fatal: user code simply won't have DB access.
+        } else {
+            ILOG("[sandbox_setup_fs] postgresql socket bind mounted\n");
+        }
+    }
     auto total_fs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - fs_start).count();
     ILOG("[sandbox_setup_fs] TOTAL: %ldms (tmpfs=%ldms, overlay=%ldms, bind=%ldms)\n",
@@ -423,9 +442,6 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
         "TMPDIR=/tmp",
         "PATH=/app/node_modules/.bin:/usr/local/bin:/usr/bin:/bin",
         "TZ=UTC",
-
-        // Bun
-        "BUN_JSC_maxPerThreadStackUsage=524288",    // --smol
 
         // dotnet
         "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true",  // required by dotnet on musl for ICU support
@@ -539,10 +555,18 @@ bool sandbox_setup_build_fs(const std::string& sandbox_dir,
                              int tmpfs_mb) {
     g_last_setup_error.clear();
 
-    sandbox_setup_fs(sandbox_dir, "", rootfs, tmpfs_mb, false);
+    // Build sandboxes do not mount a per-function /app overlay, so lower_dir is unused.
+    // Passing include_app_overlay=false avoids validating an empty lower_dir path.
+    if (!sandbox_setup_fs(sandbox_dir, "", rootfs, tmpfs_mb, false, false)) {
+        if (g_last_setup_error.empty()) {
+            g_last_setup_error = "build filesystem base setup failed";
+        }
+        return false;
+    }
 
     const std::string merged_dir = sandbox_dir + "/merged/output";
     if (::mount(output_dir.c_str(), merged_dir.c_str(), nullptr, MS_BIND | MS_NOSUID, nullptr) < 0) {
+        g_last_setup_error = "output_dir bind mount failed (" + std::string(std::strerror(errno)) + ")";
         std::fprintf(stderr, "[sandbox_setup_build_fs] error: output_dir bind mount failed (%s) — output may not be available\n",
                         std::strerror(errno));
         sandbox_cleanup(sandbox_dir, "");

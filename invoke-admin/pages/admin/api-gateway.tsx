@@ -842,12 +842,20 @@ function RealtimeNamespaceRow({
     return namespace.namespacePath
   }
 
-  const copyToClipboard = () => {
-    const url = getNamespaceUrl()
-    navigator.clipboard.writeText(url)
-    setCopied(true)
-    toast.success('Namespace URL copied to clipboard')
-    setTimeout(() => setCopied(false), 2000)
+  const copyToClipboard = async () => {
+    try {
+      const url = getNamespaceUrl()
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        toast.success('Namespace URL copied to clipboard')
+        setTimeout(() => setCopied(false), 2000)
+      } else {
+        console.error('Clipboard not available')
+      }
+    } catch (e) {
+      console.error('Failed to copy:', e)
+    }
   }
 
   return (

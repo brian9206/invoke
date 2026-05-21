@@ -128,7 +128,6 @@ async function main(): Promise<void> {
       routeCache.stop()
       await pgNotifyListener.stop()
       await database.close()
-      await pgPool.end()
       await new Promise<void>(resolve => {
         server.close(() => resolve())
       })

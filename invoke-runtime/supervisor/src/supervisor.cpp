@@ -23,7 +23,7 @@
 
 namespace invoke {
 
-static const char *WORKER_PATH = "/opt/invoke/worker";
+static const char *WORKER_PATH = "/opt/invoke/index.js";
 
 // ---------------------------------------------------------------------------
 // Signal handling
@@ -146,7 +146,7 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
     pid_t worker_pid = sandbox_start_worker(
         sandbox_dir,
         "bld-" + build_id,
-        {WORKER_PATH, "builder"},
+        {"/usr/local/bin/bun", WORKER_PATH, "--smol", "--", "builder"},
         build_memory_bytes,
         config.worker_uid,
         config.worker_gid,
@@ -214,6 +214,7 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
     std::string function_id   = p.value("functionId", "");
     std::string invocation_id = p.value("invocationId", "");
     std::string runtime       = p.value("runtime", "");
+    bool has_database         = p.value("hasDatabase", false);
     // Determine memory limit from payload (fall back to default)
     int memory_mb = p.value("memoryMb", config.default_memory_mb);
     uint64_t memory_bytes = static_cast<uint64_t>(memory_mb) * 1024 * 1024;
@@ -232,7 +233,7 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
     std::vector<const char *> argv;
 
     if (runtime == "bun") {
-      argv = {WORKER_PATH, "index.js"};
+      argv = {"/usr/local/bin/bun", WORKER_PATH, "--smol", "--", "index.js"};
     }
     else {
       argv = {"/app/program"};
@@ -245,7 +246,7 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
     // 1. Set up filesystem
     ILOG("[supervisor] Setting up filesystem for %s\n", invocation_id.c_str());
     auto fs_start = std::chrono::high_resolution_clock::now();
-    if (!sandbox_setup_fs(sandbox_dir, lower_dir, config.rootfs_path, config.tmpfs_mb)) {
+    if (!sandbox_setup_fs(sandbox_dir, lower_dir, config.rootfs_path, config.tmpfs_mb, has_database)) {
         const auto& detail = sandbox_last_setup_error();
         std::fprintf(stderr, "[supervisor] Filesystem setup failed for %s: %s\n",
                      invocation_id.c_str(), detail.c_str());
@@ -260,6 +261,12 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
 
     // Build env vector from execute payload
     std::vector<std::string> user_env;
+
+    if (has_database) {
+        user_env.push_back("DATABASE_URL=postgres://localhost:5432/?path=/run/postgresql");
+        user_env.push_back("ConnectionStrings__DefaultConnection=Host=/run/postgresql;Port=5432");
+    }
+
     if (p.contains("env") && p["env"].is_object()) {
         for (auto& [k, v] : p["env"].items()) {
             if (v.is_string() && k.find('=') == std::string::npos) {
@@ -452,7 +459,7 @@ void supervisor_run_debug(const SupervisorConfig& config) {
     cgroup_init();
 
     // Set up overlay + tmpfs filesystem
-    if (!sandbox_setup_fs(sandbox_dir, debug_app_dir, config.rootfs_path, config.tmpfs_mb)) {
+    if (!sandbox_setup_fs(sandbox_dir, debug_app_dir, config.rootfs_path, config.tmpfs_mb, /*has_database=*/false)) {
         std::fprintf(stderr, "[supervisor] Debug sandbox filesystem setup failed: %s\n",
                      sandbox_last_setup_error().c_str());
         return;

@@ -30,8 +30,8 @@ int main(int argc, char* argv[]) {
     config.socket_path     = env_or("INVOKE_SOCKET_PATH", "/run/events.sock");
     config.rootfs_path     = env_or("INVOKE_ROOTFS_PATH", "/opt/rootfs");
     config.tmpfs_mb        = std::atoi(env_or("SANDBOX_TMPFS_MB", "512"));
-    config.worker_uid      = std::atoi(env_or("INVOKE_WORKER_UID", "65534"));
-    config.worker_gid      = std::atoi(env_or("INVOKE_WORKER_GID", "65534"));
+    config.worker_uid      = 65534;
+    config.worker_gid      = 65534;
     config.default_memory_mb = std::atoi(env_or("SANDBOX_MEMORY_MB", "256"));
 
     const char* inv_instrument = std::getenv("INVOKE_INSTRUMENT");

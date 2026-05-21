@@ -72,7 +72,6 @@ RUN apk add --no-cache icu-libs tzdata bash clang build-base zlib-dev && \
 
 # Copy the worker shim files built in the worker-builder stage.
 COPY --from=worker-builder /opt/invoke/dist/ /opt/invoke
-RUN chmod 755 /opt/invoke/worker
 
 # --- Packages for function builds (invoke-types + Invoke.SDK) ---
 RUN mkdir -p /opt/packages/npm && \

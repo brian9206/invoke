@@ -1,6 +1,7 @@
 import axios, { AxiosRequestConfig } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
+import { joinUri } from 'invoke-shared/uri'
 import { getApiKey, getBaseUrl } from './config'
 
 /**
@@ -12,7 +13,7 @@ async function request(method: string, endpoint: string, data?: any, options: Ax
 
   const config: AxiosRequestConfig = {
     method,
-    url: `${baseUrl}${endpoint}`,
+    url: joinUri(baseUrl, endpoint),
     headers: {
       'Content-Type': 'application/json',
       ...(apiKey ? { 'X-API-Key': apiKey } : {}),
@@ -35,7 +36,7 @@ async function downloadFile(endpoint: string, outputPath: string): Promise<void>
 
   const response = await axios({
     method: 'GET',
-    url: `${baseUrl}${endpoint}`,
+    url: joinUri(baseUrl, endpoint),
     headers: {
       ...(apiKey ? { 'X-API-Key': apiKey } : {})
     },

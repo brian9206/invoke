@@ -2,6 +2,7 @@ import chalk from 'chalk'
 import fs from 'fs'
 import axios from 'axios'
 import type { Command } from 'commander'
+import { joinUri } from 'invoke-shared/uri'
 import { get } from '../services/api-client'
 import { getExecutionUrl } from '../services/config'
 import { resolveFunctionId } from '../services/helpers'
@@ -57,7 +58,7 @@ export function register(program: Command): void {
         // Build execution URL with optional path
         const executionUrl = getExecutionUrl()
         const pathSuffix = options.path || ''
-        const url = `${executionUrl}/invoke/${fn.id}${pathSuffix}`
+        const url = joinUri(executionUrl, 'invoke', fn.id, pathSuffix)
 
         if (options.output !== 'json') {
           console.log(chalk.cyan(`Executing function '${fn.name}'...`))

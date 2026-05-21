@@ -12,6 +12,7 @@
     "invoke-gateway",
     "invoke-logger",
     "invoke-scheduler",
+    "invoke-sql",
     "invoke-runtime/worker",
     "invoke-runtime/types"
   ],

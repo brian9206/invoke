@@ -56,6 +56,7 @@ import { register as functionInvoke } from './commands/function-invoke'
 import { register as functionTest } from './commands/function-test'
 
 import { register as run } from './commands/run'
+import { register as sqlConnect } from './commands/sql-connect'
 import { checkForUpdates } from './services/update'
 
 configSet(program)
@@ -101,6 +102,8 @@ functionInvoke(program)
 functionTest(program)
 
 run(program)
+
+sqlConnect(program)
 
 // ========================================
 // Parse

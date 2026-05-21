@@ -18,6 +18,7 @@ import {
   LogOut,
   User,
   Database,
+  DatabaseZap,
   Shield,
   Globe,
   ChevronRight,
@@ -78,6 +79,12 @@ export default function Layout({ children, title }: LayoutProps) {
     },
     { name: 'Builds', href: '/admin/builds', icon: Hammer, active: router.pathname === '/admin/builds' },
     { name: 'KV Store', href: '/admin/kv-store', icon: Database, active: router.pathname === '/admin/kv-store' },
+    {
+      name: 'SQL Database',
+      href: '/admin/sql-database',
+      icon: DatabaseZap,
+      active: router.pathname === '/admin/sql-database'
+    },
     ...(user?.isAdmin
       ? [
           {

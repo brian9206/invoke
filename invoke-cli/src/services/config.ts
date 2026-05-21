@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { get } from './api-client'
 
 const CONFIG_DIR = path.join(os.homedir(), '.invoke')
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json')
@@ -91,6 +92,22 @@ function getExecutionUrl(): string {
 }
 
 /**
+ * Get SQL relay service URL from admin global settings API.
+ * Returns empty string if not configured.
+ */
+async function getSqlRelayUrl(): Promise<string> {
+  try {
+    const json = await get('/api/admin/global-settings')
+    const val = json?.data?.sql_relay_url?.value || json?.data?.sql_relay_url || ''
+    if (val) return String(val)
+  } catch (err) {
+    // ignore — not critical
+  }
+
+  return ''
+}
+
+/**
  * Clear all configuration
  */
 function clearConfig(): void {
@@ -103,4 +120,14 @@ function clearConfig(): void {
   }
 }
 
-export { ensureConfigDir, loadConfig, saveConfig, getApiKey, getBaseUrl, getExecutionUrl, clearConfig, CONFIG_FILE }
+export {
+  ensureConfigDir,
+  loadConfig,
+  saveConfig,
+  getApiKey,
+  getBaseUrl,
+  getExecutionUrl,
+  getSqlRelayUrl,
+  clearConfig,
+  CONFIG_FILE
+}

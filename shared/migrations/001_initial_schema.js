@@ -538,7 +538,7 @@ module.exports = {
       },
       {
         setting_key: 'function_base_url',
-        setting_value: 'http://localhost:3001/invoke',
+        setting_value: 'http://localhost:3001',
         description: 'Base URL for function invocation endpoints'
       },
       {

@@ -3,7 +3,7 @@
   "version": "3.0.0",
   "description": "Invoke worker shim",
   "scripts": {
-    "build": "bun run typecheck && bun build src/index.ts --target bun --outfile dist/worker --minify --sourcemap --compile --bytecode",
+    "build": "bun run typecheck && bun build src/index.ts --target bun --outdir dist/ --minify --sourcemap --bytecode",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

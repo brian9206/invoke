@@ -19,7 +19,6 @@ export async function runBuild(bootstrapPayload: any, log: (...args: unknown[]) 
 
   let error = false
   try {
-    log('[builder] Creating build pipeline runner...')
     const runner = await createPipelineRunner(pipeline)
 
     // Extract pipeline definition (stage names + dependencies) for build_context

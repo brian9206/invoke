@@ -12,6 +12,7 @@ import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import { Writable, PassThrough } from 'stream'
 import Dockerode from 'dockerode'
+import { createSqlBridge } from './sql-bridge'
 
 const execFileAsync = promisify(execFile)
 
@@ -181,6 +182,10 @@ export class Sandbox extends EventEmitter {
   private _ipcClients: net.Socket[] = []
   private _pendingBootstrapPayload: unknown = null
   private _destroyed = false
+  private _currentProjectId: string | null = null
+  _pgProjectIdRef: { current: string | null } = { current: null }
+  _pgBridgeServer: net.Server | null = null
+  _pgSockPath: string | null = null
 
   constructor(id: string, stdin: Writable, container: Dockerode.Container, ipcServer: net.Server) {
     super()
@@ -188,6 +193,15 @@ export class Sandbox extends EventEmitter {
     this.stdin = stdin
     this._container = container
     this._ipcServer = ipcServer
+  }
+
+  setCurrentProjectId(id: string | null): void {
+    this._currentProjectId = id
+    this._pgProjectIdRef.current = id
+  }
+
+  getCurrentProjectId(): string | null {
+    return this._currentProjectId
   }
 
   setPendingBootstrapPayload(request: unknown): void {
@@ -285,6 +299,18 @@ export class Sandbox extends EventEmitter {
     await new Promise<void>(resolve => {
       this._ipcServer.close(() => resolve())
     })
+
+    // Close SQL bridge server
+    if (this._pgBridgeServer) {
+      await new Promise<void>(resolve => {
+        this._pgBridgeServer!.close(() => resolve())
+      })
+      this._pgBridgeServer = null
+    }
+    if (this._pgSockPath) {
+      await fs.unlink(this._pgSockPath).catch(() => {})
+      this._pgSockPath = null
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -436,6 +462,8 @@ export class SandboxOrchestrator {
     // Track created resources for cleanup on failure
     let ipcServer: net.Server | null = null
     let container: Dockerode.Container | null = null
+    let pgBridgeServer: net.Server | null = null
+    let pgSockPath: string | null = null
 
     try {
       // 1. Create IPC unix socket server
@@ -460,6 +488,15 @@ export class SandboxOrchestrator {
       }
       // IPC socket → /run/events.sock
       binds.push(`${ipcPath}:/run/events.sock`)
+
+      // SQL bridge socket → /run/postgresql/.s.PGSQL.5432 (standard psql default path)
+      // A shared ref is used so the bridge can be created before the Sandbox
+      // object is instantiated. sandbox._pgProjectIdRef is linked to this ref
+      // after sandbox creation; setCurrentProjectId() updates both.
+      pgSockPath = path.join(workdir, `${id}-pg.sock`)
+      const pgProjectIdRef: { current: string | null } = { current: null }
+      pgBridgeServer = await createSqlBridge(pgSockPath, () => pgProjectIdRef.current)
+      binds.push(`${pgSockPath}:/run/postgresql/.s.PGSQL.5432`)
 
       // 3. Build env array
       const envArr: string[] = []
@@ -519,8 +556,13 @@ export class SandboxOrchestrator {
       const stderrStream = new PassThrough()
       this._docker.modem.demuxStream(stream, stdoutStream, stderrStream)
 
-      // 11. Build Sandbox instance
+      // 11. Build Sandbox instance (pgBridgeServer/pgSockPath set below after creation)
       const sandbox = new Sandbox(id, stdinStream, container, ipcServer)
+
+      // Link sql-bridge ref and server to sandbox
+      sandbox._pgProjectIdRef = pgProjectIdRef
+      sandbox._pgBridgeServer = pgBridgeServer
+      sandbox._pgSockPath = pgSockPath
 
       // Wire stdout/stderr events (use super.emit via internal emit)
       stdoutStream.on('data', (chunk: Buffer) => {
@@ -567,6 +609,10 @@ export class SandboxOrchestrator {
       if (ipcServer) {
         ipcServer.close()
         await fs.unlink(ipcPath).catch(() => {})
+      }
+      if (pgBridgeServer) {
+        pgBridgeServer.close()
+        if (pgSockPath) await fs.unlink(pgSockPath).catch(() => {})
       }
       throw err
     }

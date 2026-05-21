@@ -1,5 +1,5 @@
 import { Op } from 'sequelize'
-import { withAuthAndMethods, AuthenticatedRequest } from '@/lib/middleware'
+import { withAuthOrApiKeyAndMethods, AuthenticatedRequest } from '@/lib/middleware'
 import { createResponse } from '@/lib/utils'
 import database from '@/lib/database'
 
@@ -13,7 +13,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
           { setting_key: { [Op.like]: 'log_retention%' } },
           { setting_key: { [Op.like]: 'execution_%' } },
           { setting_key: 'function_base_url' },
+          { setting_key: 'sql_relay_url' },
           { setting_key: 'kv_storage_limit_bytes' },
+          { setting_key: 'sql_storage_limit_bytes' },
           { setting_key: 'api_gateway_domain' },
           { setting_key: 'max_concurrent_builds' },
           { setting_key: 'build_memory_mb' }
@@ -30,8 +32,12 @@ async function handler(req: AuthenticatedRequest, res: any) {
         let key
         if (row.setting_key === 'function_base_url') {
           key = 'function_base_url'
+        } else if (row.setting_key === 'sql_relay_url') {
+          key = 'sql_relay_url'
         } else if (row.setting_key === 'kv_storage_limit_bytes') {
           key = 'kv_storage_limit_bytes'
+        } else if (row.setting_key === 'sql_storage_limit_bytes') {
+          key = 'sql_storage_limit_bytes'
         } else if (row.setting_key === 'api_gateway_domain') {
           key = 'api_gateway_domain'
         } else if (row.setting_key === 'max_concurrent_builds') {
@@ -62,7 +68,9 @@ async function handler(req: AuthenticatedRequest, res: any) {
       value,
       enabled,
       function_base_url,
+      sql_relay_url,
       kv_storage_limit_bytes,
+      sql_storage_limit_bytes,
       api_gateway_domain,
       execution_default_timeout_seconds,
       execution_max_timeout_seconds,
@@ -148,11 +156,29 @@ async function handler(req: AuthenticatedRequest, res: any) {
       )
     }
 
+    if (sql_relay_url !== undefined) {
+      queries.push(
+        GlobalSetting.update(
+          { setting_value: sql_relay_url, updated_at: new Date() },
+          { where: { setting_key: 'sql_relay_url' } }
+        )
+      )
+    }
+
     if (kv_storage_limit_bytes !== undefined) {
       queries.push(
         GlobalSetting.update(
           { setting_value: kv_storage_limit_bytes.toString(), updated_at: new Date() },
           { where: { setting_key: 'kv_storage_limit_bytes' } }
+        )
+      )
+    }
+
+    if (sql_storage_limit_bytes !== undefined) {
+      queries.push(
+        GlobalSetting.update(
+          { setting_value: sql_storage_limit_bytes.toString(), updated_at: new Date() },
+          { where: { setting_key: 'sql_storage_limit_bytes' } }
         )
       )
     }
@@ -255,4 +281,4 @@ async function handler(req: AuthenticatedRequest, res: any) {
   }
 }
 
-export default withAuthAndMethods(['GET', 'PUT'])(handler)
+export default withAuthOrApiKeyAndMethods(['GET', 'PUT'])(handler)

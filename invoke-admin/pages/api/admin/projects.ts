@@ -66,7 +66,7 @@ async function getProjects(req: NextApiRequest, res: NextApiResponse) {
 
 // Create new project
 async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
-  const { name, description, slug } = req.body
+  const { name, description, slug, kv_storage_limit_bytes, sql_storage_limit_bytes } = req.body
   const userId = req.user?.id
 
   if (!name) {
@@ -84,12 +84,10 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
     return res.status(400).json({ error: 'Slug must be 120 characters or less' })
   }
   if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) {
-    return res
-      .status(400)
-      .json({
-        error:
-          'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
-      })
+    return res.status(400).json({
+      error:
+        'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
+    })
   }
   if (description !== undefined && typeof description === 'string' && description.length > 1000) {
     return res.status(400).json({ error: 'Project description must be 1000 characters or less' })
@@ -110,12 +108,16 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Slug already exists. Please choose a different slug.' })
     }
 
-    // Get default KV storage limit from global settings
-    const limitRecord = await GlobalSetting.findOne({
-      where: { setting_key: 'kv_storage_limit_bytes' },
-      attributes: ['setting_value']
+    // Get default quota limits from global settings
+    const limitRecords = await GlobalSetting.findAll({
+      where: { setting_key: ['kv_storage_limit_bytes', 'sql_storage_limit_bytes'] },
+      attributes: ['setting_key', 'setting_value']
     })
-    const defaultLimit = limitRecord ? parseInt(limitRecord.setting_value) : 1073741824
+    const limitMap = new Map(
+      limitRecords.map((record: any) => [record.setting_key, parseInt(record.setting_value, 10)])
+    )
+    const defaultKvLimit = limitMap.get('kv_storage_limit_bytes') ?? 1073741824
+    const defaultSqlLimit = limitMap.get('sql_storage_limit_bytes') ?? 1073741824
 
     // Create project
     const projectRecord = await Project.create({
@@ -123,7 +125,8 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
       slug,
       description: description || null,
       created_by: userId,
-      kv_storage_limit_bytes: defaultLimit
+      kv_storage_limit_bytes: kv_storage_limit_bytes ?? defaultKvLimit,
+      sql_storage_limit_bytes: sql_storage_limit_bytes ?? defaultSqlLimit
     })
     const project = projectRecord.get({ plain: true })
 
@@ -144,7 +147,7 @@ async function createProject(req: AuthenticatedRequest, res: NextApiResponse) {
 
 // Update project
 async function updateProject(req: NextApiRequest, res: NextApiResponse) {
-  const { id, name, description, slug, is_active, kv_storage_limit_bytes } = req.body
+  const { id, name, description, slug, is_active, kv_storage_limit_bytes, sql_storage_limit_bytes } = req.body
 
   if (!id || !name) {
     return res.status(400).json({ error: 'Project ID and name are required' })
@@ -158,12 +161,10 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
       return res.status(400).json({ error: 'Slug must be 120 characters or less' })
     }
     if (!/^[a-z0-9][a-z0-9_-]*$/.test(slug)) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
-        })
+      return res.status(400).json({
+        error:
+          'Slug must start with a letter or number and contain only lowercase letters, numbers, hyphens, and underscores'
+      })
     }
   }
   if (description !== undefined && typeof description === 'string' && description.length > 1000) {
@@ -186,15 +187,20 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Fetch current state so we know if is_active or slug is changing
-    const existing = await Project.findByPk(id, { attributes: ['is_active', 'slug'] })
+    const existing = await Project.findByPk(id, {
+      attributes: ['is_active', 'slug', 'kv_storage_limit_bytes', 'sql_storage_limit_bytes']
+    })
     const activeChanged = existing && existing.is_active !== (is_active ?? true)
     const slugChanged = slug && existing && existing.slug !== slug
+    const nextKvLimit = kv_storage_limit_bytes ?? existing?.kv_storage_limit_bytes ?? 1073741824
+    const nextSqlLimit = sql_storage_limit_bytes ?? existing?.sql_storage_limit_bytes ?? 1073741824
 
     const updateData: any = {
       name,
       description: description || null,
       is_active: is_active ?? true,
-      kv_storage_limit_bytes: kv_storage_limit_bytes ?? 1073741824,
+      kv_storage_limit_bytes: nextKvLimit,
+      sql_storage_limit_bytes: nextSqlLimit,
       updated_at: new Date()
     }
     if (slug) {
@@ -214,7 +220,8 @@ async function updateProject(req: NextApiRequest, res: NextApiResponse) {
       })
     }
 
-    res.json({ project: updatedRows[0].get({ plain: true }) })
+    const updatedProject = updatedRows[0].get({ plain: true })
+    res.json({ project: updatedProject })
   } catch (error) {
     console.error('Error updating project:', error)
     res.status(500).json({ error: 'Failed to update project' })

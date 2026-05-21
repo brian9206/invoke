@@ -23,13 +23,13 @@ const FeatureList: FeatureItem[] = [
     )
   },
   {
-    title: 'Realtime + KV Storage',
+    title: 'Realtime + Storage',
     icon: '📦',
     gradient: 'from-cyan-500 to-teal-500',
     description: (
       <>
-        Build realtime apps with Socket.IO namespaces, rooms, and events. Plus a powerful KV store for persistent data
-        with TTL support.
+        Build realtime apps with Socket.IO namespaces, rooms, and events. Plus a powerful KV store and dedicated SQL
+        database for persistent data.
       </>
     )
   },

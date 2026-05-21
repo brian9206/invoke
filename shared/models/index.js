@@ -21,6 +21,9 @@ function initModels(sequelize) {
   const FunctionEnvironmentVariable = require('./FunctionEnvironmentVariable')(sequelize)
   const GlobalSetting = require('./GlobalSetting')(sequelize)
 
+  // ── Project databases ──────────────────────────────────────────────────────
+  const ProjectDatabase = require('./ProjectDatabase')(sequelize)
+
   // ── Network policies ─────────────────────────────────────────────────────
   const NetworkPolicy = require('./NetworkPolicy')(sequelize)
 
@@ -50,6 +53,7 @@ function initModels(sequelize) {
     ApiKey,
     FunctionEnvironmentVariable,
     GlobalSetting,
+    ProjectDatabase,
     NetworkPolicy,
     ApiGatewayConfig,
     ApiGatewayRoute,

@@ -23,6 +23,7 @@ bool sandbox_setup_fs(const std::string& sandbox_dir,
                       const std::string& lower_dir,
                       const std::string& rootfs,
                       int tmpfs_mb,
+                      bool has_database,
                       bool include_app_overlay = true);
 
 /// Return the last sandbox setup error message from sandbox_setup_fs.

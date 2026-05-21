@@ -89,7 +89,8 @@ const sidebars: SidebarsConfig = {
         'guides/environment-vars',
         'guides/realtime',
         'guides/compression',
-        'guides/timers-async'
+        'guides/timers-async',
+        'guides/sql-database'
       ]
     }
   ],

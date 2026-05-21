@@ -10,21 +10,6 @@ interface AdminResult {
 }
 
 /**
- * Generate a random secure password
- */
-function generatePassword(length = 16): string {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
-  const randomBytes = crypto.randomBytes(length)
-  let password = ''
-
-  for (let i = 0; i < length; i++) {
-    password += charset[randomBytes[i] % charset.length]
-  }
-
-  return password
-}
-
-/**
  * Check if any users exist in the database
  */
 async function usersExist(): Promise<boolean> {
@@ -51,7 +36,7 @@ async function createDefaultAdmin(): Promise<AdminResult | null> {
 
     console.log('👤 No users found, creating default admin user...')
 
-    const password = generatePassword(16)
+    const password = 'admin123!@#'
     const passwordHash = await hashPassword(password)
 
     const { User } = database.models

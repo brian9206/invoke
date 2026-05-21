@@ -1,6 +1,6 @@
 import chalk from 'chalk'
 import type { Command } from 'commander'
-import { loadConfig, saveConfig, CONFIG_FILE } from '../services/config'
+import { loadConfig, saveConfig, CONFIG_FILE, getSqlRelayUrl } from '../services/config'
 
 export function register(program: Command): void {
   program
