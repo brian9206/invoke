@@ -6,7 +6,7 @@ import path from 'path'
 import { IpcChannel, type ResponseData, type RequestData } from './protocol'
 import { createReqObject, createResObject, stateToResponseData } from './public-api/exchange'
 import { installConsoleBridge } from './console-bridge'
-import { setupEnvironment } from './environment'
+import { loadUserCode, setupEnvironment } from './environment'
 
 export async function runUserCode(
   entry: string,
@@ -53,40 +53,11 @@ export async function runUserCode(
   }
 
   try {
-    const entryPath = `/app/${entry}`
-
-    // Polyfill require() for user functions that use CommonJS.
-    const entryDir = path.dirname(entryPath)
-    const userRequire = (id: string) => {
-      if (id.startsWith('.')) {
-        try {
-          const resolved = Bun.resolveSync(id, entryDir)
-          // @ts-ignore
-          return Bun.require(resolved)
-        } catch (e) {
-          throw new Error(`Failed to resolve relative import "${id}" from ${entryDir}`)
-        }
-      }
-      // @ts-ignore
-      return Bun.require(id)
-    }
-
-    ;(globalThis as any).require = userRequire
-
     const requireStart = Date.now()
-    const userModule = await import(entryPath)
+    const handler = await loadUserCode('/app')
     const requireTime = Date.now() - requireStart
+
     log(`[worker] Loaded module (${requireTime}ms)`)
-
-    // ESM default export, or CJS module.exports (Bun wraps it as .default)
-    const handler = userModule.default ?? userModule
-
-    if (typeof handler !== 'function') {
-      throw new Error(
-        `Module at ${entryPath} does not export a function. ` +
-          `Got ${typeof handler === 'undefined' ? 'undefined' : typeof handler}.`
-      )
-    }
 
     const req = createReqObject(request)
     const resObj = createResObject(req, () => {

@@ -175,6 +175,8 @@ export default function FunctionCodeEditor() {
 
   // Editor state
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 })
+  const [tabSize, setTabSize] = useState(2)
+  const [showTabSizeMenu, setShowTabSizeMenu] = useState(false)
 
   // Version dropdown state
   const [versions, setVersions] = useState<VersionInfo[]>([])
@@ -652,6 +654,7 @@ export default function FunctionCodeEditor() {
 
       setActiveTabPath(file.path)
       setSelectedFile(file)
+      setTabSize(getLanguage(file.name) === 'csharp' ? 4 : 2)
       setHasChanges(false)
 
       // Lazy-load content: if file has been edited it has content in state,
@@ -695,6 +698,7 @@ export default function FunctionCodeEditor() {
 
     setActiveTabPath(file.path)
     setSelectedFile(file)
+    setTabSize(getLanguage(file.name) === 'csharp' ? 4 : 2)
     setHasChanges(false)
 
     // Lazy-load content (uses in-memory content if already edited)
@@ -2505,6 +2509,8 @@ export default function FunctionCodeEditor() {
                     automaticLayout: true,
                     fixedOverflowWidgets: true,
                     scrollBeyondLastLine: false,
+                    tabSize: tabSize,
+                    detectIndentation: false,
                     // IntelliSense configuration
                     quickSuggestions: {
                       other: true,
@@ -3051,6 +3057,36 @@ export default function FunctionCodeEditor() {
             >
               Ln {cursorPosition.line}, Col {cursorPosition.column}
             </button>
+            <div className='relative'>
+              <button
+                onClick={() => setShowTabSizeMenu(v => !v)}
+                className='hover:bg-[#1177bb] px-2 py-0.5 rounded cursor-pointer'
+                title='Tab Size'
+              >
+                Spaces: {tabSize}
+              </button>
+              {showTabSizeMenu && (
+                <>
+                  <div className='fixed inset-0 z-40' onClick={() => setShowTabSizeMenu(false)} />
+                  <div className='absolute bottom-full right-0 mb-1 bg-[#252526] border border-[#454545] shadow-lg z-50 py-1 min-w-[120px]'>
+                    {[2, 4, 8].map(size => (
+                      <button
+                        key={size}
+                        onClick={() => {
+                          setTabSize(size)
+                          setShowTabSizeMenu(false)
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-sm hover:bg-[#2a2d2e] ${
+                          tabSize === size ? 'text-[#007acc]' : 'text-[#cccccc]'
+                        }`}
+                      >
+                        {size} Spaces
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             {selectedFile && <span className='text-white'>{getLanguage(selectedFile.name).toUpperCase()}</span>}
           </div>
         </div>

@@ -39,6 +39,10 @@ export interface SandboxExecutionOptions {
   memoryMb?: number
   /** Console log handler (optional) */
   consoleLogger?: (data: { level: string; message: string; timestamp: number; details?: object }) => void
+  /** Project ID for the active execution (used to authenticate the postgres UDS bridge) */
+  projectId: string
+  /** Whether the project has an initialized database (controls postgres.sock bind-mount in supervisor) */
+  hasDatabase: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +53,23 @@ export async function executeSandbox(
   sandbox: Sandbox,
   options: SandboxExecutionOptions
 ): Promise<SandboxExecutionResult> {
-  const { functionId, request, env, timeoutMs, kvStore, projectSlug, runtime, memoryMb, consoleLogger } = options
+  const {
+    functionId,
+    request,
+    env,
+    timeoutMs,
+    kvStore,
+    projectSlug,
+    runtime,
+    memoryMb,
+    consoleLogger,
+    projectId,
+    hasDatabase
+  } = options
+
+  // Set the project ID on the sandbox so the sql-bridge can authenticate
+  // new UDS connections with the correct project credentials.
+  sandbox.setCurrentProjectId(projectId)
 
   const gatewayInternalUrl = process.env.GATEWAY_SERVICE_URL || 'http://localhost:3000'
   const internalSecret = process.env.INTERNAL_SERVICE_SECRET || ''
@@ -235,6 +255,7 @@ export async function executeSandbox(
     sandbox.on('ready', onReady)
 
     function cleanup(): void {
+      sandbox.setCurrentProjectId(null)
       sandbox.removeListener('execute_result', onExecuteResult)
       sandbox.removeListener('execute_end', onExecuteEnd)
       sandbox.removeListener('worker_error', onWorkerError)
@@ -269,7 +290,8 @@ export async function executeSandbox(
         codePath,
         runtime,
         memoryMb,
-        env
+        env,
+        hasDatabase
       })
     } catch (err: any) {
       clearTimeout(timer)

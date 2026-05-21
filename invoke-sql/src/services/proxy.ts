@@ -4,8 +4,7 @@ import database from './database'
 import { authenticateWsRequest } from './auth'
 import { createPostgresProxy, PostgresProxy } from '../lib/pg-proxy'
 import { scheduleQuotaCheck, onNextQuotaCheck } from '../lib/storage-quota'
-
-const { decrypt } = require('invoke-shared')
+import { decrypt } from '../lib/crypto'
 
 /**
  * Handle a WebSocket upgrade for PostgreSQL protocol relay.
@@ -43,10 +42,16 @@ export async function handleWsUpgrade(ws: WebSocket, req: IncomingMessage): Prom
     return
   }
 
-  // Decrypt admin credentials
-  let adminPassword: string
+  // Select credentials: internal connections with X-User-Type: app use the app user;
+  // all other connections (API key auth) use the admin user.
+  const useAppUser = auth.internal && (req.headers['x-user-type'] as string | undefined) === 'app'
+  const dbUsername = useAppUser ? record.app_username : record.admin_username
+  const dbPasswordEncrypted = useAppUser ? record.app_password_encrypted : record.admin_password_encrypted
+
+  // Decrypt selected credentials
+  let dbPassword: string
   try {
-    adminPassword = decrypt(record.admin_password_encrypted)
+    dbPassword = decrypt(dbPasswordEncrypted)
   } catch (err) {
     console.error('[Proxy] Failed to decrypt credentials:', err)
     socket.destroy()
@@ -81,8 +86,8 @@ export async function handleWsUpgrade(ws: WebSocket, req: IncomingMessage): Prom
       options: {
         host: process.env.USERDATA_DB_HOST || 'localhost',
         port: parseInt(process.env.USERDATA_DB_PORT || '5432', 10),
-        user: record.admin_username,
-        password: adminPassword,
+        user: dbUsername,
+        password: dbPassword,
         database: record.db_name,
         ssl: false
       },

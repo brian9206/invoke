@@ -4,6 +4,8 @@ export interface SqlFilterResult {
   blocked: boolean
   action?: 'block' | 'rewrite'
   reason?: string
+  /** For 'rewrite' actions: which connection value to use when row-filtering the response. */
+  filterBy?: 'db' | 'role'
 }
 
 // ── Singleton parser instance (reuses WASM module after first init) ────────
@@ -27,6 +29,8 @@ interface BlockRule {
   reason?: string
   /** For 'rewrite', require datname in column/where/join to activate row filter */
   requiresDatname?: boolean
+  /** For 'rewrite', which connection value to use when row-filtering the response. Defaults to 'db'. */
+  filterBy?: 'db' | 'role'
 }
 
 const BLOCKLIST: BlockRule[] = [
@@ -35,16 +39,16 @@ const BLOCKLIST: BlockRule[] = [
     pattern: /\bpg_stat_activity\b/i,
     table: 'pg_stat_activity',
     action: 'block',
-    reason: 'Access to server activity catalog is restricted'
+    reason: 'Access to server activity catalog is restricted (pg_stat_activity)'
   },
-  { pattern: /\bpg_roles\b/i, table: 'pg_roles', action: 'block', reason: 'Access to role catalog is restricted' },
-  { pattern: /\bpg_user\b/i, table: 'pg_user', action: 'block', reason: 'Access to role catalog is restricted' },
-  { pattern: /\bpg_shadow\b/i, table: 'pg_shadow', action: 'block', reason: 'Access to role catalog is restricted' },
+  { pattern: /\bpg_roles\b/i, table: 'pg_roles', action: 'rewrite', filterBy: 'role' },
+  { pattern: /\bpg_user\b/i, table: 'pg_user', action: 'rewrite', filterBy: 'role' },
+  { pattern: /\bpg_shadow\b/i, table: 'pg_shadow', action: 'rewrite', filterBy: 'role' },
   {
     pattern: /\bpg_authid\b/i,
     table: 'pg_authid',
     action: 'block',
-    reason: 'Access to credential catalog is restricted'
+    reason: 'Access to credential catalog is restricted (pg_authid)'
   }
 ]
 
@@ -153,7 +157,7 @@ export async function checkSqlBlocked(sql: string): Promise<SqlFilterResult> {
       if (rule.requiresDatname && !referencesDatnameColumn(stmts)) {
         continue
       }
-      return { blocked: true, action: 'rewrite' }
+      return { blocked: true, action: 'rewrite', filterBy: rule.filterBy ?? 'db' }
     }
 
     return { blocked: true, action: 'block', reason: rule.reason }

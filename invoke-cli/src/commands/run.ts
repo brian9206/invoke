@@ -8,7 +8,7 @@ import { spawn, spawnSync } from 'child_process'
 import type { Command } from 'commander'
 import * as semver from 'semver'
 import { createReqObject, createResObject, stateToResponseData } from 'invoke-worker/src/public-api/exchange'
-import { setupEnvironment } from 'invoke-worker/src/environment'
+import { loadUserCode, setupEnvironment } from 'invoke-worker/src/environment'
 import { IpcChannel, NoOpIpcChannel, type RequestData } from 'invoke-worker/src/protocol'
 import { INVOKE_SDK_NUPKG_BASE64, INVOKE_SDK_NUPKG_FILENAME } from '../config/invoke-sdk-nupkg'
 
@@ -80,19 +80,6 @@ function printResponse(statusCode: number, headers: Record<string, any>, bodyBas
 // ── Bun / JS in-process runner ────────────────────────────────────────────────
 
 async function runBun(absoluteFnDir: string, requestData: RequestData, options: any): Promise<void> {
-  const packageJsonPath = path.join(absoluteFnDir, 'package.json')
-
-  if (!fs.existsSync(packageJsonPath)) {
-    console.error(chalk.red(`✗ package.json not found in: ${absoluteFnDir}`))
-    process.exit(1)
-  }
-
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
-  const indexPath = path.resolve(
-    absoluteFnDir,
-    packageJson.main || (fs.existsSync(path.join(absoluteFnDir, 'index.js')) ? 'index.js' : 'index.ts')
-  )
-
   console.log(chalk.cyan(`▶ Running (bun): ${absoluteFnDir}`))
   if (options.kvFile) {
     console.log(chalk.gray(`  KV store: ${path.resolve(options.kvFile)}`))
@@ -102,16 +89,7 @@ async function runBun(absoluteFnDir: string, requestData: RequestData, options: 
   console.log('')
 
   setupEnvironment(new NoOpIpcChannel())
-
-  const userModule = require(indexPath)
-  const handler =
-    typeof userModule === 'function' ? userModule : typeof userModule.default === 'function' ? userModule.default : null
-
-  if (!handler) {
-    console.error(chalk.red('✗ Module must export a function. Expected: module.exports = function(req, res) {...}'))
-    process.exitCode = 1
-    return
-  }
+  const handler = await loadUserCode(absoluteFnDir)
 
   const req = createReqObject(requestData)
   const { res, state } = createResObject(req)

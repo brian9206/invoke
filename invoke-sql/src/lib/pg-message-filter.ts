@@ -101,6 +101,8 @@ const WRITE_OP_PATTERN = /INSERT\s+INTO|UPDATE\s/i
  *
  * - Queries touching pg_database (rewrite-action) are forwarded as-is, but
  *   the response DataRows are filtered to only rows containing `dbName`.
+ * - Queries touching pg_roles/pg_user/pg_shadow (rewrite-action) are forwarded
+ *   as-is, but the response DataRows are filtered to only rows containing `roleName`.
  * - Queries touching other system catalogs (block-action) are rejected with
  *   an ErrorResponse + ReadyForQuery, never forwarded to postgres.
  * - When `lockState.isLocked` is true, INSERT/UPDATE queries are rejected
@@ -109,18 +111,23 @@ const WRITE_OP_PATTERN = /INSERT\s+INTO|UPDATE\s/i
  *   the server (i.e. a query cycle has finished), suitable for scheduling a
  *   storage quota check.
  */
-export function createProxyFilter(dbName: string, lockState: LockState, onQueryExecuted: () => void): ProxyFilter {
+export function createProxyFilter(
+  dbName: string,
+  roleName: string,
+  lockState: LockState,
+  onQueryExecuted: () => void
+): ProxyFilter {
   let clientPending = Buffer.alloc(0)
   let serverPending = Buffer.alloc(0)
 
-  // Is a row-filtered result set in progress?
-  let rowFilterActive = false
+  // Value to filter DataRows by when a row-filtered result set is in progress (null = inactive).
+  let rowFilterValue: string | null = null
 
   // Extended query protocol tracking:
-  //   stmtName  → needs row filtering when executed
+  //   stmtName  → filterBy value ('db' or 'role') when executed
   //   portalName → bound from a filter-needed statement, activate on Execute
-  const filterStatements = new Set<string>()
-  const filterPortals = new Set<string>()
+  const filterStatements = new Map<string, 'db' | 'role'>()
+  const filterPortals = new Map<string, 'db' | 'role'>()
 
   async function filterFromClient(chunk: Buffer): Promise<{ toClient: Buffer; toServer: Buffer }> {
     clientPending = Buffer.concat([clientPending, chunk])
@@ -152,7 +159,7 @@ export function createProxyFilter(dbName: string, lockState: LockState, onQueryE
           const check = await checkSqlBlocked(sql)
           if (check.blocked) {
             if (check.action === 'rewrite') {
-              rowFilterActive = true
+              rowFilterValue = check.filterBy === 'role' ? roleName : dbName
               toServerParts.push(msgBytes)
             } else {
               const reason = check.reason || 'Query blocked by policy'
@@ -184,7 +191,7 @@ export function createProxyFilter(dbName: string, lockState: LockState, onQueryE
             if (check.blocked) {
               if (check.action === 'rewrite') {
                 const stmtName = msgBytes.slice(5, nameEnd).toString('utf8')
-                filterStatements.add(stmtName)
+                filterStatements.set(stmtName, check.filterBy ?? 'db')
                 toServerParts.push(msgBytes)
               } else {
                 const reason = check.reason || 'Query blocked by policy'
@@ -207,8 +214,9 @@ export function createProxyFilter(dbName: string, lockState: LockState, onQueryE
           if (stmtEnd >= 0) {
             const stmtName = msgBytes.slice(stmtStart, stmtEnd).toString('utf8')
             const portalName = msgBytes.slice(5, portalEnd).toString('utf8')
-            if (filterStatements.has(stmtName)) {
-              filterPortals.add(portalName)
+            const stmtFilterBy = filterStatements.get(stmtName)
+            if (stmtFilterBy !== undefined) {
+              filterPortals.set(portalName, stmtFilterBy)
             }
           }
         }
@@ -221,8 +229,9 @@ export function createProxyFilter(dbName: string, lockState: LockState, onQueryE
         const portalEnd = msgBytes.indexOf(0, 5)
         if (portalEnd >= 0) {
           const portalName = msgBytes.slice(5, portalEnd).toString('utf8')
-          if (filterPortals.has(portalName)) {
-            rowFilterActive = true
+          const portalFilterBy = filterPortals.get(portalName)
+          if (portalFilterBy !== undefined) {
+            rowFilterValue = portalFilterBy === 'role' ? roleName : dbName
             filterPortals.delete(portalName)
           }
         }
@@ -256,15 +265,15 @@ export function createProxyFilter(dbName: string, lockState: LockState, onQueryE
       // ReadyForQuery signals end of the command cycle — deactivate row filter
       // and notify the proxy that a query has completed (for quota checking)
       if (msgType === MSG_READY_FOR_QUERY) {
-        rowFilterActive = false
+        rowFilterValue = null
         toClientParts.push(msgBytes)
         onQueryExecuted()
         continue
       }
 
-      // Drop DataRow messages that don't belong to the current database
-      if (rowFilterActive && msgType === MSG_DATA_ROW) {
-        if (!dataRowContainsDb(msgBytes, dbName)) continue
+      // Drop DataRow messages that don't match the active row filter value
+      if (rowFilterValue !== null && msgType === MSG_DATA_ROW) {
+        if (!dataRowContainsDb(msgBytes, rowFilterValue)) continue
       }
 
       toClientParts.push(msgBytes)

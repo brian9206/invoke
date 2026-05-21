@@ -1,4 +1,4 @@
-import { EventEmitter } from 'stream'
+import { EventEmitter } from 'events'
 import type { BuildData } from '../protocol'
 import type { Stage, BuildStatus, BuildContext, Pipeline } from './types'
 

@@ -6,6 +6,7 @@ import { type NetworkRule } from './sandbox-orchestrator'
 import { fetchNetworkPolicies } from './function-providers'
 import { executeSandbox } from './sandbox-execution-context'
 import { getExecutionSettings } from './execution-settings'
+import db from './database'
 import type { RequestData } from 'invoke-worker/src/protocol'
 import type { FunctionMetadata } from './function-providers'
 
@@ -197,6 +198,13 @@ export class ExecutionEngine {
 
       // Execute inside the container
       sandbox = await this.pool.acquire()
+
+      // Look up whether the project has an initialized database so the
+      // supervisor can conditionally bind-mount /run/postgresql/.s.PGSQL.5432.
+      const { ProjectDatabase } = db.models as any
+      const dbRecord = await ProjectDatabase.findOne({ where: { project_id: resolvedProjectId } })
+      const hasDatabase = !!dbRecord && dbRecord.status === 'initialized'
+
       const result = await executeSandbox(sandbox, {
         functionId: packageDirName,
         request,
@@ -206,7 +214,9 @@ export class ExecutionEngine {
         projectSlug,
         runtime: metadata.runtime ?? 'bun',
         memoryMb: effectiveMemoryMb,
-        consoleLogger: boundConsoleLogger
+        consoleLogger: boundConsoleLogger,
+        projectId: resolvedProjectId,
+        hasDatabase
       })
 
       return {

@@ -250,8 +250,8 @@ export async function createPostgresProxy(opts: PostgresProxyOptions): Promise<P
 
   resetIdleTimer()
 
-  // Per-connection stateful filter (tracks rowFilterActive, pending buffers, etc.)
-  const filter = createProxyFilter(options.database as string, lockState, onQueryExecuted)
+  // Per-connection stateful filter (tracks rowFilterValue, pending buffers, etc.)
+  const filter = createProxyFilter(options.database as string, options.user as string, lockState, onQueryExecuted)
 
   // ── Async queue for client→server direction ────────────────────────────────
   // filterFromClient is async (invokes WASM parser on regex hits).

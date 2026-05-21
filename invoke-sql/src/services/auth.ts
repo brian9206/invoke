@@ -6,6 +6,7 @@ export interface AuthResult {
   authenticated: boolean
   userId?: number
   projectId?: string
+  internal?: boolean
   error?: string
 }
 
@@ -26,6 +27,12 @@ export async function authenticateWsRequest(req: IncomingMessage): Promise<AuthR
 
   if (!projectId) {
     return { authenticated: false, error: 'X-Project-Id header is required' }
+  }
+
+  // Internal service auth: INTERNAL_SERVICE_SECRET bearer token bypasses API key lookup
+  const internalSecret = process.env.INTERNAL_SERVICE_SECRET
+  if (internalSecret && authHeader === `Bearer ${internalSecret}`) {
+    return { authenticated: true, projectId, internal: true }
   }
 
   // Extract API key
