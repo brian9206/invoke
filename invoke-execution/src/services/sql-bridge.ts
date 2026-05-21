@@ -66,8 +66,10 @@ export async function createSqlBridge(sockPath: string, getProjectId: () => stri
       udsSocket.destroy()
     })
 
-    udsSocket.on('error', err => {
-      console.error('[SqlBridge] UDS socket error:', err.message)
+    udsSocket.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code !== 'ECONNRESET') {
+        console.error('[SqlBridge] UDS socket error:', err.message)
+      }
       ws.terminate()
     })
 

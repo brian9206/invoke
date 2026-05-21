@@ -52,7 +52,7 @@ internal sealed class IpcChannel : IDisposable
 
     private IpcChannel()
     {
-        var testingMode = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE"));
+        var testingMode = EnvironmentEx.IsTestMode();
         var testingHost = Environment.GetEnvironmentVariable("INVOKE_TESTING_MODE_HOST");
 
         if (testingMode && !string.IsNullOrEmpty(testingHost))

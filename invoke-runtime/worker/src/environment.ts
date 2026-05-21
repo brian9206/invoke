@@ -7,6 +7,7 @@ import { setupRealtimeGlobal } from './public-api/realtime'
 import { setupRouterGlobal } from './public-api/router'
 import { setupSleepGlobal } from './public-api/sleep'
 import { setupLoggerGlobal } from './public-api/logger/pino'
+import { setupBunSql } from './sql'
 
 type UserFunction = (req: InvokeRequest, res: InvokeResponse) => Promise<void> | void
 
@@ -25,6 +26,9 @@ export function setupEnvironment(ipc: IIpcChannel): void {
 
   // Expose Router class on globalThis for user code
   setupRouterGlobal()
+
+  // Patch Bun.sql
+  setupBunSql()
 }
 
 export async function loadUserCode(packagePath: string): Promise<UserFunction> {

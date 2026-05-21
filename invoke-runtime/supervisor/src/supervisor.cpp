@@ -261,6 +261,12 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
 
     // Build env vector from execute payload
     std::vector<std::string> user_env;
+
+    if (has_database) {
+        user_env.push_back("DATABASE_URL=postgres://localhost:5432/?path=/run/postgresql");
+        user_env.push_back("ConnectionStrings__DefaultConnection=Host=/run/postgresql;Port=5432");
+    }
+
     if (p.contains("env") && p["env"].is_object()) {
         for (auto& [k, v] : p["env"].items()) {
             if (v.is_string() && k.find('=') == std::string::npos) {

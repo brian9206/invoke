@@ -443,10 +443,6 @@ pid_t sandbox_start_worker(const std::string& sandbox_dir,
         "PATH=/app/node_modules/.bin:/usr/local/bin:/usr/bin:/bin",
         "TZ=UTC",
 
-        // Bun
-        "BUN_JSC_maxPerThreadStackUsage=524288",    // --smol
-        "NODE_PATH=/app/node_modules",
-
         // dotnet
         "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true",  // required by dotnet on musl for ICU support
         "DOTNET_CLI_TELEMETRY_OPTOUT=true",            // opt-out dotnet CLI telemetry
