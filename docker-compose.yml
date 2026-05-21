@@ -201,8 +201,6 @@ services:
     depends_on:
       postgres-app:
         condition: service_healthy
-      execution:
-        condition: service_healthy
     restart: unless-stopped
     deploy:
       replicas: ${GATEWAY_REPLICAS}
@@ -282,8 +280,6 @@ services:
       - INTERNAL_SERVICE_SECRET=${INTERNAL_SERVICE_SECRET}
       - TZ=${TZ}
     depends_on:
-      execution:
-        condition: service_healthy
       admin:
         condition: service_started
       logger:

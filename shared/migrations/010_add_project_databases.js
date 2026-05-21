@@ -1,7 +1,7 @@
 'use strict'
 
 module.exports = {
-  async up({ context: { queryInterface } }) {
+  async up({ context: { queryInterface, Sequelize } }) {
     await queryInterface.createTable('project_databases', {
       id: {
         type: 'UUID',
