@@ -114,6 +114,9 @@ Use the CLI to open a secure tunnel to your database for schema management, migr
 
 ```bash
 invoke sql:connect --project "Default Project"
+
+# Use a custom local port (default: 5433)
+invoke sql:connect --project "Default Project" --port 12345
 ```
 
 Then connect with `psql` or any PostgreSQL client (e.g. pgAdmin 4, DataGrip):
@@ -125,6 +128,8 @@ psql -h localhost -p 5433
 :::note
 The tunnel forwards to your project's database with **admin** user over the secure WebSocket connection.
 :::
+
+See [`sql:connect` in the CLI Reference](../cli/reference#sqlconnect) for the full option list.
 
 ### SQL Console
 

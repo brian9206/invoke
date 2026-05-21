@@ -755,6 +755,51 @@ See [Local Function Runner](./local-run) for full documentation.
 
 ---
 
+## Database Commands
+
+### `sql:connect`
+
+Start a local PostgreSQL proxy tunnel to a project's SQL database. Forwards a local TCP port to the project database over the Invoke SQL relay, so you can connect with `psql`, TablePlus, DBeaver, or any standard PostgreSQL client.
+
+```bash
+invoke sql:connect --project <id> [options]
+```
+
+**Required Options:**
+
+- `--project <id>` - Project ID, name, or `@slug`
+
+**Options:**
+
+- `--port <port>` - Local TCP port to listen on (default: `5433`)
+
+**Examples:**
+
+```bash
+# Connect to a project by name
+invoke sql:connect --project "Default Project"
+
+# Connect using project slug
+invoke sql:connect --project @my-project
+
+# Use a custom local port
+invoke sql:connect --project "my-project" --port 12345
+```
+
+Once the tunnel is running, connect with `psql` or any PostgreSQL client:
+
+```bash
+psql -h localhost -p 5433
+```
+
+:::note
+The database must be initialized first via **Admin Panel → SQL Database → Initialize Database**.
+
+The tunnel uses your configured API key (`invoke config:set --api-key`) and connects through the SQL relay URL configured in the admin global settings.
+:::
+
+---
+
 ## Global Options
 
 These options work with most commands:
