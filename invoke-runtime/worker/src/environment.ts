@@ -9,7 +9,8 @@ import { setupSleepGlobal } from './public-api/sleep'
 import { setupLoggerGlobal } from './public-api/logger/pino'
 import { setupBunSql } from './sql'
 
-type UserFunction = (req: InvokeRequest, res: InvokeResponse) => Promise<void> | void
+type NextFunction = (err?: any) => Promise<void> | void
+type UserFunction = (req: InvokeRequest, res: InvokeResponse, next: NextFunction) => Promise<void> | void
 
 export function setupEnvironment(ipc: IIpcChannel): void {
   // Expose Pino

@@ -68,7 +68,15 @@ export async function runUserCode(
 
     const handlerStart = Date.now()
     try {
-      const result = handler(req, res)
+      const result = handler(req, res, (err?: any) => {
+        if (err) {
+          console.error('[worker] Error in user function callback:', err)
+          res.status(500).json({
+            success: false,
+            message: 'Internal Server Error'
+          })
+        }
+      })
       if (result && typeof result.then === 'function') {
         await result
       }

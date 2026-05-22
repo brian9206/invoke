@@ -1,11 +1,12 @@
 // ============================================================================
-// Response — Express-compatible response mock object
+// Response — Full Node.js http.ServerResponse + Express 5.x drop-in replacement
 // ============================================================================
 
 import http from 'http'
 import path from 'path'
 import fs from 'fs'
 import mime from 'mime-types'
+import { EventEmitter } from 'events'
 
 /** @internal */
 import type { ResponseData } from '../../protocol'
@@ -16,15 +17,10 @@ import { InvokeRequest } from './request'
  * Options for `res.sendFile()` and `res.download()`.
  */
 export interface SendFileOptions {
-  /** Root directory to resolve the file path against. Defaults to `'/'`. */
   root?: string
-  /** Cache max-age in milliseconds for the `Cache-Control` header. */
   maxAge?: number
-  /** Whether to set the `Cache-Control` header. Defaults to `true`. */
   cacheControl?: boolean
-  /** Whether to set the `Last-Modified` header. Defaults to `true`. */
   lastModified?: boolean
-  /** Additional response headers to include. */
   headers?: Record<string, string>
 }
 
@@ -32,21 +28,13 @@ export interface SendFileOptions {
  * Cookie options for `res.cookie()` and `res.clearCookie()`.
  */
 export interface CookieOptions {
-  /** Cookie path. Defaults to `'/'`. */
   path?: string
-  /** Cookie domain scope. */
   domain?: string
-  /** Max-age in seconds. */
   maxAge?: number
-  /** Explicit expiry date. */
   expires?: Date | string
-  /** Restrict cookie to HTTP(S) only; inaccessible from JavaScript. */
   httpOnly?: boolean
-  /** Only transmit the cookie over HTTPS. */
   secure?: boolean
-  /** `SameSite` attribute: `'strict'`, `'lax'`, `'none'`, or a boolean. */
   sameSite?: string | boolean
-  /** Custom encoder applied to the cookie value before serialization. */
   encode?: (val: string) => string
 }
 
@@ -59,19 +47,40 @@ export interface ResponseState {
 }
 
 /**
- * Express-compatible response object passed to function handlers.
+ * Drop-in replacement for http.ServerResponse + Express 5.x response.
+ * Implements all methods/properties without inheriting from http.ServerResponse.
  */
-export class InvokeResponse {
+export class InvokeResponse extends EventEmitter {
   /** @internal */
   readonly state: ResponseState
-  /** `true` once the response headers have been flushed to the client. */
-  headersSent = false
+
+  // --- http.ServerResponse properties ---
+  statusCode: number = 200
+  statusMessage: string = 'OK'
+  headersSent: boolean = false
+  writableEnded: boolean = false
+  writableFinished: boolean = false
+  writable: boolean = true
+  finished: boolean = false
+  connection: any = null
+  socket: any = null
+  chunkedEncoding: boolean = false
+  shouldKeepAlive: boolean = false
+  useChunkedEncodingByDefault: boolean = true
+  sendDate: boolean = true
+
+  // Express locals
+  locals: Record<string, any> = {}
+
+  /** @internal */
+  private _chunks: Buffer[] = []
 
   /** @internal */
   constructor(
-    private readonly req: InvokeRequest,
+    public req: InvokeRequest,
     private _endCallback?: (res: InvokeResponse) => void
   ) {
+    super()
     this.state = {
       statusCode: 200,
       headers: {},
@@ -80,172 +89,367 @@ export class InvokeResponse {
     }
   }
 
-  /**
-   * Current HTTP status code.
-   * @returns The current status code.
-   */
-  get statusCode(): number {
-    return this.state.statusCode
+  // ===========================================================================
+  // http.ServerResponse — header methods
+  // ===========================================================================
+
+  setHeader(name: string, value: string | number | string[]): this {
+    if (Array.isArray(value)) {
+      this.state.headers[name.toLowerCase()] = value
+    } else {
+      this.state.headers[name.toLowerCase()] = String(value)
+    }
+    return this
   }
 
-  /**
-   * Set the response HTTP status code.
-   * @param code HTTP status code.
-   * @returns The response instance.
-   */
-  status(code: number): InvokeResponse {
+  getHeader(name: string): string | string[] | number | undefined {
+    return this.state.headers[name.toLowerCase()]
+  }
+
+  getHeaders(): Record<string, string | string[] | undefined> {
+    return { ...this.state.headers }
+  }
+
+  getHeaderNames(): string[] {
+    return Object.keys(this.state.headers)
+  }
+
+  hasHeader(name: string): boolean {
+    return name.toLowerCase() in this.state.headers
+  }
+
+  removeHeader(name: string): this {
+    delete this.state.headers[name.toLowerCase()]
+    return this
+  }
+
+  appendHeader(name: string, value: string | string[]): this {
+    const lowerName = name.toLowerCase()
+    const existing = this.state.headers[lowerName]
+
+    if (existing) {
+      if (Array.isArray(existing)) {
+        if (Array.isArray(value)) {
+          existing.push(...value)
+        } else {
+          existing.push(value)
+        }
+      } else {
+        if (Array.isArray(value)) {
+          this.state.headers[lowerName] = [existing, ...value]
+        } else {
+          if (lowerName === 'set-cookie') {
+            this.state.headers[lowerName] = [existing, value]
+          } else {
+            this.state.headers[lowerName] = `${existing}, ${value}`
+          }
+        }
+      }
+    } else {
+      if (Array.isArray(value)) {
+        this.state.headers[lowerName] = value
+      } else {
+        this.state.headers[lowerName] = value
+      }
+    }
+    return this
+  }
+
+  flushHeaders(): void {
+    this.headersSent = true
+  }
+
+  // ===========================================================================
+  // http.ServerResponse — write/end methods
+  // ===========================================================================
+
+  writeHead(
+    statusCode: number,
+    statusMessage?: string | Record<string, string | string[] | number>,
+    headers?: Record<string, string | string[] | number>
+  ): this {
+    if (typeof statusMessage === 'object' && statusMessage !== null) {
+      headers = statusMessage
+      statusMessage = undefined
+    }
+
+    this.statusCode = statusCode
+    this.state.statusCode = statusCode
+
+    if (typeof statusMessage === 'string') {
+      this.statusMessage = statusMessage
+    }
+
+    if (headers && typeof headers === 'object') {
+      for (const [name, value] of Object.entries(headers)) {
+        if (value !== undefined) {
+          this.setHeader(name, value as any)
+        }
+      }
+    }
+
+    this.headersSent = true
+    return this
+  }
+
+  writeProcessing(): void {
+    // No-op in serverless
+  }
+
+  write(chunk: any, encoding?: BufferEncoding | (() => void), callback?: () => void): boolean {
+    if (typeof encoding === 'function') {
+      callback = encoding
+      encoding = undefined
+    }
+
+    if (chunk !== undefined && chunk !== null) {
+      if (Buffer.isBuffer(chunk)) {
+        this._chunks.push(chunk)
+      } else {
+        this._chunks.push(Buffer.from(String(chunk), encoding || 'utf8'))
+      }
+    }
+
+    if (callback) callback()
+    return true
+  }
+
+  end(data?: any, encoding?: BufferEncoding | (() => void), callback?: () => void): this {
+    if (typeof data === 'function') {
+      callback = data
+      data = undefined
+      encoding = undefined
+    } else if (typeof encoding === 'function') {
+      callback = encoding
+      encoding = undefined
+    }
+
+    if (data !== undefined && data !== null) {
+      if (Buffer.isBuffer(data)) {
+        this._chunks.push(data)
+      } else {
+        this._chunks.push(Buffer.from(String(data), (encoding as BufferEncoding) || 'utf8'))
+      }
+    }
+
+    // Assemble final body
+    if (this._chunks.length > 0) {
+      this.state.data = Buffer.concat(this._chunks)
+    }
+
+    this.headersSent = true
+    this.writableEnded = true
+    this.writableFinished = true
+    this.writable = false
+    this.finished = true
+    this.state.finished = true
+    this.state.statusCode = this.statusCode
+
+    this.emit('finish')
+    this.emit('close')
+
+    if (this._endCallback) {
+      this._endCallback(this)
+      this._endCallback = undefined
+    }
+
+    if (callback) callback()
+    return this
+  }
+
+  // Writable stream compat
+  destroy(_error?: Error): this {
+    this.writable = false
+    this.writableEnded = true
+    return this
+  }
+
+  cork(): void {}
+  uncork(): void {}
+
+  addTrailers(_headers: Record<string, string>): void {
+    // No-op — trailers not supported in serverless
+  }
+
+  setTimeout(_msecs: number, _callback?: () => void): this {
+    return this
+  }
+
+  // ===========================================================================
+  // Express 5.x response methods
+  // ===========================================================================
+
+  status(code: number): this {
+    this.statusCode = code
     this.state.statusCode = code
     return this
   }
 
-  /**
-   * Set status and send its default status message body.
-   * @param code HTTP status code.
-   * @returns The response instance.
-   */
-  sendStatus(code: number): InvokeResponse {
+  sendStatus(code: number): this {
     const message = http.STATUS_CODES[code] || 'Unknown'
     return this.status(code).type('txt').send(message)
   }
 
-  /**
-   * Send a JSON response body.
-   * @param data Serializable payload.
-   * @returns The response instance.
-   */
-  json(data: unknown): InvokeResponse {
+  json(data: unknown): this {
     this.setHeader('content-type', 'application/json; charset=utf-8')
-    return this.end(JSON.stringify(data))
+    const body = JSON.stringify(data)
+    this.setHeader('content-length', Buffer.byteLength(body).toString())
+    return this.end(body)
   }
 
-  /**
-   * Send a response body and infer content type when needed.
-   * @param data Response body to send.
-   * @returns The response instance.
-   */
-  send(data?: unknown): InvokeResponse {
-    if (data === undefined) {
-      this.removeHeader('Content-Type')
-      return this.status(204).end()
+  jsonp(data: unknown): this {
+    const body = JSON.stringify(data)
+    const callback = this.req.query['callback']
+
+    if (callback) {
+      this.setHeader('content-type', 'text/javascript; charset=utf-8')
+      this.setHeader('x-content-type-options', 'nosniff')
+      const sanitizedCb = callback.replace(/[^\[\]\w$.]/g, '')
+      const result = `/**/ typeof ${sanitizedCb} === 'function' && ${sanitizedCb}(${body});`
+      return this.end(result)
+    }
+
+    return this.json(data)
+  }
+
+  send(data?: any): this {
+    if (data === undefined || data === null) {
+      if (data === undefined && this.statusCode === 200) {
+        this.statusCode = 204
+        this.state.statusCode = 204
+      }
+      this.removeHeader('content-type')
+      this.removeHeader('content-length')
+      this.removeHeader('transfer-encoding')
+      return this.end()
     }
 
     let buf: Buffer
+    let type = this.getHeader('content-type') as string | undefined
 
-    if (data === null) {
-      this.setHeader('content-type', 'text/plain; charset=utf-8')
-      buf = Buffer.from('', 'utf8')
-    } else if (typeof data === 'number' || typeof data === 'boolean') {
-      this.setHeader('content-type', 'text/plain; charset=utf-8')
+    if (typeof data === 'number' || typeof data === 'boolean') {
+      if (!type) {
+        this.setHeader('content-type', 'text/plain; charset=utf-8')
+      }
       buf = Buffer.from(String(data), 'utf8')
     } else if (Buffer.isBuffer(data)) {
-      if (!this.get('content-type')) {
+      if (!type) {
         this.setHeader('content-type', 'application/octet-stream')
       }
       buf = data
     } else if (typeof data === 'string') {
-      if (!this.get('content-type')) {
+      if (!type) {
         this.setHeader('content-type', 'text/html; charset=utf-8')
       }
       buf = Buffer.from(data, 'utf8')
     } else {
-      // Array or object
+      // object/array
       this.setHeader('content-type', 'application/json; charset=utf-8')
       buf = Buffer.from(JSON.stringify(data), 'utf8')
     }
 
+    this.setHeader('content-length', buf.length.toString())
     return this.end(buf)
   }
 
-  /**
-   * Send a file from ephemeral storage.
-   * @param filePath File path to send.
-   * @param options File sending options.
-   * @returns The response instance.
-   */
-  sendFile(filePath: string, options: SendFileOptions = {}): InvokeResponse {
-    const root = options.root || '/'
+  sendFile(
+    filePath: string,
+    options: SendFileOptions | ((...args: any[]) => void) = {},
+    fn?: (...args: any[]) => void
+  ): this {
+    if (typeof options === 'function') {
+      fn = options
+      options = {}
+    }
+
+    const opts = options as SendFileOptions
+    const root = opts.root || '/'
     const resolved = path.resolve(root, filePath)
 
     let data: Buffer
     try {
       data = fs.readFileSync(resolved)
     } catch (readErr: any) {
+      if (fn) {
+        fn(readErr)
+        return this
+      }
       const code = readErr.code === 'ENOENT' ? 404 : readErr.code === 'EACCES' ? 403 : 500
       return this.sendStatus(code)
     }
 
     const mimeType = mime.contentType(mime.lookup(resolved) || '')
     if (mimeType) {
-      this.setHeader('Content-Type', mimeType)
+      this.setHeader('content-type', mimeType)
     }
 
-    this.setHeader('Content-Length', String(data.length))
+    this.setHeader('content-length', String(data.length))
 
-    if (options.maxAge !== undefined && options.cacheControl !== false) {
-      const maxAgeSeconds = Math.floor(options.maxAge / 1000)
-      this.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}`)
+    if (opts.maxAge !== undefined && opts.cacheControl !== false) {
+      const maxAgeSeconds = Math.floor(opts.maxAge / 1000)
+      this.setHeader('cache-control', `public, max-age=${maxAgeSeconds}`)
     }
 
-    if (options.lastModified !== false) {
+    if (opts.lastModified !== false) {
       try {
         const stats = fs.statSync(resolved)
         if (stats.mtime) {
-          this.setHeader('Last-Modified', stats.mtime.toUTCString())
+          this.setHeader('last-modified', stats.mtime.toUTCString())
         }
       } catch {
-        // Skip metadata
+        // Skip
       }
     }
 
-    if (options.headers) {
-      for (const [key, value] of Object.entries(options.headers)) {
+    if (opts.headers) {
+      for (const [key, value] of Object.entries(opts.headers)) {
         this.setHeader(key, value)
       }
     }
 
-    return this.send(data)
+    if (fn) fn()
+    return this.end(data)
   }
 
-  /**
-   * Send a file as a download attachment.
-   * @param filePath File path to download.
-   * @param filename Optional download name.
-   * @param options File sending options.
-   * @returns The response instance.
-   */
-  download(filePath: string, filename?: string, options?: SendFileOptions): InvokeResponse {
-    this.attachment(filename || path.basename(filePath))
-    return this.sendFile(filePath, options)
+  download(
+    filePath: string,
+    filename?: string | ((...args: any[]) => void),
+    options?: SendFileOptions | ((...args: any[]) => void),
+    fn?: (...args: any[]) => void
+  ): this {
+    if (typeof filename === 'function') {
+      fn = filename
+      filename = undefined
+    }
+    if (typeof options === 'function') {
+      fn = options
+      options = undefined
+    }
+    this.attachment((filename as string) || path.basename(filePath))
+    return this.sendFile(filePath, options || {}, fn)
   }
 
-  /**
-   * Set `Content-Disposition` as attachment.
-   * @param filename Optional attachment filename.
-   * @returns The response instance.
-   */
-  attachment(filename?: string): InvokeResponse {
+  attachment(filename?: string): this {
     if (filename) {
+      const mimeType = mime.contentType(mime.lookup(filename) || '')
+      if (mimeType) {
+        this.setHeader('content-type', mimeType)
+      }
       const needsEncoding = /[^\x20-\x7E]/.test(filename)
       if (needsEncoding) {
         const encoded = encodeURIComponent(filename)
-        this.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encoded}`)
+        this.setHeader('content-disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encoded}`)
       } else {
         const escaped = filename.replace(/"/g, '\\"')
-        this.setHeader('Content-Disposition', `attachment; filename="${escaped}"`)
+        this.setHeader('content-disposition', `attachment; filename="${escaped}"`)
       }
     } else {
-      this.setHeader('Content-Disposition', 'attachment')
+      this.setHeader('content-disposition', 'attachment')
     }
     return this
   }
 
-  /**
-   * Redirect to another URL using the given status or default 302.
-   * @param statusOrUrl Status code or redirect URL.
-   * @param url Redirect URL when the first argument is a status code.
-   * @returns The response instance.
-   */
-  redirect(statusOrUrl: number | string, url?: string): InvokeResponse {
+  redirect(statusOrUrl: number | string, url?: string): this {
     let statusCode = 302
     let location: string
 
@@ -260,7 +464,7 @@ export class InvokeResponse {
       location = this.req.get('Referrer') || this.req.get('Referer') || '/'
     }
 
-    this.setHeader('Location', location)
+    this.setHeader('location', location)
     this.status(statusCode)
     this.type('html')
 
@@ -271,49 +475,74 @@ export class InvokeResponse {
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
 
-    return this.end(`<p>Found. Redirecting to <a href="${escapedUrl}">${escapedUrl}</a></p>`)
+    return this.end(`<p>${http.STATUS_CODES[statusCode]}. Redirecting to <a href="${escapedUrl}">${escapedUrl}</a></p>`)
   }
 
-  /**
-   * Set the `Location` header.
-   * @param url Redirect target.
-   * @returns The response instance.
-   */
-  location(url: string): InvokeResponse {
-    this.setHeader('Location', url)
+  location(url: string): this {
+    this.setHeader('location', url)
     return this
   }
 
-  /**
-   * Set response content type by extension or mime type.
-   * @param type Extension or mime type.
-   * @returns The response instance.
-   */
-  type(type: string): InvokeResponse {
+  type(type: string): this {
     const mimeType = mime.contentType(type)
     if (mimeType) {
-      this.setHeader('Content-Type', mimeType as string)
+      this.setHeader('content-type', mimeType as string)
     }
     return this
   }
 
-  /**
-   * Alias of `res.type(type)`.
-   * @param type Extension or mime type.
-   * @returns The response instance.
-   */
-  contentType(type: string): InvokeResponse {
+  contentType(type: string): this {
     return this.type(type)
   }
 
-  /**
-   * Set a response cookie.
-   * @param name Cookie name.
-   * @param value Cookie value.
-   * @param options Cookie options.
-   * @returns The response instance.
-   */
-  cookie(name: string, value: unknown, options: CookieOptions = {}): InvokeResponse {
+  format(obj: Record<string, () => void>): this {
+    const keys = Object.keys(obj).filter(k => k !== 'default')
+
+    const type = this.req.accepts(keys)
+    if (type) {
+      this.setHeader('content-type', (mime.contentType(type as string) || type) as string)
+      obj[type as string]()
+    } else if (obj.default) {
+      obj.default()
+    } else {
+      this.status(406).end()
+    }
+    return this
+  }
+
+  links(links: Record<string, string>): this {
+    const link = Object.entries(links)
+      .map(([rel, url]) => `<${url}>; rel="${rel}"`)
+      .join(', ')
+    const existing = this.getHeader('link')
+    if (existing) {
+      this.setHeader('link', `${existing}, ${link}`)
+    } else {
+      this.setHeader('link', link)
+    }
+    return this
+  }
+
+  vary(field: string | string[]): this {
+    const fields = Array.isArray(field) ? field : [field]
+    const existing = (this.getHeader('vary') as string) || ''
+    const current = existing ? existing.split(',').map(s => s.trim().toLowerCase()) : []
+
+    const toAdd = fields.filter(f => {
+      if (f === '*') return true
+      return !current.includes(f.toLowerCase())
+    })
+
+    if (toAdd.includes('*')) {
+      this.setHeader('vary', '*')
+    } else if (toAdd.length > 0) {
+      const newVal = existing ? `${existing}, ${toAdd.join(', ')}` : toAdd.join(', ')
+      this.setHeader('vary', newVal)
+    }
+    return this
+  }
+
+  cookie(name: string, value: unknown, options: CookieOptions = {}): this {
     const encoder = options.encode || encodeURIComponent
     let cookieValue: string
 
@@ -347,153 +576,44 @@ export class InvokeResponse {
       if (sameSite) cookie += `; SameSite=${sameSite}`
     }
 
-    this.append('Set-Cookie', cookie)
+    this.append('set-cookie', cookie)
     return this
   }
 
-  /**
-   * Clear a response cookie.
-   * @param name Cookie name.
-   * @param options Cookie options.
-   * @returns The response instance.
-   */
-  clearCookie(name: string, options: CookieOptions = {}): InvokeResponse {
+  clearCookie(name: string, options: CookieOptions = {}): this {
     return this.cookie(name, '', { ...options, expires: new Date(1), maxAge: 0 })
   }
 
-  /**
-   * Set a response header value.
-   * @param name Header name.
-   * @param value Header value.
-   * @returns The response instance.
-   */
-  setHeader(name: string, value: string): InvokeResponse {
-    this.state.headers[name.toLowerCase()] = value
-    return this
-  }
-
-  /**
-   * Alias of `res.setHeader(name, value)`.
-   * @param name Header name.
-   * @param value Header value.
-   * @returns The response instance.
-   */
-  set(name: string, value: string): InvokeResponse {
-    return this.setHeader(name, value)
-  }
-
-  /**
-   * Get a response header value.
-   * @param name Header name.
-   * @returns The header value, or `undefined`.
-   */
-  get(name: string): string | string[] | undefined {
-    return this.state.headers[name.toLowerCase()]
-  }
-
-  /**
-   * Append a value to an existing response header.
-   * @param field Header name.
-   * @param value Header value to append.
-   * @returns The response instance.
-   */
-  append(field: string, value: string): InvokeResponse {
-    const lowerName = field.toLowerCase()
-    const existing = this.state.headers[lowerName]
-
-    if (existing) {
-      if (lowerName === 'set-cookie') {
-        if (Array.isArray(existing)) {
-          existing.push(value)
-        } else {
-          this.state.headers[lowerName] = [existing, value]
-        }
-      } else {
-        this.state.headers[lowerName] = `${existing}, ${value}`
+  // Express-style `set` / `header` (overloaded: single or object)
+  set(field: string | Record<string, string | string[]>, value?: string | string[]): this {
+    if (typeof field === 'object') {
+      for (const [key, val] of Object.entries(field)) {
+        this.setHeader(key, val as any)
       }
-    } else {
-      this.state.headers[lowerName] = value
+      return this
+    }
+    if (value !== undefined) {
+      this.setHeader(field, value as any)
     }
     return this
   }
 
-  /**
-   * Remove a response header.
-   * @param name Header name.
-   * @returns The response instance.
-   */
-  removeHeader(name: string): InvokeResponse {
-    delete this.state.headers[name.toLowerCase()]
-    return this
+  header(field: string | Record<string, string | string[]>, value?: string | string[]): this {
+    return this.set(field, value)
   }
 
-  /**
-   * Set status and headers in one call.
-   * @param statusCode HTTP status code.
-   * @param statusMessage Optional status message or headers object.
-   * @param headers Optional headers object.
-   * @returns The response instance.
-   */
-  writeHead(
-    statusCode: number,
-    statusMessage?: string | Record<string, string | string[]>,
-    headers?: Record<string, string | string[]>
-  ): InvokeResponse {
-    if (typeof statusMessage === 'object' && statusMessage !== null) {
-      headers = statusMessage
-    }
-
-    if (typeof statusCode !== 'number' || statusCode < 100 || statusCode > 999) {
-      throw new Error('Invalid status code: ' + statusCode)
-    }
-
-    this.status(statusCode)
-
-    if (headers && typeof headers === 'object') {
-      for (const [name, value] of Object.entries(headers)) {
-        if (Array.isArray(value)) {
-          for (const val of value) {
-            this.append(name, val)
-          }
-        } else {
-          this.setHeader(name, value)
-        }
-      }
-    }
-
-    return this
+  get(name: string): string | string[] | number | undefined {
+    return this.getHeader(name)
   }
 
-  /**
-   * Finalize and send the response.
-   * @param data Optional response body.
-   * @returns The response instance.
-   */
-  end(data?: unknown): InvokeResponse {
-    this.headersSent = true
-    this.state.finished = true
-
-    if (data !== undefined) {
-      if (Buffer.isBuffer(data)) {
-        this.state.data = data
-      } else {
-        this.state.data = Buffer.from(String(data), 'utf8')
-      }
-    }
-
-    if (this._endCallback) {
-      this._endCallback(this)
-      this._endCallback = undefined // Ensure callback is only called once
-    }
-
-    return this
+  append(field: string, value: string | string[]): this {
+    return this.appendHeader(field, value)
   }
 
-  /**
-   * Pipe a Fetch API `Response` into this response object.
-   * @param fetchResponse Source fetch response.
-   * @returns A promise that resolves after the response is copied.
-   */
+  // ===========================================================================
+  // Pipe from Fetch API Response
+  // ===========================================================================
+
   async pipeFrom(fetchResponse: Response): Promise<void> {
     const blacklistedHeaders = ['transfer-encoding', 'content-length', 'connection', 'content-encoding']
 
@@ -506,6 +626,14 @@ export class InvokeResponse {
 
     const body = await fetchResponse.arrayBuffer()
     this.end(Buffer.from(body))
+  }
+
+  // ===========================================================================
+  // render() — stubbed (requires view engine)
+  // ===========================================================================
+
+  render(_view: string, _options?: Record<string, any>, _callback?: (err: Error | null, html?: string) => void): void {
+    throw new Error('res.render() is not supported. Use a framework adapter or pre-render templates.')
   }
 }
 
