@@ -103,7 +103,7 @@ async function runBun(absoluteFnDir: string, requestData: RequestData, options: 
       })
     }
   })
-  if (result && typeof result.then === 'function') {
+  if (result && typeof (result as unknown as any).then === 'function') {
     await result
   }
 

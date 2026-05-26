@@ -1,0 +1,116 @@
+import serveStatic from 'serve-static'
+import default404 from './default-404.html'
+import type { InvokeHandler, InvokeHandlerCallback, InvokeRequest, InvokeResponse } from '../exchange'
+
+export interface ServeStaticOptions {
+  /**
+   * Enable or disable accepting ranged requests, defaults to true.
+   * Disabling this will not send Accept-Ranges and ignore the contents of the Range request header.
+   */
+  acceptRanges?: boolean | undefined
+
+  /**
+   * Enable or disable setting Cache-Control response header, defaults to true.
+   * Disabling this will ignore the immutable and maxAge options.
+   */
+  cacheControl?: boolean | undefined
+
+  /**
+   * Set how "dotfiles" are treated when encountered. A dotfile is a file or directory that begins with a dot (".").
+   * Note this check is done on the path itself without checking if the path actually exists on the disk.
+   * If root is specified, only the dotfiles above the root are checked (i.e. the root itself can be within a dotfile when when set to "deny").
+   * The default value is 'ignore'.
+   * 'allow' No special treatment for dotfiles
+   * 'deny' Send a 403 for any request for a dotfile
+   * 'ignore' Pretend like the dotfile does not exist and call next()
+   */
+  dotfiles?: string | undefined
+
+  /**
+   * Enable or disable etag generation, defaults to true.
+   */
+  etag?: boolean | undefined
+
+  /**
+   * Set file extension fallbacks. When set, if a file is not found, the given extensions will be added to the file name and search for.
+   * The first that exists will be served. Example: ['html', 'htm'].
+   * The default value is false.
+   */
+  extensions?: string[] | false | undefined
+
+  /**
+   * Set the middleware to have client errors fall-through as just unhandled requests,
+   * otherwise forward a client error.
+   * The difference is that client errors like a bad request or a request to a non-existent file
+   * will cause this middleware to simply next() to your next middleware when this value is true.
+   * When this value is false, these errors (even 404s), will invoke next(err).
+   *
+   * Typically true is desired such that multiple physical directories can be mapped to the same web address
+   * or for routes to fill in non-existent files.
+   *
+   * The value false can be used if this middleware is mounted at a path that is designed to be strictly
+   * a single file system directory, which allows for short-circuiting 404s for less overhead.
+   * This middleware will also reply to all methods.
+   *
+   * The default value is false.
+   */
+  fallthrough?: boolean | undefined
+
+  /**
+   * Enable or disable the immutable directive in the Cache-Control response header.
+   * If enabled, the maxAge option should also be specified to enable caching. The immutable directive will prevent supported clients from making conditional requests during the life of the maxAge option to check if the file has changed.
+   */
+  immutable?: boolean | undefined
+
+  /**
+   * By default this module will send "index.html" files in response to a request on a directory.
+   * To disable this set false or to supply a new index pass a string or an array in preferred order.
+   */
+  index?: boolean | string | string[] | undefined
+
+  /**
+   * Enable or disable Last-Modified header, defaults to true. Uses the file system's last modified value.
+   */
+  lastModified?: boolean | undefined
+
+  /**
+   * Provide a max-age in milliseconds for http caching, defaults to 0. This can also be a string accepted by the ms module.
+   */
+  maxAge?: number | string | undefined
+
+  /**
+   * Redirect to trailing "/" when the pathname is a dir. Defaults to true.
+   */
+  redirect?: boolean | undefined
+
+  /**
+   * Function to set custom headers on response. Alterations to the headers need to occur synchronously.
+   * The function is called as fn(res, path, stat), where the arguments are:
+   * res the response object
+   * path the file path that is being sent
+   * stat the stat object of the file that is being sent
+   */
+  setHeaders?: ((res: InvokeResponse, path: string, stat: any) => any) | undefined
+}
+
+export default function createServeStaticHandler(root: string, options?: ServeStaticOptions): InvokeHandler {
+  const handler = serveStatic(root, options as any)
+  return (req: InvokeRequest, res: InvokeResponse, next: InvokeHandlerCallback) => {
+    handler(req as any, res as any, (err?: any) => {
+      if (options?.fallthrough) {
+        next(err)
+      } else if (err) {
+        console.error('[worker] Error in invoke.serve.static handler:', err)
+        res.status(500).json({
+          success: false,
+          message: 'Internal Server Error'
+        })
+      } else {
+        // If not using fallthrough mode, we should send a 404 if the file is not found
+        if (!res.headersSent) {
+          res.status(404).set('Content-Type', 'text/html').send(default404)
+        }
+      }
+    })
+  }
+}

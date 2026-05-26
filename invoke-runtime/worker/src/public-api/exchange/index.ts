@@ -31,3 +31,18 @@ export function createResObject(
   const res = new InvokeResponse(req, endCallback)
   return { res, state: res.state }
 }
+
+export type InvokeHandlerCallback = (err?: any) => Promise<unknown> | unknown
+
+/**
+ * Request handler used by the Invoke.
+ * @param req Incoming request object.
+ * @param res Outgoing response object.
+ * @param next Optional callback to continue to the next matching handler.
+ * @returns Any value returned by the handler.
+ */
+export type InvokeHandler = (
+  req: InvokeRequest,
+  res: InvokeResponse,
+  next: InvokeHandlerCallback
+) => Promise<unknown> | unknown

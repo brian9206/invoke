@@ -42,3 +42,5 @@ samples/**/*.zip
 .git/
 .vscode/
 .idea/
+bin/
+obj/

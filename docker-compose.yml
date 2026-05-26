@@ -39,7 +39,7 @@ services:
   # PostgreSQL Userdata Database (per-project managed databases)
   postgres-userdata:
     image: postgres:15-alpine
-    command: ["postgres", "-c", "max_connections=200"]
+    command: ['postgres', '-c', 'max_connections=200']
     env_file:
       - .env
     environment:

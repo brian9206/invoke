@@ -17,17 +17,7 @@
 // ============================================================================
 
 import { match } from 'path-to-regexp'
-import type { InvokeRequest } from './exchange/request'
-import type { InvokeResponse } from './exchange/response'
-
-/**
- * Request handler used by the Invoke router.
- * @param req Incoming request object.
- * @param res Outgoing response object.
- * @param next Optional callback to continue to the next matching handler.
- * @returns Any value returned by the handler.
- */
-export type InvokeHandler = (req: InvokeRequest, res: InvokeResponse, next?: (err?: unknown) => void) => unknown
+import type { InvokeHandler } from './exchange'
 
 /**
  * Express-style router API available through the global `Router` constructor.
@@ -253,8 +243,17 @@ RouterFactory.prototype._dispatch = function (req: any, res: any): Promise<void>
             }
           )
         } else if (!called) {
-          // Sync handler that didn't call next() — response was sent
-          resolve()
+          // Handler didn't call next() synchronously and didn't return a promise.
+          // If response is already finished, resolve immediately.
+          // Otherwise wait for either response to finish (callback-style middleware)
+          // or next() to be called asynchronously.
+          if (res.state && res.state.finished) {
+            resolve()
+          } else {
+            res.on('finish', function () {
+              if (!called) resolve()
+            })
+          }
         }
         return // Yield until next() or the promise above
       }

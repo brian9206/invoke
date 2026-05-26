@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif']
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Modern subtle grid to give the bare screen a premium server environment feel */
+      .grid-bg {
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+        background-size: 32px 32px;
+        background-position: center center;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-[#0b0f19] text-slate-100 font-sans h-full flex items-center justify-center relative overflow-hidden select-none"
+  >
+    <!-- Minimalist dark ambient atmosphere -->
+    <div class="absolute inset-0 grid-bg z-0 pointer-events-none"></div>
+    <div class="absolute w-[350px] h-[350px] bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none z-0"></div>
+
+    <!-- Central Nginx-style minimal container -->
+    <div class="relative z-10 flex flex-col items-center px-6 text-center max-w-lg">
+      <!-- Classic side-by-side layout with a modern vertical separator -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 mb-6">
+        <!-- Large clean error status -->
+        <h1
+          class="text-5xl sm:text-6xl font-light tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+        >
+          404
+        </h1>
+
+        <!-- Elegant vertical divider line (replaces the raw Nginx border) -->
+        <div class="hidden sm:block w-[1px] h-10 bg-slate-800"></div>
+        <!-- Elegant horizontal divider line for mobile views -->
+        <div class="block sm:hidden w-12 h-[1px] bg-slate-800 my-1"></div>
+
+        <!-- Error message text -->
+        <p class="text-sm sm:text-base font-light text-slate-400 tracking-wide">This page could not be found.</p>
+      </div>
+
+      <!-- Subtle attribution matching the minimalist Nginx server signature style -->
+      <div class="mt-2">
+        <span class="text-xs text-slate-600 font-light tracking-wider select-none"> Powered by Invoke </span>
+      </div>
+    </div>
+  </body>
+</html>

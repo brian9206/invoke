@@ -77,7 +77,7 @@ export async function runUserCode(
           })
         }
       })
-      if (result && typeof result.then === 'function') {
+      if (result && typeof (result as unknown as any).then === 'function') {
         await result
       }
     } catch (err: any) {
