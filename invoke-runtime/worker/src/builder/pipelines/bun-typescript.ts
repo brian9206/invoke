@@ -3,6 +3,10 @@ import path from 'path'
 import { copyRecursive, exec } from '../utils'
 import { Pipeline } from '../types'
 
+const env = {
+  BUN_INSTALL_CACHE_DIR: '/output/tmp/.bun/install/cache'
+}
+
 const pipeline: Pipeline = {
   name: 'bun-typescript',
   stages: [
@@ -42,7 +46,7 @@ const pipeline: Pipeline = {
           await fs.writeFile('/output/source/package.json', JSON.stringify(packageJson, null, 2), { encoding: 'utf-8' })
         }
 
-        await exec(['bun', 'install', '--no-save'])
+        await exec(['bun', 'install', '--no-save'], { env })
       }
     },
 
@@ -63,19 +67,19 @@ const pipeline: Pipeline = {
 
         if (!hasBuildScript) {
           console.warn('No build script detected in package.json')
-          await exec(['bun', 'x', 'tsc', '--noEmit'])
+          await exec(['bun', 'x', 'tsc', '--noEmit'], { env })
           return
         }
 
-        await exec(['bun', 'run', 'build'])
-        await exec(['bun', 'x', 'tsc', '--noEmit'])
+        await exec(['bun', 'run', 'build'], { env })
+        await exec(['bun', 'x', 'tsc', '--noEmit'], { env })
       }
     },
 
     // Stage: Bundle
     {
       name: 'bundle',
-      dependsOn: ['build'],
+      dependsOn: ['build', 'copy_files'],
       run: async () => {
         // Detect entrypoint
         const entrypoints = ['/output/source/index.ts', '/output/source/main.ts']
@@ -108,28 +112,27 @@ const pipeline: Pipeline = {
           throw new Error('No entry point found. Expected "main" field in package.json or one of index.ts, main.ts')
         }
 
-        await exec([
-          'bun',
-          'build',
-          entrypoint,
-          '--outdir',
-          '/output/artifacts',
-          '--target',
-          'bun',
-          '--minify',
-          '--bytecode',
-          '--sourcemap'
-        ])
+        await exec(
+          [
+            'bun',
+            'build',
+            entrypoint,
+            '--outdir',
+            '/output/artifacts',
+            '--target',
+            'bun',
+            '--minify',
+            '--bytecode',
+            '--sourcemap'
+          ],
+          { env }
+        )
 
         // Verify output was produced
         const outFiles = await fs.readdir('/output/artifacts')
         if (outFiles.length === 0) {
           throw new Error('bun build produced no output files')
         }
-
-        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
-        console.log('Copying project files to output artifacts...')
-        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 
@@ -150,7 +153,7 @@ const pipeline: Pipeline = {
       name: 'install_dependencies',
       dependsOn: ['copy_files'],
       run: async () => {
-        await exec(['bun', 'install', '--production', '--frozen-lockfile'], { cwd: '/output/artifacts' })
+        await exec(['bun', 'install', '--production', '--frozen-lockfile'], { cwd: '/output/artifacts', env })
       }
     }
   ]
