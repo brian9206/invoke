@@ -146,7 +146,7 @@ static void handle_build(IpcChannel& ipc, const SupervisorConfig& config, const 
     pid_t worker_pid = sandbox_start_worker(
         sandbox_dir,
         "bld-" + build_id,
-        {"/usr/local/bin/bun", WORKER_PATH, "--smol", "--", "builder"},
+        {"/usr/local/bin/bun", WORKER_PATH,  "--", "builder"},
         build_memory_bytes,
         config.worker_uid,
         config.worker_gid,
@@ -233,7 +233,7 @@ static void handle_execute(IpcChannel& ipc, const SupervisorConfig& config, cons
     std::vector<const char *> argv;
 
     if (runtime == "bun") {
-      argv = {"/usr/local/bin/bun", WORKER_PATH, "--smol", "--", "index.js"};
+      argv = {"/usr/local/bin/bun", WORKER_PATH, "--", "index.js"};
     }
     else {
       argv = {"/app/program"};
