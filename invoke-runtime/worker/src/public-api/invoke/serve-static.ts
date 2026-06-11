@@ -95,22 +95,50 @@ export interface ServeStaticOptions {
 
 export default function createServeStaticHandler(root: string, options?: ServeStaticOptions): InvokeHandler {
   const handler = serveStatic(root, options as any)
+
   return (req: InvokeRequest, res: InvokeResponse, next: InvokeHandlerCallback) => {
-    handler(req as any, res as any, (err?: any) => {
-      if (options?.fallthrough) {
-        next(err)
-      } else if (err) {
-        console.error('[worker] Error in invoke.serve.static handler:', err)
-        res.status(500).json({
-          success: false,
-          message: 'Internal Server Error'
-        })
-      } else {
+    return new Promise<void>(resolve => {
+      let settled = false
+
+      const settle = () => {
+        if (settled) return
+        settled = true
+        res.off('finish', onFinish)
+        resolve()
+      }
+
+      const onFinish = () => {
+        settle()
+      }
+
+      res.once('finish', onFinish)
+
+      handler(req as any, res as any, async (err?: any) => {
+        if (options?.fallthrough) {
+          try {
+            await next(err)
+          } finally {
+            settle()
+          }
+          return
+        }
+
+        if (err) {
+          console.error('[worker] Error in invoke.serve.static handler:', err)
+          res.status(500).json({
+            success: false,
+            message: 'Internal Server Error'
+          })
+          settle()
+          return
+        }
+
         // If not using fallthrough mode, we should send a 404 if the file is not found
         if (!res.headersSent) {
           res.status(404).set('Content-Type', 'text/html').send(default404)
         }
-      }
+        settle()
+      })
     })
   }
 }

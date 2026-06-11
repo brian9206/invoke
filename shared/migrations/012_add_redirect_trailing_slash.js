@@ -5,7 +5,7 @@ module.exports = {
     await queryInterface.addColumn('api_gateway_routes', 'redirect_trailing_slash', {
       type: 'BOOLEAN',
       allowNull: false,
-      defaultValue: true
+      defaultValue: false
     })
   },
 
