@@ -3,6 +3,10 @@ import path from 'path'
 import { copyRecursive, exec } from '../utils'
 import { Pipeline } from '../types'
 
+const env = {
+  BUN_INSTALL_CACHE_DIR: '/output/tmp/.bun/install/cache'
+}
+
 const pipeline: Pipeline = {
   name: 'bun-javascript',
   stages: [
@@ -10,7 +14,7 @@ const pipeline: Pipeline = {
     {
       name: 'install_dev_dependencies',
       run: async () => {
-        await exec(['bun', 'install', '--no-save'])
+        await exec(['bun', 'install', '--no-save'], { env })
       }
     },
 
@@ -34,7 +38,7 @@ const pipeline: Pipeline = {
           return
         }
 
-        await exec(['bun', 'run', 'build'])
+        await exec(['bun', 'run', 'build'], { env })
       }
     },
 
@@ -74,28 +78,27 @@ const pipeline: Pipeline = {
           throw new Error('No entry point found. Expected "main" field in package.json or one of index.js, main.js')
         }
 
-        await exec([
-          'bun',
-          'build',
-          entrypoint,
-          '--outdir',
-          '/output/artifacts',
-          '--target',
-          'bun',
-          '--minify',
-          '--bytecode',
-          '--sourcemap'
-        ])
+        await exec(
+          [
+            'bun',
+            'build',
+            entrypoint,
+            '--outdir',
+            '/output/artifacts',
+            '--target',
+            'bun',
+            '--minify',
+            '--bytecode',
+            '--sourcemap'
+          ],
+          { env }
+        )
 
         // Verify output was produced
         const outFiles = await fs.readdir('/output/artifacts')
         if (outFiles.length === 0) {
           throw new Error('bun build produced no output files')
         }
-
-        // Copy everything from /output/source to /output/artifacts (except node_modules) so that user code can require() them
-        console.log('Copying project files to output artifacts...')
-        await copyRecursive('/output/source', '/output/artifacts', { exclude: ['node_modules'] })
       }
     },
 
@@ -116,7 +119,7 @@ const pipeline: Pipeline = {
       name: 'install_dependencies',
       dependsOn: ['copy_files'],
       run: async () => {
-        await exec(['bun', 'install', '--production', '--frozen-lockfile'], { cwd: '/output/artifacts' })
+        await exec(['bun', 'install', '--production', '--frozen-lockfile'], { cwd: '/output/artifacts', env })
       }
     }
   ]

@@ -63,7 +63,7 @@ class ExecutionServer {
 
     this.app.set('trust proxy', trustProxy)
 
-    this.app.use(helmet())
+    this.app.use(helmet({ contentSecurityPolicy: false }))
 
     const limiter = rateLimit({
       windowMs: 15 * 60 * 1000,

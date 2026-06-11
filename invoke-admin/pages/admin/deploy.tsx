@@ -237,7 +237,7 @@ export default function DeployFunction() {
             <Section title='Code' open={codeOpen} onToggle={() => setCodeOpen(v => !v)}>
               <div className='grid grid-cols-2 gap-4'>
                 <div className='space-y-1.5'>
-                  <Label htmlFor='language'>Language</Label>
+                  <Label htmlFor='language'>Technology</Label>
                   <Select value={language} onValueChange={handleLanguageChange}>
                     <SelectTrigger id='language' className='h-9'>
                       <SelectValue />

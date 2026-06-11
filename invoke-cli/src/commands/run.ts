@@ -94,8 +94,16 @@ async function runBun(absoluteFnDir: string, requestData: RequestData, options: 
   const req = createReqObject(requestData)
   const { res, state } = createResObject(req)
 
-  const result = handler(req, res)
-  if (result && typeof result.then === 'function') {
+  const result = handler(req, res, (err?: any) => {
+    if (err) {
+      console.error('[worker] Error in user function callback:', err)
+      res.status(500).json({
+        success: false,
+        message: 'Internal Server Error'
+      })
+    }
+  })
+  if (result && typeof (result as unknown as any).then === 'function') {
     await result
   }
 
@@ -377,6 +385,8 @@ export function register(program: Command): void {
 
       const requestData = buildRequestData(options)
 
+      const start = Date.now()
+
       // Detect runtime
       try {
         if (fs.readdirSync(absoluteFnDir).some(f => f.endsWith('.csproj'))) {
@@ -396,6 +406,9 @@ export function register(program: Command): void {
         console.error(chalk.red('✗ Execution failed:'), err.message)
         if (err.stack) console.error(chalk.gray(err.stack))
         process.exitCode = 1
+      } finally {
+        const duration = ((Date.now() - start) / 1000).toFixed(2)
+        console.log(chalk.gray(`\nExecution finished in ${duration}s`))
       }
     })
 }

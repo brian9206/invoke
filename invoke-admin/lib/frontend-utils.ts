@@ -114,7 +114,7 @@ export async function getFunctionBaseUrl(): Promise<string> {
  */
 export async function getFunctionUrl(functionId: string): Promise<string> {
   const baseUrl = await getFunctionBaseUrl()
-  return joinUri(baseUrl, 'invoke', functionId)
+  return joinUri(baseUrl, 'invoke', functionId) + '/'
 }
 
 /**

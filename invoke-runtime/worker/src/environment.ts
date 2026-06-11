@@ -1,15 +1,14 @@
 import fs from 'fs/promises'
 import path from 'path'
 import type { IIpcChannel } from './protocol'
-import type { InvokeRequest, InvokeResponse } from './public-api/exchange'
+import type { InvokeHandler } from './public-api/exchange'
 import { setupKvGlobal } from './public-api/kv'
 import { setupRealtimeGlobal } from './public-api/realtime'
 import { setupRouterGlobal } from './public-api/router'
 import { setupSleepGlobal } from './public-api/sleep'
 import { setupLoggerGlobal } from './public-api/logger/pino'
+import { setupGlobals } from './public-api/invoke'
 import { setupBunSql } from './sql'
-
-type UserFunction = (req: InvokeRequest, res: InvokeResponse) => Promise<void> | void
 
 export function setupEnvironment(ipc: IIpcChannel): void {
   // Expose Pino
@@ -27,11 +26,14 @@ export function setupEnvironment(ipc: IIpcChannel): void {
   // Expose Router class on globalThis for user code
   setupRouterGlobal()
 
+  // Expose invoke
+  setupGlobals()
+
   // Patch Bun.sql
   setupBunSql()
 }
 
-export async function loadUserCode(packagePath: string): Promise<UserFunction> {
+export async function loadUserCode(packagePath: string): Promise<InvokeHandler> {
   // find index.js first
   let entryPoint = path.resolve(packagePath, 'index.js')
 

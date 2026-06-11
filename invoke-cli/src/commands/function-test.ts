@@ -73,7 +73,7 @@ export function register(program: Command): void {
 
         // Build execution URL with optional path
         const executionUrl = getExecutionUrl()
-        const pathSuffix = options.path || ''
+        const pathSuffix = options.path || '/'
         const url = joinUri(executionUrl, 'invoke', fn.id, pathSuffix)
 
         console.log(chalk.cyan('\n⚡ Executing...\n'))

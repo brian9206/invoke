@@ -1137,13 +1137,11 @@ export default async function handler(req: any, res: any) {
     console.error('Network request failed:', { error: error.message, stack: error.stack })
 
     if (error.message.includes('fetch') || error.message.includes('network')) {
-      return res
-        .status(502)
-        .json({
-          error: 'Network request failed',
-          message: 'Check network policies in admin panel',
-          details: error.message
-        })
+      return res.status(502).json({
+        error: 'Network request failed',
+        message: 'Check network policies in admin panel',
+        details: error.message
+      })
     }
 
     res.status(500).json({ error: 'Request failed', message: error.message })

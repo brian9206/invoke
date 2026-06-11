@@ -1240,7 +1240,9 @@ export default function FunctionDetails() {
                         <dd>{functionData.project_name}</dd>
                       </div>
                       <div className='flex flex-col gap-0.5'>
-                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>Language</dt>
+                        <dt className='text-xs font-medium text-muted-foreground uppercase tracking-wide'>
+                          Technology
+                        </dt>
                         <dd>
                           {functionData.language
                             ? (languageDisplayNames[functionData.language] ?? functionData.language)

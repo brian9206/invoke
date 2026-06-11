@@ -39,6 +39,11 @@ module.exports = sequelize => {
         allowNull: false,
         defaultValue: true
       },
+      redirect_trailing_slash: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+      },
       // auth_logic added in migration 004
       auth_logic: {
         type: DataTypes.STRING(3),

@@ -38,7 +38,7 @@ function buildGatewayHeaders(clientIp = '', extraHeaders: Record<string, string>
  * Build the invocation URL for a given function.
  */
 function buildInvokeUrl(functionId: string, pathSuffix = '', query: Record<string, string> = {}): string {
-  const suffix = pathSuffix || ''
+  const suffix = pathSuffix || '/'
   const base = `/invoke/${functionId}${suffix}`
   const qs = new URLSearchParams(query).toString()
   return qs ? `${base}?${qs}` : base

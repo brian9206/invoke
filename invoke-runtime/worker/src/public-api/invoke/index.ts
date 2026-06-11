@@ -1,0 +1,41 @@
+import serveStatic from './serve-static'
+import serveSpa from './serve-spa'
+import type { ServeStaticOptions } from './serve-static'
+import type { ServeSpaOptions } from './serve-spa'
+import type { InvokeHandler } from '../exchange'
+
+interface InvokeServe {
+  /**
+   * Create a new handler function to serve files from within a given root directory. The file to serve will be determined by combining req.url with the provided root directory. When a file is not found, this handler will send a default 404 response unless `options.fallthrough` is enabled, in which case it will call next() to continue to the next middleware.
+   */
+  static(root: string, options?: ServeStaticOptions): InvokeHandler
+
+  /**
+   * Create a new handler function to serve a single-page application (SPA) from within a given root directory. The SPA handler will use the HTML5 history API fallback to serve the index file for all non-file requests.
+   */
+  spa(root: string, options?: ServeSpaOptions): InvokeHandler
+}
+
+const invoke: { serve: InvokeServe } = {
+  serve: {
+    static: serveStatic,
+    spa: serveSpa
+  }
+}
+export default invoke
+
+export type InvokeGlobals = typeof invoke
+
+declare global {
+  /** Globals. */
+  var invoke: InvokeGlobals
+}
+
+/**
+ * Expose InvokeGlobals as a global so user
+ * code can use `invoke` without any imports.
+ * @internal
+ */
+export function setupGlobals(): void {
+  globalThis.invoke = invoke
+}

@@ -22,7 +22,8 @@ import {
   EyeOff,
   Zap,
   Copy,
-  Check
+  Check,
+  Info
 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/frontend-utils'
 import { useProject } from '@/contexts/ProjectContext'
@@ -42,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/cn'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ interface GatewayRoute {
   allowedMethods: string[]
   sortOrder: number
   isActive: boolean
+  redirectTrailingSlash: boolean
   createdAt: string
   updatedAt: string
   corsSettings: CorsSettings
@@ -454,6 +457,7 @@ function RouteEditorModal({
   const [functionId, setFunctionId] = useState<string>('')
   const [allowedMethods, setAllowedMethods] = useState<string[]>(['GET', 'POST'])
   const [isActive, setIsActive] = useState(true)
+  const [redirectTrailingSlash, setRedirectTrailingSlash] = useState(true)
   const [cors, setCors] = useState<CorsSettings>(defaultCors())
   const [selectedAuthMethodIds, setSelectedAuthMethodIds] = useState<string[]>([])
   const [authLogic, setAuthLogic] = useState<'or' | 'and'>('or')
@@ -470,6 +474,7 @@ function RouteEditorModal({
       setFunctionId(functionExists ? routeFunctionId : '')
       setAllowedMethods(route.allowedMethods || ['GET', 'POST'])
       setIsActive(route.isActive !== undefined ? route.isActive : true)
+      setRedirectTrailingSlash(route.redirectTrailingSlash !== undefined ? route.redirectTrailingSlash : false)
       setCors(route.corsSettings ? { ...route.corsSettings } : defaultCors())
       setSelectedAuthMethodIds(route.authMethodIds ? [...route.authMethodIds] : [])
       setAuthLogic(route.authLogic || 'or')
@@ -502,6 +507,7 @@ function RouteEditorModal({
         functionId: functionId || null,
         allowedMethods,
         isActive,
+        redirectTrailingSlash,
         corsSettings: cors,
         authMethodIds: selectedAuthMethodIds,
         authLogic
@@ -620,6 +626,28 @@ function RouteEditorModal({
             Route is active
           </Label>
         </div>
+
+        {/* Redirect Trailing Slash Toggle */}
+        {allowedMethods.includes('GET') && (
+          <div className='flex items-center gap-2'>
+            <Switch
+              id='redirectTrailingSlash'
+              checked={redirectTrailingSlash}
+              onCheckedChange={setRedirectTrailingSlash}
+            />
+            <Label htmlFor='redirectTrailingSlash' className='cursor-pointer'>
+              Automatic redirect to trailing slash URL
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className='w-3.5 h-3.5 text-muted-foreground cursor-help' />
+                </TooltipTrigger>
+                <TooltipContent>Only applies to GET requests</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
 
         {/* CORS Settings */}
         <Collapsible open={corsOpen} onOpenChange={setCorsOpen}>
