@@ -119,7 +119,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
           allowed_methods: allowedMethods || ['GET', 'POST'],
           sort_order: nextOrder,
           is_active: isActive !== undefined ? isActive : true,
-          redirect_trailing_slash: redirectTrailingSlash !== undefined ? redirectTrailingSlash : true,
+          redirect_trailing_slash: redirectTrailingSlash !== undefined ? redirectTrailingSlash : false,
           auth_logic: authLogic === 'and' ? 'and' : 'or'
         },
         { transaction: t }

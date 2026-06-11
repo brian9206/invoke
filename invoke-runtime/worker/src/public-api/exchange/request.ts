@@ -3,7 +3,6 @@
 // ============================================================================
 
 import { EventEmitter } from 'events'
-import { Readable } from 'stream'
 
 /** @internal */
 import type { RequestData } from '../../protocol'
@@ -202,9 +201,6 @@ export class InvokeRequest extends EventEmitter {
         if (matchMimeType(acceptType.type, providedType)) {
           return providedType
         }
-        // Also try with mime.lookup
-        const resolved = matchMimeType(acceptType.type, providedType)
-        if (resolved) return providedType
       }
     }
 

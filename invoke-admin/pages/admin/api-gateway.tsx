@@ -474,7 +474,7 @@ function RouteEditorModal({
       setFunctionId(functionExists ? routeFunctionId : '')
       setAllowedMethods(route.allowedMethods || ['GET', 'POST'])
       setIsActive(route.isActive !== undefined ? route.isActive : true)
-      setRedirectTrailingSlash(route.redirectTrailingSlash !== undefined ? route.redirectTrailingSlash : true)
+      setRedirectTrailingSlash(route.redirectTrailingSlash !== undefined ? route.redirectTrailingSlash : false)
       setCors(route.corsSettings ? { ...route.corsSettings } : defaultCors())
       setSelectedAuthMethodIds(route.authMethodIds ? [...route.authMethodIds] : [])
       setAuthLogic(route.authLogic || 'or')

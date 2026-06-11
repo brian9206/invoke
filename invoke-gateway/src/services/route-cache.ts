@@ -253,7 +253,7 @@ async function refresh(): Promise<void> {
           functionId: route.function_id as string,
           allowedMethods: (route.allowed_methods as string[]) || ['GET', 'POST'],
           sortOrder: route.sort_order as number,
-          redirectTrailingSlash: (route.redirect_trailing_slash as boolean) ?? true,
+          redirectTrailingSlash: (route.redirect_trailing_slash as boolean) ?? false,
           matchFn: compilePattern(route.route_path as string),
           corsSettings: {
             enabled: (settings.cors_enabled as boolean) || false,
