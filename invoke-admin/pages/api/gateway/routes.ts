@@ -56,6 +56,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         allowedMethods: raw.allowed_methods,
         sortOrder: raw.sort_order,
         isActive: raw.is_active,
+        redirectTrailingSlash: raw.redirect_trailing_slash ?? false,
         createdAt: raw.created_at,
         updatedAt: raw.updated_at,
         corsSettings: {
@@ -80,7 +81,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    const { routePath, functionId, allowedMethods, corsSettings, authMethodIds, authLogic } = req.body
+    const {
+      routePath,
+      functionId,
+      allowedMethods,
+      isActive,
+      redirectTrailingSlash,
+      corsSettings,
+      authMethodIds,
+      authLogic
+    } = req.body
 
     if (!routePath || typeof routePath !== 'string') {
       return res.status(400).json(createResponse(false, null, 'routePath is required', 400))
@@ -108,6 +118,8 @@ async function handler(req: AuthenticatedRequest, res: any) {
           function_id: functionId || null,
           allowed_methods: allowedMethods || ['GET', 'POST'],
           sort_order: nextOrder,
+          is_active: isActive !== undefined ? isActive : true,
+          redirect_trailing_slash: redirectTrailingSlash !== undefined ? redirectTrailingSlash : true,
           auth_logic: authLogic === 'and' ? 'and' : 'or'
         },
         { transaction: t }

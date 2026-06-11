@@ -197,6 +197,20 @@ router.all('/{*path}', async (req: Request, res: Response) => {
     const { route, params } = resolved
     const projectId = resolved.projectConfig.projectId
 
+    if (
+      req.method === 'GET' &&
+      route.redirectTrailingSlash &&
+      route.allowedMethods.includes(req.method.toUpperCase()) &&
+      !req.path.endsWith('/')
+    ) {
+      // Redirect to trailing slash version of the URL for GET requests to root path
+      const queryString =
+        Object.keys(req.query).length > 0
+          ? `?${new URLSearchParams(req.query as Record<string, string>).toString()}`
+          : ''
+      return res.redirect(302, `${req.baseUrl}${req.path}/${queryString}`)
+    }
+
     if (req.method !== 'OPTIONS' && !route.allowedMethods.includes(req.method.toUpperCase())) {
       res.setHeader('Allow', route.allowedMethods.join(', '))
       return res.status(405).json({

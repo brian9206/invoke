@@ -67,6 +67,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
           allowedMethods: raw.allowed_methods,
           sortOrder: raw.sort_order,
           isActive: raw.is_active,
+          redirectTrailingSlash: raw.redirect_trailing_slash ?? false,
           createdAt: raw.created_at,
           updatedAt: raw.updated_at,
           corsSettings: {
@@ -91,7 +92,16 @@ async function handler(req: AuthenticatedRequest, res: any) {
       return res.status(403).json(createResponse(false, null, 'Write access required', 403))
     }
 
-    const { routePath, functionId, allowedMethods, isActive, corsSettings, authMethodIds, authLogic } = req.body
+    const {
+      routePath,
+      functionId,
+      allowedMethods,
+      isActive,
+      redirectTrailingSlash,
+      corsSettings,
+      authMethodIds,
+      authLogic
+    } = req.body
 
     await database.sequelize.transaction(async (t: any) => {
       const { ApiGatewayRouteSettings } = database.models
@@ -100,6 +110,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         functionId !== undefined ||
         allowedMethods !== undefined ||
         isActive !== undefined ||
+        redirectTrailingSlash !== undefined ||
         authLogic !== undefined
       ) {
         const routeUpdates: any = {}
@@ -107,6 +118,7 @@ async function handler(req: AuthenticatedRequest, res: any) {
         if (functionId !== undefined) routeUpdates.function_id = functionId || null
         if (allowedMethods !== undefined) routeUpdates.allowed_methods = allowedMethods
         if (isActive !== undefined) routeUpdates.is_active = isActive
+        if (redirectTrailingSlash !== undefined) routeUpdates.redirect_trailing_slash = redirectTrailingSlash
         if (authLogic !== undefined) routeUpdates.auth_logic = authLogic === 'and' ? 'and' : 'or'
         routeUpdates.updated_at = new Date()
         await ApiGatewayRoute.update(routeUpdates, { where: { id }, transaction: t })

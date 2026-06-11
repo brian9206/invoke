@@ -23,6 +23,7 @@ export interface RouteEntry {
   functionId: string
   allowedMethods: string[]
   sortOrder: number
+  redirectTrailingSlash: boolean
   matchFn: MatchFunction<Record<string, string>> | null
   corsSettings: CorsSettings
   authMethods: AuthMethodEntry[]
@@ -56,6 +57,7 @@ export interface ResolvedRoute {
   route: RouteEntry
   params: Record<string, string>
   pathSuffix: string
+  path: string
 }
 
 export interface CacheStatus {
@@ -251,6 +253,7 @@ async function refresh(): Promise<void> {
           functionId: route.function_id as string,
           allowedMethods: (route.allowed_methods as string[]) || ['GET', 'POST'],
           sortOrder: route.sort_order as number,
+          redirectTrailingSlash: (route.redirect_trailing_slash as boolean) ?? true,
           matchFn: compilePattern(route.route_path as string),
           corsSettings: {
             enabled: (settings.cors_enabled as boolean) || false,
@@ -354,7 +357,8 @@ function resolveRoute(hostname: string, requestPath: string, gatewayDomain: stri
         projectConfig,
         route,
         params: result.params,
-        pathSuffix
+        pathSuffix,
+        path: pathToMatch
       }
     }
   }

@@ -168,16 +168,15 @@ RouterFactory.prototype._add = function (
  */
 RouterFactory.prototype._dispatch = function (req: any, res: any): Promise<void> {
   const self = this
-  return new Promise<void>(function (resolve) {
+  return new Promise<void>(function (resolve, reject) {
     const stack: Layer[] = self._stack
     let idx = 0
     const path: string = req.path || (req.url ? req.url.split('?')[0] : '/') || '/'
     const method: string = (req.method || 'GET').toUpperCase()
 
     function done(err?: unknown): void {
-      if (err && !res.headersSent) {
-        const msg = err instanceof Error ? err.message : String(err)
-        res.status(500).json({ success: false, message: msg })
+      if (err) {
+        reject(err)
       } else if (!res.headersSent) {
         res.status(404).json({ success: false, message: 'Cannot ' + method + ' ' + path })
       }

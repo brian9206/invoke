@@ -196,6 +196,15 @@ router.all(
         traceId
       })
 
+      // Redirect non-trailing slash to trailing slash for root path GET requests
+      if (req.method === 'GET' && executionContext.req.path === '/' && !req.path.endsWith('/')) {
+        const queryString =
+          Object.keys(req.query).length > 0
+            ? `?${new URLSearchParams(req.query as Record<string, string>).toString()}`
+            : ''
+        return res.redirect(302, `${req.baseUrl}${req.path}/${queryString}`)
+      }
+
       let t2 = Date.now()
       const result = await executeFunction(packageInfo.indexPath, executionContext, functionId, metadata)
       const executeTime = Date.now() - t2
