@@ -6,7 +6,7 @@ import type { InvokeHandler } from '../exchange'
 
 interface InvokeServe {
   /**
-   * Create a new handler function to serve files from within a given root directory. The file to serve will be determined by combining req.url with the provided root directory. When a file is not found, instead of sending a 404 response, this module will instead call next() to move on to the next middleware, allowing for stacking and fall-backs.
+   * Create a new handler function to serve files from within a given root directory. The file to serve will be determined by combining req.url with the provided root directory. When a file is not found, this handler will send a default 404 response unless `options.fallthrough` is enabled, in which case it will call next() to continue to the next middleware.
    */
   static(root: string, options?: ServeStaticOptions): InvokeHandler
 

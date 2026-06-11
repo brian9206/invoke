@@ -200,7 +200,7 @@ router.all('/{*path}', async (req: Request, res: Response) => {
     if (
       req.method === 'GET' &&
       route.redirectTrailingSlash &&
-      route.allowedMethods.includes(req.method.toUpperCase()) &&
+      route.allowedMethods.includes(req.method.toUpperCase()) && resolved.pathSuffix === '' &&
       !req.path.endsWith('/')
     ) {
       // Redirect to trailing slash version of the URL for GET requests to root path
