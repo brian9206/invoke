@@ -150,7 +150,7 @@ export function register(program: Command): void {
         console.log(chalk.white(`  cd ${resolvedDirPath}`))
         console.log(
           chalk.white(
-            `  invoke function:deploy . --name ${name} --project <project> --language ${languageName} --runtime ${runtimeName}`
+            `  invoke function:deploy . --function @<project-slug>/${name} --language ${languageName} --runtime ${runtimeName}`
           )
         )
       } catch (error: any) {

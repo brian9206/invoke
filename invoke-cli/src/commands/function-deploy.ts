@@ -3,22 +3,28 @@ import fs from 'fs'
 import type { Command } from 'commander'
 import { post } from '../services/api-client'
 import { prepareUpload } from '../services/file-utils'
-import { resolveProjectId, findFunctionByNameAndProject } from '../services/helpers'
+import { parseSluggedName, resolveProjectId, findFunctionByNameAndProject } from '../services/helpers'
+import { getBaseUrl } from '../services/config'
 
 export function register(program: Command): void {
   program
     .command('function:deploy')
     .description('Create a function if it does not exist, then upload and activate a new version (smart upsert)')
     .argument('[path]', 'Path to function directory or zip file', '.')
-    .requiredOption('--name <name>', 'Function name')
-    .requiredOption('--project <id>', 'Project ID or name')
-    .requiredOption('--language <language>', 'Language (e.g. javascript, typescript, csharp)')
-    .requiredOption('--runtime <runtime>', 'Runtime (e.g. bun, dotnet)')
+    .requiredOption('--function <name>', 'Function name as @project-slug/function-name or function-name')
+    .option('--language <language>', 'Language (e.g. javascript, typescript, csharp)')
+    .option('--runtime <runtime>', 'Runtime (e.g. bun, dotnet)')
     .option('--description <text>', 'Function description (used on creation only)')
     .option('--output <format>', 'Output format (table|json)', 'table')
     .action(async (functionPath: string, options: any) => {
       try {
-        options.project = await resolveProjectId(options.project)
+        const parsedName = parseSluggedName(options.function)
+        if (!parsedName) {
+          throw new Error('Function must be in format @project-slug/function-name or use default project')
+        }
+
+        options.name = parsedName.functionName
+        options.project = await resolveProjectId(`@${parsedName.projectSlug}`)
 
         // Step 1: Check if the function already exists
         const existing = await findFunctionByNameAndProject(options.name, options.project)
@@ -46,6 +52,7 @@ export function register(program: Command): void {
             }
 
             const versionNumber = uploadData.data.version
+            const buildId = uploadData.data.build_id
 
             if (options.output !== 'json') {
               console.log(chalk.green(`✅ Code uploaded as version ${versionNumber}`))
@@ -82,12 +89,17 @@ export function register(program: Command): void {
               console.log(`Name:    ${options.name}`)
               console.log(`Version: ${versionNumber}`)
               console.log(`Action:  Updated (new version deployed)`)
+              console.log(`\n📊 View build status: ${getBaseUrl()}/admin/builds/${buildId}`)
             }
           } finally {
             cleanup()
           }
         } else {
           // ── Create path: use the unified deploy API ──────────────────────
+          if (!options.language || !options.runtime) {
+            throw new Error('--language and --runtime are required when creating a new function')
+          }
+
           if (options.output !== 'json') {
             console.log(chalk.cyan(`Function "${options.name}" not found. Creating...`))
           }
@@ -110,7 +122,7 @@ export function register(program: Command): void {
               process.exit(1)
             }
 
-            const { id: functionId, version } = deployData.data
+            const { id: functionId, version, build_id: buildId } = deployData.data
 
             if (options.output === 'json') {
               console.log(
@@ -134,6 +146,7 @@ export function register(program: Command): void {
                   '\n⏳ A build has been queued. The function will activate automatically when the build completes.'
                 )
               )
+              console.log(`\n📊 View build status: ${getBaseUrl()}/admin/builds/${buildId}`)
             }
           } finally {
             cleanup()

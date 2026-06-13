@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from 'axios'
+import axios, { AxiosError, AxiosRequestConfig } from 'axios'
 import FormData from 'form-data'
 import fs from 'fs'
 import { joinUri } from 'invoke-shared/uri'
@@ -11,20 +11,43 @@ async function request(method: string, endpoint: string, data?: any, options: Ax
   const apiKey = getApiKey()
   const baseUrl = getBaseUrl()
 
+  // Only set default Content-Type if not already set (e.g., by FormData)
+  const headers: any = {
+    ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+    ...(options.headers || {})
+  }
+
+  // Only add default JSON content-type if not already specified
+  if (!headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json'
+  }
+
   const config: AxiosRequestConfig = {
     method,
     url: joinUri(baseUrl, endpoint),
-    headers: {
-      'Content-Type': 'application/json',
-      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
-      ...(options.headers || {})
-    },
     ...options,
+    headers,
     ...(data ? { data } : {})
   }
 
-  const response = await axios(config)
-  return response.data
+  try {
+    const response = await axios(config)
+    return response.data
+  } catch (error: any) {
+    const axiosError = error as AxiosError<any>
+    const status = axiosError.response?.status
+    const apiMessage = axiosError.response?.data?.message
+
+    if (status === 401) {
+      throw new Error(apiMessage || 'Unauthorized (401). Check INVOKE_API_KEY or run `invoke config set apiKey <key>`.')
+    }
+
+    if (status && apiMessage) {
+      throw new Error(`${apiMessage} (${status})`)
+    }
+
+    throw error
+  }
 }
 
 /**

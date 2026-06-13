@@ -1,6 +1,22 @@
 import * as api from './api-client'
 import { loadConfig } from './config'
 
+function unwrapListResponse(response: any, entityName: string): any[] {
+  if (Array.isArray(response)) {
+    return response
+  }
+
+  if (response && typeof response === 'object' && 'success' in response && response.success === false) {
+    throw new Error(response.message || `Failed to fetch ${entityName}`)
+  }
+
+  if (response && Array.isArray(response.data)) {
+    return response.data
+  }
+
+  return []
+}
+
 /**
  * Parse `@slug/functionName` syntax.
  * Returns { projectSlug, functionName } or null if not matching.
@@ -15,7 +31,8 @@ function parseSluggedName(input: string): { projectSlug: string; functionName: s
  * Resolve a project slug to its ID via the API.
  */
 async function resolveProjectBySlug(slug: string): Promise<string> {
-  const projects = await api.get(`/api/projects?slug=${encodeURIComponent(slug)}`)
+  const response = await api.get('/api/projects', { slug })
+  const projects = unwrapListResponse(response, 'projects')
 
   if (!projects || projects.length === 0) {
     throw new Error(`Project with slug "${slug}" not found`)
@@ -37,9 +54,11 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
   const parsed = parseSluggedName(nameOrId)
   if (parsed) {
     const projectId = await resolveProjectBySlug(parsed.projectSlug)
-    const functions = await api.get(
-      `/api/functions?name=${encodeURIComponent(parsed.functionName)}&projectId=${projectId}`
-    )
+    const response = await api.get('/api/functions', {
+      name: parsed.functionName,
+      project_id: projectId
+    })
+    const functions = unwrapListResponse(response, 'functions')
 
     if (!functions || functions.length === 0) {
       throw new Error(`Function "${parsed.functionName}" not found in project "@${parsed.projectSlug}"`)
@@ -56,7 +75,11 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
     throw new Error('No project selected. Use --project or set a default project with `invoke config set project <id>`')
   }
 
-  const functions = await api.get(`/api/functions?name=${encodeURIComponent(nameOrId)}&projectId=${projectId}`)
+  const response = await api.get('/api/functions', {
+    name: nameOrId,
+    project_id: projectId
+  })
+  const functions = unwrapListResponse(response, 'functions')
 
   if (!functions || functions.length === 0) {
     throw new Error(`Function "${nameOrId}" not found in current project`)
@@ -73,7 +96,11 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
  * Find a function by name and project ID
  */
 async function findFunctionByNameAndProject(name: string, projectId: string): Promise<any> {
-  const functions = await api.get(`/api/functions?name=${encodeURIComponent(name)}&projectId=${projectId}`)
+  const response = await api.get('/api/functions', {
+    name,
+    project_id: projectId
+  })
+  const functions = unwrapListResponse(response, 'functions')
 
   if (!functions || functions.length === 0) {
     return null
@@ -95,12 +122,14 @@ async function resolveProjectId(nameOrId: string): Promise<string> {
   const cleaned = nameOrId.startsWith('@') ? nameOrId.slice(1) : nameOrId
 
   // Try slug first, then fall back to name
-  const bySlug = await api.get(`/api/projects?slug=${encodeURIComponent(cleaned)}`)
+  const bySlugResponse = await api.get('/api/projects', { slug: cleaned })
+  const bySlug = unwrapListResponse(bySlugResponse, 'projects')
   if (bySlug && bySlug.length > 0) {
     return bySlug[0].id
   }
 
-  const byName = await api.get(`/api/projects?name=${encodeURIComponent(cleaned)}`)
+  const byNameResponse = await api.get('/api/projects', { name: cleaned })
+  const byName = unwrapListResponse(byNameResponse, 'projects')
   if (byName && byName.length > 0) {
     return byName[0].id
   }
@@ -108,4 +137,4 @@ async function resolveProjectId(nameOrId: string): Promise<string> {
   throw new Error(`Project "${nameOrId}" not found`)
 }
 
-export { resolveFunctionId, findFunctionByNameAndProject, resolveProjectId }
+export { parseSluggedName, resolveFunctionId, findFunctionByNameAndProject, resolveProjectId }

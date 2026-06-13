@@ -209,7 +209,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     // Enqueue build
     const { FunctionBuild } = database.models as any
     const pipeline = resolveBuildPipeline(language, rt)
-    await FunctionBuild.create({
+    const build = await FunctionBuild.create({
       function_id: functionId,
       version_id: firstVersion.id,
       status: 'queued',
@@ -233,7 +233,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       .json(
         createResponse(
           true,
-          { id: functionId, name: functionName, version, file_size: uploadResult.size },
+          { id: functionId, name: functionName, version, file_size: uploadResult.size, build_id: build.id },
           'Function deployed successfully',
           201
         )

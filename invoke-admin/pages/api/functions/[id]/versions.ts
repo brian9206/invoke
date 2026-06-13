@@ -281,7 +281,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
         // Enqueue build for the new version
         const { FunctionBuild } = database.models as any
         const pipeline = resolveBuildPipeline((fn as any).language ?? 'javascript', (fn as any).runtime ?? 'bun')
-        await FunctionBuild.create({
+        const build = await FunctionBuild.create({
           function_id: functionId,
           version_id: newVersion.id,
           status: 'queued',
@@ -297,7 +297,8 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
             {
               id: newVersion.id,
               version: newVersion.version,
-              functionId: functionId
+              functionId: functionId,
+              build_id: build.id
             },
             `Version ${nextVersion} uploaded successfully`
           )
