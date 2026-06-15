@@ -10,6 +10,7 @@ import { createNotifyListener } from 'invoke-shared'
 import database from './database'
 import { getSandboxPool, BUILD_TEMP_DIR } from './sandbox-pool'
 import { insertBuildLog } from './logger-client'
+import { exec } from 'child_process'
 const { s3Service } = require('invoke-shared')
 
 const BUILD_TIMEOUT_MS = parseInt(process.env.BUILD_TIMEOUT_MINUTES || '5', 10) * 60 * 1000
@@ -153,7 +154,12 @@ export class BuildService {
       // Create artifact output dir
       const artifactDir = path.join(buildTempDir, 'output')
       await fs.ensureDir(artifactDir)
-      await fs.chmod(artifactDir, 0o777) // ensure write permissions for sandbox user
+
+      // Recursively set owner of build and chmod 777
+      await new Promise(resolve =>
+        exec(`chown -R 65534:65534 "${path.resolve(buildTempDir).replaceAll('"', '\\"')}"`, resolve)
+      )
+      await new Promise(resolve => exec(`chmod -R 777 "${path.resolve(buildTempDir).replaceAll('"', '\\"')}"`, resolve))
 
       // Read build memory limit from settings
       const buildMemorySetting = await GlobalSetting.findOne({
