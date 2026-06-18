@@ -14,7 +14,7 @@ export function register(program: Command): void {
       try {
         const params: Record<string, any> = {}
         if (options.project) {
-          params.project_id = await resolveProjectId(options.project)
+          params.projectId = await resolveProjectId(options.project)
         }
 
         const data = await get('/api/functions', params)

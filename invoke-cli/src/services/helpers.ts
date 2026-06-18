@@ -56,7 +56,7 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
     const projectId = await resolveProjectBySlug(parsed.projectSlug)
     const response = await api.get('/api/functions', {
       name: parsed.functionName,
-      project_id: projectId
+      projectId
     })
     const functions = unwrapListResponse(response, 'functions')
 
@@ -77,7 +77,7 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
 
   const response = await api.get('/api/functions', {
     name: nameOrId,
-    project_id: projectId
+    projectId
   })
   const functions = unwrapListResponse(response, 'functions')
 
@@ -98,7 +98,7 @@ async function resolveFunctionId(nameOrId: string): Promise<string> {
 async function findFunctionByNameAndProject(name: string, projectId: string): Promise<any> {
   const response = await api.get('/api/functions', {
     name,
-    project_id: projectId
+    projectId
   })
   const functions = unwrapListResponse(response, 'functions')
 
