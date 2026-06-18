@@ -1,31 +1,10 @@
 import chalk from 'chalk'
 import fs from 'fs'
 import type { Command } from 'commander'
-import { get, post } from '../services/api-client'
+import { post } from '../services/api-client'
 import { prepareUpload } from '../services/file-utils'
 import { parseSluggedName, resolveProjectId, findFunctionByNameAndProject } from '../services/helpers'
 import { getBaseUrl } from '../services/config'
-
-async function waitForBuildToFinish(buildId: string, timeoutMs = 10 * 60 * 1000, intervalMs = 2000) {
-  const start = Date.now()
-
-  while (Date.now() - start < timeoutMs) {
-    const buildData = await get(`/api/builds/${buildId}`)
-    const status = buildData?.data?.status
-
-    if (status === 'success') {
-      return { success: true as const, status }
-    }
-
-    if (status === 'failed' || status === 'cancelled') {
-      return { success: false as const, status }
-    }
-
-    await new Promise(resolve => setTimeout(resolve, intervalMs))
-  }
-
-  return { success: false as const, status: 'timeout' }
-}
 
 export function register(program: Command): void {
   program
@@ -64,7 +43,8 @@ export function register(program: Command): void {
 
           try {
             const uploadData = await post(`/api/functions/${functionId}/versions`, undefined, [
-              { field: 'file', value: fs.createReadStream(filePath), filename: 'function.zip' }
+              { field: 'file', value: fs.createReadStream(filePath), filename: 'function.zip' },
+              { field: 'afterBuildAction', value: 'switch' }
             ])
 
             if (!uploadData.success) {
@@ -77,41 +57,8 @@ export function register(program: Command): void {
 
             if (options.output !== 'json') {
               console.log(chalk.green(`✅ Code uploaded as version ${versionNumber}`))
-              console.log(chalk.cyan(`⏳ Waiting for build ${buildId} to complete before activating...`))
+              console.log(chalk.yellow(`⚡ Build queued with post-build action: switch`))
             }
-
-            const buildResult = await waitForBuildToFinish(buildId)
-
-            if (!buildResult.success) {
-              if (options.output === 'json') {
-                console.log(
-                  JSON.stringify(
-                    {
-                      id: functionId,
-                      name: options.name,
-                      version: versionNumber,
-                      created: false,
-                      is_active: false,
-                      build_status: buildResult.status
-                    },
-                    null,
-                    2
-                  )
-                )
-              } else {
-                console.log(chalk.red(`❌ Build ${buildId} did not complete successfully (${buildResult.status}).`))
-                console.log(`\n📊 View build status: ${getBaseUrl()}/admin/builds/${buildId}`)
-              }
-              process.exit(1)
-            }
-
-            if (options.output !== 'json') {
-              console.log(chalk.cyan('Activating...'))
-            }
-
-            const switchData = await post(`/api/functions/${functionId}/switch-version`, {
-              version_number: versionNumber
-            })
 
             if (options.output === 'json') {
               console.log(
@@ -121,24 +68,20 @@ export function register(program: Command): void {
                     name: options.name,
                     version: versionNumber,
                     created: false,
-                    is_active: switchData.success
+                    is_active: false,
+                    build_id: buildId
                   },
                   null,
                   2
                 )
               )
             } else {
-              if (switchData.buildRequired) {
-                console.log(chalk.yellow(`⚡ ${switchData.message}`))
-              } else if (!switchData.success) {
-                console.log(chalk.yellow(`⚠️  Deployed but activation failed: ${switchData.message}`))
-              }
               console.log(chalk.green(`✅ Function deployed to version ${versionNumber}`))
               console.log(chalk.cyan('\n⚡ Deploy complete!\n'))
               console.log(`ID:      ${functionId}`)
               console.log(`Name:    ${options.name}`)
               console.log(`Version: ${versionNumber}`)
-              console.log(`Action:  Updated (new version deployed)`)
+              console.log(`Action:  Updated (switch build queued)`)
               console.log(`\n📊 View build status: ${getBaseUrl()}/admin/builds/${buildId}`)
             }
           } finally {

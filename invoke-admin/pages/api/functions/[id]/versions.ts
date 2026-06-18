@@ -201,6 +201,12 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           return res.status(400).json(createResponse(false, null, 'No file provided', 400))
         }
 
+        const rawAfterBuildAction = String((req as any).body?.afterBuildAction || 'none').toLowerCase()
+        if (!['none', 'switch'].includes(rawAfterBuildAction)) {
+          return res.status(400).json(createResponse(false, null, 'afterBuildAction must be one of: none, switch', 400))
+        }
+        const afterBuildAction = rawAfterBuildAction as 'none' | 'switch'
+
         // Check if function exists
         const { Function: FnModel, FunctionVersion: FnVersion } = database.models
         const fn = await FnModel.findByPk(functionId, { attributes: ['id', 'name', 'language', 'runtime'] })
@@ -285,7 +291,7 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           function_id: functionId,
           version_id: newVersion.id,
           status: 'queued',
-          after_build_action: 'none',
+          after_build_action: afterBuildAction,
           pipeline,
           created_by: userId
         })

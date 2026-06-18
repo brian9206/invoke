@@ -24,9 +24,15 @@ export function register(program: Command): void {
         const { filePath, cleanup } = await prepareUpload(functionPath)
 
         try {
-          const data = await post(`/api/functions/${id}/versions`, undefined, [
+          const formFields: Array<{ field: string; value: any; filename?: string }> = [
             { field: 'file', value: fs.createReadStream(filePath), filename: 'function.zip' }
-          ])
+          ]
+
+          if (options.switch) {
+            formFields.push({ field: 'afterBuildAction', value: 'switch' })
+          }
+
+          const data = await post(`/api/functions/${id}/versions`, undefined, formFields)
 
           if (!data.success) {
             console.log(chalk.red('❌ Upload failed: ' + data.message))
@@ -37,26 +43,8 @@ export function register(program: Command): void {
 
           if (options.output !== 'json') {
             console.log(chalk.green(`✅ Version ${version.version} uploaded successfully`))
-          }
-
-          // Auto-switch if flag is set
-          if (options.switch) {
-            if (options.output !== 'json') {
-              console.log(chalk.cyan('Switching to new version...'))
-            }
-
-            const switchData = await post(`/api/functions/${id}/switch-version`, {
-              version_number: version.version
-            })
-
-            if (switchData.success) {
-              if (options.output !== 'json') {
-                console.log(chalk.green(`✅ Switched to version ${version.version}`))
-              }
-            } else {
-              if (options.output !== 'json') {
-                console.log(chalk.yellow(`⚠️  Upload succeeded but switch failed: ${switchData.message}`))
-              }
+            if (options.switch) {
+              console.log(chalk.yellow('⚡ Build queued with post-build action: switch'))
             }
           }
 
