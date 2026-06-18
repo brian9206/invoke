@@ -132,6 +132,30 @@ const LEVEL_NAMES: Record<number, string> = {
 const PINO_INTERNAL = new Set(['level', 'v', 'msg'])
 
 /** @internal */
+// Helper function to recursively look for and serialize Errors
+function serializeErrors(obj: any): any {
+  if (obj instanceof Error) {
+    return pino.stdSerializers.err(obj)
+  }
+
+  if (obj && typeof obj === 'object') {
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map(serializeErrors)
+    }
+
+    // Handle standard objects
+    const newObj: Record<string, unknown> = {}
+    for (const key of Object.keys(obj)) {
+      newObj[key] = serializeErrors(obj[key])
+    }
+    return newObj
+  }
+
+  return obj
+}
+
+/** @internal */
 export function setupLoggerGlobal(ipc?: IIpcChannel): void {
   const dest = new Writable({
     write(chunk: Buffer | string, _encoding, callback) {
@@ -187,7 +211,19 @@ export function setupLoggerGlobal(ipc?: IIpcChannel): void {
     }
   })
 
-  const loggerInstance = pino({ level: 'trace', base: undefined, timestamp: false }, dest)
+  const loggerInstance = pino(
+    {
+      level: 'trace',
+      base: undefined,
+      timestamp: false,
+      formatters: {
+        log(obj) {
+          return serializeErrors(obj)
+        }
+      }
+    },
+    dest
+  )
 
   globalThis.logger = loggerInstance as unknown as InvokeLogger
 }
