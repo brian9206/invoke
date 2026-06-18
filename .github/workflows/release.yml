@@ -8,6 +8,7 @@ on:
 jobs:
   # 1. Call your existing build workflow to generate the binaries
   trigger-build:
+    name: Build CLI Binaries
     uses: ./.github/workflows/build-cli.yml # Points directly to your build file
 
   # 2. Once the build finishes, create the draft release and attach artifacts
