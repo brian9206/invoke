@@ -1,10 +1,31 @@
 import chalk from 'chalk'
 import fs from 'fs'
 import type { Command } from 'commander'
-import { post } from '../services/api-client'
+import { get, post } from '../services/api-client'
 import { prepareUpload } from '../services/file-utils'
 import { parseSluggedName, resolveProjectId, findFunctionByNameAndProject } from '../services/helpers'
 import { getBaseUrl } from '../services/config'
+
+async function waitForBuildToFinish(buildId: string, timeoutMs = 10 * 60 * 1000, intervalMs = 2000) {
+  const start = Date.now()
+
+  while (Date.now() - start < timeoutMs) {
+    const buildData = await get(`/api/builds/${buildId}`)
+    const status = buildData?.data?.status
+
+    if (status === 'success') {
+      return { success: true as const, status }
+    }
+
+    if (status === 'failed' || status === 'cancelled') {
+      return { success: false as const, status }
+    }
+
+    await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+
+  return { success: false as const, status: 'timeout' }
+}
 
 export function register(program: Command): void {
   program
@@ -56,6 +77,35 @@ export function register(program: Command): void {
 
             if (options.output !== 'json') {
               console.log(chalk.green(`✅ Code uploaded as version ${versionNumber}`))
+              console.log(chalk.cyan(`⏳ Waiting for build ${buildId} to complete before activating...`))
+            }
+
+            const buildResult = await waitForBuildToFinish(buildId)
+
+            if (!buildResult.success) {
+              if (options.output === 'json') {
+                console.log(
+                  JSON.stringify(
+                    {
+                      id: functionId,
+                      name: options.name,
+                      version: versionNumber,
+                      created: false,
+                      is_active: false,
+                      build_status: buildResult.status
+                    },
+                    null,
+                    2
+                  )
+                )
+              } else {
+                console.log(chalk.red(`❌ Build ${buildId} did not complete successfully (${buildResult.status}).`))
+                console.log(`\n📊 View build status: ${getBaseUrl()}/admin/builds/${buildId}`)
+              }
+              process.exit(1)
+            }
+
+            if (options.output !== 'json') {
               console.log(chalk.cyan('Activating...'))
             }
 
