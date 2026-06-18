@@ -42,9 +42,8 @@ export function register(program: Command): void {
           const { filePath, cleanup } = await prepareUpload(functionPath)
 
           try {
-            const uploadData = await post(`/api/functions/${functionId}/versions`, undefined, [
-              { field: 'file', value: fs.createReadStream(filePath), filename: 'function.zip' },
-              { field: 'afterBuildAction', value: 'switch' }
+            const uploadData = await post(`/api/functions/${functionId}/versions?afterBuildAction=switch`, undefined, [
+              { field: 'file', value: fs.createReadStream(filePath), filename: 'function.zip' }
             ])
 
             if (!uploadData.success) {

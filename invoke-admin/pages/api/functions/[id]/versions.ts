@@ -201,7 +201,11 @@ export default async function handler(req: AuthenticatedRequest, res: NextApiRes
           return res.status(400).json(createResponse(false, null, 'No file provided', 400))
         }
 
-        const rawAfterBuildAction = String((req as any).body?.afterBuildAction || 'none').toLowerCase()
+        const queryAfterBuildAction = Array.isArray(req.query.afterBuildAction)
+          ? req.query.afterBuildAction[0]
+          : req.query.afterBuildAction
+        const bodyAfterBuildAction = (req as any).body?.afterBuildAction
+        const rawAfterBuildAction = String(queryAfterBuildAction || bodyAfterBuildAction || 'none').toLowerCase()
         if (!['none', 'switch'].includes(rawAfterBuildAction)) {
           return res.status(400).json(createResponse(false, null, 'afterBuildAction must be one of: none, switch', 400))
         }
