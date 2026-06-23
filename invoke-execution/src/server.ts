@@ -14,7 +14,7 @@ import {
   updateDefaultTimeout,
   applyGlobalNetworkPolicy
 } from './services/execution-service'
-import { invalidateEnvVarCache } from './services/function-providers'
+import { invalidateEnvVarCache, invalidateProjectEnvVarCache } from './services/function-providers'
 import { reloadExecutionSettings, invalidateExecutionSettings } from './services/execution-settings'
 import { getBuildService } from './services/build-service'
 
@@ -25,10 +25,12 @@ import metricsRoutes from './routes/metrics'
 
 const executionPgNotify = createNotifyListener('execution_cache_invalidated', {
   parsePayload: (raw: any) => (typeof raw === 'string' ? JSON.parse(raw) : raw || {}),
-  getDebounceKey: (payload: any) =>
-    payload.table === 'function_environment_variables'
-      ? `function_environment_variables:${payload.function_id}`
-      : 'global_network_policies'
+  getDebounceKey: (payload: any) => {
+    if (payload.table === 'function_environment_variables')
+      return `function_environment_variables:${payload.function_id}`
+    if (payload.table === 'project_environment_variables') return `project_environment_variables:${payload.project_id}`
+    return 'global_network_policies'
+  }
 })
 
 const executionSettingsPgNotify = createNotifyListener('execution_settings_invalidated', {
@@ -161,6 +163,8 @@ class ExecutionServer {
           if (payload.function_id) invalidateFunctionInfoCache(payload.function_id)
         } else if (payload.table === 'function_environment_variables') {
           invalidateEnvVarCache(payload.function_id)
+        } else if (payload.table === 'project_environment_variables') {
+          invalidateProjectEnvVarCache(payload.project_id)
         } else if (payload.table === 'global_network_policies') {
           applyGlobalNetworkPolicy().catch(err =>
             console.error('[NetworkPolicy] Failed to re-apply after change:', err)

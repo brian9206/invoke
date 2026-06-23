@@ -7,6 +7,9 @@ import { createProjectKV } from './kv-store'
 const ENV_VAR_TTL_MS = 60_000
 const NETWORK_POLICY_TTL_MS = 60_000
 
+// Tracks which functions belong to each project so we can invalidate by project
+const projectFunctionIndex = new Map<string, Set<string>>()
+
 interface CacheEntry<T> {
   data: T
   expiresAt: number
@@ -52,22 +55,45 @@ export function invalidateEnvVarCache(functionId: string): void {
   envVarCache.delete(functionId)
 }
 
-export async function fetchEnvironmentVariables(functionId: string): Promise<EnvVars> {
+export function invalidateProjectEnvVarCache(projectId: string): void {
+  const fns = projectFunctionIndex.get(projectId)
+  if (fns) {
+    for (const functionId of fns) {
+      envVarCache.delete(functionId)
+    }
+    projectFunctionIndex.delete(projectId)
+  }
+}
+
+export async function fetchEnvironmentVariables(functionId: string, projectId: string): Promise<EnvVars> {
   const cached = envVarCache.get(functionId)
   if (cached && cached.expiresAt > Date.now()) {
     return cached.data
   }
 
   try {
-    const { FunctionEnvironmentVariable } = db.models
-    const rows = await FunctionEnvironmentVariable.findAll({
-      where: { function_id: functionId }
-    })
+    const { FunctionEnvironmentVariable, ProjectEnvironmentVariable } = db.models
+
+    const [projectRows, functionRows] = await Promise.all([
+      ProjectEnvironmentVariable.findAll({ where: { project_id: projectId } }),
+      FunctionEnvironmentVariable.findAll({ where: { function_id: functionId } })
+    ])
 
     const envVars: EnvVars = {}
-    for (const row of rows as any[]) {
+    // Project vars first (lower priority)
+    for (const row of projectRows as any[]) {
       envVars[row.variable_name] = row.variable_value
     }
+    // Function vars override project vars
+    for (const row of functionRows as any[]) {
+      envVars[row.variable_name] = row.variable_value
+    }
+
+    // Maintain project→function index for cache invalidation
+    if (!projectFunctionIndex.has(projectId)) {
+      projectFunctionIndex.set(projectId, new Set())
+    }
+    projectFunctionIndex.get(projectId)!.add(functionId)
 
     envVarCache.set(functionId, { data: envVars, expiresAt: Date.now() + ENV_VAR_TTL_MS })
     return envVars

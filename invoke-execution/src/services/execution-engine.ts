@@ -22,7 +22,7 @@ export interface AppLogEntry {
 
 interface ExecutionEngineOptions {
   kvStoreFactory?: (projectId: string) => any
-  envVarsProvider?: (functionId: string) => Promise<Record<string, string>>
+  envVarsProvider?: (functionId: string, projectId: string) => Promise<Record<string, string>>
   appLogHandler?: (entry: AppLogEntry) => void
 }
 
@@ -67,7 +67,7 @@ export class ExecutionEngine {
   private functionTimeout = 30_000
 
   private kvStoreFactory: ((projectId: string) => any) | null
-  private envVarsProvider: ((functionId: string) => Promise<any>) | null
+  private envVarsProvider: ((functionId: string, projectId: string) => Promise<any>) | null
   private appLogHandler: ((entry: AppLogEntry) => void) | null
 
   constructor(options: ExecutionEngineOptions = {}) {
@@ -139,7 +139,7 @@ export class ExecutionEngine {
           ? metadata.custom_memory_mb
           : settings.defaultMemoryMb
 
-      const envVars = await this.envVarsProvider!(functionId)
+      const envVars = await this.envVarsProvider!(functionId, resolvedProjectId)
       const kvStore = this.kvStoreFactory!(resolvedProjectId)
 
       // Build the RequestData for the protocol
