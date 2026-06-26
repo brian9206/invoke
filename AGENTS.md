@@ -1,4 +1,4 @@
-# Copilot Instructions — Invoke Platform
+# Invoke Platform
 
 ## Project Structure
 
