@@ -3,266 +3,117 @@
 ## Project Structure
 
 This is an npm workspaces monorepo. All services resolve `invoke-shared` from the `shared/` package.
-Please ignore any code inside `.next/`, `dist/`, `.cache/` directories when scanning across the project — that is just build output or cached stuff.
 
-## UI Component Rules
+When scanning the codebase, ignore code inside `.next/`, `dist/`, and `.cache/` — those are build output and cache directories.
+
+---
+
+## UI Components
 
 ### Modal/Dialog Usage
 
-Use the shared `invoke-admin/components/Modal.tsx` component for all modal and dialog UI in `invoke-admin` pages and feature components.
+Use the shared `invoke-admin/components/Modal.tsx` for all modal and dialog UI in `invoke-admin` pages and feature components.
 
-Rules:
+**Do:**
 
-1. Do **not** import or use `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, or `DialogDescription` directly in page-level or feature-level code.
-2. If a modal needs a different width, rich title content, or custom body actions, extend `Modal.tsx` instead of bypassing it.
-3. Only low-level shared dialog infrastructure should use `invoke-admin/components/ui/dialog.tsx` directly.
-4. If you find an older direct `Dialog` usage while editing a file, migrate it to `Modal` unless the user explicitly asks not to.
+- Use `Modal` from `invoke-admin/components/Modal.tsx` for all page-level and feature-level dialogs.
 
----
+**Don't:**
 
-## Database System
+- Don't import or use `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle`, or `DialogDescription` directly in page-level or feature-level code.
+- Don't use `invoke-admin/components/ui/dialog.tsx` directly outside of low-level shared dialog infrastructure.
 
-### Overview
+**When a modal needs different behavior** (different width, rich title content, custom body actions), extend `Modal.tsx` rather than bypassing it.
 
-All database access goes through **Sequelize v6 ORM**. There is **no raw `pg.Pool`** anywhere.
-Do **not** use `database.query()`, `database.pool`, `new Pool()`, or `new Client()`.
-**\*CRITICAL**: Do **not** use raw SQL in application code — use Sequelize models and query methods.
-
-### Shared Factories (in `invoke-shared`)
-
-| Export                                | File                         | Purpose                                                         |
-| ------------------------------------- | ---------------------------- | --------------------------------------------------------------- |
-| `createDatabase(opts)`                | `shared/database.js`         | Low-level Sequelize instance factory (reads env vars)           |
-| `createServiceDatabase(opts)`         | `shared/service-database.js` | Creates `{ sequelize, models, getConnectionConfig(), close() }` |
-| `initModels(sequelize)`               | `shared/models/index.js`     | Registers all 15 models + associations on a Sequelize instance  |
-| `createNotifyListener(channel, opts)` | `shared/pg-notify.js`        | PostgreSQL LISTEN/NOTIFY subscriber via `pg-listen`             |
-
-### Per-Service `database.js`
-
-Every service has a one-liner `database.js` that calls the shared factory:
-
-```js
-const { createServiceDatabase } = require('invoke-shared')
-module.exports = createServiceDatabase({ poolMax: 20 })
-```
-
-The returned object exposes:
-
-- `database.sequelize` — the Sequelize instance
-- `database.models` — all models (`Function`, `ExecutionLog`, `User`, `Project`, etc.)
-- `database.getConnectionConfig()` — returns `{ user, host, database, password, port }` from env vars
-- `database.close()` — shuts down the Sequelize connection pool
-
-Pool sizes: `poolMax: 20`.
-
-### Environment Variables (database)
-
-| Variable        | Default     | Notes                            |
-| --------------- | ----------- | -------------------------------- |
-| `DB_HOST`       | `localhost` |                                  |
-| `DB_PORT`       | `5432`      |                                  |
-| `DB_NAME`       | `invoke_db` |                                  |
-| `DB_USER`       | `postgres`  |                                  |
-| `DB_PASSWORD`   | `postgres`  |                                  |
-| `SEQUELIZE_LOG` | `false`     | Set `true` to log SQL to console |
-
-### Rules for Database Access
-
-1. **Always use Sequelize models** — `database.models.Function.findAll(...)`, not raw SQL.
-2. **Never use `sequelize.query()` or `QueryTypes`** — use model methods (`findAll`, `findOne`, `create`, `update`, `destroy`, `count`, `sum`, etc.) and Sequelize operators (`Op`, `fn`, `col`, `literal`).
-3. **Exception: migrations** — migrations use `queryInterface` which is raw DDL by nature. That is the ONLY place raw SQL is acceptable.
-4. **Exception: migration-manager.js** — the migration infrastructure itself uses `sequelize.query()` for meta-table operations. Do not refactor this.
-5. **If you need a raw connection string** (e.g. for Keyv/KeyvPostgres), use `database.getConnectionConfig()` — never reach into Sequelize internals.
+If you find an existing direct `Dialog` usage while editing a file, migrate it to `Modal` unless the user explicitly says otherwise.
 
 ---
 
-## Models
+## Database Access
 
-All 15 models live in `shared/models/`. Each file exports a function `(sequelize) => Model`.
+All database access goes through **Sequelize v6 ORM**.
 
-Associations are defined via `Model.associate(models)` in each model file and wired up by `initModels()`.
+**Do:**
 
-### ⚠️ Function Model Naming
+- Use Sequelize model methods (`findAll`, `findOne`, `create`, `update`, `destroy`, `count`, `sum`, etc.) and operators (`Op`, `fn`, `col`, `literal`).
+- For raw connection strings (e.g. Keyv), use `database.getConnectionConfig()`.
 
-The Function model is registered as `Function` in `database.models` (not `FunctionModel`). Because `Function` is a reserved word in JavaScript, always destructure it with an alias:
+**Don't:**
+
+- Don't use raw `pg.Pool`, `new Pool()`, or `new Client()`.
+- Don't use `database.query()`, `database.pool`, `sequelize.query()`, or `QueryTypes` in application code.
+- Don't write raw SQL in application code.
+- Don't reach into Sequelize internals.
+
+**Migrations** are the only acceptable place for raw SQL — and only DDL that `queryInterface` can't express (triggers, PL/pgSQL functions). `migration-manager.js` itself also uses raw queries for meta-table operations; do not refactor it.
+
+---
+
+## Sequelize Models
+
+All 15 models live in `shared/models/`, registered via `initModels()`. Associations are defined in each model file's `Model.associate(models)`.
+
+### Function Model Naming
+
+`Function` is a reserved word in JavaScript. The model is registered as `Function` in `database.models` (not `FunctionModel`). Always destructure with an alias:
 
 ```js
-// ✅ Correct
 const { Function: FunctionModel } = database.models
-
-// ❌ Wrong — FunctionModel will be undefined
-const { FunctionModel } = database.models
 ```
 
 ---
 
-## Migration System
+## Migrations
 
-### Current System: Umzug + Sequelize
-
-Migrations live in `shared/migrations/` as JavaScript files using the Umzug `up`/`down` pattern with `queryInterface`.
-
-The migration runner is `invoke-admin/lib/migration-manager.js`, which wraps [Umzug](https://github.com/sequelize/umzug) with `SequelizeStorage`. Migrations are tracked in the `SequelizeMeta` table.
-
-Migrations run **automatically** when `invoke-admin` starts, via `invoke-admin/lib/db-init.js`.
-
-### Creating a New Migration
-
-#### Step 1: Determine the next version number
-
-```bash
-ls shared/migrations/
-# Currently: 001 through 009. Next is 010.
-```
-
-#### Step 2: Create the migration file
-
-```bash
-touch shared/migrations/010_your_description.js
-```
-
-#### Step 3: Write the migration
-
-```js
-'use strict'
-
-module.exports = {
-  async up({ context: { queryInterface } }) {
-    // Use queryInterface methods:
-    //   createTable, addColumn, removeColumn, addIndex, addConstraint, etc.
-    // For triggers/functions, use queryInterface.sequelize.query() (DDL only).
-  },
-
-  async down({ context: { queryInterface } }) {
-    // Reverse the up() changes.
-  }
-}
-```
-
-> **Important:** This project uses **Umzug v3**. Migration functions receive a single `{ context }` argument — NOT `(queryInterface, Sequelize)`. Always destructure as `{ context: { queryInterface } }`. Using the old v2 signature will silently fail with `Cannot read properties of undefined (reading 'query')`.
-
-#### Step 4: Update the model (if schema changed)
-
-If you added/removed a column or table, update the corresponding model in `shared/models/`.
-
-#### Step 5: Test
-
-```bash
-# Run migrations directly (recommended — avoids Next.js hot-reload race conditions)
-cd invoke-admin && node scripts/migrate.js
-
-# Or restart invoke-admin to apply on startup
-cd invoke-admin && npm run dev
-```
+Migrations live in `shared/migrations/` using the Umzug `up`/`down` pattern with `queryInterface`. They run automatically when `invoke-admin` starts, or directly via `invoke-admin/scripts/migrate.js`.
 
 ### Migration Rules
 
-1. **NEVER modify an existing migration file** — create a new one unless user told to modify the existing one. If you are in Plan mode, please ask the user if they want to modify an existing migration or create a new one. (If you need to modify existing migrations, please run `npm run db:migrate --down` to roll back, then `npm run db:migrate --up` after changes.)
-2. **NEVER delete a migration file** — they are historical records.
-3. **Use sequential numbering** — `008`, `009`, `010`, etc.
-4. **Always include a `down()` method** — for rollback capability.
-5. **Use `queryInterface` methods** — not raw SQL, unless it's DDL that `queryInterface` can't express (triggers, PL/pgSQL functions).
-6. **If you add a table**, create a corresponding model in `shared/models/` and register it in `shared/models/index.js`.
-7. **If you add a column**, update the corresponding model definition.
+**Do:**
 
-### Migration File Naming
+- Use sequential numbering (`NNN_description.js`).
+- Always include a `down()` method for rollback capability.
+- Use `queryInterface` methods (`createTable`, `addColumn`, `removeColumn`, `addIndex`, `addConstraint`).
+- Update the corresponding model in `shared/models/` if you added/removed a column or table.
+- Register any new models in `shared/models/index.js`.
 
-```
-{NNN}_{snake_case_description}.js
-```
+**Don't:**
 
-Examples:
+- Don't modify an existing migration file — create a new one instead. (In Plan mode, ask the user first.)
+- Don't delete a migration file — they are historical records.
+- Don't use the Umzug v2 signature `(queryInterface, Sequelize)` — this project uses **v3** and the destructure is `{ context: { queryInterface } }`. The old signature silently fails.
 
-- `001_initial_schema.js`
-- `008_add_audit_logs.js`
-- `009_add_user_email_verified.js`
+### Schema Change Workflow
 
----
-
-## PostgreSQL LISTEN/NOTIFY (Cache Invalidation)
-
-The platform uses PostgreSQL's LISTEN/NOTIFY to invalidate in-memory caches instantly when data changes, via database triggers.
-
-### Shared Factory
-
-`createNotifyListener(channel, options)` in `shared/pg-notify.js` creates a listener using the `pg-listen` package. It handles:
-
-- Automatic reconnection
-- Per-key debouncing (collapses burst writes into a single callback)
-- Configurable payload parsing
-
-### Usage Pattern
-
-```js
-// In the service's server.js:
-const { createNotifyListener } = require('invoke-shared')
-
-const listener = createNotifyListener('my_channel', {
-  parsePayload: raw => JSON.parse(raw), // optional
-  getDebounceKey: payload => payload.some_id, // optional, for per-key debouncing
-  debounceMs: 100 // default
-})
-
-await listener.connect(async payload => {
-  // Handle cache invalidation
-})
-
-// On shutdown:
-await listener.stop()
-```
-
-### Triggers
-
-The PL/pgSQL trigger functions that emit NOTIFY are created in migrations:
-
-- `shared/migrations/003_add_api_gateway.js` — `notify_gateway_change()`
-- `shared/migrations/006_add_execution_notify_triggers.js` — `notify_execution_cache_change()`
-
-If you add a new table that should trigger cache invalidation, create a new migration that adds the appropriate trigger.
+1. Create a new migration in `shared/migrations/NNN_description.js`.
+2. Update the model in `shared/models/`.
+3. Register any new models in `shared/models/index.js`.
+4. Test by running `cd invoke-admin && node scripts/migrate.js` (recommended — avoids Next.js hot-reload race conditions).
 
 ---
 
-## Quick Reference: How to Do Common Tasks
+## PostgreSQL LISTEN/NOTIFY
 
-### Add a new API endpoint (invoke-admin)
+The platform uses LISTEN/NOTIFY for cache invalidation. If you add a new table that should invalidate caches, add the appropriate trigger in a new migration.
 
-1. Create or edit a file in `invoke-admin/pages/api/`.
-2. Use `database.models.YourModel.findAll(...)` etc. for data access.
-3. Never use `database.query()` or raw SQL.
+## Code Quality
 
-### Add a new database table
+**Do:**
 
-1. Create a migration in `shared/migrations/NNN_description.js` using `queryInterface.createTable()`.
-2. Create a model in `shared/models/YourModel.js`.
-3. Register the model in `shared/models/index.js` (import, instantiate, add to `models` object).
+- Commit after every logical change, even small ones.
+- Read files before modifying them — understand existing code before suggesting changes.
 
-### Add a column to an existing table
+**Don't:**
 
-1. Create a migration using `queryInterface.addColumn()`.
-2. Update the model definition in `shared/models/`.
+- Don't push commits.
+- Don't start or stop running services — just tell the user what commands to run.
+- Don't over-engineer. Only make changes that are directly requested or clearly necessary.
+- Don't create unnecessary files, comments, type annotations, or abstractions.
+- Don't use destructive actions as shortcuts or bypass safety checks.
 
-### Query data with aggregations
+---
 
-```js
-const { fn, col, literal, Op } = require('sequelize')
+## Non-Negotiable Rules
 
-const result = await database.models.Function.findOne({
-  attributes: [
-    [fn('COUNT', col('id')), 'total'],
-    [literal(`COUNT(*) FILTER (WHERE is_active = true)`), 'active']
-  ],
-  where: { project_id: someId },
-  raw: true
-})
-```
-
-### Build a connection string (e.g., for Keyv)
-
-```js
-const config = database.getConnectionConfig()
-const uri = `postgresql://${config.user}:${config.password}@${config.host}:${config.port}/${config.database}`
-```
-
-## Verify changes
-
-Please do **not** try to start or stop any running services. Just tell the user what commands to run to verify changes.
+1. **Commit after every logical change** — even small ones.
+2. **Never push commits.**
